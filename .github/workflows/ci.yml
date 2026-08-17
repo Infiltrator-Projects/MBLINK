@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: C Core CI
+name: MBLINK CI
 
 on:
   push:
@@ -32,3 +32,40 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
+
+  apple-ios:
+    name: iOS / Xcode
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify Xcode version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          count="$(grep -c "MARKETING_VERSION = ${version};" app/ios/MBLINK.xcodeproj/project.pbxproj)"
+          test "${count}" -eq 4
+
+      - name: Verify Apple ELM parser boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'mblink_elm327_parser_feed' platform/apple/MBLinkBLETransport.m
+          grep -q 'mblink_elm327_parser_finish' platform/apple/MBLinkBLETransport.m
+          ! grep -q 'componentsSeparatedByCharactersInSet' platform/apple/MBLinkBLETransport.m
+
+      - name: Build iPhone app for simulator
+        run: >
+          xcodebuild
+          -project app/ios/MBLINK.xcodeproj
+          -scheme MBLINK
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build

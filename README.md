@@ -81,7 +81,7 @@ See [ELM327 Engine](docs/ELM327.md).
 
 ## Implemented in 0.3
 
-MBLINK includes a standard OBD-II diagnostic layer in portable C. The current 0.3.x implementation provides:
+MBLINK includes a standard OBD-II diagnostic layer in portable C. The 0.3.x implementation provides:
 
 - supported-PID discovery across standard 32-PID blocks;
 - typed live calculated load, coolant temperature, MAP, RPM, road speed, intake-air temperature, MAF and throttle position;
@@ -94,15 +94,36 @@ MBLINK includes a standard OBD-II diagnostic layer in portable C. The current 0.
 - strict hexadecimal validation and ELM-error propagation;
 - deterministic tests that require no vehicle, BLE adapter or Apple framework.
 
-Version **0.3.1** hardens the standard layer for long CAN replies displayed by ELM-compatible adapters as indexed `0:`, `1:`, `2:` chunks. This reassembly stays at the ELM presentation boundary; the future raw ISO-TP engine remains a separate reusable layer.
+Version **0.3.1** hardened the standard layer for long CAN replies displayed by ELM-compatible adapters as indexed `0:`, `1:`, `2:` chunks. This reassembly stays at the ELM presentation boundary; the future raw ISO-TP engine remains a separate reusable layer.
 
 See [Standard OBD-II Engine](docs/OBD2.md).
 
+## Implemented in 0.4
+
+Version **0.4.0** adds the native Apple transport and iPhone application edge while preserving the C-first architecture:
+
+- Objective-C CoreBluetooth provider implementing `MblinkTransport`;
+- BLE scanning, connection, service and characteristic discovery;
+- deterministic writable/notify channel probing through the existing C ELM327 parser;
+- bounded scan, connection, discovery and probe deadlines;
+- controlled reconnect/rescan behaviour after transient failures;
+- bounded BLE write queues with CoreBluetooth backpressure handling;
+- Objective-C diagnostics orchestration over the existing C ELM327 and OBD-II engines;
+- SwiftUI connection status plus live RPM and coolant presentation;
+- Swift/MainActor interoperability without moving diagnostic logic into Swift;
+- CI validation on Ubuntu C11, macOS C11 and an iOS Simulator Xcode build.
+
+**Hardware validation is still pending.** The Vgate iCar Pro BLE 4.0 has not yet been physically tested with this build, so 0.4.0 does not claim verified Vgate GATT UUIDs, vehicle connectivity or stable live data from the development Mercedes. Those observations will be recorded when hardware is available.
+
+See [Apple BLE and iPhone Layer](docs/APPLE.md).
+
 ## Next target
 
-Development now moves to **0.4 — Apple BLE provider and iPhone shell**.
+Development now moves to **0.5 — scheduler, dashboard and logging**.
 
-The first hardware stage will implement the C transport boundary with CoreBluetooth, discover the Vgate adapter at runtime, subscribe to notifications, respect negotiated write sizes, and display values produced by the existing C diagnostic engine. BLE/product quirks must remain outside `libmblink`.
+The next software stage will add a portable C request scheduler, typed sample flow, configurable dashboard, time-series display and session/CSV logging without moving those responsibilities into the BLE provider or SwiftUI.
+
+Hardware validation of the 0.4 Apple/Vgate path remains an active validation task in parallel and may produce narrow adapter-specific fixes if the real device exposes quirks not visible in simulator CI.
 
 The long-term Mercedes direction includes DPF, exhaust temperature, regeneration, turbo/boost, fuel-rail, injector and EGR information where those values can be identified and validated against the real vehicle.
 
@@ -123,7 +144,7 @@ tests/                 Portable C regression tests
 docs/                  Architecture and engineering documentation
 ```
 
-Platform and application directories are introduced as their implementations land. Vehicle/protocol logic should not migrate into them for convenience.
+Vehicle/protocol logic should not migrate into platform/application directories for convenience.
 
 ## Build the portable core
 
@@ -163,9 +184,9 @@ Every manufacturer-specific value must have an explicit validation status. Captu
 
 ## Current status
 
-**Pre-alpha / version 0.3.1.**
+**Pre-alpha / version 0.4.0.**
 
-The C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The project can construct and decode standard diagnostic conversations, including indexed long ELM responses, without an iPhone, vehicle or BLE adapter. Development now targets the Apple BLE provider and native iPhone shell.
+The portable C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The Apple CoreBluetooth/Objective-C/SwiftUI integration also builds successfully as an iOS Simulator target under Xcode CI. Physical BLE-adapter and vehicle validation is pending and is not represented as complete.
 
 ## Documentation
 
@@ -173,6 +194,7 @@ The C foundation, ELM327 engine and standard OBD-II engine are implemented and t
 - [Roadmap](docs/ROADMAP.md)
 - [ELM327 engine](docs/ELM327.md)
 - [Standard OBD-II engine](docs/OBD2.md)
+- [Apple BLE and iPhone layer](docs/APPLE.md)
 - [Adapter strategy](docs/ADAPTERS.md)
 - [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
 - [Contributing](CONTRIBUTING.md)

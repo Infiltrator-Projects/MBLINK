@@ -95,6 +95,31 @@ static void test_status_classification(void)
           "empty prompt response is malformed");
 }
 
+static void test_probe_style_identity_responses(void)
+{
+    MblinkElm327Response response;
+
+    response = parse_complete("ATI", "ATI\rELM327 v1.5\r>");
+    check(response.result == MBLINK_ELM327_RESULT_OK,
+          "CR-only ATI identity is accepted by C parser");
+    check(response.echo_removed, "CR-only ATI echo is removed");
+    check(response.line_count == 1U, "ATI leaves exactly one identity line");
+    check(strcmp(response.text, "ELM327 v1.5") == 0,
+          "ATI identity text is preserved");
+
+    response = parse_complete("ATI", "ATI\r?\r>");
+    check(response.result == MBLINK_ELM327_RESULT_UNSUPPORTED_COMMAND,
+          "CR-only ATI question mark is rejected");
+    check(response.length == 0U,
+          "unsupported ATI reply cannot masquerade as identity text");
+
+    response = parse_complete("ATI", "ATI\rERROR\r>");
+    check(response.result == MBLINK_ELM327_RESULT_ADAPTER_ERROR,
+          "CR-only ATI ERROR is rejected");
+    check(response.length == 0U,
+          "adapter error cannot masquerade as identity text");
+}
+
 static void test_initialisation(void)
 {
     MblinkElm327InitState state;
@@ -142,6 +167,7 @@ int main(void)
     test_command_framing();
     test_fragmented_response();
     test_status_classification();
+    test_probe_style_identity_responses();
     test_initialisation();
     test_initialisation_failure();
 

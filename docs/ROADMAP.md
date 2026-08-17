@@ -4,7 +4,7 @@
 
 MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, testable and architecturally reusable.
 
-**Current development target: 0.4 — Apple BLE provider and iPhone shell.**
+**Current development target: 0.5 — scheduler, dashboard and logging.**
 
 ## 0.1 — C foundation and dependency discipline
 
@@ -69,21 +69,35 @@ The implementation is documented in [Standard OBD-II Engine](OBD2.md).
 
 ## 0.4 — Apple BLE provider and iPhone shell
 
+**Status: complete for software integration; physical adapter/vehicle validation pending.**
+
 Primary hardware target: **Vgate iCar Pro BLE 4.0**.
+
+Implemented in 0.4.0:
 
 - Objective-C CoreBluetooth provider implementing the C transport boundary.
 - Peripheral scan/connect/disconnect.
 - Runtime service/characteristic discovery.
-- Notification subscription and write-size handling.
-- Adapter-profile/quirk boundary.
-- Thin application bridge to Swift.
-- Native SwiftUI connection and live-data screens.
+- Notification subscription and negotiated write-size handling.
+- Deterministic writable/notify candidate ranking.
+- Candidate validation using the portable C ELM327 parser rather than a second Objective-C parser.
+- Explicit scan, connection, discovery and probe deadlines.
+- Controlled reconnect/rescan behaviour after transient failures and unexpected disconnects.
+- Bounded application write queue and CoreBluetooth backpressure handling.
+- Thin Objective-C diagnostics bridge over the C ELM327 and OBD-II engines.
+- Native SwiftUI connection/live-data shell.
+- Main-actor interoperability for the Apple application boundary.
+- CI coverage for Ubuntu C11, macOS C11 and an iOS Simulator Xcode build.
 
 No diagnostic parser or PID formula is duplicated in Swift/Objective-C.
 
-**Exit condition:** an iPhone can connect to the target Vgate adapter in the development Mercedes and display stable values produced by the C core.
+**Software exit condition:** the complete Apple/iPhone integration compiles under Xcode CI while the portable C suite remains green on Ubuntu and macOS. This condition is satisfied by 0.4.0.
+
+**Hardware validation still required:** the physical Vgate/iPhone/Mercedes combination must still be exercised before MBLINK claims verified adapter GATT identifiers, verified vehicle connectivity or stable real-car live data. Hardware findings may produce narrow 0.4.x fixes without changing the architecture.
 
 ## 0.5 — Scheduler, dashboard and logging
+
+**Status: current target.**
 
 - C request scheduler with parameter groups and rates.
 - Priority for rapidly changing values.
@@ -161,7 +175,7 @@ Initial scope is module identification, DTCs and selected live data before write
 - Capability probing rather than name assumptions.
 - Optional future Wi-Fi/native transports.
 
-The Vgate iCar Pro BLE 4.0 is the validation target, not a permanent dependency of `libmblink`.
+The Vgate iCar Pro BLE 4.0 is the first physical validation target, not a permanent dependency of `libmblink`.
 
 ## 1.0 — Release hardening
 
