@@ -81,7 +81,7 @@ See [ELM327 Engine](docs/ELM327.md).
 
 ## Implemented in 0.3
 
-MBLINK now includes a standard OBD-II diagnostic layer in portable C. Version 0.3 provides:
+MBLINK includes a standard OBD-II diagnostic layer in portable C. The current 0.3.x implementation provides:
 
 - supported-PID discovery across standard 32-PID blocks;
 - typed live calculated load, coolant temperature, MAP, RPM, road speed, intake-air temperature, MAF and throttle position;
@@ -89,9 +89,12 @@ MBLINK now includes a standard OBD-II diagnostic layer in portable C. Version 0.
 - Mode 01 PID 01 MIL/DTC/readiness state;
 - Mode 09 PID 02 VIN extraction;
 - stored, pending and permanent DTC decoding;
+- ELM-compatible indexed long-response reassembly for VIN and longer DTC replies;
 - explicit Mode 04 clear-code gating with readiness-reset acknowledgement;
 - strict hexadecimal validation and ELM-error propagation;
 - deterministic tests that require no vehicle, BLE adapter or Apple framework.
+
+Version **0.3.1** hardens the standard layer for long CAN replies displayed by ELM-compatible adapters as indexed `0:`, `1:`, `2:` chunks. This reassembly stays at the ELM presentation boundary; the future raw ISO-TP engine remains a separate reusable layer.
 
 See [Standard OBD-II Engine](docs/OBD2.md).
 
@@ -160,9 +163,9 @@ Every manufacturer-specific value must have an explicit validation status. Captu
 
 ## Current status
 
-**Pre-alpha / version 0.3.0.**
+**Pre-alpha / version 0.3.1.**
 
-The C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The project can construct and decode standard diagnostic conversations without an iPhone, vehicle or BLE adapter. Development now targets the Apple BLE provider and native iPhone shell.
+The C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The project can construct and decode standard diagnostic conversations, including indexed long ELM responses, without an iPhone, vehicle or BLE adapter. Development now targets the Apple BLE provider and native iPhone shell.
 
 ## Documentation
 

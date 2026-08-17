@@ -2,7 +2,7 @@
 
 # Standard OBD-II Engine
 
-MBLINK 0.3 adds a portable C11 standard OBD-II layer above the ELM327 engine. The layer is independent of CoreBluetooth, Swift, the Vgate product profile and Mercedes-specific definitions.
+MBLINK 0.3 provides a portable C11 standard OBD-II layer above the ELM327 engine. The layer is independent of CoreBluetooth, Swift, the Vgate product profile and Mercedes-specific definitions.
 
 The OBD-II engine consumes `MblinkElm327Response` values and returns typed C results. Transport concerns remain in the ELM327/session layer.
 
@@ -18,22 +18,12 @@ The 0.3 layer owns:
 - Mode 01 PID 01 readiness decoding;
 - Mode 09 PID 02 VIN extraction;
 - stored, pending and permanent DTC decoding;
+- ELM indexed long-response reassembly for standard OBD replies;
 - explicit gating of Mode 04 DTC clearing.
 
-It does not own:
-
-- BLE discovery or GATT details;
-- adapter-specific UUIDs or quirks;
-- ISO-TP or UDS;
-- Mercedes-Benz enhanced data identifiers;
-- dashboard scheduling;
-- UI presentation.
-
-Those remain separate roadmap layers.
+It does not own BLE discovery/GATT details, adapter-specific UUIDs, raw ISO-TP PCI segmentation, UDS, Mercedes-Benz enhanced identifiers, dashboard scheduling or UI presentation.
 
 ## Supported live-data PIDs
-
-The initial typed decoder supports:
 
 | PID | Parameter | Unit | Formula |
 | --- | --- | --- | --- |
@@ -46,100 +36,54 @@ The initial typed decoder supports:
 | `10` | Mass air flow rate | `g/s` | `(256A + B) / 100` |
 | `11` | Throttle position | `%` | `A × 100 / 255` |
 
-The same formula table is used for Mode 02 freeze-frame samples, avoiding duplicate decoding logic.
-
-Unknown PIDs are reported as `MBLINK_OBD2_RESULT_UNSUPPORTED_PID`; the library does not invent a formula.
+The same formula table is used for Mode 02 freeze-frame samples. Unknown PIDs return `MBLINK_OBD2_RESULT_UNSUPPORTED_PID`; MBLINK does not invent a formula.
 
 ## Supported-PID discovery
 
-`mblink_obd2_build_supported_pid_request()` accepts the standard 32-PID block bases:
+`mblink_obd2_build_supported_pid_request()` accepts the standard 32-PID block bases `00`, `20`, `40`, `60`, `80`, `A0`, `C0` and `E0`.
 
-`00`, `20`, `40`, `60`, `80`, `A0`, `C0`, `E0`.
-
-`mblink_obd2_accept_supported_pids()` merges matching ECU responses into a 256-bit `MblinkObd2PidSet`. The continuation PID at the end of each block determines whether the caller should request the next block.
-
-Multiple ECU response lines are therefore treated as a union instead of silently discarding all but one ECU during capability discovery.
+`mblink_obd2_accept_supported_pids()` merges matching ECU responses into a 256-bit `MblinkObd2PidSet`. The continuation PID at the end of each block determines whether the caller should request the next block. Multiple ECU response lines are treated as a union rather than silently discarding all but one ECU.
 
 ## Readiness
 
-Mode 01 PID 01 is decoded into `MblinkObd2Readiness`.
+Mode 01 PID 01 is decoded into `MblinkObd2Readiness`, exposing MIL state, confirmed-DTC count, spark/compression ignition selection, continuous monitor support/incomplete masks, non-continuous support/incomplete masks, and the original four data bytes.
 
-The structure exposes:
+The meaning of non-continuous monitor bits depends on spark versus compression ignition, so the raw masks are retained rather than flattened into an incorrect universal monitor list.
 
-- MIL state;
-- confirmed DTC count;
-- spark/compression ignition selection;
-- continuous monitor support mask;
-- continuous monitor incomplete mask;
-- non-continuous monitor support mask;
-- non-continuous monitor incomplete mask;
-- the original four bytes.
+## VIN and long ELM responses
 
-The meaning of non-continuous monitor bits depends on spark versus compression ignition, so the raw masks are retained rather than being flattened into an incorrect universal monitor list.
+`mblink_obd2_decode_vin()` accepts Mode 09 PID 02 data and assembles exactly 17 printable VIN characters.
 
-## VIN
+In addition to a single normalized hex line, 0.3.1 handles the indexed long-message display used by ELM-compatible CAN adapters, for example an optional hexadecimal length line followed by `0:`, `1:`, `2:` and later chunks. The C layer validates contiguous indices and reassembles the displayed payload before decoding the VIN.
 
-`mblink_obd2_decode_vin()` accepts Mode 09 PID 02 records and assembles exactly 17 printable VIN characters. Sequence/index bytes are excluded from the returned VIN.
+This is deliberately an ELM presentation-layer reassembly only. MBLINK does not treat it as the project’s generic raw ISO-TP engine; raw ISO-TP segmentation/reassembly remains a later reusable protocol layer.
 
-Incomplete, malformed or non-printable responses are rejected.
+Incomplete sequences, missing indices, malformed hexadecimal data, non-printable VIN bytes and incomplete VINs are rejected.
 
 ## Diagnostic trouble codes
 
-The DTC decoder supports:
+The DTC decoder supports Mode `03` / response `43` stored DTCs, Mode `07` / response `47` pending DTCs, and Mode `0A` / response `4A` permanent DTCs.
 
-- Mode `03` / response `43`: stored DTCs;
-- Mode `07` / response `47`: pending DTCs;
-- Mode `0A` / response `4A`: permanent DTCs.
+Each two-byte code is converted to the conventional five-character form such as `P0133` or `U0123`. Zero padding entries are ignored and duplicate codes are de-duplicated. Indexed ELM long-response blocks are reassembled before DTC-pair decoding, so a longer fault list is not limited to a single displayed CAN chunk.
 
-Each two-byte code is converted to the conventional five-character form such as `P0133` or `U0123`. Zero padding entries are ignored and duplicate codes from multiple response lines are de-duplicated.
-
-The list is bounded by `MBLINK_OBD2_MAX_DTCS`; overflow is reported instead of truncating silently.
+The list is bounded by `MBLINK_OBD2_MAX_DTCS`; overflow is reported instead of silently truncating.
 
 ## DTC clearing safety gate
 
 Mode 04 can clear emissions-related diagnostic information and reset readiness state. MBLINK therefore does not expose it as an unguarded literal command.
 
-`mblink_obd2_build_clear_dtc_request()` requires a `MblinkObd2ClearAuthorization` with both:
-
-- `confirmed = true`;
-- `acknowledge_readiness_reset = true`.
-
-Without both acknowledgements, no `04` command is produced.
-
-This is a construction-time safety boundary. Higher application layers should still require an explicit user action immediately before executing the command.
+`mblink_obd2_build_clear_dtc_request()` requires a `MblinkObd2ClearAuthorization` with both `confirmed = true` and `acknowledge_readiness_reset = true`. Without both acknowledgements, no `04` command is produced. Higher application layers should still require an explicit user action immediately before execution.
 
 ## Error handling
 
-The standard OBD-II parser distinguishes:
-
-- invalid API arguments;
-- ELM-layer errors such as `NO DATA`;
-- malformed hexadecimal data;
-- responses for an unexpected service/PID;
-- unsupported typed PIDs;
-- bounded-buffer failures;
-- excessive DTC lists;
-- denied destructive requests.
-
-An ELM error is never reinterpreted as valid OBD payload data.
+The OBD-II layer distinguishes invalid API arguments, ELM-layer errors such as `NO DATA`, malformed hexadecimal data, unexpected service/PID responses, unsupported typed PIDs, bounded-buffer failures, excessive DTC lists and denied destructive requests. An ELM error is never reinterpreted as valid OBD payload data.
 
 ## Testing
 
-`tests/obd2_smoke.c` exercises:
-
-- request construction;
-- supported-PID continuation and accumulation;
-- all initial live PID formulas;
-- Mode 02 freeze-frame decoding;
-- spark and compression readiness metadata;
-- VIN extraction;
-- stored/pending/permanent DTCs;
-- DTC clear gating;
-- malformed response rejection;
-- ELM error propagation.
+`tests/obd2_smoke.c` exercises request construction, supported-PID continuation/accumulation, all initial live PID formulas, Mode 02 freeze-frame decoding, spark and compression readiness metadata, single-line and indexed VIN extraction, stored/pending/permanent DTCs, indexed long DTC replies, clear-code gating, malformed response rejection, missing indexed-frame rejection and ELM error propagation.
 
 CI builds and runs the portable C tests on both Ubuntu and macOS.
 
 ## Hardware validation boundary
 
-0.3 is intentionally hardware-independent. Its request/response contracts are validated with deterministic captured-style conversations. Real BLE transport and the development Vgate adapter are introduced in 0.4; vehicle captures can then be added as regression fixtures without changing the ownership of OBD-II formulas.
+0.3 remains hardware-independent. Request/response contracts are validated with deterministic captured-style conversations, including ELM-compatible indexed long-message formatting. Real BLE transport and the development Vgate adapter are introduced in 0.4; real vehicle captures can then be added as regression fixtures without moving OBD-II formulas into Apple-specific code.

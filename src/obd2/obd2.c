@@ -10,10 +10,10 @@
 
 #include "infiltratr/core.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #define OBD2_MAX_LINE_BYTES 256U
+#define OBD2_MAX_MESSAGE_BYTES 512U
 
 static int obd2_hex_value(char value)
 {
@@ -52,6 +52,7 @@ static MblinkObd2Result obd2_write_command(
     if (byte_count > (SIZE_MAX - 1U) / 2U) {
         return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
     }
+
     needed = byte_count * 2U + 1U;
     if (buffer_size < needed) {
         if (buffer_size != 0U) {
@@ -61,7 +62,8 @@ static MblinkObd2Result obd2_write_command(
     }
 
     for (index = 0U; index < byte_count; ++index) {
-        buffer[index * 2U] = obd2_hex_digit((unsigned int)bytes[index] >> 4U);
+        buffer[index * 2U] =
+            obd2_hex_digit((unsigned int)bytes[index] >> 4U);
         buffer[index * 2U + 1U] = obd2_hex_digit(bytes[index]);
     }
     buffer[byte_count * 2U] = '\0';
@@ -126,6 +128,125 @@ static MblinkObd2Result obd2_parse_hex_line(
     return MBLINK_OBD2_RESULT_OK;
 }
 
+/*
+ * ELM327 CAN automatic formatting can present a long OBD reply as an optional
+ * hexadecimal length line followed by indexed lines such as "0:..." and
+ * "1:...". This helper reassembles one such displayed message. It does not
+ * parse raw ISO-TP PCI bytes; raw ISO-TP remains the responsibility of the
+ * later ISO-TP layer.
+ */
+static MblinkObd2Result obd2_collect_indexed_message(
+    const MblinkElm327Response *response,
+    uint8_t *message, size_t message_size, size_t *message_length,
+    bool *found)
+{
+    const char *cursor;
+    unsigned int expected_index = 0U;
+    size_t written = 0U;
+    bool collecting = false;
+    MblinkObd2Result result;
+
+    if (message == NULL || message_length == NULL || found == NULL) {
+        return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
+    }
+    *message_length = 0U;
+    *found = false;
+
+    result = obd2_response_ready(response);
+    if (result != MBLINK_OBD2_RESULT_OK) {
+        return result;
+    }
+
+    cursor = response->text;
+    while (*cursor != '\0') {
+        const char *end = strchr(cursor, '\n');
+        size_t line_length = end == NULL ? strlen(cursor)
+                                         : (size_t)(end - cursor);
+        size_t first = 0U;
+        size_t last = line_length;
+        size_t colon = SIZE_MAX;
+        size_t index;
+        int line_index = -1;
+
+        while (first < last && obd2_space(cursor[first])) {
+            first++;
+        }
+        while (last > first && obd2_space(cursor[last - 1U])) {
+            last--;
+        }
+
+        for (index = first; index < last; ++index) {
+            if (cursor[index] == ':') {
+                colon = index;
+                break;
+            }
+        }
+
+        if (colon != SIZE_MAX) {
+            size_t prefix = first;
+            uint8_t bytes[OBD2_MAX_LINE_BYTES];
+            size_t byte_count = 0U;
+
+            while (prefix < colon && obd2_space(cursor[prefix])) {
+                prefix++;
+            }
+            if (prefix + 1U != colon) {
+                return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+            }
+            line_index = obd2_hex_value(cursor[prefix]);
+            if (line_index < 0) {
+                return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+            }
+
+            if (!collecting) {
+                if (line_index != 0) {
+                    return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+                }
+                collecting = true;
+                *found = true;
+                expected_index = 0U;
+            }
+
+            if ((unsigned int)line_index != expected_index) {
+                return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+            }
+
+            result = obd2_parse_hex_line(
+                cursor + colon + 1U, last - colon - 1U,
+                bytes, sizeof(bytes), &byte_count);
+            if (result != MBLINK_OBD2_RESULT_OK) {
+                return result;
+            }
+            if (byte_count > message_size - written) {
+                return MBLINK_OBD2_RESULT_BUFFER_TOO_SMALL;
+            }
+            memcpy(message + written, bytes, byte_count);
+            written += byte_count;
+            expected_index = (expected_index + 1U) & 0x0fU;
+        } else if (collecting) {
+            /*
+             * A non-indexed line after a collected block denotes another
+             * response block or unrelated output. Return the first complete
+             * indexed message rather than mixing ECU responses.
+             */
+            break;
+        }
+
+        if (end == NULL) {
+            break;
+        }
+        cursor = end + 1;
+    }
+
+    if (*found) {
+        if (written == 0U) {
+            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        }
+        *message_length = written;
+    }
+    return MBLINK_OBD2_RESULT_OK;
+}
+
 static MblinkObd2Result obd2_find_pid_payload(
     const MblinkElm327Response *response,
     uint8_t response_service,
@@ -159,9 +280,33 @@ static MblinkObd2Result obd2_find_pid_payload(
         size_t data_index;
         size_t data_length;
 
+        /* Indexed ELM CAN display lines are only used for long replies. */
+        if (memchr(cursor, ':', line_length) != NULL) {
+            goto next_line;
+        }
+
         result = obd2_parse_hex_line(cursor, line_length, bytes,
                                      sizeof(bytes), &byte_count);
         if (result != MBLINK_OBD2_RESULT_OK) {
+            /*
+             * A three-nibble CAN length line (for example "014") belongs to a
+             * following indexed block. It is irrelevant to short PID lookup.
+             */
+            size_t nonspace = 0U;
+            size_t i;
+            bool all_hex = true;
+            for (i = 0U; i < line_length; ++i) {
+                if (obd2_space(cursor[i])) {
+                    continue;
+                }
+                nonspace++;
+                if (obd2_hex_value(cursor[i]) < 0) {
+                    all_hex = false;
+                }
+            }
+            if (all_hex && nonspace == 3U) {
+                goto next_line;
+            }
             return result;
         }
 
@@ -208,60 +353,44 @@ static MblinkObd2Result obd2_decode_sample_data(
 
     switch (pid) {
     case 0x04U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0] * 100.0 / 255.0;
         sample->unit = MBLINK_OBD2_UNIT_PERCENT;
         return MBLINK_OBD2_RESULT_OK;
     case 0x05U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0] - 40.0;
         sample->unit = MBLINK_OBD2_UNIT_CELSIUS;
         return MBLINK_OBD2_RESULT_OK;
     case 0x0bU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0];
         sample->unit = MBLINK_OBD2_UNIT_KPA;
         return MBLINK_OBD2_RESULT_OK;
     case 0x0cU:
-        if (length < 2U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 4.0;
         sample->unit = MBLINK_OBD2_UNIT_RPM;
         return MBLINK_OBD2_RESULT_OK;
     case 0x0dU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0];
         sample->unit = MBLINK_OBD2_UNIT_KMH;
         return MBLINK_OBD2_RESULT_OK;
     case 0x0fU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0] - 40.0;
         sample->unit = MBLINK_OBD2_UNIT_CELSIUS;
         return MBLINK_OBD2_RESULT_OK;
     case 0x10U:
-        if (length < 2U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 100.0;
         sample->unit = MBLINK_OBD2_UNIT_GRAMS_PER_SECOND;
         return MBLINK_OBD2_RESULT_OK;
     case 0x11U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         sample->value = (double)data[0] * 100.0 / 255.0;
         sample->unit = MBLINK_OBD2_UNIT_PERCENT;
         return MBLINK_OBD2_RESULT_OK;
@@ -273,12 +402,9 @@ static MblinkObd2Result obd2_decode_sample_data(
 static uint8_t obd2_dtc_response_service(MblinkObd2DtcKind kind)
 {
     switch (kind) {
-    case MBLINK_OBD2_DTC_STORED:
-        return 0x43U;
-    case MBLINK_OBD2_DTC_PENDING:
-        return 0x47U;
-    case MBLINK_OBD2_DTC_PERMANENT:
-        return 0x4aU;
+    case MBLINK_OBD2_DTC_STORED: return 0x43U;
+    case MBLINK_OBD2_DTC_PENDING: return 0x47U;
+    case MBLINK_OBD2_DTC_PERMANENT: return 0x4aU;
     }
     return 0U;
 }
@@ -286,12 +412,9 @@ static uint8_t obd2_dtc_response_service(MblinkObd2DtcKind kind)
 static uint8_t obd2_dtc_request_service(MblinkObd2DtcKind kind)
 {
     switch (kind) {
-    case MBLINK_OBD2_DTC_STORED:
-        return 0x03U;
-    case MBLINK_OBD2_DTC_PENDING:
-        return 0x07U;
-    case MBLINK_OBD2_DTC_PERMANENT:
-        return 0x0aU;
+    case MBLINK_OBD2_DTC_STORED: return 0x03U;
+    case MBLINK_OBD2_DTC_PENDING: return 0x07U;
+    case MBLINK_OBD2_DTC_PERMANENT: return 0x0aU;
     }
     return 0U;
 }
@@ -311,27 +434,58 @@ static bool obd2_dtc_exists(const MblinkObd2DtcList *list, const char *code)
     return false;
 }
 
+static MblinkObd2Result obd2_append_dtc_pairs(
+    const uint8_t *bytes, size_t byte_count, size_t start,
+    MblinkObd2DtcKind kind, MblinkObd2DtcList *list)
+{
+    size_t index;
+
+    if (bytes == NULL || list == NULL || start > byte_count) {
+        return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
+    }
+    if (((byte_count - start) & 1U) != 0U) {
+        return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+    }
+
+    for (index = start; index + 1U < byte_count; index += 2U) {
+        char code[MBLINK_OBD2_DTC_TEXT_LENGTH];
+        MblinkObd2Result result;
+
+        if (bytes[index] == 0U && bytes[index + 1U] == 0U) {
+            continue;
+        }
+        result = mblink_obd2_decode_dtc_pair(
+            bytes[index], bytes[index + 1U], code);
+        if (result != MBLINK_OBD2_RESULT_OK) {
+            return result;
+        }
+        if (obd2_dtc_exists(list, code)) {
+            continue;
+        }
+        if (list->count >= MBLINK_OBD2_MAX_DTCS) {
+            return MBLINK_OBD2_RESULT_TOO_MANY_DTCS;
+        }
+
+        list->entries[list->count].kind = kind;
+        infiltratr_copy_string(list->entries[list->count].code,
+                               sizeof(list->entries[list->count].code), code);
+        list->count++;
+    }
+    return MBLINK_OBD2_RESULT_OK;
+}
+
 const char *mblink_obd2_result_name(MblinkObd2Result result)
 {
     switch (result) {
-    case MBLINK_OBD2_RESULT_OK:
-        return "ok";
-    case MBLINK_OBD2_RESULT_INVALID_ARGUMENT:
-        return "invalid-argument";
-    case MBLINK_OBD2_RESULT_ELM_ERROR:
-        return "elm-error";
-    case MBLINK_OBD2_RESULT_MALFORMED_RESPONSE:
-        return "malformed-response";
-    case MBLINK_OBD2_RESULT_UNEXPECTED_RESPONSE:
-        return "unexpected-response";
-    case MBLINK_OBD2_RESULT_UNSUPPORTED_PID:
-        return "unsupported-pid";
-    case MBLINK_OBD2_RESULT_BUFFER_TOO_SMALL:
-        return "buffer-too-small";
-    case MBLINK_OBD2_RESULT_TOO_MANY_DTCS:
-        return "too-many-dtcs";
-    case MBLINK_OBD2_RESULT_NOT_AUTHORIZED:
-        return "not-authorized";
+    case MBLINK_OBD2_RESULT_OK: return "ok";
+    case MBLINK_OBD2_RESULT_INVALID_ARGUMENT: return "invalid-argument";
+    case MBLINK_OBD2_RESULT_ELM_ERROR: return "elm-error";
+    case MBLINK_OBD2_RESULT_MALFORMED_RESPONSE: return "malformed-response";
+    case MBLINK_OBD2_RESULT_UNEXPECTED_RESPONSE: return "unexpected-response";
+    case MBLINK_OBD2_RESULT_UNSUPPORTED_PID: return "unsupported-pid";
+    case MBLINK_OBD2_RESULT_BUFFER_TOO_SMALL: return "buffer-too-small";
+    case MBLINK_OBD2_RESULT_TOO_MANY_DTCS: return "too-many-dtcs";
+    case MBLINK_OBD2_RESULT_NOT_AUTHORIZED: return "not-authorized";
     }
     return "unknown";
 }
@@ -339,20 +493,13 @@ const char *mblink_obd2_result_name(MblinkObd2Result result)
 const char *mblink_obd2_unit_name(MblinkObd2Unit unit)
 {
     switch (unit) {
-    case MBLINK_OBD2_UNIT_NONE:
-        return "";
-    case MBLINK_OBD2_UNIT_PERCENT:
-        return "%";
-    case MBLINK_OBD2_UNIT_CELSIUS:
-        return "degC";
-    case MBLINK_OBD2_UNIT_KPA:
-        return "kPa";
-    case MBLINK_OBD2_UNIT_RPM:
-        return "rpm";
-    case MBLINK_OBD2_UNIT_KMH:
-        return "km/h";
-    case MBLINK_OBD2_UNIT_GRAMS_PER_SECOND:
-        return "g/s";
+    case MBLINK_OBD2_UNIT_NONE: return "";
+    case MBLINK_OBD2_UNIT_PERCENT: return "%";
+    case MBLINK_OBD2_UNIT_CELSIUS: return "degC";
+    case MBLINK_OBD2_UNIT_KPA: return "kPa";
+    case MBLINK_OBD2_UNIT_RPM: return "rpm";
+    case MBLINK_OBD2_UNIT_KMH: return "km/h";
+    case MBLINK_OBD2_UNIT_GRAMS_PER_SECOND: return "g/s";
     }
     return "";
 }
@@ -360,24 +507,15 @@ const char *mblink_obd2_unit_name(MblinkObd2Unit unit)
 const char *mblink_obd2_pid_name(uint8_t pid)
 {
     switch (pid) {
-    case 0x04U:
-        return "Calculated engine load";
-    case 0x05U:
-        return "Engine coolant temperature";
-    case 0x0bU:
-        return "Intake manifold absolute pressure";
-    case 0x0cU:
-        return "Engine speed";
-    case 0x0dU:
-        return "Vehicle speed";
-    case 0x0fU:
-        return "Intake air temperature";
-    case 0x10U:
-        return "Mass air flow rate";
-    case 0x11U:
-        return "Throttle position";
-    default:
-        return "Unknown PID";
+    case 0x04U: return "Calculated engine load";
+    case 0x05U: return "Engine coolant temperature";
+    case 0x0bU: return "Intake manifold absolute pressure";
+    case 0x0cU: return "Engine speed";
+    case 0x0dU: return "Vehicle speed";
+    case 0x0fU: return "Intake air temperature";
+    case 0x10U: return "Mass air flow rate";
+    case 0x11U: return "Throttle position";
+    default: return "Unknown PID";
     }
 }
 
@@ -487,11 +625,16 @@ MblinkObd2Result mblink_obd2_accept_supported_pids(
         uint32_t mask;
         unsigned int bit;
 
+        if (memchr(cursor, ':', line_length) != NULL) {
+            goto next_supported_line;
+        }
+
         result = obd2_parse_hex_line(cursor, line_length, bytes,
                                      sizeof(bytes), &byte_count);
         if (result != MBLINK_OBD2_RESULT_OK) {
             return result;
         }
+
         if (byte_count >= 6U && bytes[0] == 0x41U && bytes[1] == base_pid) {
             matched = true;
             mask = ((uint32_t)bytes[2] << 24U) |
@@ -501,15 +644,17 @@ MblinkObd2Result mblink_obd2_accept_supported_pids(
 
             for (bit = 0U; bit < 32U; ++bit) {
                 if ((mask & (UINT32_C(1) << (31U - bit))) != 0U) {
-                    unsigned int pid = (unsigned int)base_pid + bit + 1U;
-                    if (pid <= 0xffU) {
-                        set->bits[pid >> 3U] |=
-                            (uint8_t)(1U << (pid & 7U));
+                    unsigned int supported_pid =
+                        (unsigned int)base_pid + bit + 1U;
+                    if (supported_pid <= 0xffU) {
+                        set->bits[supported_pid >> 3U] |=
+                            (uint8_t)(1U << (supported_pid & 7U));
                     }
                 }
             }
         }
 
+next_supported_line:
         if (end == NULL) {
             break;
         }
@@ -603,49 +748,80 @@ MblinkObd2Result mblink_obd2_decode_vin(
     const MblinkElm327Response *response,
     char vin[MBLINK_OBD2_VIN_LENGTH + 1U])
 {
-    const char *cursor;
-    size_t written = 0U;
+    uint8_t indexed[OBD2_MAX_MESSAGE_BYTES];
+    size_t indexed_length = 0U;
+    bool indexed_found = false;
     MblinkObd2Result result;
+    size_t written = 0U;
 
     if (vin == NULL) {
         return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
     }
     vin[0] = '\0';
 
-    result = obd2_response_ready(response);
+    result = obd2_collect_indexed_message(
+        response, indexed, sizeof(indexed), &indexed_length, &indexed_found);
     if (result != MBLINK_OBD2_RESULT_OK) {
         return result;
     }
 
-    cursor = response->text;
-    while (*cursor != '\0' && written < MBLINK_OBD2_VIN_LENGTH) {
-        const char *end = strchr(cursor, '\n');
-        size_t line_length = end == NULL ? strlen(cursor)
-                                         : (size_t)(end - cursor);
-        uint8_t bytes[OBD2_MAX_LINE_BYTES];
-        size_t byte_count = 0U;
+    if (indexed_found) {
         size_t index;
 
-        result = obd2_parse_hex_line(cursor, line_length, bytes,
-                                     sizeof(bytes), &byte_count);
+        if (indexed_length < 3U || indexed[0] != 0x49U ||
+            indexed[1] != 0x02U) {
+            return MBLINK_OBD2_RESULT_UNEXPECTED_RESPONSE;
+        }
+
+        for (index = 3U;
+             index < indexed_length && written < MBLINK_OBD2_VIN_LENGTH;
+             ++index) {
+            if (indexed[index] < 0x20U || indexed[index] > 0x7eU) {
+                return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+            }
+            vin[written++] = (char)indexed[index];
+        }
+    } else {
+        const char *cursor;
+
+        result = obd2_response_ready(response);
         if (result != MBLINK_OBD2_RESULT_OK) {
             return result;
         }
 
-        if (byte_count >= 4U && bytes[0] == 0x49U && bytes[1] == 0x02U) {
-            for (index = 3U; index < byte_count &&
-                             written < MBLINK_OBD2_VIN_LENGTH; ++index) {
-                if (bytes[index] < 0x20U || bytes[index] > 0x7eU) {
-                    return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-                }
-                vin[written++] = (char)bytes[index];
-            }
-        }
+        cursor = response->text;
+        while (*cursor != '\0' && written < MBLINK_OBD2_VIN_LENGTH) {
+            const char *end = strchr(cursor, '\n');
+            size_t line_length = end == NULL ? strlen(cursor)
+                                             : (size_t)(end - cursor);
+            uint8_t bytes[OBD2_MAX_LINE_BYTES];
+            size_t byte_count = 0U;
+            size_t index;
 
-        if (end == NULL) {
-            break;
+            result = obd2_parse_hex_line(cursor, line_length, bytes,
+                                         sizeof(bytes), &byte_count);
+            if (result != MBLINK_OBD2_RESULT_OK) {
+                return result;
+            }
+
+            if (byte_count >= 4U && bytes[0] == 0x49U &&
+                bytes[1] == 0x02U) {
+                for (index = 3U;
+                     index < byte_count &&
+                     written < MBLINK_OBD2_VIN_LENGTH;
+                     ++index) {
+                    if (bytes[index] < 0x20U || bytes[index] > 0x7eU) {
+                        return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+                    }
+                    vin[written++] = (char)bytes[index];
+                }
+            }
+
+            if (end == NULL) {
+                break;
+            }
+            cursor = end + 1;
         }
-        cursor = end + 1;
     }
 
     if (written != MBLINK_OBD2_VIN_LENGTH) {
@@ -683,6 +859,9 @@ MblinkObd2Result mblink_obd2_decode_dtcs(
 {
     const char *cursor;
     uint8_t response_service = obd2_dtc_response_service(kind);
+    uint8_t indexed[OBD2_MAX_MESSAGE_BYTES];
+    size_t indexed_length = 0U;
+    bool indexed_found = false;
     bool matched = false;
     MblinkObd2Result result;
 
@@ -690,6 +869,19 @@ MblinkObd2Result mblink_obd2_decode_dtcs(
         return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
     }
     memset(list, 0, sizeof(*list));
+
+    result = obd2_collect_indexed_message(
+        response, indexed, sizeof(indexed), &indexed_length, &indexed_found);
+    if (result != MBLINK_OBD2_RESULT_OK) {
+        return result;
+    }
+    if (indexed_found) {
+        if (indexed_length < 1U || indexed[0] != response_service) {
+            return MBLINK_OBD2_RESULT_UNEXPECTED_RESPONSE;
+        }
+        return obd2_append_dtc_pairs(
+            indexed, indexed_length, 1U, kind, list);
+    }
 
     result = obd2_response_ready(response);
     if (result != MBLINK_OBD2_RESULT_OK) {
@@ -703,7 +895,6 @@ MblinkObd2Result mblink_obd2_decode_dtcs(
                                          : (size_t)(end - cursor);
         uint8_t bytes[OBD2_MAX_LINE_BYTES];
         size_t byte_count = 0U;
-        size_t index;
 
         result = obd2_parse_hex_line(cursor, line_length, bytes,
                                      sizeof(bytes), &byte_count);
@@ -713,31 +904,10 @@ MblinkObd2Result mblink_obd2_decode_dtcs(
 
         if (byte_count >= 1U && bytes[0] == response_service) {
             matched = true;
-            if (((byte_count - 1U) & 1U) != 0U) {
-                return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-            }
-            for (index = 1U; index + 1U < byte_count; index += 2U) {
-                char code[MBLINK_OBD2_DTC_TEXT_LENGTH];
-
-                if (bytes[index] == 0U && bytes[index + 1U] == 0U) {
-                    continue;
-                }
-                result = mblink_obd2_decode_dtc_pair(
-                    bytes[index], bytes[index + 1U], code);
-                if (result != MBLINK_OBD2_RESULT_OK) {
-                    return result;
-                }
-                if (obd2_dtc_exists(list, code)) {
-                    continue;
-                }
-                if (list->count >= MBLINK_OBD2_MAX_DTCS) {
-                    return MBLINK_OBD2_RESULT_TOO_MANY_DTCS;
-                }
-                list->entries[list->count].kind = kind;
-                infiltratr_copy_string(list->entries[list->count].code,
-                                       sizeof(list->entries[list->count].code),
-                                       code);
-                list->count++;
+            result = obd2_append_dtc_pairs(
+                bytes, byte_count, 1U, kind, list);
+            if (result != MBLINK_OBD2_RESULT_OK) {
+                return result;
             }
         }
 

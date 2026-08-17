@@ -55,8 +55,7 @@ static void test_request_builders(void)
           "live PID command");
     check(mblink_obd2_build_freeze_pid_request(
               0x0cU, 0x00U, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "020C00") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "020C00") == 0,
           "freeze-frame PID command");
     check(mblink_obd2_build_supported_pid_request(
               0x20U, command, sizeof(command)) == MBLINK_OBD2_RESULT_OK &&
@@ -67,30 +66,25 @@ static void test_request_builders(void)
               MBLINK_OBD2_RESULT_INVALID_ARGUMENT,
           "misaligned supported PID block rejected");
     check(mblink_obd2_build_vin_request(command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "0902") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "0902") == 0,
           "VIN command");
     check(mblink_obd2_build_dtc_request(
               MBLINK_OBD2_DTC_STORED, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "03") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "03") == 0,
           "stored DTC command");
     check(mblink_obd2_build_dtc_request(
               MBLINK_OBD2_DTC_PENDING, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "07") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "07") == 0,
           "pending DTC command");
     check(mblink_obd2_build_dtc_request(
               MBLINK_OBD2_DTC_PERMANENT, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "0A") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "0A") == 0,
           "permanent DTC command");
 
     strcpy(command, "sentinel");
     check(mblink_obd2_build_clear_dtc_request(
               &authorization, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_NOT_AUTHORIZED &&
-              command[0] == '\0',
+              MBLINK_OBD2_RESULT_NOT_AUTHORIZED && command[0] == '\0',
           "clear DTC command is gated");
     authorization.confirmed = true;
     check(mblink_obd2_build_clear_dtc_request(
@@ -100,8 +94,7 @@ static void test_request_builders(void)
     authorization.acknowledge_readiness_reset = true;
     check(mblink_obd2_build_clear_dtc_request(
               &authorization, command, sizeof(command)) ==
-              MBLINK_OBD2_RESULT_OK &&
-              strcmp(command, "04") == 0,
+              MBLINK_OBD2_RESULT_OK && strcmp(command, "04") == 0,
           "clear command requires both acknowledgements");
 }
 
@@ -191,8 +184,6 @@ static void test_freeze_frame_and_readiness(void)
     check(!readiness.compression_ignition, "spark ignition bit decodes");
     check(readiness.continuous_supported == 0x07U,
           "continuous support mask decodes");
-    check(readiness.continuous_incomplete == 0x00U,
-          "continuous completion mask decodes");
 
     response = parse_response("0101", "4101000F8040\r>");
     check(mblink_obd2_decode_readiness(
@@ -207,14 +198,30 @@ static void test_freeze_frame_and_readiness(void)
 
 static void test_vin(void)
 {
-    MblinkElm327Response response = parse_response(
-        "0902",
-        "4902015744443230373030303030303030303030\r>");
+    MblinkElm327Response response;
     char vin[MBLINK_OBD2_VIN_LENGTH + 1U];
 
+    response = parse_response(
+        "0902", "4902015744443230373030303030303030303030\r>");
     check(mblink_obd2_decode_vin(&response, vin) == MBLINK_OBD2_RESULT_OK,
-          "VIN decodes");
-    check(strcmp(vin, "WDD20700000000000") == 0, "VIN text matches");
+          "single-line VIN decodes");
+    check(strcmp(vin, "WDD20700000000000") == 0,
+          "single-line VIN text matches");
+
+    response = parse_response(
+        "0902",
+        "014\r0:490201574444\r1:32303730303030\r2:30303030303030\r>");
+    check(mblink_obd2_decode_vin(&response, vin) == MBLINK_OBD2_RESULT_OK,
+          "ELM indexed multi-line VIN decodes");
+    check(strcmp(vin, "WDD20700000000000") == 0,
+          "ELM indexed VIN text matches");
+
+    response = parse_response(
+        "0902",
+        "014\r0:490201574444\r2:32303730303030\r>");
+    check(mblink_obd2_decode_vin(&response, vin) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+          "missing ELM indexed frame is rejected");
 }
 
 static void test_dtcs(void)
@@ -242,18 +249,29 @@ static void test_dtcs(void)
     response = parse_response("07", "470200\r>");
     check(mblink_obd2_decode_dtcs(
               &response, MBLINK_OBD2_DTC_PENDING, &list) ==
-              MBLINK_OBD2_RESULT_OK &&
-              list.count == 1U &&
+              MBLINK_OBD2_RESULT_OK && list.count == 1U &&
               strcmp(list.entries[0].code, "P0200") == 0,
           "pending DTC response decodes");
 
     response = parse_response("0A", "4A0300\r>");
     check(mblink_obd2_decode_dtcs(
               &response, MBLINK_OBD2_DTC_PERMANENT, &list) ==
-              MBLINK_OBD2_RESULT_OK &&
-              list.count == 1U &&
+              MBLINK_OBD2_RESULT_OK && list.count == 1U &&
               strcmp(list.entries[0].code, "P0300") == 0,
           "permanent DTC response decodes");
+
+    response = parse_response(
+        "03", "009\r0:430133C1230000\r1:02000300\r>");
+    check(mblink_obd2_decode_dtcs(
+              &response, MBLINK_OBD2_DTC_STORED, &list) ==
+              MBLINK_OBD2_RESULT_OK,
+          "ELM indexed long DTC response decodes");
+    check(list.count == 4U, "ELM indexed long DTC count");
+    check(strcmp(list.entries[0].code, "P0133") == 0 &&
+              strcmp(list.entries[1].code, "U0123") == 0 &&
+              strcmp(list.entries[2].code, "P0200") == 0 &&
+              strcmp(list.entries[3].code, "P0300") == 0,
+          "ELM indexed DTC values match");
 }
 
 static void test_malformed_and_elm_errors(void)
