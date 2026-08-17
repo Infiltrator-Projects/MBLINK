@@ -4,7 +4,7 @@
 
 MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, testable and architecturally reusable.
 
-**Current development target: 0.3 — Standard OBD-II C engine.**
+**Current development target: 0.4 — Apple BLE provider and iPhone shell.**
 
 ## 0.1 — C foundation and dependency discipline
 
@@ -44,8 +44,10 @@ The implementation is documented in [ELM327 Engine](ELM327.md).
 
 ## 0.3 — Standard OBD-II C engine
 
-- Supported-PID enumeration.
-- Live RPM.
+**Status: complete.**
+
+- Supported-PID enumeration across standard 32-PID blocks.
+- Typed live RPM.
 - Coolant temperature.
 - Vehicle speed.
 - Manifold absolute pressure.
@@ -53,10 +55,15 @@ The implementation is documented in [ELM327 Engine](ELM327.md).
 - Intake-air temperature.
 - Throttle position.
 - Calculated engine load.
-- VIN/vehicle information where supported.
+- Mode 09 PID 02 VIN extraction.
 - Stored/pending/permanent DTC decoding.
-- Freeze-frame and readiness data.
-- Explicitly gated DTC clearing.
+- Mode 02 freeze-frame decoding using the same typed PID formulas.
+- Mode 01 PID 01 readiness decoding for spark/compression metadata and monitor masks.
+- Explicitly gated Mode 04 DTC clearing with readiness-reset acknowledgement.
+- Strict malformed hexadecimal and ELM-error handling.
+- Deterministic portable regression tests.
+
+The implementation is documented in [Standard OBD-II Engine](OBD2.md).
 
 **Exit condition:** `libmblink` is useful as a generic OBD-II diagnostic engine independent of iOS.
 

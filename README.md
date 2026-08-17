@@ -75,36 +75,31 @@ See [Dependencies](docs/DEPENDENCIES.md).
 
 ## Implemented in 0.2
 
-MBLINK now has a portable C ELM327-compatible engine that can be exercised without BLE hardware. Version 0.2 includes:
+The portable C ELM327-compatible layer provides bounded command framing, fragmented response parsing, prompt/echo handling, adapter initialisation, transport-backed command ownership, timeout/cancellation safeguards, re-synchronisation protection and capability probing.
 
-- bounded ELM327 command framing;
-- fragmented response accumulation and exact `>` prompt-boundary handling;
-- echo removal and response normalisation;
-- adapter result/error classification;
-- deterministic `ATZ` / `ATE0` / `ATL0` / `ATS0` / `ATH0` / `ATSP0` / `ATI` initialisation;
-- transport-backed one-command-at-a-time execution;
-- monotonic timeouts with checked deadline arithmetic;
-- cancellation and explicit re-synchronisation protection;
-- completion-callback re-entrancy protection;
-- adapter/protocol capability probing with `AT@1`, `ATDP` and `ATDPN`;
-- deterministic mock-transport regression tests.
+See [ELM327 Engine](docs/ELM327.md).
 
-See [ELM327 Engine](docs/ELM327.md) for the behavioural contract and test strategy.
+## Implemented in 0.3
 
-## Capability plan
+MBLINK now includes a standard OBD-II diagnostic layer in portable C. Version 0.3 provides:
 
-The next useful releases are intended to provide:
+- supported-PID discovery across standard 32-PID blocks;
+- typed live calculated load, coolant temperature, MAP, RPM, road speed, intake-air temperature, MAF and throttle position;
+- Mode 02 freeze-frame decoding through the same PID formula table;
+- Mode 01 PID 01 MIL/DTC/readiness state;
+- Mode 09 PID 02 VIN extraction;
+- stored, pending and permanent DTC decoding;
+- explicit Mode 04 clear-code gating with readiness-reset acknowledgement;
+- strict hexadecimal validation and ELM-error propagation;
+- deterministic tests that require no vehicle, BLE adapter or Apple framework.
 
-- standard SAE OBD-II supported-PID discovery;
-- live RPM, speed, coolant temperature, MAP, MAF, intake temperature, throttle and calculated load;
-- stored, pending and permanent DTC access where supported;
-- freeze-frame and readiness information;
-- VIN/ECU information where supported;
-- BLE discovery and connection to the Vgate adapter on iPhone;
-- configurable live dashboards, graphs and session logging;
-- CSV export;
-- ISO-TP and UDS foundations for deeper diagnostics;
-- verified Mercedes-Benz C207/OM651 data and additional control-module access.
+See [Standard OBD-II Engine](docs/OBD2.md).
+
+## Next target
+
+Development now moves to **0.4 — Apple BLE provider and iPhone shell**.
+
+The first hardware stage will implement the C transport boundary with CoreBluetooth, discover the Vgate adapter at runtime, subscribe to notifications, respect negotiated write sizes, and display values produced by the existing C diagnostic engine. BLE/product quirks must remain outside `libmblink`.
 
 The long-term Mercedes direction includes DPF, exhaust temperature, regeneration, turbo/boost, fuel-rail, injector and EGR information where those values can be identified and validated against the real vehicle.
 
@@ -117,6 +112,7 @@ See [Roadmap](docs/ROADMAP.md).
 include/mblink/        Public C API
 src/core/              Portable MBLINK C foundation
 src/elm327/            Portable ELM327 command/session/probe engine
+src/obd2/              Portable standard OBD-II engine
 src/infiltratr-common/ Pinned Infiltratr Common submodule
 platform/apple/        Apple-specific transport/application bridge
 app/ios/               Native iPhone presentation layer
@@ -164,15 +160,16 @@ Every manufacturer-specific value must have an explicit validation status. Captu
 
 ## Current status
 
-**Pre-alpha / version 0.2.0.**
+**Pre-alpha / version 0.3.0.**
 
-The portable C foundation and ELM327 command/session/probe layer are implemented and tested on Ubuntu and macOS. Development now targets **0.3 — the standard OBD-II C engine**. The 0.2 engine is hardware-independent and can be tested without an iPhone, vehicle or BLE adapter.
+The C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The project can construct and decode standard diagnostic conversations without an iPhone, vehicle or BLE adapter. Development now targets the Apple BLE provider and native iPhone shell.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [ELM327 engine](docs/ELM327.md)
+- [Standard OBD-II engine](docs/OBD2.md)
 - [Adapter strategy](docs/ADAPTERS.md)
 - [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
 - [Contributing](CONTRIBUTING.md)

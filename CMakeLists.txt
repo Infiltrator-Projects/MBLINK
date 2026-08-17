@@ -71,7 +71,8 @@ add_library(mblink STATIC
     src/core/mblink.c
     src/elm327/elm327.c
     src/elm327/session.c
-    src/elm327/probe.c)
+    src/elm327/probe.c
+    src/obd2/obd2.c)
 target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
@@ -111,15 +112,20 @@ if(BUILD_TESTING)
     add_executable(mblink-elm327-probe-smoke tests/elm327_probe_smoke.c)
     target_link_libraries(mblink-elm327-probe-smoke PRIVATE mblink)
 
+    add_executable(mblink-obd2-smoke tests/obd2_smoke.c)
+    target_link_libraries(mblink-obd2-smoke PRIVATE mblink)
+
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         target_compile_options(mblink-core-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-elm327-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-elm327-session-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-elm327-probe-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-obd2-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
 
     add_test(NAME mblink-core-smoke COMMAND mblink-core-smoke)
     add_test(NAME mblink-elm327-smoke COMMAND mblink-elm327-smoke)
     add_test(NAME mblink-elm327-session-smoke COMMAND mblink-elm327-session-smoke)
     add_test(NAME mblink-elm327-probe-smoke COMMAND mblink-elm327-probe-smoke)
+    add_test(NAME mblink-obd2-smoke COMMAND mblink-obd2-smoke)
 endif()
