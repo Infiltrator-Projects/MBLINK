@@ -68,7 +68,10 @@ target_include_directories(infiltratr-common PUBLIC
 target_compile_features(infiltratr-common PUBLIC c_std_11)
 
 add_library(mblink STATIC
-    src/core/mblink.c)
+    src/core/mblink.c
+    src/elm327/elm327.c
+    src/elm327/session.c
+    src/elm327/probe.c)
 target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
@@ -96,8 +99,27 @@ endif()
 if(BUILD_TESTING)
     add_executable(mblink-core-smoke tests/core_smoke.c)
     target_link_libraries(mblink-core-smoke PRIVATE mblink)
+    target_compile_definitions(mblink-core-smoke PRIVATE
+        MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
+
+    add_executable(mblink-elm327-smoke tests/elm327_smoke.c)
+    target_link_libraries(mblink-elm327-smoke PRIVATE mblink)
+
+    add_executable(mblink-elm327-session-smoke tests/elm327_session_smoke.c)
+    target_link_libraries(mblink-elm327-session-smoke PRIVATE mblink)
+
+    add_executable(mblink-elm327-probe-smoke tests/elm327_probe_smoke.c)
+    target_link_libraries(mblink-elm327-probe-smoke PRIVATE mblink)
+
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         target_compile_options(mblink-core-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-elm327-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-elm327-session-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-elm327-probe-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
+
     add_test(NAME mblink-core-smoke COMMAND mblink-core-smoke)
+    add_test(NAME mblink-elm327-smoke COMMAND mblink-elm327-smoke)
+    add_test(NAME mblink-elm327-session-smoke COMMAND mblink-elm327-session-smoke)
+    add_test(NAME mblink-elm327-probe-smoke COMMAND mblink-elm327-probe-smoke)
 endif()

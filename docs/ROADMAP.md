@@ -4,7 +4,11 @@
 
 MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, testable and architecturally reusable.
 
+**Current development target: 0.3 — Standard OBD-II C engine.**
+
 ## 0.1 — C foundation and dependency discipline
+
+**Status: complete.**
 
 - Establish `libmblink` as a portable C11 library.
 - Publish stable public headers under `include/mblink/`.
@@ -19,16 +23,24 @@ MBLINK is developed from the portable C core outward. Each milestone must leave 
 
 ## 0.2 — ELM327 command engine in C
 
+**Status: complete.**
+
 - Command model and bounded command construction.
 - Response framing/normalisation.
 - Prompt detection and echo handling.
 - Adapter reset/initialisation state machine.
 - Capability probing.
 - Automatic OBD protocol selection policy.
-- Clean timeout and malformed-response behaviour.
+- One-command-at-a-time transport-backed session execution.
+- Monotonic timeout handling with checked deadline arithmetic.
+- Cancellation and explicit re-synchronisation protection.
+- Re-entrant completion callback protection.
+- Clean malformed-response and transport-error behaviour.
 - Deterministic mock transport tests.
 
-**Exit condition:** captured ELM327 conversations can be parsed and exercised completely without BLE hardware.
+The implementation is documented in [ELM327 Engine](ELM327.md).
+
+**Exit condition:** ELM327 conversations can be parsed and exercised completely without BLE hardware, including fragmented responses, command ownership, timeouts, capability probing and error paths.
 
 ## 0.3 — Standard OBD-II C engine
 

@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef MBLINK_TEST_EXPECTED_VERSION
+#error "MBLINK_TEST_EXPECTED_VERSION must be supplied by the build system"
+#endif
+
 static MblinkTransportStatus mock_connect(void *context)
 {
     (void)context;
@@ -57,8 +61,8 @@ int main(void)
     MblinkTransport transport = MBLINK_TRANSPORT_INIT;
     static const uint8_t probe[] = { 'A', 'T', 'I', '\r' };
 
-    if (!check(strcmp(mblink_version(), "0.1.0") == 0,
-               "unexpected MBLINK version")) {
+    if (!check(strcmp(mblink_version(), MBLINK_TEST_EXPECTED_VERSION) == 0,
+               "linked MBLINK version does not match build version")) {
         passed = false;
     }
     if (!check(mblink_self_check(), "project identity validation failed")) {

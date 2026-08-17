@@ -61,7 +61,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the detailed design.
 
 MBLINK consumes **Infiltratr Common** from [`The-First-Infiltrator/Infiltrator-Libraries`](https://github.com/The-First-Infiltrator/Infiltrator-Libraries) as a pinned Git submodule.
 
-The initial pin is:
+The current pin is:
 
 - Infiltratr Common: **1.5.0**
 - tag: **v1.5.0**
@@ -73,21 +73,38 @@ Application-specific vehicle protocols do **not** belong in Infiltratr Common me
 
 See [Dependencies](docs/DEPENDENCIES.md).
 
-## Initial capability plan
+## Implemented in 0.2
 
-The first useful releases are intended to provide:
+MBLINK now has a portable C ELM327-compatible engine that can be exercised without BLE hardware. Version 0.2 includes:
 
-- BLE discovery and connection to the Vgate adapter on iPhone.
-- ELM327-compatible adapter initialisation and capability probing.
-- Standard SAE OBD-II supported-PID discovery.
-- Live RPM, speed, coolant temperature, MAP, MAF, intake temperature, throttle and calculated load.
-- Stored, pending and permanent DTC access where supported.
-- Freeze-frame and readiness information.
-- VIN/ECU information where supported.
-- Configurable live dashboards, graphs and session logging.
-- CSV export.
-- ISO-TP and UDS foundations for deeper diagnostics.
-- Verified Mercedes-Benz C207/OM651 data and additional control-module access.
+- bounded ELM327 command framing;
+- fragmented response accumulation and exact `>` prompt-boundary handling;
+- echo removal and response normalisation;
+- adapter result/error classification;
+- deterministic `ATZ` / `ATE0` / `ATL0` / `ATS0` / `ATH0` / `ATSP0` / `ATI` initialisation;
+- transport-backed one-command-at-a-time execution;
+- monotonic timeouts with checked deadline arithmetic;
+- cancellation and explicit re-synchronisation protection;
+- completion-callback re-entrancy protection;
+- adapter/protocol capability probing with `AT@1`, `ATDP` and `ATDPN`;
+- deterministic mock-transport regression tests.
+
+See [ELM327 Engine](docs/ELM327.md) for the behavioural contract and test strategy.
+
+## Capability plan
+
+The next useful releases are intended to provide:
+
+- standard SAE OBD-II supported-PID discovery;
+- live RPM, speed, coolant temperature, MAP, MAF, intake temperature, throttle and calculated load;
+- stored, pending and permanent DTC access where supported;
+- freeze-frame and readiness information;
+- VIN/ECU information where supported;
+- BLE discovery and connection to the Vgate adapter on iPhone;
+- configurable live dashboards, graphs and session logging;
+- CSV export;
+- ISO-TP and UDS foundations for deeper diagnostics;
+- verified Mercedes-Benz C207/OM651 data and additional control-module access.
 
 The long-term Mercedes direction includes DPF, exhaust temperature, regeneration, turbo/boost, fuel-rail, injector and EGR information where those values can be identified and validated against the real vehicle.
 
@@ -98,7 +115,8 @@ See [Roadmap](docs/ROADMAP.md).
 ```text
 .github/workflows/     Continuous integration
 include/mblink/        Public C API
-src/core/              Portable MBLINK C implementation
+src/core/              Portable MBLINK C foundation
+src/elm327/            Portable ELM327 command/session/probe engine
 src/infiltratr-common/ Pinned Infiltratr Common submodule
 platform/apple/        Apple-specific transport/application bridge
 app/ios/               Native iPhone presentation layer
@@ -146,14 +164,15 @@ Every manufacturer-specific value must have an explicit validation status. Captu
 
 ## Current status
 
-**Pre-alpha / foundation.**
+**Pre-alpha / version 0.2.0.**
 
-The repository is establishing its portable C ABI, dependency discipline, automated tests and architecture before vehicle-specific implementation accelerates.
+The portable C foundation and ELM327 command/session/probe layer are implemented and tested on Ubuntu and macOS. Development now targets **0.3 — the standard OBD-II C engine**. The 0.2 engine is hardware-independent and can be tested without an iPhone, vehicle or BLE adapter.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [ELM327 engine](docs/ELM327.md)
 - [Adapter strategy](docs/ADAPTERS.md)
 - [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
 - [Contributing](CONTRIBUTING.md)
