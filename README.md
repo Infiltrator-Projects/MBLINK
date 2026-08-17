@@ -1,114 +1,165 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
 # MBLINK
 
-**MBLINK** is an open-source native iPhone vehicle diagnostics project, beginning with Mercedes-Benz and designed around affordable ELM327-compatible Bluetooth Low Energy (BLE) adapters.
+**MBLINK** is a C-first, open-source vehicle diagnostics platform with a native iPhone front end. Development begins with Mercedes-Benz and affordable ELM327-compatible Bluetooth Low Energy adapters, while the diagnostic engine is deliberately portable and independent of Apple frameworks.
 
-The initial development vehicle is a Mercedes-Benz C207 E-Class diesel with the OM651 engine, and the initial hardware target is the **Vgate iCar Pro BLE 4.0**. The architecture is deliberately not tied to either one car or one adapter: standard OBD-II functionality lives in a reusable core, adapter communication is isolated behind a transport interface, and manufacturer-specific diagnostics are added as separate vehicle modules.
+The initial development vehicle is a Mercedes-Benz C207 E-Class diesel with the OM651 engine. The first hardware target is the **Vgate iCar Pro BLE 4.0**.
 
-The goal is to grow MBLINK from a useful live-data and fault-code app into a deeper Mercedes diagnostic platform without sacrificing the generic OBD-II foundation.
+MBLINK is not designed as an iOS application with diagnostic logic buried in Swift. The permanent architecture is the opposite: **portable vehicle and protocol logic lives in C; platform code stays at the edge.**
 
-## Project goals
+## Design goals
 
-MBLINK is being built to provide:
-
-- Native iPhone support using Swift, SwiftUI and CoreBluetooth.
-- Direct BLE communication with ELM327-compatible adapters.
-- Standard SAE OBD-II live data and diagnostics.
-- Fault-code reading, freeze-frame information, readiness data and controlled clearing of DTCs.
-- Configurable live dashboards and time-series graphs.
-- Drive/session logging and CSV export.
-- A reusable transport layer so different BLE adapters can be supported without changing the diagnostic engine.
-- Mercedes-Benz-specific diagnostics layered above the generic OBD-II implementation.
-- Initial deep Mercedes support focused on the C207 / OM651 platform.
-- Later access to additional control modules such as transmission, ABS/ESP, SRS, climate and body systems where the vehicle and adapter permit it.
-
-## Hardware target
-
-The first adapter target is the **Vgate iCar Pro BLE 4.0**.
-
-The project does not assume that every ELM327-compatible BLE adapter exposes the same GATT service or characteristic UUIDs. Adapter discovery and BLE framing belong in the transport layer. This keeps the OBD-II and Mercedes diagnostic code independent of the physical dongle.
-
-Additional adapters can be added by implementing the same transport interface.
+- Keep the diagnostic engine in portable C11 wherever technically practical.
+- Reuse **Infiltratr Common** instead of creating private duplicates of shared C functionality.
+- Keep Swift limited primarily to the native SwiftUI presentation layer.
+- Isolate Apple CoreBluetooth behind a small platform transport provider.
+- Support standard OBD-II before adding manufacturer-specific extensions.
+- Add Mercedes-Benz diagnostics as verified data definitions above reusable ISO-TP/UDS code.
+- Make parsers, decoders and protocol state machines testable without a vehicle or Bluetooth adapter.
+- Keep adapter quirks out of the generic diagnostic engine.
+- Prefer capability discovery and verified behaviour over product-name assumptions.
 
 ## Architecture
 
 ```text
-iPhone / SwiftUI
+Native iPhone UI
+    SwiftUI
        |
        v
-Vehicle & presentation layer
+Thin Apple application bridge
        |
        v
-MBLINKCore
-  |- OBD-II commands and PID decoding
-  |- response parsing
-  |- diagnostic sessions
-  |- ISO-TP / UDS (planned)
-  `- Mercedes diagnostic definitions (planned)
++-----------------------------+
+|          libmblink          |
+|       portable C11 core     |
+|                             |
+| ELM327 | OBD-II | ISO-TP    |
+| UDS    | DTC    | logging   |
+| Mercedes-Benz extensions    |
++-----------------------------+
        |
        v
-OBDCommandTransport
-       |
-       +-- Vgate BLE transport
-       +-- other ELM327 BLE transports
-       `-- future transports
+C transport interface
        |
        v
-OBD-II diagnostic connector -> vehicle networks -> ECUs
+Apple BLE provider
+Objective-C / CoreBluetooth
+       |
+       v
+Vgate iCar Pro BLE 4.0
+       |
+       v
+Vehicle networks and ECUs
 ```
 
-The core diagnostic code has no dependency on CoreBluetooth. It sends commands through an abstract transport and receives adapter responses back through that interface. That separation allows the parser, PID decoder and diagnostic logic to be tested without a vehicle or Bluetooth device attached.
+The C library must not depend on SwiftUI or CoreBluetooth. A future Linux, macOS, Windows or command-line front end should be able to reuse the same diagnostic engine.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
+See [Architecture](docs/ARCHITECTURE.md) for the detailed design.
 
-## Development stages
+## Shared C foundation
 
-The first working milestone is deliberately small and testable:
+MBLINK consumes **Infiltratr Common** from [`The-First-Infiltrator/Infiltrator-Libraries`](https://github.com/The-First-Infiltrator/Infiltrator-Libraries) as a pinned Git submodule.
 
-1. Discover and connect to the Vgate adapter from an iPhone.
-2. Establish the ELM327 command channel.
-3. Initialise the adapter and automatically select the vehicle protocol.
-4. Enumerate supported standard OBD-II PIDs.
-5. Read and display live RPM and coolant temperature.
-6. Expand to speed, manifold pressure, MAF, intake temperature, throttle and engine load.
-7. Add fault-code and vehicle-identification functions.
-8. Add logging, graphs and configurable dashboards.
-9. Implement ISO-TP/UDS and verified Mercedes-specific diagnostics.
+The initial pin is:
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the longer development plan.
+- Infiltratr Common: **1.5.0**
+- tag: **v1.5.0**
+- commit: **`a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`**
 
-## Mercedes-Benz direction
+The portable `core.c` and `format.c` components are used first. Shared bounded strings, parsing, checked arithmetic, formatting and project metadata must be reused when their contracts fit MBLINK rather than reimplemented locally.
 
-Standard OBD-II is only the starting point. MBLINK is intended to progressively support deeper Mercedes-Benz diagnostics, including data not exposed by generic Mode 01 PIDs.
+Application-specific vehicle protocols do **not** belong in Infiltratr Common merely because they are written in C. New Common APIs should follow that library's existing real-consumer reuse rule.
 
-For the C207 / OM651 development platform this may include, where verified and available from the relevant control module:
+See [Dependencies](docs/DEPENDENCIES.md).
 
-- DPF differential pressure, temperature and regeneration information.
-- Turbocharger and boost-control information.
-- Fuel-rail pressure and injector-related data.
-- EGR data.
-- ECU identification and addressing.
-- Transmission and chassis-module diagnostics.
+## Initial capability plan
 
-Mercedes-specific requests and interpretations will be added only when they have been identified and validated. They will remain separate from the generic OBD-II implementation.
+The first useful releases are intended to provide:
 
-## Safety and scope
+- BLE discovery and connection to the Vgate adapter on iPhone.
+- ELM327-compatible adapter initialisation and capability probing.
+- Standard SAE OBD-II supported-PID discovery.
+- Live RPM, speed, coolant temperature, MAP, MAF, intake temperature, throttle and calculated load.
+- Stored, pending and permanent DTC access where supported.
+- Freeze-frame and readiness information.
+- VIN/ECU information where supported.
+- Configurable live dashboards, graphs and session logging.
+- CSV export.
+- ISO-TP and UDS foundations for deeper diagnostics.
+- Verified Mercedes-Benz C207/OM651 data and additional control-module access.
 
-Early MBLINK releases are intentionally read-focused. Operations that change vehicle state, such as clearing diagnostic trouble codes, will require an explicit user action. Coding, flashing and security-sensitive ECU programming are outside the initial scope.
+The long-term Mercedes direction includes DPF, exhaust temperature, regeneration, turbo/boost, fuel-rail, injector and EGR information where those values can be identified and validated against the real vehicle.
 
-## Status
+See [Roadmap](docs/ROADMAP.md).
 
-**Pre-alpha / foundation stage.**
+## Repository layout
 
-The repository is being established before hardware testing begins. The first hardware target is the Vgate iCar Pro BLE 4.0 and the first application target is iPhone.
+```text
+.github/workflows/     Continuous integration
+include/mblink/        Public C API
+src/core/              Portable MBLINK C implementation
+src/infiltratr-common/ Pinned Infiltratr Common submodule
+platform/apple/        Apple-specific transport/application bridge
+app/ios/               Native iPhone presentation layer
+tests/                 Portable C regression tests
+docs/                  Architecture and engineering documentation
+```
+
+Platform and application directories are introduced as their implementations land. Vehicle/protocol logic should not migrate into them for convenience.
+
+## Build the portable core
+
+Requirements:
+
+- C11 compiler
+- CMake 3.20 or later
+- Git, when initialising the shared-library submodule
+
+```sh
+git clone --recurse-submodules https://github.com/The-First-Infiltrator/MBLINK.git
+cd MBLINK
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+If the repository was cloned without submodules:
+
+```sh
+git submodule update --init --recursive
+```
+
+CMake verifies the expected Infiltratr Common version and, when Git metadata is available, its exact pinned commit.
+
+## Development policy
+
+The portable C core is the source of truth for diagnostic behaviour. In particular:
+
+- PID formulas do not belong in Swift.
+- ELM327 response parsing does not belong in Objective-C.
+- ISO-TP/UDS state machines do not belong in the UI.
+- Mercedes data definitions do not belong in the BLE provider.
+- Adapter-specific GATT quirks do not belong in `libmblink` protocol code.
+
+Every manufacturer-specific value must have an explicit validation status. Captured real responses should become regression fixtures before experimental definitions are promoted to stable support.
+
+## Current status
+
+**Pre-alpha / foundation.**
+
+The repository is establishing its portable C ABI, dependency discipline, automated tests and architecture before vehicle-specific implementation accelerates.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Adapter strategy](docs/ADAPTERS.md)
+- [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## Licence
 
-MBLINK is released under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
+Copyright (C) 2026 Shannon Smith.
 
-See [LICENSE](LICENSE) for the project licence notice and GPL-3.0-or-later terms.
+MBLINK is free software licensed under the **GNU General Public License, version 3 or (at your option) any later version** (`GPL-3.0-or-later`). Source files use SPDX identifiers where practical. The complete GPLv3 licence text is in [LICENSE](LICENSE).

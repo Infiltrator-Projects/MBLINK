@@ -1,0 +1,11 @@
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+Testing/
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/

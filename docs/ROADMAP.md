@@ -1,17 +1,37 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
 # MBLINK Roadmap
 
-MBLINK will be developed in small, testable stages. Standard OBD-II comes first, followed by logging and diagnostics, then progressively deeper Mercedes-Benz support.
+MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, testable and architecturally reusable.
 
-## 0.1 — BLE connection and standard live data
+## 0.1 — C foundation and dependency discipline
 
-Primary target: iPhone + Vgate iCar Pro BLE 4.0.
+- Establish `libmblink` as a portable C11 library.
+- Publish stable public headers under `include/mblink/`.
+- Define the platform-neutral C transport ABI.
+- Pin Infiltratr Common 1.5.0 at commit `a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`.
+- Compile Common `core.c` and `format.c` into the portable foundation.
+- Reuse Common project identity and shared primitives instead of private duplicates.
+- Add strict compiler warnings and C smoke tests.
+- Add Linux/macOS CI for the portable library.
 
-- Native SwiftUI application shell.
-- CoreBluetooth adapter discovery and connection.
-- Runtime GATT service/characteristic discovery.
-- ELM327-compatible command channel.
-- Adapter reset and initialisation sequence.
-- Automatic OBD protocol selection.
+**Exit condition:** the repository builds and tests a real portable C library with its shared dependency pinned and verified.
+
+## 0.2 — ELM327 command engine in C
+
+- Command model and bounded command construction.
+- Response framing/normalisation.
+- Prompt detection and echo handling.
+- Adapter reset/initialisation state machine.
+- Capability probing.
+- Automatic OBD protocol selection policy.
+- Clean timeout and malformed-response behaviour.
+- Deterministic mock transport tests.
+
+**Exit condition:** captured ELM327 conversations can be parsed and exercised completely without BLE hardware.
+
+## 0.3 — Standard OBD-II C engine
+
 - Supported-PID enumeration.
 - Live RPM.
 - Coolant temperature.
@@ -21,120 +41,134 @@ Primary target: iPhone + Vgate iCar Pro BLE 4.0.
 - Intake-air temperature.
 - Throttle position.
 - Calculated engine load.
-- Connection and error status UI.
-- Unit tests for parser and standard PID decoding.
+- VIN/vehicle information where supported.
+- Stored/pending/permanent DTC decoding.
+- Freeze-frame and readiness data.
+- Explicitly gated DTC clearing.
 
-**Exit condition:** an iPhone can connect to the target Vgate adapter in the development Mercedes, identify supported standard PIDs and display stable live engine data.
+**Exit condition:** `libmblink` is useful as a generic OBD-II diagnostic engine independent of iOS.
 
-## 0.2 — Standard diagnostics
+## 0.4 — Apple BLE provider and iPhone shell
 
-- VIN and ECU identification where supported.
-- Stored DTCs.
-- Pending DTCs.
-- Permanent DTCs where available.
-- Human-readable standard DTC descriptions.
-- Freeze-frame data.
-- Readiness monitors.
-- Clear DTC operation behind an explicit user action.
-- Better timeout, retry and malformed-response handling.
-- Session transcript/debug view for development.
+Primary hardware target: **Vgate iCar Pro BLE 4.0**.
 
-**Exit condition:** MBLINK is useful as a conventional OBD-II diagnostic app even without Mercedes-specific extensions.
+- Objective-C CoreBluetooth provider implementing the C transport boundary.
+- Peripheral scan/connect/disconnect.
+- Runtime service/characteristic discovery.
+- Notification subscription and write-size handling.
+- Adapter-profile/quirk boundary.
+- Thin application bridge to Swift.
+- Native SwiftUI connection and live-data screens.
 
-## 0.3 — Dashboard, graphs and logging
+No diagnostic parser or PID formula is duplicated in Swift/Objective-C.
 
-- Configurable live-data dashboard.
-- Parameter selection and favourites.
-- Multiple polling rates.
+**Exit condition:** an iPhone can connect to the target Vgate adapter in the development Mercedes and display stable values produced by the C core.
+
+## 0.5 — Scheduler, dashboard and logging
+
+- C request scheduler with parameter groups and rates.
+- Priority for rapidly changing values.
+- Controlled pauses for exclusive operations.
+- Typed sample model.
+- Configurable dashboard.
+- Parameter favourites.
 - Time-series graphs.
-- Drive/session recording.
-- Timestamped samples.
+- Session recording.
 - CSV export.
-- Session metadata such as VIN, connection time and selected parameters.
-- Graceful handling of app background/foreground transitions.
+- Session metadata and diagnostic transcript support.
 
-**Exit condition:** live vehicle behaviour can be recorded and reviewed rather than merely watched on screen.
+**Exit condition:** drives can be captured, reviewed and exported without coupling logging logic to the UI.
 
-## 0.4 — Protocol foundation for manufacturer diagnostics
+## 0.6 — ISO-TP foundation in C
 
-- CAN-header control through compatible ELM327 commands.
-- ISO-TP segmentation and reassembly.
-- UDS request/response support.
-- ECU addressing model.
+- CAN addressing model.
+- Single/multi-frame handling.
+- Segmentation and reassembly.
+- Flow-control handling where required by the adapter/transport model.
+- Timeouts and sequence validation.
+- Captured-frame regression fixtures.
+
+**Exit condition:** transport-layer protocol tests pass without Mercedes-specific logic.
+
+## 0.7 — UDS foundation in C
+
+- Request/response model.
+- Positive/negative response handling.
+- ECU identification.
 - Diagnostic-session management.
 - Data-identifier abstraction.
-- Captured-response fixtures for repeatable testing.
+- Timing/state handling required by verified services.
 
-**Exit condition:** the core can communicate with verified non-generic diagnostic services without embedding Mercedes logic in the transport layer.
+**Exit condition:** verified UDS exchanges can be executed through the generic C engine without embedding manufacturer interpretation in the transport.
 
-## 0.5 — Mercedes-Benz C207 / OM651 engine diagnostics
+## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 
-Initial areas to investigate and validate:
+Investigate and validate:
 
-- ECU identity and software information.
-- DPF differential pressure.
-- DPF and exhaust temperature data.
-- Regeneration state and related counters where exposed.
-- Turbocharger command/actual information.
-- Boost-related data beyond generic Mode 01 values.
-- Fuel-rail target and actual pressure.
-- Injector-related values where exposed.
-- EGR command/actual information.
-- Additional diesel-specific temperatures and status data.
+- ECU identity/software information;
+- DPF differential pressure;
+- DPF and exhaust temperature data;
+- regeneration state and counters where exposed;
+- turbo target/actual information;
+- boost data beyond generic Mode 01 values;
+- fuel-rail target/actual pressure;
+- injector-related values where exposed;
+- EGR command/actual information;
+- additional diesel-specific state/temperature values.
 
-Every Mercedes-specific parameter must be labelled according to its validation status. Experimental definitions should remain clearly separated from verified definitions.
+Every Mercedes parameter carries a validation status. Experimental definitions remain separated from verified definitions.
 
-**Exit condition:** MBLINK provides materially more useful information on the development Mercedes than a generic OBD-II application.
+**Exit condition:** MBLINK provides materially deeper, verified information on the development Mercedes than a generic OBD-II application.
 
-## 0.6 — Additional Mercedes control modules
+## 0.9 — Additional Mercedes modules
 
 Subject to adapter and vehicle-network access:
 
-- Transmission.
-- ABS / ESP.
-- SRS / airbag.
-- Climate control.
-- Instrument cluster.
-- Body modules.
-- Other discoverable control units.
+- transmission;
+- ABS/ESP;
+- SRS/airbag;
+- climate control;
+- instrument cluster;
+- body modules;
+- other discoverable ECUs.
 
-This stage includes module discovery, ECU identity, DTC access and selected live data before any write-oriented functionality is considered.
+Initial scope is module identification, DTCs and selected live data before write-oriented service functions are considered.
 
-## 0.7 — Adapter portability
+## 0.10 — Adapter portability
 
-- Formal adapter-profile mechanism.
-- Test additional ELM327-compatible BLE adapters.
-- Record known quirks and capability differences.
-- Capability probing rather than adapter-name assumptions.
-- Optional support for other transports where useful.
+- Formal adapter capability/profile model.
+- Additional ELM327-compatible BLE adapters.
+- Known firmware/command quirks.
+- Capability probing rather than name assumptions.
+- Optional future Wi-Fi/native transports.
 
-The Vgate iCar Pro BLE 4.0 remains the first development target, not a permanent architectural dependency.
+The Vgate iCar Pro BLE 4.0 is the validation target, not a permanent dependency of `libmblink`.
 
-## 0.8 — User experience and release hardening
+## 1.0 — Release hardening
 
-- Saved vehicle profiles.
-- Automatic reconnect.
-- Dashboard presets.
-- Search/filter for parameters and DTCs.
-- Clear presentation of raw versus verified manufacturer data.
-- Better diagnostic-session history.
-- Accessibility and larger-text review.
-- Performance and battery-use optimisation.
-- Crash/error telemetry only if implemented in a privacy-respecting, opt-in manner.
-- Documentation for building and contributing.
+- Stable documented C ABI for supported functionality.
+- Public API documentation.
+- Complete test-fixture provenance/validation metadata.
+- Saved vehicle profiles and reconnect behaviour.
+- Accessibility review of the iPhone front end.
+- Performance and battery-use profiling.
+- Reproducible release process.
+- Contributor/build documentation.
+- Security and privacy review of any telemetry before such functionality is considered.
 
 ## Later possibilities
 
-These are deliberately outside the early scope and should only be considered once read-only diagnostics are mature:
+Only after read-focused diagnostics are mature:
 
-- Service functions.
-- Adaptations.
-- Coding.
-- Additional manufacturers.
-- macOS or other front ends reusing `MBLINKCore`.
+- service functions;
+- adaptations;
+- coding;
+- additional manufacturers;
+- macOS/Linux/Windows front ends using the same C engine;
+- command-line tooling for development and captured-session analysis.
 
-Firmware flashing, immobiliser/security programming and similarly high-impact functions are not part of the initial roadmap.
+Firmware flashing, immobiliser/security programming and similarly high-impact programming are outside the early roadmap.
 
 ## Development principle
 
-Each milestone should leave the repository in a useful, testable state. New Mercedes functionality should extend the generic platform rather than turning MBLINK into a collection of vehicle-specific shortcuts.
+Each feature begins at the lowest reusable layer that can correctly own it. UI convenience is never a reason to duplicate protocol logic outside the C core.
