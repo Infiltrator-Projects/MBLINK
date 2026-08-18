@@ -28,18 +28,18 @@ libmblink (portable C11)
   |- request scheduler
   |- logging/data model
   |- ISO-TP
-  |- UDS
-  `- manufacturer extensions
+  |- future UDS
+  `- future manufacturer extensions
        |
        v
-mblink_transport C ABI
+transport/provider boundaries
        |
        +-- Apple BLE provider (Objective-C + CoreBluetooth)
-       +-- future native providers
-       `-- test/mock transport
+       +-- future raw CAN/native providers
+       `-- deterministic test models
        |
        v
-Adapter -> OBD connector -> vehicle networks -> ECUs
+Adapter / CAN interface -> vehicle networks -> ECUs
 ```
 
 ## 1. Portable C core
@@ -56,10 +56,9 @@ Core responsibilities include:
 - DTC parsing;
 - vehicle and ECU identification queries;
 - diagnostic request scheduling;
-- timeouts and retry policy at the diagnostic layer;
 - transport-independent logging/session data;
-- ISO-TP segmentation/reassembly;
-- UDS request/response handling;
+- ISO-TP segmentation, reassembly and flow control;
+- future UDS request/response handling;
 - manufacturer-specific definition lookup and decoding;
 - explicit validation state for experimental manufacturer data.
 
@@ -69,17 +68,15 @@ If a protocol implementation can be written portably in C, it belongs here.
 
 Public headers live under `include/mblink/`.
 
-The ABI must use ordinary C types and explicit ownership rules. Platform objects must never leak into public structures.
+The ABI uses ordinary C types and explicit ownership rules. Platform objects must never leak into public structures.
 
-The transport boundary is callback/interface based. `libmblink` should be able to communicate through a real BLE provider, a future desktop transport or a deterministic mock without changing the parser or protocol engine.
-
-The initial `mblink_transport` contract is intentionally small. It will grow only as real transport requirements are proven.
+The ELM byte-stream transport boundary remains callback/interface based. ISO-TP additionally defines a transport-neutral Classical-CAN frame model so future native CAN or adapter-specific providers can exchange raw CAN frames without owning the ISO-TP state machine.
 
 ## 3. Infiltratr Common
 
 MBLINK reuses the canonical shared C foundation from **Infiltratr Common**.
 
-Initial dependency:
+Current dependency:
 
 - version: `1.5.0`
 - tag: `v1.5.0`
@@ -87,179 +84,135 @@ Initial dependency:
 
 The dependency is a pinned Git submodule at `src/infiltratr-common`.
 
-MBLINK initially compiles the portable Common components:
+MBLINK compiles the portable Common components `src/core.c` and `src/format.c`. Existing Common functionality is reused for bounded strings, deterministic parsing, checked/saturating arithmetic, formatting and project identity metadata rather than privately duplicated.
 
-- `src/core.c`
-- `src/format.c`
-
-The POSIX provider is not automatically included in the iOS core. Any platform provider must be selected deliberately after its contracts are validated for that platform.
-
-Existing Common functionality should be used where appropriate for:
-
-- bounded strings;
-- deterministic string handling;
-- strict integer and decimal parsing;
-- checked/saturating arithmetic;
-- range validation and clamping;
-- generic scalar and temperature/percentage formatting;
-- project identity metadata;
-- compiler annotations.
-
-MBLINK must not create local helpers that merely duplicate an existing Common contract.
-
-Conversely, OBD-II, ELM327, ISO-TP, UDS and Mercedes-specific code stays in MBLINK. Shared-library promotion occurs only when a capability satisfies Infiltratr Common's real-consumer rule.
+OBD-II, ELM327, ISO-TP, UDS and Mercedes-specific code stays in MBLINK unless a capability later satisfies Common's real-consumer rule.
 
 ## 4. Apple platform boundary
 
 The Apple provider owns functionality that cannot be made platform-neutral, primarily CoreBluetooth integration.
 
-The intended provider implementation is Objective-C because it can consume the C transport ABI directly while interoperating naturally with Apple frameworks. This keeps Swift out of protocol and transport internals.
+Objective-C consumes the C transport ABI while interoperating with Apple frameworks. Swift remains outside protocol and transport internals.
 
 Apple provider responsibilities include:
 
 - CoreBluetooth scanning;
 - peripheral connection/disconnection;
-- GATT service discovery;
-- characteristic discovery;
+- GATT service and characteristic discovery;
 - notification/indication subscription;
 - BLE write sizing and queuing;
 - byte-stream delivery to the C transport boundary;
 - translation of Apple connection errors into platform-neutral status codes.
 
-The Apple provider does **not** decode OBD data or know Mercedes PIDs/DIDs.
+The Apple provider does **not** decode OBD data, implement ISO-TP, or know Mercedes PIDs/DIDs.
 
 ## 5. SwiftUI application
 
-Swift is used where it provides genuine platform value: native presentation, navigation, state binding and iOS lifecycle integration.
+Swift is used for native presentation, navigation, state binding and iOS lifecycle integration. It consumes stable typed results from the C core through a thin bridge and must not contain alternate implementations of diagnostic logic.
 
-The SwiftUI application consumes stable results from the C core through a thin bridge. It should not contain alternate implementations of diagnostic logic.
-
-SwiftUI areas may include:
-
-- connection and vehicle status;
-- live dashboard;
-- parameter browser;
-- diagnostic trouble codes;
-- readiness and freeze-frame views;
-- graphs and session history;
-- Mercedes-specific views;
-- settings and adapter selection.
+Current/future UI areas include connection status, live dashboard, favourites, graphs/session history, DTCs, readiness/freeze-frame views and Mercedes-specific views.
 
 ## 6. Adapter layer
 
-The first target is the **Vgate iCar Pro BLE 4.0**.
+The first reference adapter is the **Vgate iCar Pro BLE 4.0**.
 
 MBLINK does not assume all ELM327-compatible BLE products share UUIDs, firmware behaviour or buffering rules. Adapter-specific BLE details belong in platform profiles/providers.
 
-The C diagnostic engine deals in logical adapter commands and responses, not GATT characteristics.
+The generic C diagnostic engine deals in logical adapter commands, responses and protocol objects rather than CoreBluetooth characteristics.
 
 ## 7. Standard OBD-II
 
-Generic OBD-II is the first stable cross-vehicle capability.
-
-Initial work covers:
-
-- Mode 01 current powertrain data;
-- supported-PID enumeration;
-- Mode 03 stored DTCs;
-- Mode 04 DTC clearing behind explicit user action;
-- Mode 07 pending DTCs;
-- Mode 09 vehicle information where supported;
-- permanent DTCs where available;
-- freeze-frame and readiness information.
+Generic OBD-II is the first stable cross-vehicle diagnostic capability. The implemented C engine covers supported PID enumeration, common Mode 01 data, stored/pending/permanent DTCs, explicitly gated clearing, VIN, readiness and freeze-frame information.
 
 Polling is capability-driven: MBLINK queries supported PID ranges and does not blindly poll unsupported values.
 
-## 8. ISO-TP and UDS
+## 8. ISO-TP
 
-Deeper Mercedes diagnostics must sit on reusable protocol layers.
+Milestone 0.6 implements ISO-TP in portable C independently of UDS or Mercedes definitions.
 
-ISO-TP and UDS are implemented in C independently of Mercedes definitions. This gives MBLINK a reusable foundation for multiple ECUs and, later, other manufacturers.
+The 0.6 contract deliberately targets **Classical CAN**:
+
+- 8-byte CAN data fields;
+- 11-bit and 29-bit identifiers;
+- normal, extended and mixed addressing model;
+- physical and functional target classification;
+- Single, First, Consecutive and Flow Control frames;
+- transmit segmentation and receive reassembly;
+- 12-bit First Frame lengths up to 4095 bytes;
+- sequence validation and wrap;
+- block-size Flow Control;
+- CTS, WAIT and OVERFLOW handling;
+- millisecond and 100–900 microsecond STmin values;
+- explicit receive/Flow-Control timeouts;
+- caller-owned bounded receive storage;
+- deterministic failed states requiring reset.
+
+CAN FD, CAN-FD Single Frame escape encoding and 32-bit extended First Frame lengths are not claimed by 0.6. Unsupported extended-length First Frames are rejected explicitly rather than guessed at.
+
+The ISO-TP API uses caller-provided monotonic microsecond timestamps. It does not read an OS clock or allocate hidden reassembly buffers.
+
+See [ISO-TP Foundation](ISOTP.md).
+
+## 9. UDS
+
+UDS is the next reusable protocol layer. It will consume complete ISO-TP PDUs instead of duplicating CAN framing or segmentation.
 
 Planned UDS capabilities include:
 
+- request/response modelling;
+- positive and negative responses;
 - ECU identification;
 - diagnostic sessions;
 - data-identifier requests;
-- negative-response handling;
-- timing/state management required by verified services.
+- timing/state management for verified services.
 
-## 9. Mercedes-Benz extension
+## 10. Mercedes-Benz extension
 
 The first deep-diagnostic target is the C207 E-Class diesel / OM651 platform.
 
-Candidate areas include:
+Candidate areas include DPF pressure/temperatures/regeneration, turbo command/actual data, rail-pressure target/actual data, injector information, EGR state, ECU identity, transmission and chassis modules.
 
-- DPF differential pressure;
-- DPF/exhaust temperatures;
-- regeneration state and counters;
-- turbo command/actual values;
-- rail-pressure target/actual values;
-- injector-related data;
-- EGR command/actual data;
-- ECU software/identity information;
-- transmission and chassis modules.
+No undocumented identifier is accepted merely because it appears in an online list. Definitions carry validation state and are promoted only after verification against real vehicle responses and regression fixtures.
 
-No undocumented identifier is accepted merely because it appears in an online list. Definitions carry a validation state and are promoted only after verification against real vehicle responses and regression fixtures.
+## 11. Request scheduler
 
-## 10. Request scheduler
+The C scheduler prevents the UI from becoming the timing authority. It owns polling groups/rates/priorities, pause/resume for exclusive operations, timestamping and bounded delayed catch-up without burst polling.
 
-The C scheduler prevents the UI from becoming the timing authority.
+## 12. Data model and logging
 
-It is responsible for:
+Decoded samples retain machine-usable identifiers, timestamps, decoded values and units. The C telemetry layer owns latest values, recent history, favourites and full-session recording. The same typed data drives dashboards, graphs and CSV/session export.
 
-- polling groups and rates;
-- priority for fast-changing values;
-- lower rates for temperatures/status data;
-- pausing polling for exclusive diagnostic operations;
-- request timeout/retry policy;
-- timestamping samples close to receipt;
-- avoiding unnecessary adapter/bus load.
-
-## 11. Data model and logging
-
-Decoded samples retain machine-usable information rather than only display strings:
-
-- stable parameter identifier;
-- timestamp;
-- source ECU/module;
-- raw payload where useful;
-- decoded numeric/enumerated value;
-- unit/scale metadata;
-- validation state for manufacturer-specific data.
-
-The same samples drive dashboards, graphs, CSV export and regression analysis.
-
-## 12. Write operations
+## 13. Write operations
 
 The initial project is intentionally read-focused.
 
 Operations that alter diagnostic state are separate from passive reads and require explicit user action. ECU coding, firmware flashing, immobiliser/security programming and similarly high-impact functions are outside the early implementation scope.
 
-## 13. Testing
+## 14. Testing
 
 Portable C tests are mandatory for protocol behaviour.
 
-Coverage will include:
+Current regression areas include:
 
-- ELM327 response cleanup;
-- standard PID formulas;
-- supported-PID bitmaps;
-- DTC decoding;
-- malformed/truncated responses;
-- timeout/retry state;
-- ISO-TP segmentation/reassembly;
-- UDS negative responses;
-- Mercedes decoding from captured verified fixtures.
+- ELM327 response cleanup/state handling;
+- standard PID formulas and supported-PID bitmaps;
+- DTC/VIN/readiness/freeze-frame decoding;
+- scheduler and telemetry ownership;
+- ISO-TP SF/FF/CF/FC framing;
+- segmentation/reassembly and sequence wrap;
+- block-size/STmin Flow Control;
+- malformed frames, wrong sequence numbers, buffer overflow and protocol timeouts;
+- failed-state persistence until explicit reset.
 
-A mock C transport must make these tests independent of Bluetooth hardware.
+Future tests will add UDS positive/negative responses and Mercedes decoding from captured verified fixtures.
 
-Apple/CoreBluetooth testing is a separate platform test surface.
+The portable suite runs on Ubuntu and macOS. The iPhone target builds the same portable `mblink.c` translation unit in both Debug and Release Xcode CI, so ISO-TP cannot silently diverge into an Apple-specific implementation.
 
 ## Design rules
 
 1. If changing the iPhone UI requires changing PID parsing, the separation is wrong.
 2. If supporting another adapter requires changing Mercedes decoding, the separation is wrong.
-3. If a parser exists in both Swift and C, the C implementation is the canonical one and the duplicate should be removed.
+3. If a parser/protocol state machine exists in Swift/Objective-C and C, the C implementation is canonical and the duplicate should be removed.
 4. If MBLINK implements an existing Infiltratr Common contract locally, the local implementation should be removed.
-5. If MBLINK needs a genuinely reusable helper another Infiltrator application also needs, evaluate it for Common rather than starting another private copy.
+5. If UDS starts reimplementing ISO-TP segmentation or CAN addressing, the layer boundary is wrong.
+6. If MBLINK needs a genuinely reusable helper another Infiltrator application also needs, evaluate it for Common rather than starting another private copy.

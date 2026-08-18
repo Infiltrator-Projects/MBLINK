@@ -8,9 +8,9 @@ The initial development focus is Mercedes-Benz, with the Vgate iCar Pro BLE 4.0 
 
 ## Current status
 
-**Pre-alpha / version 0.5.0.**
+**Pre-alpha / version 0.6.0.**
 
-MBLINK currently provides a tested portable C11 diagnostic foundation, ELM327-compatible command/session handling, standard OBD-II decoding, a native Apple BLE/iPhone integration, and a C-owned live-data scheduler and telemetry/session-recording system.
+MBLINK currently provides a tested portable C11 diagnostic foundation, ELM327-compatible command/session handling, standard OBD-II decoding, C-owned scheduling/telemetry/session recording, a reusable Classical-CAN ISO-TP engine, and a native Apple BLE/iPhone integration.
 
 Software CI builds and tests the portable C core on Ubuntu and macOS and builds the native iPhone target in both Debug and Release configurations for the iOS Simulator.
 
@@ -29,12 +29,12 @@ Thin Objective-C application bridge
 |          libmblink / C11           |
 |                                    |
 | ELM327 | OBD-II | scheduler        |
-| telemetry | session recorder       |
-| future ISO-TP / UDS / Mercedes     |
+| telemetry | ISO-TP | recorder      |
+| future UDS / Mercedes extensions   |
 +------------------------------------+
        |
        v
-C transport ABI
+C transport ABI / future CAN provider
        |
        v
 Objective-C / CoreBluetooth provider
@@ -101,18 +101,37 @@ See [Apple BLE and iPhone Layer](docs/APPLE.md).
 
 - Portable C request scheduler with explicit priorities and rates.
 - Capability-driven default schedule for eight standard live PIDs.
-- Pause/resume semantics for future exclusive diagnostic operations.
+- Pause/resume semantics for exclusive diagnostic operations.
 - Delayed-request catch-up without burst polling.
 - Typed latest-value cache and bounded chronological dashboard history.
-- Parameter favourites owned by the C telemetry store.
+- C-owned parameter favourites.
 - Full-session streaming recorder independent of the recent-history ring.
 - Diagnostic command/response transcript capture.
 - C-formatted CSV session data and metadata.
-- SwiftUI dashboard for the eight standard live values.
-- Favourite views and RPM/coolant history charts.
-- iOS share/export path for the generated session CSV.
+- SwiftUI dashboard, favourites, charts and iOS share/export path.
 
 See [Telemetry, Scheduling and Logging](docs/TELEMETRY.md).
+
+### 0.6 — ISO-TP foundation
+
+- Portable ISO-TP state machines in C11.
+- Classical CAN, 8-byte data frames and PDUs up to 4095 bytes.
+- 11-bit and 29-bit CAN identifiers.
+- Normal, extended and mixed addressing model.
+- Physical and functional target classification.
+- Single, First, Consecutive and Flow Control frames.
+- Segmentation and bounded caller-owned reassembly.
+- Sequence-number validation including wrap from `0xF` to `0x0`.
+- Receiver block-size Flow Control.
+- CTS, WAIT and OVERFLOW handling.
+- STmin support including 100–900 microsecond encodings.
+- Explicit receive and Flow Control timeouts.
+- Deterministic failed states that require reset before reuse.
+- Regression coverage independent of Mercedes-Benz or UDS logic.
+
+CAN FD and extended-length ISO-TP are deliberately not claimed by 0.6.
+
+See [ISO-TP Foundation](docs/ISOTP.md).
 
 ## Shared C foundation
 
@@ -133,9 +152,9 @@ See [Dependencies](docs/DEPENDENCIES.md).
 ## Repository layout
 
 ```text
-.github/workflows/     Continuous integration
+.github/workflows/     Continuous integration and release automation
 include/mblink/        Public C API
-src/core/              Portable project/scheduler/telemetry foundation
+src/core/              Portable project/scheduler/telemetry/ISO-TP foundation
 src/elm327/            Portable ELM327 engine
 src/obd2/              Portable standard OBD-II engine
 src/infiltratr-common/ Pinned Infiltratr Common submodule
@@ -177,7 +196,7 @@ The native iPhone project lives at:
 app/ios/MBLINK.xcodeproj
 ```
 
-The application links a static `MBLINKCore` target containing the same portable MBLINK and Infiltratr Common C sources used by the CMake build. SwiftUI does not contain alternate ELM/OBD decoders or polling policy.
+The application links a static `MBLINKCore` target containing the same portable MBLINK and Infiltratr Common C sources used by the CMake build. ISO-TP is included in that same portable C translation unit; SwiftUI does not contain alternate ELM/OBD/ISO-TP implementations or polling policy.
 
 ## Development policy
 
@@ -191,9 +210,9 @@ The application links a static `MBLINKCore` target containing the same portable 
 
 ## Next target
 
-Development now moves to **0.6 — ISO-TP foundation in C**.
+Development now moves to **0.7 — UDS foundation in C**.
 
-That stage will establish reusable CAN addressing, single/multi-frame handling, segmentation/reassembly, sequence validation, timing and captured-frame regression fixtures before Mercedes-specific UDS work begins.
+UDS will consume complete ISO-TP PDUs and add request/response modelling, positive and negative response handling, ECU identification, diagnostic-session management, data-identifier abstractions and verified timing/state behaviour without duplicating ISO-TP segmentation or CAN addressing.
 
 The 0.4 physical Vgate/iPhone/vehicle validation remains an active parallel validation task and may produce narrow adapter-specific corrections when hardware becomes available.
 
@@ -205,6 +224,7 @@ The 0.4 physical Vgate/iPhone/vehicle validation remains an active parallel vali
 - [Standard OBD-II engine](docs/OBD2.md)
 - [Apple BLE and iPhone layer](docs/APPLE.md)
 - [Telemetry, scheduling and logging](docs/TELEMETRY.md)
+- [ISO-TP foundation](docs/ISOTP.md)
 - [Adapter strategy](docs/ADAPTERS.md)
 - [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
 - [Contributing](CONTRIBUTING.md)
