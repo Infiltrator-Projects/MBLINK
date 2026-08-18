@@ -120,6 +120,91 @@ jobs:
           fi
           tail -n 20 "$log"
 
+  iphone-device-ipa:
+    name: iPhone / unsigned device IPA
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned iPhone device app
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device-derived"
+          log="$RUNNER_TEMP/mblink-xcodebuild-device.log"
+
+          if ! xcodebuild \
+            -project app/ios/MBLINK.xcodeproj \
+            -scheme MBLINK \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build >"$log" 2>&1; then
+            echo 'Unsigned iPhone device build failed. Compiler diagnostics:'
+            grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 120 || true
+            exit 1
+          fi
+
+          app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
+          test -d "$app"
+          test -x "$app/MBLINK"
+          /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
+          tail -n 20 "$log"
+
+      - name: Package unsigned IPA
+        shell: bash
+        env:
+          MBLINK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device-derived"
+          package="$RUNNER_TEMP/mblink-ipa"
+          ipa="$RUNNER_TEMP/MBLINK-${MBLINK_VERSION}-unsigned.ipa"
+
+          rm -rf "$package"
+          mkdir -p "$package/Payload"
+          /usr/bin/ditto \
+            "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
+            "$package/Payload/MBLINK.app"
+
+          (
+            cd "$package"
+            /usr/bin/zip -qry "$ipa" Payload
+          )
+
+          test -s "$ipa"
+          /usr/bin/unzip -tq "$ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MBLINK-${{ steps.version.outputs.version }}-unsigned-iphone-ipa
+          path: ${{ runner.temp }}/MBLINK-${{ steps.version.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
   release:
     name: Publish version release
     needs: [portable-core, sanitizers, apple-ios]
