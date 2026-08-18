@@ -10,6 +10,7 @@
 #include "mblink/transport.h"
 #include "mblink/scheduler.h"
 #include "mblink/telemetry.h"
+#include "mblink/isotp.h"
 
 #include "infiltratr/core.h"
 #include "infiltratr/format.h"
@@ -70,3 +71,6 @@ bool mblink_transport_is_valid(const MblinkTransport *transport)
 #include "scheduler.inc"
 #include "telemetry_store.inc"
 #include "telemetry_csv.inc"
+#include "isotp_common.inc"
+#include "isotp_receive.inc"
+#include "isotp_send.inc"

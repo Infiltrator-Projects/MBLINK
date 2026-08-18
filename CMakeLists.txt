@@ -118,6 +118,18 @@ if(BUILD_TESTING)
     add_executable(mblink-runtime-smoke tests/runtime_smoke.c)
     target_link_libraries(mblink-runtime-smoke PRIVATE mblink)
 
+    add_executable(mblink-isotp-basic-smoke
+        tests/isotp_basic_smoke.c tests/isotp_test_support.c)
+    target_link_libraries(mblink-isotp-basic-smoke PRIVATE mblink)
+
+    add_executable(mblink-isotp-flow-smoke
+        tests/isotp_flow_smoke.c tests/isotp_test_support.c)
+    target_link_libraries(mblink-isotp-flow-smoke PRIVATE mblink)
+
+    add_executable(mblink-isotp-roundtrip-smoke
+        tests/isotp_roundtrip_smoke.c tests/isotp_test_support.c)
+    target_link_libraries(mblink-isotp-roundtrip-smoke PRIVATE mblink)
+
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         target_compile_options(mblink-core-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-elm327-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
@@ -125,6 +137,9 @@ if(BUILD_TESTING)
         target_compile_options(mblink-elm327-probe-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-obd2-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-runtime-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-basic-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-flow-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-roundtrip-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
 
     add_test(NAME mblink-core-smoke COMMAND mblink-core-smoke)
@@ -133,4 +148,7 @@ if(BUILD_TESTING)
     add_test(NAME mblink-elm327-probe-smoke COMMAND mblink-elm327-probe-smoke)
     add_test(NAME mblink-obd2-smoke COMMAND mblink-obd2-smoke)
     add_test(NAME mblink-runtime-smoke COMMAND mblink-runtime-smoke)
+    add_test(NAME mblink-isotp-basic-smoke COMMAND mblink-isotp-basic-smoke)
+    add_test(NAME mblink-isotp-flow-smoke COMMAND mblink-isotp-flow-smoke)
+    add_test(NAME mblink-isotp-roundtrip-smoke COMMAND mblink-isotp-roundtrip-smoke)
 endif()
