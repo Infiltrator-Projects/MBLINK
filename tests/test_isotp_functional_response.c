@@ -102,6 +102,6 @@ int main(void)
             memcmp(payload, expected, sizeof(expected)) == 0,
             "functional response payload exact");
 
-    puts("ISO-TP functional-response smoke tests passed.");
+    puts("ISO-TP functional-response tests passed.");
     return EXIT_SUCCESS;
 }

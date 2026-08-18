@@ -2,9 +2,6 @@
 /**
  * @file elm327_session.h
  * @brief Transport-backed ELM327 command session engine.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_ELM327_SESSION_H
 #define MBLINK_ELM327_SESSION_H
@@ -63,15 +60,23 @@ struct MblinkElm327Session {
 };
 
 /**
- * Initialise a session and take ownership of the transport receiver callback.
+ * Initialise a session and install its transport receiver callback.
  *
  * The transport object is copied, but its context and provider-owned resources
- * must remain valid for the lifetime of the session.
+ * must remain valid until `mblink_elm327_session_deinit()` is called.
  */
 bool mblink_elm327_session_init(MblinkElm327Session *session,
                                 const MblinkTransport *transport,
                                 MblinkElm327SessionEventFn event,
                                 void *event_context);
+
+/**
+ * Detach the transport receiver callback and invalidate the session.
+ *
+ * Call this before the session storage or transport provider is destroyed and
+ * only after any synchronous session event callback has returned.
+ */
+void mblink_elm327_session_deinit(MblinkElm327Session *session);
 
 /** Connect the underlying transport. A successful reconnect re-synchronises. */
 MblinkTransportStatus mblink_elm327_session_connect(
@@ -89,8 +94,8 @@ bool mblink_elm327_session_is_connected(
  *
  * Exactly one command may be outstanding. `now_ms` must use a monotonic
  * caller-owned clock. Timeout zero is invalid. The session is single-threaded;
- * callers must serialize access, and a completion callback may observe state but
- * must defer starting the next command until the callback returns.
+ * callers must serialize access, and a completion callback may observe state
+ * but must defer starting the next command until the callback returns.
  */
 MblinkElm327SessionOpResult mblink_elm327_session_begin(
     MblinkElm327Session *session,

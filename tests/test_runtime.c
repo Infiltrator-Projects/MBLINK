@@ -3,6 +3,7 @@
 #include "mblink/telemetry.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -14,6 +15,12 @@ typedef struct {
     char data[65536];
     size_t length;
 } TextBuffer;
+
+typedef struct {
+    TextBuffer output;
+    size_t writes;
+    size_t fail_on_write;
+} FailingTextBuffer;
 
 static bool text_sink(void *context, const char *bytes, size_t length)
 {
@@ -28,6 +35,18 @@ static bool text_sink(void *context, const char *bytes, size_t length)
     return true;
 }
 
+static bool failing_text_sink(void *context, const char *bytes, size_t length)
+{
+    FailingTextBuffer *buffer = context;
+    if (buffer == NULL) {
+        return false;
+    }
+    if (buffer->writes++ == buffer->fail_on_write) {
+        return false;
+    }
+    return text_sink(&buffer->output, bytes, length);
+}
+
 static void set_supported(MblinkObd2PidSet *set, uint8_t pid)
 {
     set->bits[pid / 8U] |= (uint8_t)(1U << (pid % 8U));
@@ -36,7 +55,14 @@ static void set_supported(MblinkObd2PidSet *set, uint8_t pid)
 static int test_scheduler(void)
 {
     MblinkScheduler scheduler;
+    MblinkSchedulerDispatch dispatch;
+
     mblink_scheduler_init(&scheduler);
+    CHECK(mblink_scheduler_next(NULL, 0U, &dispatch) ==
+          MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT);
+    CHECK(mblink_scheduler_next(&scheduler, 0U, NULL) ==
+          MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT);
+
     CHECK(mblink_scheduler_add(&scheduler, 0x05U, 1000U,
                                MBLINK_SCHEDULER_PRIORITY_LOW, 100U) ==
           MBLINK_SCHEDULER_RESULT_OK);
@@ -47,7 +73,6 @@ static int test_scheduler(void)
                                MBLINK_SCHEDULER_PRIORITY_HIGH, 100U) ==
           MBLINK_SCHEDULER_RESULT_DUPLICATE);
 
-    MblinkSchedulerDispatch dispatch;
     CHECK(mblink_scheduler_next(&scheduler, 90U, &dispatch) ==
           MBLINK_SCHEDULER_NEXT_WAITING);
     CHECK(dispatch.wait_ms == 10U);
@@ -73,6 +98,14 @@ static int test_scheduler(void)
               &scheduler, dispatch.index, 2700U) ==
           MBLINK_SCHEDULER_RESULT_OK);
     CHECK(scheduler.items[dispatch.index].next_due_ms == 3600U);
+
+    mblink_scheduler_init(&scheduler);
+    CHECK(mblink_scheduler_add(&scheduler, 0x0cU, 1U,
+                               MBLINK_SCHEDULER_PRIORITY_CRITICAL, 0U) ==
+          MBLINK_SCHEDULER_RESULT_OK);
+    CHECK(mblink_scheduler_mark_dispatched(&scheduler, 0U, UINT64_MAX) ==
+          MBLINK_SCHEDULER_RESULT_OK);
+    CHECK(scheduler.items[0].next_due_ms == UINT64_MAX);
 
     MblinkObd2PidSet supported = { { 0 } };
     set_supported(&supported, 0x0cU);
@@ -171,6 +204,20 @@ static int test_telemetry(void)
     CHECK(strstr(stream.data, "sample,") != NULL);
     CHECK(strstr(stream.data, "transcript,,2000,") != NULL);
     CHECK(strstr(stream.data, "# session_ended_epoch_ms,9000\n") != NULL);
+
+    FailingTextBuffer failing = { .fail_on_write = SIZE_MAX };
+    mblink_telemetry_recorder_init(&recorder);
+    CHECK(mblink_telemetry_recorder_begin(
+              &recorder, &metadata, failing_text_sink, &failing));
+    failing.fail_on_write = failing.writes + 1U;
+    CHECK(!mblink_telemetry_recorder_record_sample(
+              &recorder, &latest, true));
+    CHECK(recorder.failed);
+    CHECK(!mblink_telemetry_recorder_record_response(
+              &recorder, 2000U, "010C", &response));
+    CHECK(!mblink_telemetry_recorder_finish(&recorder, 9000U));
+    mblink_telemetry_recorder_init(&recorder);
+    CHECK(!recorder.failed && !recorder.started && !recorder.finished);
     return 0;
 }
 

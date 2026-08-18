@@ -172,9 +172,9 @@ int main(void)
     test_initialisation_failure();
 
     if (failures != 0) {
-        fprintf(stderr, "%d ELM327 smoke test(s) failed\n", failures);
+        fprintf(stderr, "%d ELM327 test(s) failed\n", failures);
         return 1;
     }
-    puts("ELM327 smoke tests passed");
+    puts("ELM327 tests passed");
     return 0;
 }

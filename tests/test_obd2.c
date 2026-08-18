@@ -122,6 +122,23 @@ static void test_supported_pid_discovery(void)
     check(mblink_obd2_pid_set_contains(&set, 0x21U),
           "PID 21 marked supported");
     check(!has_more, "enumeration stops without continuation bit");
+
+    {
+        MblinkObd2PidSet transaction_set;
+        MblinkObd2PidSet snapshot;
+        mblink_obd2_pid_set_clear(&transaction_set);
+        snapshot = transaction_set;
+        has_more = true;
+        response = parse_response(
+            "0100", "410080000001\rZZ\r>");
+        check(mblink_obd2_accept_supported_pids(
+                  &response, 0x00U, &transaction_set, &has_more) ==
+                  MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+              "malformed supported PID response is rejected");
+        check(memcmp(&transaction_set, &snapshot,
+                     sizeof(transaction_set)) == 0 && !has_more,
+              "failed supported PID decode leaves output unchanged");
+    }
 }
 
 static void test_live_pid_decoding(void)
@@ -222,6 +239,20 @@ static void test_vin(void)
     check(mblink_obd2_decode_vin(&response, vin) ==
               MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
           "missing ELM indexed frame is rejected");
+
+    strcpy(vin, "sentinel");
+    response = parse_response(
+        "0902", "014\r0:490201574444\r1:32303730303030\r>");
+    check(mblink_obd2_decode_vin(&response, vin) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE && vin[0] == '\0',
+          "truncated indexed VIN length is rejected transactionally");
+
+    strcpy(vin, "sentinel");
+    response = parse_response(
+        "0902", "490201574444\r490202ZZ\r>");
+    check(mblink_obd2_decode_vin(&response, vin) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE && vin[0] == '\0',
+          "malformed multi-line VIN leaves output empty");
 }
 
 static void test_dtcs(void)
@@ -261,7 +292,7 @@ static void test_dtcs(void)
           "permanent DTC response decodes");
 
     response = parse_response(
-        "03", "009\r0:430133C1230000\r1:02000300\r>");
+        "03", "00B\r0:430133C1230000\r1:02000300\r>");
     check(mblink_obd2_decode_dtcs(
               &response, MBLINK_OBD2_DTC_STORED, &list) ==
               MBLINK_OBD2_RESULT_OK,
@@ -272,6 +303,29 @@ static void test_dtcs(void)
               strcmp(list.entries[2].code, "P0200") == 0 &&
               strcmp(list.entries[3].code, "P0300") == 0,
           "ELM indexed DTC values match");
+
+    response = parse_response(
+        "03", "00B\r0:430133C1230000\r>");
+    check(mblink_obd2_decode_dtcs(
+              &response, MBLINK_OBD2_DTC_STORED, &list) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+          "truncated indexed DTC length is rejected");
+
+    {
+        MblinkObd2DtcList snapshot;
+        memset(&list, 0, sizeof(list));
+        list.count = 1U;
+        list.entries[0].kind = MBLINK_OBD2_DTC_STORED;
+        strcpy(list.entries[0].code, "P9999");
+        snapshot = list;
+        response = parse_response("03", "430133\rZZ\r>");
+        check(mblink_obd2_decode_dtcs(
+                  &response, MBLINK_OBD2_DTC_STORED, &list) ==
+                  MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+              "malformed DTC response is rejected");
+        check(memcmp(&list, &snapshot, sizeof(list)) == 0,
+              "failed DTC decode leaves output unchanged");
+    }
 }
 
 static void test_malformed_and_elm_errors(void)
@@ -303,9 +357,9 @@ int main(void)
     test_malformed_and_elm_errors();
 
     if (failures != 0) {
-        fprintf(stderr, "%d OBD-II smoke test(s) failed\n", failures);
+        fprintf(stderr, "%d OBD-II test(s) failed\n", failures);
         return 1;
     }
-    puts("OBD-II smoke tests passed");
+    puts("OBD-II tests passed");
     return 0;
 }

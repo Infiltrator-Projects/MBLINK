@@ -160,7 +160,9 @@ static void MBLinkSessionEvent(void *context,
             &_recorder, MBLinkEpochMilliseconds());
     }
     if (_sessionInitialized) {
+        _sessionInitialized = NO;
         mblink_elm327_session_disconnect(&_session);
+        mblink_elm327_session_deinit(&_session);
     } else {
         [_provider disconnect];
     }
@@ -240,8 +242,9 @@ static void MBLinkSessionEvent(void *context,
     _pollGeneration++;
     [self stopTickTimer];
     if (_sessionInitialized) {
-        mblink_elm327_session_disconnect(&_session);
         _sessionInitialized = NO;
+        mblink_elm327_session_disconnect(&_session);
+        mblink_elm327_session_deinit(&_session);
     } else {
         [_provider disconnect];
     }
@@ -277,6 +280,7 @@ static void MBLinkSessionEvent(void *context,
         _pollGeneration++;
         [self stopTickTimer];
         _sessionInitialized = NO;
+        mblink_elm327_session_deinit(&_session);
         self.ready = NO;
         [self resetPublishedMeasurements];
     }
@@ -305,6 +309,9 @@ static void MBLinkSessionEvent(void *context,
         !mblink_telemetry_recorder_begin(
             &_recorder, &_sessionMetadata, MBLinkAppendCSV,
             (__bridge void *)_sessionCSV)) {
+        _sessionInitialized = NO;
+        mblink_elm327_session_disconnect(&_session);
+        mblink_elm327_session_deinit(&_session);
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Could not start portable session recorder"];
         return;

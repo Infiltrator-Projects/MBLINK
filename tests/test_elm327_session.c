@@ -157,14 +157,38 @@ static void test_fragmented_execution(void)
     check(session.status == MBLINK_ELM327_SESSION_COMPLETE,
           "prompt completes outstanding command");
     response = mblink_elm327_session_response(&session);
-    check(response != NULL, "completed response available");
     check(response != NULL &&
               strcmp(response->text, "41 0C 1A F8") == 0,
           "fragmented response normalised");
     check(session.unexpected_input_bytes == 4U,
           "bytes after prompt are accounted for");
+    check(session.needs_resync,
+          "non-whitespace bytes after prompt require resynchronisation");
+    check(mblink_elm327_session_begin(&session, "010D", 1002U, 500U) ==
+              MBLINK_ELM327_SESSION_OP_NEEDS_RESYNC,
+          "post-prompt contamination blocks the next command");
     check(event_count == 1U && last_sequence == 1U,
           "completion event delivered once");
+}
+
+static void test_whitespace_after_prompt_is_harmless(void)
+{
+    MockTransport mock = {0};
+    MblinkTransport transport = mock_transport_interface(&mock);
+    MblinkElm327Session session;
+
+    check(mblink_elm327_session_init(&session, &transport, NULL, NULL),
+          "whitespace session initialises");
+    check(mblink_elm327_session_connect(&session) == MBLINK_TRANSPORT_OK,
+          "whitespace transport connects");
+    check(mblink_elm327_session_begin(&session, "ATI", 0U, 100U) ==
+              MBLINK_ELM327_SESSION_OP_OK,
+          "whitespace command begins");
+    mock_emit(&mock, "ATI\rELM327 v1.5\r>\r\n");
+    check(session.status == MBLINK_ELM327_SESSION_COMPLETE,
+          "whitespace response completes");
+    check(!session.needs_resync,
+          "trailing line endings do not force resynchronisation");
 }
 
 static void test_synchronous_provider_callback(void)
@@ -243,6 +267,30 @@ static void test_timeout_and_resync_guard(void)
           "command accepted after resync");
 }
 
+static void test_disconnect_reconnect_and_deinit(void)
+{
+    MockTransport mock = {0};
+    MblinkTransport transport = mock_transport_interface(&mock);
+    MblinkElm327Session session;
+
+    check(mblink_elm327_session_init(&session, &transport, NULL, NULL),
+          "lifetime session initialises");
+    check(mock.receiver != NULL && mock.receiver_context == &session,
+          "initialisation installs receiver");
+    check(mblink_elm327_session_connect(&session) == MBLINK_TRANSPORT_OK,
+          "lifetime transport connects");
+    mblink_elm327_session_disconnect(&session);
+    check(mock.receiver == NULL && mock.receiver_context == NULL,
+          "disconnect detaches receiver");
+    check(mblink_elm327_session_connect(&session) == MBLINK_TRANSPORT_OK,
+          "session reconnects after detach");
+    check(mock.receiver != NULL && mock.receiver_context == &session,
+          "reconnect reinstalls receiver");
+    mblink_elm327_session_deinit(&session);
+    check(mock.receiver == NULL && mock.receiver_context == NULL,
+          "deinit detaches receiver before storage dies");
+}
+
 static void test_cancel_and_write_failure(void)
 {
     MockTransport mock = {0};
@@ -290,16 +338,18 @@ static void test_deadline_overflow(void)
 int main(void)
 {
     test_fragmented_execution();
+    test_whitespace_after_prompt_is_harmless();
     test_synchronous_provider_callback();
     test_completion_callback_cannot_reenter();
     test_timeout_and_resync_guard();
+    test_disconnect_reconnect_and_deinit();
     test_cancel_and_write_failure();
     test_deadline_overflow();
 
     if (failures != 0) {
-        fprintf(stderr, "%d ELM327 session smoke test(s) failed\n", failures);
+        fprintf(stderr, "%d ELM327 session test(s) failed\n", failures);
         return 1;
     }
-    puts("ELM327 session smoke tests passed");
+    puts("ELM327 session tests passed");
     return 0;
 }

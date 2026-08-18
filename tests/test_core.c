@@ -50,7 +50,7 @@ static void mock_set_receiver(void *context,
 static bool check(bool condition, const char *message)
 {
     if (!condition) {
-        fprintf(stderr, "mblink-core-smoke: %s\n", message);
+        fprintf(stderr, "mblink-core-test: %s\n", message);
     }
     return condition;
 }

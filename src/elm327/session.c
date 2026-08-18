@@ -2,15 +2,29 @@
 /**
  * @file session.c
  * @brief Transport-backed ELM327 command execution.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #include "mblink/elm327_session.h"
 
 #include "infiltratr/core.h"
 
 #include <string.h>
+
+static bool elm327_session_bytes_are_whitespace(
+    const uint8_t *data, size_t size)
+{
+    if (data == NULL && size != 0U) {
+        return false;
+    }
+    for (size_t index = 0U; index < size; ++index) {
+        const uint8_t value = data[index];
+        if (value != (uint8_t)' ' && value != (uint8_t)'\t' &&
+            value != (uint8_t)'\r' && value != (uint8_t)'\n' &&
+            value != (uint8_t)'\v' && value != (uint8_t)'\f') {
+            return false;
+        }
+    }
+    return true;
+}
 
 static void elm327_session_add_unexpected(MblinkElm327Session *session,
                                           size_t amount)
@@ -59,6 +73,9 @@ static void elm327_session_receive(void *context,
 
     if (session->status != MBLINK_ELM327_SESSION_WAITING) {
         elm327_session_add_unexpected(session, size);
+        if (!elm327_session_bytes_are_whitespace(data, size)) {
+            session->needs_resync = true;
+        }
         return;
     }
 
@@ -84,6 +101,10 @@ static void elm327_session_receive(void *context,
         session->transport_status = MBLINK_TRANSPORT_OK;
         session->status = MBLINK_ELM327_SESSION_COMPLETE;
         elm327_session_add_unexpected(session, size - offset);
+        if (!elm327_session_bytes_are_whitespace(data + offset,
+                                                 size - offset)) {
+            session->needs_resync = true;
+        }
         elm327_session_notify(session);
     }
 }
@@ -109,6 +130,17 @@ bool mblink_elm327_session_init(MblinkElm327Session *session,
     return true;
 }
 
+void mblink_elm327_session_deinit(MblinkElm327Session *session)
+{
+    if (session == NULL || session->callback_active) {
+        return;
+    }
+    if (mblink_transport_is_valid(&session->transport)) {
+        session->transport.set_receiver(session->transport.context, NULL, NULL);
+    }
+    memset(session, 0, sizeof(*session));
+}
+
 MblinkTransportStatus mblink_elm327_session_connect(
     MblinkElm327Session *session)
 {
@@ -123,6 +155,8 @@ MblinkTransportStatus mblink_elm327_session_connect(
         return MBLINK_TRANSPORT_BUSY;
     }
 
+    session->transport.set_receiver(session->transport.context,
+                                    elm327_session_receive, session);
     result = session->transport.connect(session->transport.context);
     session->transport_status = result;
     if (result == MBLINK_TRANSPORT_OK) {
@@ -144,6 +178,7 @@ void mblink_elm327_session_disconnect(MblinkElm327Session *session)
     }
 
     session->transport.disconnect(session->transport.context);
+    session->transport.set_receiver(session->transport.context, NULL, NULL);
     if (session->status == MBLINK_ELM327_SESSION_WAITING) {
         session->status = MBLINK_ELM327_SESSION_CANCELLED;
         session->needs_resync = false;
@@ -286,20 +321,13 @@ const char *mblink_elm327_session_op_result_name(
     MblinkElm327SessionOpResult result)
 {
     switch (result) {
-    case MBLINK_ELM327_SESSION_OP_OK:
-        return "ok";
-    case MBLINK_ELM327_SESSION_OP_INVALID_ARGUMENT:
-        return "invalid-argument";
-    case MBLINK_ELM327_SESSION_OP_BUSY:
-        return "busy";
-    case MBLINK_ELM327_SESSION_OP_NOT_CONNECTED:
-        return "not-connected";
-    case MBLINK_ELM327_SESSION_OP_NEEDS_RESYNC:
-        return "needs-resync";
-    case MBLINK_ELM327_SESSION_OP_DEADLINE_OVERFLOW:
-        return "deadline-overflow";
-    case MBLINK_ELM327_SESSION_OP_TRANSPORT_ERROR:
-        return "transport-error";
+    case MBLINK_ELM327_SESSION_OP_OK: return "ok";
+    case MBLINK_ELM327_SESSION_OP_INVALID_ARGUMENT: return "invalid-argument";
+    case MBLINK_ELM327_SESSION_OP_BUSY: return "busy";
+    case MBLINK_ELM327_SESSION_OP_NOT_CONNECTED: return "not-connected";
+    case MBLINK_ELM327_SESSION_OP_NEEDS_RESYNC: return "needs-resync";
+    case MBLINK_ELM327_SESSION_OP_DEADLINE_OVERFLOW: return "deadline-overflow";
+    case MBLINK_ELM327_SESSION_OP_TRANSPORT_ERROR: return "transport-error";
     }
     return "unknown";
 }

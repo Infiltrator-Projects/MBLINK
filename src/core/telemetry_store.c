@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/* Private telemetry implementation fragment; included by mblink.c. */
+/**
+ * @file telemetry_store.c
+ * @brief Bounded typed telemetry history and session metadata.
+ */
+#include "mblink/telemetry.h"
+
+#include "infiltratr/core.h"
+
+#include <math.h>
+#include <string.h>
+
 void mblink_telemetry_store_init(MblinkTelemetryStore *store)
 {
     if (store != NULL) {
@@ -220,4 +230,3 @@ void mblink_telemetry_session_metadata_finish(
         metadata->ended_epoch_ms = ended_epoch_ms;
     }
 }
-

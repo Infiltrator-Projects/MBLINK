@@ -162,16 +162,9 @@ struct ContentView: View {
 
                     if let exportURL = connection.csvExportURL {
                         ShareLink(item: exportURL) {
-                            Label("Share MBLINK-session.csv",
-                                  systemImage: "square.and.arrow.up")
+                            Label("Share CSV", systemImage: "square.and.arrow.up")
                         }
                     }
-                }
-
-                Section {
-                    Text("Polling, sample history and CSV formatting are produced by the portable C core. SwiftUI only presents typed values and exports the generated session data.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("MBLINK")

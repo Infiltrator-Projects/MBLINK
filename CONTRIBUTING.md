@@ -2,31 +2,25 @@
 
 # Contributing to MBLINK
 
-MBLINK is intentionally C-first. Contributions should preserve the separation between portable diagnostic logic and platform presentation/transport code.
+MBLINK is C-first. Contributions must preserve the separation between portable diagnostic logic and platform transport/presentation code.
 
 ## Engineering rules
 
 - Write portable diagnostic/protocol behaviour in C11 wherever practical.
 - Do not duplicate protocol logic in Swift or Objective-C.
-- Reuse Infiltratr Common when an existing shared API matches the requirement.
-- Do not modify the pinned Common source inside MBLINK; changes to shared code belong in the Infiltrator-Libraries repository first.
-- Keep adapter quirks in adapter/platform providers.
-- Keep manufacturer definitions separate from generic OBD-II/ISO-TP/UDS engines.
-- Treat undocumented Mercedes identifiers as experimental until verified against real vehicle responses.
-- Add regression fixtures/tests with parser or decoder changes.
-- Keep public C types platform-neutral and document ownership/lifetime rules.
+- Reuse Infiltratr Common when an existing shared API matches the requirement; do not modify the pinned submodule from this repository.
+- Keep adapter quirks in providers/profiles and manufacturer definitions above generic OBD-II/ISO-TP/UDS layers.
+- Treat undocumented manufacturer identifiers as experimental until verified against real vehicle responses.
+- Add deterministic regression coverage with parser, decoder or state-machine changes.
+- Keep public C types platform-neutral and make ownership/lifetime contracts explicit.
 
 ## C style and quality
 
-The portable build targets C11 with extensions disabled. New C code should compile cleanly under the project's warning policy, including `-Wall`, `-Wextra`, `-Wpedantic`, `-Wshadow`, `-Wformat=2`, `-Wstrict-prototypes` and `-Wmissing-prototypes` where supported.
+C11 extensions are disabled. Code must compile cleanly under the repository warning policy (`-Wall`, `-Wextra`, `-Wpedantic`, `-Wshadow`, `-Wformat=2`, `-Wstrict-prototypes`, `-Wmissing-prototypes` where supported).
 
-Source files should carry:
+Source files carry `// SPDX-License-Identifier: GPL-3.0-or-later`.
 
-```c
-// SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-Prefer explicit bounds, fixed-width integer types for protocol fields, checked arithmetic where overflow matters, and narrow interfaces between modules.
+Prefer explicit bounds, fixed-width protocol fields, checked/saturating arithmetic where overflow matters, and narrow interfaces. Comments explain ownership, invariants, protocol quirks, safety or non-obvious decisions; do not narrate obvious syntax.
 
 ## Build and test
 
@@ -37,22 +31,30 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Protocol changes should be testable without a vehicle. Real vehicle captures may be added as sanitised test fixtures when they do not expose sensitive identifiers unnecessarily.
+For sanitizer validation:
+
+```sh
+cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DMBLINK_ENABLE_SANITIZERS=ON
+cmake --build build-sanitized
+ctest --test-dir build-sanitized --output-on-failure
+```
+
+Protocol behaviour should be testable without a vehicle. Sanitised real captures may be added when useful and when they do not expose sensitive identifiers unnecessarily.
 
 ## Layer ownership
 
-| Layer | Preferred implementation | Owns |
+| Layer | Implementation | Owns |
 | --- | --- | --- |
-| `libmblink` | C11 | ELM327, OBD-II, DTCs, scheduler, ISO-TP, UDS, Mercedes decoding, logging model |
+| `libmblink` | C11 | ELM327, OBD-II, scheduler, telemetry, ISO-TP, UDS, manufacturer decoding |
 | Transport ABI | C11 | portable provider contract |
-| Apple BLE provider | Objective-C | CoreBluetooth/GATT and Apple connection lifecycle |
-| iPhone UI | Swift/SwiftUI | presentation, navigation, user interaction |
-| Infiltratr Common | C11 shared repository | genuinely reusable cross-project primitives |
+| Apple provider/bridge | Objective-C | CoreBluetooth and Apple application boundary |
+| iPhone UI | Swift/SwiftUI | presentation and user interaction |
+| Infiltratr Common | shared C11 repository | genuinely reusable cross-project primitives |
 
-## Commit scope
+## Commits
 
-Keep commits focused and explain architectural changes in the documentation when necessary. Avoid mixing unrelated formatting, protocol changes and platform changes into one patch.
+Keep commits focused. Do not mix unrelated formatting, protocol changes and platform changes. Update documentation only when it owns a contract affected by the change.
 
 ## Licence
 
-Contributions are accepted under the project's `GPL-3.0-or-later` licence unless explicitly agreed otherwise before submission.
+Contributions are accepted under `GPL-3.0-or-later` unless explicitly agreed otherwise beforehand.

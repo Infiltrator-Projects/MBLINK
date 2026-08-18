@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/* Private ISO-TP implementation fragment; included by mblink.c. */
-/* ------------------------------------------------------------------------- */
-/* ISO-TP (ISO 15765-2) over Classical CAN                                   */
-/* ------------------------------------------------------------------------- */
+/**
+ * @file isotp.c
+ * @brief ISO-TP (ISO 15765-2) over Classical CAN.
+ */
+#include "mblink/isotp.h"
+
+#include "infiltratr/core.h"
+
+#include <string.h>
 
 static bool mblink_isotp_can_id_valid(uint32_t can_id, bool extended)
 {
@@ -132,19 +137,19 @@ const char *mblink_isotp_result_name(MblinkIsoTpResult result)
     switch (result) {
     case MBLINK_ISOTP_RESULT_OK: return "ok";
     case MBLINK_ISOTP_RESULT_COMPLETE: return "complete";
-    case MBLINK_ISOTP_RESULT_WAIT_FLOW_CONTROL: return "wait_flow_control";
-    case MBLINK_ISOTP_RESULT_WAIT_SEPARATION: return "wait_separation";
-    case MBLINK_ISOTP_RESULT_FLOW_CONTROL_WAIT: return "flow_control_wait";
-    case MBLINK_ISOTP_RESULT_INVALID_ARGUMENT: return "invalid_argument";
-    case MBLINK_ISOTP_RESULT_INVALID_FRAME: return "invalid_frame";
-    case MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME: return "unexpected_frame";
-    case MBLINK_ISOTP_RESULT_WRONG_SEQUENCE: return "wrong_sequence";
-    case MBLINK_ISOTP_RESULT_BUFFER_TOO_SMALL: return "buffer_too_small";
-    case MBLINK_ISOTP_RESULT_PAYLOAD_TOO_LARGE: return "payload_too_large";
+    case MBLINK_ISOTP_RESULT_WAIT_FLOW_CONTROL: return "wait-flow-control";
+    case MBLINK_ISOTP_RESULT_WAIT_SEPARATION: return "wait-separation";
+    case MBLINK_ISOTP_RESULT_FLOW_CONTROL_WAIT: return "flow-control-wait";
+    case MBLINK_ISOTP_RESULT_INVALID_ARGUMENT: return "invalid-argument";
+    case MBLINK_ISOTP_RESULT_INVALID_FRAME: return "invalid-frame";
+    case MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME: return "unexpected-frame";
+    case MBLINK_ISOTP_RESULT_WRONG_SEQUENCE: return "wrong-sequence";
+    case MBLINK_ISOTP_RESULT_BUFFER_TOO_SMALL: return "buffer-too-small";
+    case MBLINK_ISOTP_RESULT_PAYLOAD_TOO_LARGE: return "payload-too-large";
     case MBLINK_ISOTP_RESULT_TIMEOUT: return "timeout";
     case MBLINK_ISOTP_RESULT_FLOW_CONTROL_OVERFLOW:
-        return "flow_control_overflow";
-    case MBLINK_ISOTP_RESULT_WAIT_FRAME_LIMIT: return "wait_frame_limit";
+        return "flow-control-overflow";
+    case MBLINK_ISOTP_RESULT_WAIT_FRAME_LIMIT: return "wait-frame-limit";
     case MBLINK_ISOTP_RESULT_UNSUPPORTED: return "unsupported";
     }
     return "unknown";
@@ -165,7 +170,7 @@ const char *mblink_isotp_tx_state_name(MblinkIsoTpTxState state)
 {
     switch (state) {
     case MBLINK_ISOTP_TX_IDLE: return "idle";
-    case MBLINK_ISOTP_TX_WAIT_FLOW_CONTROL: return "wait_flow_control";
+    case MBLINK_ISOTP_TX_WAIT_FLOW_CONTROL: return "wait-flow-control";
     case MBLINK_ISOTP_TX_SENDING: return "sending";
     case MBLINK_ISOTP_TX_COMPLETE: return "complete";
     case MBLINK_ISOTP_TX_FAILED: return "failed";
@@ -230,6 +235,7 @@ MblinkIsoTpResult mblink_isotp_rx_init(
     receiver->buffer = buffer;
     receiver->capacity = capacity;
     receiver->state = MBLINK_ISOTP_RX_IDLE;
+    receiver->failure = MBLINK_ISOTP_RESULT_OK;
     return MBLINK_ISOTP_RESULT_OK;
 }
 
@@ -245,6 +251,7 @@ void mblink_isotp_rx_reset(MblinkIsoTpRx *receiver)
     receiver->block_counter = 0U;
     receiver->deadline_us = 0U;
     receiver->state = MBLINK_ISOTP_RX_IDLE;
+    receiver->failure = MBLINK_ISOTP_RESULT_OK;
 }
 
 static MblinkIsoTpResult mblink_isotp_rx_fail(
@@ -252,6 +259,7 @@ static MblinkIsoTpResult mblink_isotp_rx_fail(
     MblinkIsoTpResult result)
 {
     receiver->state = MBLINK_ISOTP_RX_FAILED;
+    receiver->failure = result;
     receiver->deadline_us = 0U;
     return result;
 }
@@ -324,7 +332,7 @@ static MblinkIsoTpResult mblink_isotp_rx_accept_first(
         return mblink_isotp_rx_fail(
             receiver, MBLINK_ISOTP_RESULT_INVALID_FRAME);
     }
-if (payload_length > receiver->capacity) {
+    if (payload_length > receiver->capacity) {
         fc_result = mblink_isotp_build_flow_control(
             &receiver->config.address,
             MBLINK_ISOTP_FLOW_OVERFLOW,
@@ -458,6 +466,10 @@ MblinkIsoTpResult mblink_isotp_rx_feed(
     }
     *flow_control_ready = false;
 
+    if (receiver->state == MBLINK_ISOTP_RX_FAILED) {
+        return receiver->failure;
+    }
+
     if (!mblink_isotp_frame_matches_receive_address(
             &receiver->config.address, frame, &offset)) {
         return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
@@ -502,7 +514,7 @@ MblinkIsoTpResult mblink_isotp_rx_tick(
         return MBLINK_ISOTP_RESULT_COMPLETE;
     }
     if (receiver->state == MBLINK_ISOTP_RX_FAILED) {
-        return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
+        return receiver->failure;
     }
 
     return MBLINK_ISOTP_RESULT_OK;
@@ -548,6 +560,7 @@ MblinkIsoTpResult mblink_isotp_tx_init(
     transmitter->payload_length = payload_length;
     transmitter->next_sequence = 1U;
     transmitter->state = MBLINK_ISOTP_TX_IDLE;
+    transmitter->failure = MBLINK_ISOTP_RESULT_OK;
     return MBLINK_ISOTP_RESULT_OK;
 }
 
@@ -566,6 +579,7 @@ void mblink_isotp_tx_reset(MblinkIsoTpTx *transmitter)
     transmitter->next_send_us = 0U;
     transmitter->deadline_us = 0U;
     transmitter->state = MBLINK_ISOTP_TX_IDLE;
+    transmitter->failure = MBLINK_ISOTP_RESULT_OK;
 }
 
 static MblinkIsoTpResult mblink_isotp_tx_fail(
@@ -573,6 +587,7 @@ static MblinkIsoTpResult mblink_isotp_tx_fail(
     MblinkIsoTpResult result)
 {
     transmitter->state = MBLINK_ISOTP_TX_FAILED;
+    transmitter->failure = result;
     transmitter->deadline_us = 0U;
     return result;
 }
@@ -590,6 +605,9 @@ MblinkIsoTpResult mblink_isotp_tx_start(
         transmitter->payload == NULL ||
         transmitter->payload_length == 0U) {
         return MBLINK_ISOTP_RESULT_INVALID_ARGUMENT;
+    }
+    if (transmitter->state == MBLINK_ISOTP_TX_FAILED) {
+        return transmitter->failure;
     }
     if (transmitter->state != MBLINK_ISOTP_TX_IDLE) {
         return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
@@ -657,13 +675,19 @@ MblinkIsoTpResult mblink_isotp_tx_accept_flow_control(
     if (transmitter == NULL) {
         return MBLINK_ISOTP_RESULT_INVALID_ARGUMENT;
     }
+    if (transmitter->state == MBLINK_ISOTP_TX_FAILED) {
+        return transmitter->failure;
+    }
     if (transmitter->state != MBLINK_ISOTP_TX_WAIT_FLOW_CONTROL) {
         return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
     }
+    if (!mblink_isotp_frame_valid(frame)) {
+        return mblink_isotp_tx_fail(
+            transmitter, MBLINK_ISOTP_RESULT_INVALID_FRAME);
+    }
     if (!mblink_isotp_frame_matches_receive_address(
             &transmitter->config.address, frame, &offset)) {
-        return mblink_isotp_tx_fail(
-            transmitter, MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME);
+        return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
     }
     if (frame->length < offset + 3U ||
         (frame->data[offset] >> 4U) != 0x3U) {
@@ -724,6 +748,9 @@ MblinkIsoTpResult mblink_isotp_tx_next(
 
     if (transmitter == NULL || frame == NULL) {
         return MBLINK_ISOTP_RESULT_INVALID_ARGUMENT;
+    }
+    if (transmitter->state == MBLINK_ISOTP_TX_FAILED) {
+        return transmitter->failure;
     }
 
     if (transmitter->state == MBLINK_ISOTP_TX_WAIT_FLOW_CONTROL) {
@@ -800,7 +827,7 @@ MblinkIsoTpResult mblink_isotp_tx_tick(
         return MBLINK_ISOTP_RESULT_COMPLETE;
     }
     if (transmitter->state == MBLINK_ISOTP_TX_FAILED) {
-        return MBLINK_ISOTP_RESULT_UNEXPECTED_FRAME;
+        return transmitter->failure;
     }
     if (transmitter->state == MBLINK_ISOTP_TX_WAIT_FLOW_CONTROL) {
         return MBLINK_ISOTP_RESULT_WAIT_FLOW_CONTROL;

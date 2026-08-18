@@ -2,9 +2,6 @@
 /**
  * @file scheduler.h
  * @brief Portable bounded request scheduler for live diagnostic polling.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_SCHEDULER_H
 #define MBLINK_SCHEDULER_H
@@ -40,7 +37,8 @@ typedef enum {
     MBLINK_SCHEDULER_NEXT_READY = 0,
     MBLINK_SCHEDULER_NEXT_WAITING,
     MBLINK_SCHEDULER_NEXT_PAUSED,
-    MBLINK_SCHEDULER_NEXT_EMPTY
+    MBLINK_SCHEDULER_NEXT_EMPTY,
+    MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT
 } MblinkSchedulerNextResult;
 
 typedef struct {
@@ -70,6 +68,7 @@ const char *mblink_scheduler_next_result_name(MblinkSchedulerNextResult result);
 
 void mblink_scheduler_init(MblinkScheduler *scheduler);
 
+/** All scheduler timestamps use one caller-supplied monotonic millisecond clock. */
 MblinkSchedulerResult mblink_scheduler_add(
     MblinkScheduler *scheduler,
     uint8_t pid,

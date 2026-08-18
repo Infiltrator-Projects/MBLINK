@@ -13,6 +13,10 @@
 		C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */ = {isa = PBXBuildFile; fileRef = BC3EA22A6C914BF98DE5FC4E /* BLETransport.m */; };
 		42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */ = {isa = PBXBuildFile; fileRef = 82715A34A1DA0E87C553301D /* Diagnostics.m */; };
 		8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */ = {isa = PBXBuildFile; fileRef = 9B110E710D124AB4D19370DA /* mblink.c */; };
+		E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A01 /* scheduler.c */; };
+		E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */; };
+		E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */; };
+		E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
@@ -44,6 +48,10 @@
 		CEDB09A7C0E1C3ECC71DFC2E /* Diagnostics.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkDiagnosticsController.h"; path = "../../platform/apple/MBLinkDiagnosticsController.h"; sourceTree = SOURCE_ROOT; };
 		82715A34A1DA0E87C553301D /* Diagnostics.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = "MBLinkDiagnosticsController.m"; path = "../../platform/apple/MBLinkDiagnosticsController.m"; sourceTree = SOURCE_ROOT; };
 		9B110E710D124AB4D19370DA /* mblink.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mblink.c"; path = "../../src/core/mblink.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A01 /* scheduler.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "scheduler.c"; path = "../../src/core/scheduler.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_store.c"; path = "../../src/core/telemetry_store.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_csv.c"; path = "../../src/core/telemetry_csv.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -114,6 +122,10 @@
 			isa = PBXGroup;
 			children = (
 				9B110E710D124AB4D19370DA /* mblink.c */,
+				F0A1B2C3D4E5F60718293A01 /* scheduler.c */,
+				F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */,
+				F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */,
+				F0A1B2C3D4E5F60718293A04 /* isotp.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
 				A4A92AE396A1586C99D8BB56 /* session.c */,
 				41A80A01E9B823433E288953 /* probe.c */,
@@ -250,6 +262,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */,
+				E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */,
+				E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */,
+				E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */,
+				E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
@@ -311,7 +327,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.6.1;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -342,7 +358,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.6.1;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -381,7 +397,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -413,7 +429,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";

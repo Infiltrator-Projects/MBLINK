@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/* Private scheduler implementation fragment; included by mblink.c. */
-/* ------------------------------------------------------------------------- */
-/* Portable live-data scheduler                                               */
-/* ------------------------------------------------------------------------- */
+/**
+ * @file scheduler.c
+ * @brief Portable live diagnostic request scheduler.
+ */
+#include "mblink/scheduler.h"
+
+#include "infiltratr/core.h"
+
+#include <string.h>
+
 static bool mblink_scheduler_priority_valid(MblinkSchedulerPriority priority)
 {
     return priority >= MBLINK_SCHEDULER_PRIORITY_LOW &&
@@ -13,10 +19,10 @@ const char *mblink_scheduler_result_name(MblinkSchedulerResult result)
 {
     switch (result) {
     case MBLINK_SCHEDULER_RESULT_OK: return "ok";
-    case MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT: return "invalid_argument";
+    case MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT: return "invalid-argument";
     case MBLINK_SCHEDULER_RESULT_FULL: return "full";
     case MBLINK_SCHEDULER_RESULT_DUPLICATE: return "duplicate";
-    case MBLINK_SCHEDULER_RESULT_NOT_FOUND: return "not_found";
+    case MBLINK_SCHEDULER_RESULT_NOT_FOUND: return "not-found";
     }
     return "unknown";
 }
@@ -28,6 +34,7 @@ const char *mblink_scheduler_next_result_name(MblinkSchedulerNextResult result)
     case MBLINK_SCHEDULER_NEXT_WAITING: return "waiting";
     case MBLINK_SCHEDULER_NEXT_PAUSED: return "paused";
     case MBLINK_SCHEDULER_NEXT_EMPTY: return "empty";
+    case MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT: return "invalid-argument";
     }
     return "unknown";
 }
@@ -169,7 +176,7 @@ MblinkSchedulerNextResult mblink_scheduler_next(
         memset(dispatch, 0, sizeof(*dispatch));
     }
     if (scheduler == NULL || dispatch == NULL) {
-        return MBLINK_SCHEDULER_NEXT_EMPTY;
+        return MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT;
     }
     if (scheduler->paused) {
         return MBLINK_SCHEDULER_NEXT_PAUSED;
@@ -244,11 +251,11 @@ MblinkSchedulerResult mblink_scheduler_mark_dispatched(
     }
 
     const uint64_t late_by = now_ms - item->next_due_ms;
-    const uint64_t steps = late_by / interval + 1U;
+    const uint64_t steps = infiltratr_u64_add_saturating(
+        late_by / interval, 1U);
     const uint64_t advance =
         infiltratr_u64_multiply_saturating(interval, steps);
     item->next_due_ms =
         infiltratr_u64_add_saturating(item->next_due_ms, advance);
     return MBLINK_SCHEDULER_RESULT_OK;
 }
-

@@ -37,7 +37,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func connect() {
-        csvExportURL = nil
+        clearPreparedExport()
         controller.start()
     }
 
@@ -53,12 +53,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     func prepareCSVExport() {
         guard let csv = controller.csvSnapshot(),
               let data = csv.data(using: .utf8) else {
-            csvExportURL = nil
+            clearPreparedExport()
             return
         }
 
+        clearPreparedExport()
+        let filename = "MBLINK-session-\(UUID().uuidString).csv"
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MBLINK-session.csv")
+            .appendingPathComponent(filename)
         do {
             try data.write(to: url, options: .atomic)
             csvExportURL = url
@@ -69,6 +71,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
         refresh()
+    }
+
+    private func clearPreparedExport() {
+        if let url = csvExportURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        csvExportURL = nil
     }
 
     private func refresh() {

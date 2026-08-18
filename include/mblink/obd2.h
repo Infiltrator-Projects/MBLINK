@@ -7,9 +7,6 @@
  * request construction, supported-PID discovery, common live/freeze-frame PID
  * formulas, readiness decoding, VIN extraction and diagnostic trouble codes.
  * It is independent of BLE, CoreBluetooth and manufacturer-specific data.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_OBD2_H
 #define MBLINK_OBD2_H
@@ -122,6 +119,7 @@ MblinkObd2Result mblink_obd2_build_clear_dtc_request(
 void mblink_obd2_pid_set_clear(MblinkObd2PidSet *set);
 bool mblink_obd2_pid_set_contains(const MblinkObd2PidSet *set, uint8_t pid);
 
+/** Union one supported-PID block transactionally; `set` changes only on OK. */
 MblinkObd2Result mblink_obd2_accept_supported_pids(
     const MblinkElm327Response *response,
     uint8_t base_pid,
@@ -147,6 +145,7 @@ MblinkObd2Result mblink_obd2_decode_vin(
     const MblinkElm327Response *response,
     char vin[MBLINK_OBD2_VIN_LENGTH + 1U]);
 
+/** Decode a complete DTC response transactionally; `list` changes only on OK. */
 MblinkObd2Result mblink_obd2_decode_dtcs(
     const MblinkElm327Response *response,
     MblinkObd2DtcKind kind,

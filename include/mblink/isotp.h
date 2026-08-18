@@ -3,12 +3,8 @@
  * @file isotp.h
  * @brief Portable ISO-TP (ISO 15765-2) transport-layer foundation.
  *
- * This initial implementation targets Classical CAN (8-byte data frames) and
- * supports 11-bit or 29-bit CAN identifiers with normal, extended or mixed
- * addressing. Buffers are caller-owned and all state is bounded.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
+ * Classical-CAN buffers are caller-owned and all protocol state is bounded.
+ * Timing values use one caller-supplied monotonic microsecond clock.
  */
 #ifndef MBLINK_ISOTP_H
 #define MBLINK_ISOTP_H
@@ -109,6 +105,7 @@ typedef struct {
     uint8_t block_counter;
     uint64_t deadline_us;
     MblinkIsoTpRxState state;
+    MblinkIsoTpResult failure;
 } MblinkIsoTpRx;
 
 typedef struct {
@@ -130,6 +127,7 @@ typedef struct {
     uint64_t next_send_us;
     uint64_t deadline_us;
     MblinkIsoTpTxState state;
+    MblinkIsoTpResult failure;
 } MblinkIsoTpTx;
 
 const char *mblink_isotp_result_name(MblinkIsoTpResult result);
@@ -139,14 +137,17 @@ const char *mblink_isotp_tx_state_name(MblinkIsoTpTxState state);
 bool mblink_isotp_address_is_valid(const MblinkIsoTpAddress *address);
 bool mblink_isotp_stmin_to_us(uint8_t stmin, uint32_t *microseconds);
 
+/** Initialise RX; `buffer` is borrowed until the receiver is no longer used. */
 MblinkIsoTpResult mblink_isotp_rx_init(
     MblinkIsoTpRx *receiver,
     const MblinkIsoTpRxConfig *config,
     uint8_t *buffer,
     size_t capacity);
 
+/** Reset RX state and clear any latched terminal failure. */
 void mblink_isotp_rx_reset(MblinkIsoTpRx *receiver);
 
+/** Feed one addressed CAN frame at monotonic time `now_us`. */
 MblinkIsoTpResult mblink_isotp_rx_feed(
     MblinkIsoTpRx *receiver,
     const MblinkIsoTpCanFrame *frame,
@@ -162,12 +163,19 @@ const uint8_t *mblink_isotp_rx_payload(
     const MblinkIsoTpRx *receiver,
     size_t *length);
 
+/**
+ * Initialise TX with a borrowed payload.
+ *
+ * The payload must remain valid until the transmitter is reinitialised or no
+ * longer used. `mblink_isotp_tx_reset()` preserves it for retransmission.
+ */
 MblinkIsoTpResult mblink_isotp_tx_init(
     MblinkIsoTpTx *transmitter,
     const MblinkIsoTpTxConfig *config,
     const uint8_t *payload,
     size_t payload_length);
 
+/** Reset TX progress/failure state while preserving configuration and payload. */
 void mblink_isotp_tx_reset(MblinkIsoTpTx *transmitter);
 
 MblinkIsoTpResult mblink_isotp_tx_start(
@@ -175,6 +183,12 @@ MblinkIsoTpResult mblink_isotp_tx_start(
     uint64_t now_us,
     MblinkIsoTpCanFrame *frame);
 
+/**
+ * Accept Flow Control addressed to this transmitter.
+ *
+ * Well-formed frames for another CAN/address-extension endpoint return
+ * UNEXPECTED_FRAME without destroying the active transfer.
+ */
 MblinkIsoTpResult mblink_isotp_tx_accept_flow_control(
     MblinkIsoTpTx *transmitter,
     const MblinkIsoTpCanFrame *frame,

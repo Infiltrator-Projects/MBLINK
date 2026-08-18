@@ -58,28 +58,15 @@ static void MBLinkSortCandidates(NSMutableArray<MBLinkBLECandidate *> *candidate
     }
 }
 
-static NSInteger MBLinkPeripheralNameScore(NSString *name)
+static BOOL MBLinkPeripheralNameLooksLikeAdapter(NSString *name)
 {
     NSString *lower = name.lowercaseString;
-    if ([lower isEqualToString:@"ios-vlink"]) {
-        return 100;
-    }
-    if ([lower containsString:@"vlink"]) {
-        return 90;
-    }
-    if ([lower containsString:@"vgate"]) {
-        return 80;
-    }
-    if ([lower containsString:@"icar"]) {
-        return 70;
-    }
-    if ([lower containsString:@"obd"]) {
-        return 50;
-    }
-    if ([lower containsString:@"elm"]) {
-        return 40;
-    }
-    return 0;
+    return [lower isEqualToString:@"ios-vlink"] ||
+           [lower containsString:@"vlink"] ||
+           [lower containsString:@"vgate"] ||
+           [lower containsString:@"icar"] ||
+           [lower containsString:@"obd"] ||
+           [lower containsString:@"elm"];
 }
 
 static BOOL MBLinkRemainingBytesAreWhitespace(const uint8_t *bytes,
@@ -411,7 +398,7 @@ static BOOL MBLinkRemainingBytesAreWhitespace(const uint8_t *bytes,
     if (name.length == 0U) {
         name = peripheral.name;
     }
-    if (name.length == 0U || MBLinkPeripheralNameScore(name) == 0) {
+    if (name.length == 0U || !MBLinkPeripheralNameLooksLikeAdapter(name)) {
         return;
     }
 
@@ -517,9 +504,8 @@ didDiscoverCharacteristicsForService:(CBService *)service
         _pendingServiceDiscoveries--;
     }
 
-    if (error != nil) {
-        /* One service may fail discovery while another still exposes the UART. */
-    }
+    /* A failed service may coexist with a valid UART on another service. */
+    (void)error;
 
     if (_pendingServiceDiscoveries == 0U) {
         _operationGeneration++;

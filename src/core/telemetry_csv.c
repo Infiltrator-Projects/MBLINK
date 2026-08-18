@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/* Private telemetry CSV implementation fragment; included by mblink.c. */
+/**
+ * @file telemetry_csv.c
+ * @brief Streaming and snapshot CSV telemetry output.
+ */
+#include "mblink/telemetry.h"
+
+#include "infiltratr/format.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
 static bool mblink_csv_emit(
     MblinkTelemetryTextSink sink,
     void *context,
@@ -86,6 +97,15 @@ static bool mblink_csv_format_value(double value, char *buffer, size_t size)
     return true;
 }
 
+static bool mblink_telemetry_recorder_latch_failure(
+    MblinkTelemetryRecorder *recorder)
+{
+    if (recorder != NULL) {
+        recorder->failed = true;
+    }
+    return false;
+}
+
 void mblink_telemetry_recorder_init(MblinkTelemetryRecorder *recorder)
 {
     if (recorder != NULL) {
@@ -100,7 +120,7 @@ bool mblink_telemetry_recorder_begin(
     void *context)
 {
     if (recorder == NULL || metadata == NULL || sink == NULL ||
-        recorder->started) {
+        recorder->started || recorder->failed) {
         return false;
     }
 
@@ -108,6 +128,7 @@ bool mblink_telemetry_recorder_begin(
     recorder->context = context;
     recorder->started = true;
     recorder->finished = false;
+    recorder->failed = false;
 
     char line[192];
     int written = snprintf(line, sizeof(line),
@@ -123,8 +144,7 @@ bool mblink_telemetry_recorder_begin(
         !mblink_csv_emit(
             sink, context,
             "record_type,sequence,timestamp_ms,pid,name,value,unit,favourite,command,result,response\n")) {
-        mblink_telemetry_recorder_init(recorder);
-        return false;
+        return mblink_telemetry_recorder_latch_failure(recorder);
     }
     return true;
 }
@@ -135,28 +155,34 @@ bool mblink_telemetry_recorder_record_sample(
     bool favourite)
 {
     if (recorder == NULL || !recorder->started || recorder->finished ||
-        sample == NULL) {
+        recorder->failed || sample == NULL ||
+        !isfinite(sample->measurement.value)) {
         return false;
     }
 
     char prefix[64];
-    int written = snprintf(prefix, sizeof(prefix), "sample,%llu,",
-                           (unsigned long long)sample->sequence);
-    if (written < 0 || (size_t)written >= sizeof(prefix) ||
-        !mblink_csv_emit(recorder->sink, recorder->context, prefix)) {
+    char row[256];
+    char value[64];
+    int written;
+
+    if (!mblink_csv_format_value(sample->measurement.value,
+                                 value, sizeof(value))) {
         return false;
     }
 
-    char row[256];
-    char value[64];
-    if (!mblink_csv_format_value(sample->measurement.value,
-                                 value, sizeof(value))) {
+    written = snprintf(prefix, sizeof(prefix), "sample,%llu,",
+                       (unsigned long long)sample->sequence);
+    if (written < 0 || (size_t)written >= sizeof(prefix)) {
         return false;
     }
     written = snprintf(row, sizeof(row), "%llu,0x%02X,",
                        (unsigned long long)sample->timestamp_ms,
                        (unsigned int)sample->measurement.pid);
-    if (written < 0 || (size_t)written >= sizeof(row) ||
+    if (written < 0 || (size_t)written >= sizeof(row)) {
+        return false;
+    }
+
+    if (!mblink_csv_emit(recorder->sink, recorder->context, prefix) ||
         !mblink_csv_emit(recorder->sink, recorder->context, row) ||
         !mblink_csv_emit_quoted(
             recorder->sink, recorder->context,
@@ -167,12 +193,18 @@ bool mblink_telemetry_recorder_record_sample(
         !mblink_csv_emit_quoted(
             recorder->sink, recorder->context,
             mblink_obd2_unit_name(sample->measurement.unit))) {
-        return false;
+        return mblink_telemetry_recorder_latch_failure(recorder);
     }
+
     written = snprintf(row, sizeof(row), ",%u,\"\",\"\",\"\"\n",
                        favourite ? 1U : 0U);
-    return written >= 0 && (size_t)written < sizeof(row) &&
-           mblink_csv_emit(recorder->sink, recorder->context, row);
+    if (written < 0 || (size_t)written >= sizeof(row)) {
+        return false;
+    }
+    if (!mblink_csv_emit(recorder->sink, recorder->context, row)) {
+        return mblink_telemetry_recorder_latch_failure(recorder);
+    }
+    return true;
 }
 
 bool mblink_telemetry_recorder_record_response(
@@ -182,7 +214,8 @@ bool mblink_telemetry_recorder_record_response(
     const MblinkElm327Response *response)
 {
     if (recorder == NULL || !recorder->started || recorder->finished ||
-        recorder->sink == NULL || command == NULL || response == NULL) {
+        recorder->failed || recorder->sink == NULL || command == NULL ||
+        response == NULL) {
         return false;
     }
 
@@ -190,8 +223,10 @@ bool mblink_telemetry_recorder_record_response(
     const int written = snprintf(
         line, sizeof(line), "transcript,,%llu,,,,,,",
         (unsigned long long)timestamp_ms);
-    if (written < 0 || (size_t)written >= sizeof(line) ||
-        !mblink_csv_emit(recorder->sink, recorder->context, line) ||
+    if (written < 0 || (size_t)written >= sizeof(line)) {
+        return false;
+    }
+    if (!mblink_csv_emit(recorder->sink, recorder->context, line) ||
         !mblink_csv_emit_quoted(recorder->sink, recorder->context, command) ||
         !mblink_csv_emit(recorder->sink, recorder->context, ",") ||
         !mblink_csv_emit_quoted(
@@ -201,7 +236,7 @@ bool mblink_telemetry_recorder_record_response(
         !mblink_csv_emit_quoted(
             recorder->sink, recorder->context, response->text) ||
         !mblink_csv_emit(recorder->sink, recorder->context, "\n")) {
-        return false;
+        return mblink_telemetry_recorder_latch_failure(recorder);
     }
     return true;
 }
@@ -209,7 +244,8 @@ bool mblink_telemetry_recorder_record_response(
 bool mblink_telemetry_recorder_finish(
     MblinkTelemetryRecorder *recorder, uint64_t ended_epoch_ms)
 {
-    if (recorder == NULL || !recorder->started || recorder->finished) {
+    if (recorder == NULL || !recorder->started || recorder->finished ||
+        recorder->failed) {
         return false;
     }
 
@@ -217,9 +253,11 @@ bool mblink_telemetry_recorder_finish(
     int written = snprintf(line, sizeof(line),
                            "# session_ended_epoch_ms,%llu\n",
                            (unsigned long long)ended_epoch_ms);
-    if (written < 0 || (size_t)written >= sizeof(line) ||
-        !mblink_csv_emit(recorder->sink, recorder->context, line)) {
+    if (written < 0 || (size_t)written >= sizeof(line)) {
         return false;
+    }
+    if (!mblink_csv_emit(recorder->sink, recorder->context, line)) {
+        return mblink_telemetry_recorder_latch_failure(recorder);
     }
     recorder->finished = true;
     return true;

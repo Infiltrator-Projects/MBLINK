@@ -2,9 +2,6 @@
 /**
  * @file telemetry.h
  * @brief Portable typed sample history, favourites and CSV session export.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_TELEMETRY_H
 #define MBLINK_TELEMETRY_H
@@ -69,9 +66,12 @@ typedef struct {
     void *context;
     bool started;
     bool finished;
+    bool failed;
 } MblinkTelemetryRecorder;
 
 void mblink_telemetry_store_init(MblinkTelemetryStore *store);
+
+/** Clear samples, latest values and transcript while preserving favourites. */
 void mblink_telemetry_store_clear_samples(MblinkTelemetryStore *store);
 
 bool mblink_telemetry_store_record(
@@ -141,6 +141,7 @@ bool mblink_telemetry_recorder_begin(
     MblinkTelemetryTextSink sink,
     void *context);
 
+/** Recorder write failure is terminal until `mblink_telemetry_recorder_init()`. */
 bool mblink_telemetry_recorder_record_sample(
     MblinkTelemetryRecorder *recorder,
     const MblinkTelemetrySample *sample,

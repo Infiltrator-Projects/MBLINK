@@ -3,6 +3,7 @@ name: MBLINK CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -13,6 +14,7 @@ jobs:
   portable-core:
     name: ${{ matrix.os }} / C11
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -33,9 +35,36 @@ jobs:
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
 
+  sanitizers:
+    name: Ubuntu / ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build-sanitized
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMBLINK_ENABLE_SANITIZERS=ON
+
+      - name: Build
+        run: cmake --build build-sanitized
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-sanitized --output-on-failure
+
   apple-ios:
     name: iOS / Xcode / ${{ matrix.configuration }}
     runs-on: macos-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +92,7 @@ jobs:
           grep -q 'mblink_elm327_parser_finish' platform/apple/MBLinkBLETransport.m
           ! grep -q 'componentsSeparatedByCharactersInSet' platform/apple/MBLinkBLETransport.m
 
-      - name: Verify 0.5 C ownership boundaries
+      - name: Verify C ownership boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -90,3 +119,104 @@ jobs:
             exit 1
           fi
           tail -n 20 "$log"
+
+  release:
+    name: Publish version release
+    needs: [portable-core, sanitizers, apple-ios]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release identity
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "target=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Create missing tag and GitHub Release
+        uses: actions/github-script@v7
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TARGET: ${{ steps.release.outputs.target }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const version = process.env.RELEASE_VERSION;
+            const tag = process.env.RELEASE_TAG;
+            const target = process.env.RELEASE_TARGET;
+
+            const main = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: 'main'
+            });
+            if (main.data.commit.sha !== target) {
+              core.info(`Skipping stale successful run at ${target}; main is ${main.data.commit.sha}.`);
+              return;
+            }
+
+            try {
+              const existingRelease = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.info(`${tag} already has release ${existingRelease.data.html_url}; nothing to do.`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            let tagExists = false;
+            try {
+              const existingRef = await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `tags/${tag}`
+              });
+              tagExists = true;
+              if (existingRef.data.object.sha !== target) {
+                core.setFailed(`${tag} exists at ${existingRef.data.object.sha} without a release; expected ${target}.`);
+                return;
+              }
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            if (!tagExists) {
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/tags/${tag}`,
+                sha: target
+              });
+            }
+
+            const release = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: tag,
+              target_commitish: target,
+              name: `MBLINK ${version}`,
+              generate_release_notes: true,
+              draft: false,
+              prerelease: false
+            });
+
+            core.info(`Published ${release.data.html_url}`);

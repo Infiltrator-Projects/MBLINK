@@ -5,9 +5,6 @@
  *
  * Platform providers implement this interface without exposing native
  * framework types to the portable diagnostics core.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_TRANSPORT_H
 #define MBLINK_TRANSPORT_H
@@ -32,10 +29,24 @@ typedef enum {
     MBLINK_TRANSPORT_INVALID_ARGUMENT
 } MblinkTransportStatus;
 
+/**
+ * Receive callback installed by the protocol layer.
+ *
+ * Providers must serialize delivery for one transport instance. `data` is
+ * borrowed and only valid for the duration of the callback.
+ */
 typedef void (*MblinkTransportReceiveFn)(void *context,
                                          const uint8_t *data,
                                          size_t size);
 
+/**
+ * Platform-neutral byte-stream provider contract.
+ *
+ * `context` and all provider-owned resources must outlive every transport copy
+ * using them. `write()` must consume or copy the supplied bytes before it
+ * returns. `set_receiver(context, NULL, NULL)` detaches any previously
+ * installed receiver and must be supported by every provider.
+ */
 typedef struct {
     size_t struct_size;
     uint32_t abi_version;

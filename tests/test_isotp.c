@@ -385,6 +385,6 @@ int main(void)
     test_receive_errors();
     test_transmit_flow_control_errors();
     test_functional_multiframe_rejected();
-    puts("ISO-TP smoke tests passed.");
+    puts("ISO-TP tests passed.");
     return EXIT_SUCCESS;
 }

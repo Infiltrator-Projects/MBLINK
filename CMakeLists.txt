@@ -14,6 +14,15 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(MBLINK_ENABLE_SANITIZERS)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        message(FATAL_ERROR "MBLINK_ENABLE_SANITIZERS requires GCC or Clang.")
+    endif()
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 include(CTest)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
@@ -21,21 +30,8 @@ set(MBLINK_COMMON_VERSION "1.5.0")
 set(MBLINK_COMMON_COMMIT "a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb")
 
 if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
-    find_program(MBLINK_GIT_EXECUTABLE git REQUIRED)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-        execute_process(
-            COMMAND "${MBLINK_GIT_EXECUTABLE}" submodule update --init --depth 1 -- src/infiltratr-common
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-            RESULT_VARIABLE MBLINK_COMMON_INIT_RESULT)
-    else()
-        set(MBLINK_COMMON_INIT_RESULT 1)
-    endif()
-
-    if(NOT MBLINK_COMMON_INIT_RESULT EQUAL 0 OR
-       NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
-        message(FATAL_ERROR
-            "Infiltratr Common ${MBLINK_COMMON_VERSION} is required. Clone with --recurse-submodules or run git submodule update --init --recursive.")
-    endif()
+    message(FATAL_ERROR
+        "Infiltratr Common ${MBLINK_COMMON_VERSION} is required. Clone with --recurse-submodules or run git submodule update --init --recursive.")
 endif()
 
 file(READ "${MBLINK_COMMON_DIR}/VERSION" MBLINK_COMMON_FOUND_VERSION)
@@ -69,6 +65,10 @@ target_compile_features(infiltratr-common PUBLIC c_std_11)
 
 add_library(mblink STATIC
     src/core/mblink.c
+    src/core/scheduler.c
+    src/core/telemetry_store.c
+    src/core/telemetry_csv.c
+    src/core/isotp.c
     src/elm327/elm327.c
     src/elm327/session.c
     src/elm327/probe.c
@@ -97,59 +97,28 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(infiltratr-common PUBLIC m)
 endif()
 
+function(mblink_add_test target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE mblink)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        target_compile_options(${target} PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+    endif()
+    add_test(NAME ${target} COMMAND ${target})
+endfunction()
+
 if(BUILD_TESTING)
-    add_executable(mblink-core-smoke tests/core_smoke.c)
-    target_link_libraries(mblink-core-smoke PRIVATE mblink)
-    target_compile_definitions(mblink-core-smoke PRIVATE
+    mblink_add_test(mblink-test-core tests/test_core.c)
+    target_compile_definitions(mblink-test-core PRIVATE
         MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
 
-    add_executable(mblink-elm327-smoke tests/elm327_smoke.c)
-    target_link_libraries(mblink-elm327-smoke PRIVATE mblink)
-
-    add_executable(mblink-elm327-session-smoke tests/elm327_session_smoke.c)
-    target_link_libraries(mblink-elm327-session-smoke PRIVATE mblink)
-
-    add_executable(mblink-elm327-probe-smoke tests/elm327_probe_smoke.c)
-    target_link_libraries(mblink-elm327-probe-smoke PRIVATE mblink)
-
-    add_executable(mblink-obd2-smoke tests/obd2_smoke.c)
-    target_link_libraries(mblink-obd2-smoke PRIVATE mblink)
-
-    add_executable(mblink-runtime-smoke tests/runtime_smoke.c)
-    target_link_libraries(mblink-runtime-smoke PRIVATE mblink)
-
-    add_executable(mblink-isotp-smoke tests/isotp_smoke.c)
-    target_link_libraries(mblink-isotp-smoke PRIVATE mblink)
-
-    add_executable(mblink-isotp-failed-state-smoke
-        tests/isotp_failed_state_smoke.c)
-    target_link_libraries(mblink-isotp-failed-state-smoke PRIVATE mblink)
-
-    add_executable(mblink-isotp-functional-response-smoke
-        tests/isotp_functional_response_smoke.c)
-    target_link_libraries(mblink-isotp-functional-response-smoke PRIVATE mblink)
-
-    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-        target_compile_options(mblink-core-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-elm327-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-elm327-session-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-elm327-probe-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-obd2-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-runtime-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-isotp-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-isotp-failed-state-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-        target_compile_options(mblink-isotp-functional-response-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-    endif()
-
-    add_test(NAME mblink-core-smoke COMMAND mblink-core-smoke)
-    add_test(NAME mblink-elm327-smoke COMMAND mblink-elm327-smoke)
-    add_test(NAME mblink-elm327-session-smoke COMMAND mblink-elm327-session-smoke)
-    add_test(NAME mblink-elm327-probe-smoke COMMAND mblink-elm327-probe-smoke)
-    add_test(NAME mblink-obd2-smoke COMMAND mblink-obd2-smoke)
-    add_test(NAME mblink-runtime-smoke COMMAND mblink-runtime-smoke)
-    add_test(NAME mblink-isotp-smoke COMMAND mblink-isotp-smoke)
-    add_test(NAME mblink-isotp-failed-state-smoke
-             COMMAND mblink-isotp-failed-state-smoke)
-    add_test(NAME mblink-isotp-functional-response-smoke
-             COMMAND mblink-isotp-functional-response-smoke)
+    mblink_add_test(mblink-test-elm327 tests/test_elm327.c)
+    mblink_add_test(mblink-test-elm327-session tests/test_elm327_session.c)
+    mblink_add_test(mblink-test-elm327-probe tests/test_elm327_probe.c)
+    mblink_add_test(mblink-test-obd2 tests/test_obd2.c)
+    mblink_add_test(mblink-test-runtime tests/test_runtime.c)
+    mblink_add_test(mblink-test-isotp tests/test_isotp.c)
+    mblink_add_test(mblink-test-isotp-failed-state
+        tests/test_isotp_failed_state.c)
+    mblink_add_test(mblink-test-isotp-functional-response
+        tests/test_isotp_functional_response.c)
 endif()
