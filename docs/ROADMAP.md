@@ -4,7 +4,7 @@
 
 MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, tested and architecturally reusable.
 
-**Current development target: 0.6 — ISO-TP foundation in C.**
+**Current development target: 0.7 — UDS foundation in C.**
 
 ## 0.1 — C foundation and dependency discipline
 
@@ -14,8 +14,7 @@ MBLINK is developed from the portable C core outward. Each milestone must leave 
 - Public headers under `include/mblink/`.
 - Platform-neutral C transport ABI.
 - Infiltratr Common 1.5.0 pinned at `a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`.
-- Portable Common `core.c` and `format.c` integrated.
-- Strict warning-as-error builds and C smoke tests.
+- Strict warning-as-error builds and portable smoke tests.
 - Ubuntu/macOS CI.
 
 **Exit condition:** a real portable C library builds and tests with its shared dependency pinned and verified. **Satisfied.**
@@ -24,35 +23,29 @@ MBLINK is developed from the portable C core outward. Each milestone must leave 
 
 **Status: complete.**
 
-- Bounded command model and construction.
-- Response framing, normalisation and prompt detection.
-- Echo handling and adapter error classification.
-- Adapter reset/initialisation state machine.
-- Capability and protocol probing.
-- One-command-at-a-time transport-backed session execution.
-- Monotonic timeout handling.
-- Cancellation and re-synchronisation protection.
-- Re-entrant completion protection.
+- Bounded command construction and response normalisation.
+- Prompt/echo/error handling.
+- Adapter initialisation and capability/protocol probing.
+- One-command-at-a-time transport-backed execution.
+- Monotonic timeouts, cancellation and re-synchronisation protection.
 - Deterministic mock-transport tests.
 
 See [ELM327 Engine](ELM327.md).
 
-**Exit condition:** ELM327 conversations are testable without BLE hardware, including fragmentation, ownership, timeouts, probing and error paths. **Satisfied.**
+**Exit condition:** ELM327 conversations are testable without BLE hardware. **Satisfied.**
 
 ## 0.3 — Standard OBD-II C engine
 
 **Status: complete.**
 
 - Supported-PID enumeration.
-- Typed RPM, coolant, speed, MAP, MAF, intake temperature, throttle and calculated load.
+- Typed common Mode 01 values.
 - Mode 09 VIN extraction.
 - Stored, pending and permanent DTC decoding.
-- Mode 02 freeze-frame decoding.
-- Mode 01 PID 01 readiness decoding.
+- Freeze-frame and readiness decoding.
 - Explicitly gated Mode 04 clearing.
-- Strict malformed-hex and ELM-error handling.
-- Indexed long-response reassembly for ELM-compatible adapters.
-- Deterministic portable regression tests.
+- Strict malformed-input/error handling.
+- Indexed long-response reassembly.
 
 See [Standard OBD-II Engine](OBD2.md).
 
@@ -65,71 +58,68 @@ See [Standard OBD-II Engine](OBD2.md).
 Primary reference adapter: **Vgate iCar Pro BLE 4.0**.
 
 - Objective-C CoreBluetooth provider implementing the C transport boundary.
-- Peripheral scan/connect/disconnect.
-- Runtime service/characteristic discovery.
-- C-parsed `ATI` candidate-channel probing.
-- Notification subscription and negotiated write sizing.
+- Runtime GATT discovery and C-parsed `ATI` probing.
 - Explicit scan/connect/discovery/probe deadlines.
 - Controlled reconnect/rescan behaviour.
 - Bounded write queues and CoreBluetooth backpressure handling.
-- Thin Objective-C bridge to Swift.
-- Native SwiftUI connection/live-data shell.
-- Xcode Simulator CI.
-
-No diagnostic parser or PID formula is duplicated in Swift/Objective-C.
+- Thin Objective-C bridge and native SwiftUI shell.
+- Debug/Release Xcode Simulator CI.
 
 See [Apple BLE and iPhone Layer](APPLE.md).
 
 **Software exit condition:** Apple integration compiles under Xcode CI while preserving the C ownership boundary. **Satisfied.**
 
-**Outstanding physical validation:** discover/connect to the reference adapter on an iPhone, record actual GATT UUIDs, complete C ELM initialisation against the vehicle, verify Mode 01 PID `00`, exercise live values and reconnect behaviour, and document any real adapter quirks. This validation remains active in parallel and is not represented as already complete.
+**Outstanding physical validation:** discover/connect to the reference adapter on an iPhone, record actual GATT UUIDs, complete C ELM initialisation against the vehicle, verify Mode 01 PID `00`, exercise live values and reconnect behaviour, and document real adapter quirks.
 
 ## 0.5 — Scheduler, dashboard and logging
 
 **Status: complete.**
 
-- Portable C request scheduler with parameter rates and priorities.
-- Fast polling priority for rapidly changing values.
-- Lower rates for temperatures and slower state.
-- Pause/resume semantics for future exclusive diagnostic operations.
-- Delayed-request catch-up without burst polling.
-- Capability-driven standard eight-PID schedule.
-- Typed latest-value cache.
-- Bounded chronological recent-history ring for dashboard/graphs.
-- Total sample count independent of recent-history retention.
-- C-owned parameter favourites.
-- Full-session streaming recorder independent of the recent-history ring.
-- Full diagnostic command/response transcript in the streaming recorder.
-- Bounded recent transcript cache for UI/debug history.
-- Session start/end metadata.
-- C-formatted CSV output using Infiltratr Common formatting/string contracts.
-- SwiftUI dashboard for the eight standard live values.
-- Favourites presentation.
-- RPM and coolant time-series charts.
-- iOS share/export path for the C-generated session data.
-- Ubuntu/macOS C tests and Debug/Release Xcode Simulator release gates.
+- Portable C request scheduler with rates/priorities.
+- Capability-driven eight-PID default schedule.
+- Pause/resume and delayed catch-up without burst polling.
+- Typed latest-value cache and bounded recent history.
+- C-owned favourites.
+- Full-session streaming recorder independent of recent history.
+- Complete diagnostic command/response transcript in the streaming recorder.
+- C-formatted CSV/session metadata using Infiltratr Common.
+- SwiftUI dashboard, favourites, charts and iOS share/export.
+- Ubuntu/macOS C tests and Debug/Release Xcode gates.
 
 See [Telemetry, Scheduling and Logging](TELEMETRY.md).
 
-**Exit condition:** live polling, recent history, dashboard state and complete session recording operate without moving scheduling/logging policy into SwiftUI or CoreBluetooth. **Satisfied in software CI.**
+**Exit condition:** scheduling/logging remain owned by the portable core rather than SwiftUI/CoreBluetooth. **Satisfied.**
 
 ## 0.6 — ISO-TP foundation in C
 
-**Status: current target.**
+**Status: complete.**
 
-- CAN addressing model.
-- Single-frame handling.
-- Multi-frame first/consecutive frame handling.
-- Segmentation and reassembly.
-- Sequence-number validation.
-- Flow-control handling where required by the transport model.
-- Protocol timeouts and explicit state transitions.
-- Bounded buffers and malformed-frame handling.
-- Captured-frame regression fixtures.
+- Portable ISO-TP transmit and receive state machines.
+- Classical CAN with 8-byte data frames and a 4095-byte PDU ceiling.
+- 11-bit and 29-bit CAN identifiers.
+- Normal, extended and mixed addressing model.
+- Physical and functional target classification.
+- Single Frame, First Frame, Consecutive Frame and Flow Control handling.
+- Segmentation and caller-owned bounded reassembly.
+- Four-bit sequence validation including `0xF -> 0x0` wrap.
+- Receiver block-size Flow Control.
+- CTS, WAIT and OVERFLOW handling.
+- Configurable WAIT-frame limit.
+- STmin support for `0x00..0x7F` and sub-millisecond `0xF1..0xF9` values.
+- Explicit receive and Flow Control timeouts using a caller-supplied monotonic microsecond clock.
+- Saturating deadline arithmetic via Infiltratr Common.
+- Deterministic failed states requiring explicit reset.
+- Explicit rejection of unsupported extended-length First Frames and functional multi-frame transmission.
+- Portable regression tests including end-to-end segmentation/reassembly and sequence wrap.
+- Ubuntu/macOS C tests and Debug/Release Xcode compilation of the same C implementation.
 
-**Exit condition:** transport-layer ISO-TP tests pass without Mercedes-specific logic.
+See [ISO-TP Foundation](ISOTP.md).
+
+**Exit condition:** transport-layer ISO-TP tests pass without Mercedes-specific or UDS logic. **Satisfied.**
 
 ## 0.7 — UDS foundation in C
+
+**Status: current target.**
 
 - Request/response model.
 - Positive and negative response handling.
@@ -137,6 +127,7 @@ See [Telemetry, Scheduling and Logging](TELEMETRY.md).
 - Diagnostic-session management.
 - Data-identifier abstraction.
 - Timing/state handling for verified services.
+- Reuse ISO-TP PDUs without duplicating segmentation or CAN addressing.
 
 **Exit condition:** verified UDS exchanges execute through the reusable C engine without manufacturer interpretation in the transport.
 

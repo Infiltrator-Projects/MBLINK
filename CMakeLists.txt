@@ -118,6 +118,17 @@ if(BUILD_TESTING)
     add_executable(mblink-runtime-smoke tests/runtime_smoke.c)
     target_link_libraries(mblink-runtime-smoke PRIVATE mblink)
 
+    add_executable(mblink-isotp-smoke tests/isotp_smoke.c)
+    target_link_libraries(mblink-isotp-smoke PRIVATE mblink)
+
+    add_executable(mblink-isotp-failed-state-smoke
+        tests/isotp_failed_state_smoke.c)
+    target_link_libraries(mblink-isotp-failed-state-smoke PRIVATE mblink)
+
+    add_executable(mblink-isotp-functional-response-smoke
+        tests/isotp_functional_response_smoke.c)
+    target_link_libraries(mblink-isotp-functional-response-smoke PRIVATE mblink)
+
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         target_compile_options(mblink-core-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-elm327-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
@@ -125,6 +136,9 @@ if(BUILD_TESTING)
         target_compile_options(mblink-elm327-probe-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-obd2-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
         target_compile_options(mblink-runtime-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-failed-state-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+        target_compile_options(mblink-isotp-functional-response-smoke PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
 
     add_test(NAME mblink-core-smoke COMMAND mblink-core-smoke)
@@ -133,4 +147,9 @@ if(BUILD_TESTING)
     add_test(NAME mblink-elm327-probe-smoke COMMAND mblink-elm327-probe-smoke)
     add_test(NAME mblink-obd2-smoke COMMAND mblink-obd2-smoke)
     add_test(NAME mblink-runtime-smoke COMMAND mblink-runtime-smoke)
+    add_test(NAME mblink-isotp-smoke COMMAND mblink-isotp-smoke)
+    add_test(NAME mblink-isotp-failed-state-smoke
+             COMMAND mblink-isotp-failed-state-smoke)
+    add_test(NAME mblink-isotp-functional-response-smoke
+             COMMAND mblink-isotp-functional-response-smoke)
 endif()
