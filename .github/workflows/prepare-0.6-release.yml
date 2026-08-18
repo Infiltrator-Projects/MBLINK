@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Prepare 0.6 release metadata
+
+on:
+  push:
+    branches: [feature/0.6-isotp-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/0.6-isotp-foundation
+          fetch-depth: 0
+
+      - name: Synchronise 0.6.0 release state
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '0.6.0\n' > VERSION
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=1):
+              p = Path(path)
+              s = p.read_text()
+              found = s.count(old)
+              if found != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {found}: {old!r}')
+              p.write_text(s.replace(old, new, count))
+
+          pbx = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          s = pbx.read_text()
+          old = 'MARKETING_VERSION = 0.5.0;'
+          if s.count(old) != 4:
+              raise SystemExit(f'Xcode: expected four 0.5.0 marketing versions, found {s.count(old)}')
+          pbx.write_text(s.replace(old, 'MARKETING_VERSION = 0.6.0;'))
+
+          replace_exact('README.md', '**Pre-alpha / version 0.5.0.**', '**Pre-alpha / version 0.6.0.**')
+          replace_exact(
+              'README.md',
+              'MBLINK currently provides a tested portable C11 diagnostic foundation, ELM327-compatible command/session handling, standard OBD-II decoding, a native Apple BLE/iPhone integration, and a C-owned live-data scheduler and telemetry/session-recording system.',
+              'MBLINK currently provides a tested portable C11 diagnostic foundation, ELM327-compatible command/session handling, standard OBD-II decoding, a native Apple BLE/iPhone integration, a C-owned live-data scheduler and telemetry/session-recording system, and a generic ISO-TP transport foundation for Classical CAN.'
+          )
+          replace_exact('README.md', '| telemetry | session recorder       |\n| future ISO-TP / UDS / Mercedes     |', '| telemetry | ISO-TP                |\n| future UDS / Mercedes              |')
+          marker = '## Shared C foundation\n'
+          p = Path('README.md')
+          s = p.read_text()
+          if marker not in s or '## 0.6.0 ISO-TP foundation' in s:
+              raise SystemExit('README 0.6 insertion marker/state invalid')
+          block = '''## 0.6.0 ISO-TP foundation\n\nMilestone 0.6 adds a generic portable C ISO 15765-2 engine for Classical CAN. It owns Single/First/Consecutive/Flow-Control framing, segmentation and reassembly, sequence validation and wrap, block size, STmin, bounded WAIT handling, explicit overflow and timeout states, normal/extended/mixed addressing metadata, optional TX padding and bounded 4095-byte PDUs.\n\nThe engine is manufacturer-neutral and does not contain Mercedes-Benz identifiers or UDS services. Protocol-level wire fixtures and a 140-byte end-to-end sender/receiver regression exercise the transport layer without Bluetooth or a vehicle. See [ISO-TP Foundation](docs/ISOTP.md).\n\n'''
+          p.write_text(s.replace(marker, block + marker, 1))
+          replace_exact('README.md', '`src/core/` | Portable project/runtime foundation |', '`src/core/` | Portable project/runtime/ISO-TP foundation |')
+          replace_exact('README.md', '- [Telemetry](docs/TELEMETRY.md)\n', '- [Telemetry](docs/TELEMETRY.md)\n- [ISO-TP Foundation](docs/ISOTP.md)\n')
+          replace_exact(
+              'README.md',
+              '**0.6 — ISO-TP foundation in C**\n\nThe next stage introduces the generic transport layer required by deeper ECU diagnostics: CAN addressing, Single/First/Consecutive frames, segmentation and reassembly, flow control, sequence validation and protocol timeouts. Mercedes-specific assumptions do not belong in that layer.',
+              '**0.7 — UDS core in C**\n\nThe next stage builds transport-independent Unified Diagnostic Services above the now-tested ISO-TP foundation: generic request/response handling, negative-response decoding, diagnostic-session state, DID reads and timing semantics. Mercedes-specific identifiers still remain outside the protocol layer.'
+          )
+
+          replace_exact('docs/ROADMAP.md', '**Current target:** **0.6 — ISO-TP foundation in C.**', '**Current target:** **0.7 — UDS core in C.**')
+          replace_exact('docs/ROADMAP.md', '## 0.6 — ISO-TP foundation in C\n\n**Status: current target.**', '## 0.6 — ISO-TP foundation in C\n\n**Status: complete in 0.6.0.**')
+          replace_exact('docs/ROADMAP.md', '- captured frame regression tests.', '- protocol-level wire fixtures and a 140-byte sender/receiver regression that crosses sequence-number wrap;\n- normal, extended and mixed addressing metadata plus 11/29-bit CAN IDs;\n- bounded 4095-byte Classical CAN PDUs, explicit WAIT/Overflow/error states and optional TX padding.\n\nSee [ISO-TP Foundation](ISOTP.md).')
+          replace_exact('docs/ROADMAP.md', '**Exit condition:** generic transport-layer tests pass without depending on Mercedes-specific logic.', '**Exit condition satisfied:** generic transport-layer tests pass without depending on Mercedes-specific logic.')
+
+          replace_exact(
+              'docs/ARCHITECTURE.md',
+              'ISO-TP and UDS are implemented in C independently of Mercedes definitions. This gives MBLINK a reusable foundation for multiple ECUs and, later, other manufacturers.\n\nPlanned UDS capabilities include:',
+              'ISO-TP is implemented in C independently of Mercedes definitions. The 0.6 foundation provides Classical CAN SF/FF/CF/FC framing, segmentation/reassembly, sequence validation, block size, STmin, explicit timeout/error handling and normal/extended/mixed addressing metadata. CAN FD transport variants remain an explicit future extension rather than being implied by the current API. See [ISO-TP Foundation](ISOTP.md).\n\nUDS is the next protocol layer and will consume completed ISO-TP PDUs rather than reimplement CAN segmentation. Planned UDS capabilities include:'
+          )
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION app/ios/MBLINK.xcodeproj/project.pbxproj README.md docs/ROADMAP.md docs/ARCHITECTURE.md
+          git diff --cached --check
+          git commit -m 'chore: synchronise MBLINK 0.6.0 release metadata [sync-0.6]'
+          git push origin HEAD:feature/0.6-isotp-foundation
