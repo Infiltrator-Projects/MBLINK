@@ -2,149 +2,148 @@
 
 # MBLINK
 
-**MBLINK** is a C-first, open-source vehicle diagnostics platform with a native iPhone front end. Development begins with Mercedes-Benz and affordable ELM327-compatible Bluetooth Low Energy adapters, while the diagnostic engine is deliberately portable and independent of Apple frameworks.
+**MBLINK** is a C-first, open-source vehicle diagnostics platform with a native iPhone front end. The portable diagnostic engine is deliberately independent of Apple frameworks so the same protocol and vehicle logic can later be reused by other front ends.
 
-The initial development vehicle is a Mercedes-Benz C207 E-Class diesel with the OM651 engine. The first hardware target is the **Vgate iCar Pro BLE 4.0**.
+The initial development focus is Mercedes-Benz, with the Vgate iCar Pro BLE 4.0 as the first reference BLE adapter. Adapter-specific behaviour stays at the platform edge; it is not built into the diagnostic core.
 
-MBLINK is not designed as an iOS application with diagnostic logic buried in Swift. The permanent architecture is the opposite: **portable vehicle and protocol logic lives in C; platform code stays at the edge.**
+## Current status
 
-## Design goals
+**Pre-alpha / version 0.5.0.**
 
-- Keep the diagnostic engine in portable C11 wherever technically practical.
-- Reuse **Infiltratr Common** instead of creating private duplicates of shared C functionality.
-- Keep Swift limited primarily to the native SwiftUI presentation layer.
-- Isolate Apple CoreBluetooth behind a small platform transport provider.
-- Support standard OBD-II before adding manufacturer-specific extensions.
-- Add Mercedes-Benz diagnostics as verified data definitions above reusable ISO-TP/UDS code.
-- Make parsers, decoders and protocol state machines testable without a vehicle or Bluetooth adapter.
-- Keep adapter quirks out of the generic diagnostic engine.
-- Prefer capability discovery and verified behaviour over product-name assumptions.
+MBLINK currently provides a tested portable C11 diagnostic foundation, ELM327-compatible command/session handling, standard OBD-II decoding, a native Apple BLE/iPhone integration, and a C-owned live-data scheduler and telemetry/session-recording system.
+
+Software CI builds and tests the portable C core on Ubuntu and macOS and builds the native iPhone target in both Debug and Release configurations for the iOS Simulator.
+
+**Physical BLE/vehicle validation remains pending.** The reference Vgate adapter has not yet been exercised with this build, so the project does not claim verified Vgate GATT UUIDs or proven live data from the development vehicle. Hardware findings will be recorded when the adapter is available.
 
 ## Architecture
 
 ```text
-Native iPhone UI
-    SwiftUI
+SwiftUI presentation
        |
        v
-Thin Apple application bridge
+Thin Objective-C application bridge
        |
        v
-+-----------------------------+
-|          libmblink          |
-|       portable C11 core     |
-|                             |
-| ELM327 | OBD-II | ISO-TP    |
-| UDS    | DTC    | logging   |
-| Mercedes-Benz extensions    |
-+-----------------------------+
++------------------------------------+
+|          libmblink / C11           |
+|                                    |
+| ELM327 | OBD-II | scheduler        |
+| telemetry | session recorder       |
+| future ISO-TP / UDS / Mercedes     |
++------------------------------------+
        |
        v
-C transport interface
+C transport ABI
        |
        v
-Apple BLE provider
-Objective-C / CoreBluetooth
+Objective-C / CoreBluetooth provider
        |
        v
-Vgate iCar Pro BLE 4.0
-       |
-       v
-Vehicle networks and ECUs
+BLE diagnostic adapter -> vehicle
 ```
 
-The C library must not depend on SwiftUI or CoreBluetooth. A future Linux, macOS, Windows or command-line front end should be able to reuse the same diagnostic engine.
+The governing rule is simple: **portable diagnostic behaviour belongs in C; platform frameworks belong behind narrow interfaces at the edge.**
 
-See [Architecture](docs/ARCHITECTURE.md) for the detailed design.
+See [Architecture](docs/ARCHITECTURE.md).
 
-## Shared C foundation
+## Implemented milestones
 
-MBLINK consumes **Infiltratr Common** from [`The-First-Infiltrator/Infiltrator-Libraries`](https://github.com/The-First-Infiltrator/Infiltrator-Libraries) as a pinned Git submodule.
+### 0.1 — C foundation
 
-The current pin is:
+- Portable C11 `libmblink`.
+- Public C API and transport ABI.
+- Strict warning-as-error builds and regression tests.
+- Pinned Infiltratr Common dependency.
+- Linux/macOS CI.
 
-- Infiltratr Common: **1.5.0**
-- tag: **v1.5.0**
-- commit: **`a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`**
+### 0.2 — ELM327 engine
 
-The portable `core.c` and `format.c` components are used first. Shared bounded strings, parsing, checked arithmetic, formatting and project metadata must be reused when their contracts fit MBLINK rather than reimplemented locally.
-
-Application-specific vehicle protocols do **not** belong in Infiltratr Common merely because they are written in C. New Common APIs should follow that library's existing real-consumer reuse rule.
-
-See [Dependencies](docs/DEPENDENCIES.md).
-
-## Implemented in 0.2
-
-The portable C ELM327-compatible layer provides bounded command framing, fragmented response parsing, prompt/echo handling, adapter initialisation, transport-backed command ownership, timeout/cancellation safeguards, re-synchronisation protection and capability probing.
+- Bounded command construction.
+- Fragmented response parsing and prompt/echo handling.
+- ELM error classification.
+- Adapter initialisation state machine.
+- One-command-at-a-time session ownership.
+- Timeout, cancellation and re-synchronisation protection.
+- Adapter/protocol capability probing.
 
 See [ELM327 Engine](docs/ELM327.md).
 
-## Implemented in 0.3
+### 0.3 — Standard OBD-II
 
-MBLINK includes a standard OBD-II diagnostic layer in portable C. The 0.3.x implementation provides:
-
-- supported-PID discovery across standard 32-PID blocks;
-- typed live calculated load, coolant temperature, MAP, RPM, road speed, intake-air temperature, MAF and throttle position;
-- Mode 02 freeze-frame decoding through the same PID formula table;
-- Mode 01 PID 01 MIL/DTC/readiness state;
-- Mode 09 PID 02 VIN extraction;
-- stored, pending and permanent DTC decoding;
-- ELM-compatible indexed long-response reassembly for VIN and longer DTC replies;
-- explicit Mode 04 clear-code gating with readiness-reset acknowledgement;
-- strict hexadecimal validation and ELM-error propagation;
-- deterministic tests that require no vehicle, BLE adapter or Apple framework.
-
-Version **0.3.1** hardened the standard layer for long CAN replies displayed by ELM-compatible adapters as indexed `0:`, `1:`, `2:` chunks. This reassembly stays at the ELM presentation boundary; the future raw ISO-TP engine remains a separate reusable layer.
+- Supported-PID discovery.
+- Typed Mode 01 values including RPM, speed, coolant, MAP, MAF, intake temperature, throttle and calculated load.
+- Readiness information.
+- Freeze-frame decoding.
+- VIN extraction.
+- Stored, pending and permanent DTC decoding.
+- Explicitly gated Mode 04 clearing.
+- Indexed long-response reassembly for ELM-compatible adapters.
 
 See [Standard OBD-II Engine](docs/OBD2.md).
 
-## Implemented in 0.4
+### 0.4 — Apple BLE and iPhone layer
 
-Version **0.4.0** adds the native Apple transport and iPhone application edge while preserving the C-first architecture:
+- Objective-C CoreBluetooth provider implementing the C transport ABI.
+- Runtime service/characteristic discovery and C-parsed `ATI` channel probing.
+- Scan/connect/discovery/probe deadlines.
+- Controlled reconnect behaviour.
+- Bounded BLE queues and CoreBluetooth backpressure handling.
+- Thin Objective-C diagnostics bridge.
+- SwiftUI iPhone shell.
+- Xcode Simulator CI.
 
-- Objective-C CoreBluetooth provider implementing `MblinkTransport`;
-- BLE scanning, connection, service and characteristic discovery;
-- deterministic writable/notify channel probing through the existing C ELM327 parser;
-- bounded scan, connection, discovery and probe deadlines;
-- controlled reconnect/rescan behaviour after transient failures;
-- bounded BLE write queues with CoreBluetooth backpressure handling;
-- Objective-C diagnostics orchestration over the existing C ELM327 and OBD-II engines;
-- SwiftUI connection status plus live RPM and coolant presentation;
-- Swift/MainActor interoperability without moving diagnostic logic into Swift;
-- CI validation on Ubuntu C11, macOS C11 and an iOS Simulator Xcode build.
-
-**Hardware validation is still pending.** The Vgate iCar Pro BLE 4.0 has not yet been physically tested with this build, so 0.4.0 does not claim verified Vgate GATT UUIDs, vehicle connectivity or stable live data from the development Mercedes. Those observations will be recorded when hardware is available.
+Hardware validation of this path is still pending.
 
 See [Apple BLE and iPhone Layer](docs/APPLE.md).
 
-## Next target
+### 0.5 — Scheduler, dashboard and logging
 
-Development now moves to **0.5 — scheduler, dashboard and logging**.
+- Portable C request scheduler with explicit priorities and rates.
+- Capability-driven default schedule for eight standard live PIDs.
+- Pause/resume semantics for future exclusive diagnostic operations.
+- Delayed-request catch-up without burst polling.
+- Typed latest-value cache and bounded chronological dashboard history.
+- Parameter favourites owned by the C telemetry store.
+- Full-session streaming recorder independent of the recent-history ring.
+- Diagnostic command/response transcript capture.
+- C-formatted CSV session data and metadata.
+- SwiftUI dashboard for the eight standard live values.
+- Favourite views and RPM/coolant history charts.
+- iOS share/export path for the generated session CSV.
 
-The next software stage will add a portable C request scheduler, typed sample flow, configurable dashboard, time-series display and session/CSV logging without moving those responsibilities into the BLE provider or SwiftUI.
+See [Telemetry, Scheduling and Logging](docs/TELEMETRY.md).
 
-Hardware validation of the 0.4 Apple/Vgate path remains an active validation task in parallel and may produce narrow adapter-specific fixes if the real device exposes quirks not visible in simulator CI.
+## Shared C foundation
 
-The long-term Mercedes direction includes DPF, exhaust temperature, regeneration, turbo/boost, fuel-rail, injector and EGR information where those values can be identified and validated against the real vehicle.
+MBLINK consumes **Infiltratr Common** from `The-First-Infiltrator/Infiltrator-Libraries` as a pinned Git submodule.
 
-See [Roadmap](docs/ROADMAP.md).
+Current pin:
+
+- version: **1.5.0**
+- tag: **v1.5.0**
+- commit: `a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`
+
+MBLINK currently uses the portable Common `core.c` and `format.c` components. Existing Common contracts are reused for bounded strings, checked/saturating arithmetic, formatting and project metadata instead of being privately duplicated.
+
+Protocol-specific code remains in MBLINK unless it later proves genuinely reusable by another consumer.
+
+See [Dependencies](docs/DEPENDENCIES.md).
 
 ## Repository layout
 
 ```text
 .github/workflows/     Continuous integration
 include/mblink/        Public C API
-src/core/              Portable MBLINK C foundation
-src/elm327/            Portable ELM327 command/session/probe engine
+src/core/              Portable project/scheduler/telemetry foundation
+src/elm327/            Portable ELM327 engine
 src/obd2/              Portable standard OBD-II engine
 src/infiltratr-common/ Pinned Infiltratr Common submodule
-platform/apple/        Apple-specific transport/application bridge
-app/ios/               Native iPhone presentation layer
+platform/apple/        Objective-C Apple transport/application bridge
+app/ios/               Native SwiftUI iPhone front end
 tests/                 Portable C regression tests
 docs/                  Architecture and engineering documentation
 ```
-
-Vehicle/protocol logic should not migrate into platform/application directories for convenience.
 
 ## Build the portable core
 
@@ -152,7 +151,7 @@ Requirements:
 
 - C11 compiler
 - CMake 3.20 or later
-- Git, when initialising the shared-library submodule
+- Git for the shared-library submodule
 
 ```sh
 git clone --recurse-submodules https://github.com/The-First-Infiltrator/MBLINK.git
@@ -162,31 +161,41 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-If the repository was cloned without submodules:
+If cloned without submodules:
 
 ```sh
 git submodule update --init --recursive
 ```
 
-CMake verifies the expected Infiltratr Common version and, when Git metadata is available, its exact pinned commit.
+CMake verifies both the expected Infiltratr Common version and, when Git metadata is available, the exact pinned commit.
+
+## iPhone target
+
+The native iPhone project lives at:
+
+```text
+app/ios/MBLINK.xcodeproj
+```
+
+The application links a static `MBLINKCore` target containing the same portable MBLINK and Infiltratr Common C sources used by the CMake build. SwiftUI does not contain alternate ELM/OBD decoders or polling policy.
 
 ## Development policy
 
-The portable C core is the source of truth for diagnostic behaviour. In particular:
+- PID formulas belong in C, not Swift.
+- ELM327 response parsing belongs in C, not Objective-C.
+- Poll scheduling and sample/session logic belong in C, not the UI.
+- ISO-TP and UDS state machines belong in C.
+- Mercedes definitions do not belong in the BLE provider.
+- Adapter-specific GATT quirks do not belong in generic protocol code.
+- Manufacturer-specific definitions require explicit validation status and real-response fixtures before being considered stable.
 
-- PID formulas do not belong in Swift.
-- ELM327 response parsing does not belong in Objective-C.
-- ISO-TP/UDS state machines do not belong in the UI.
-- Mercedes data definitions do not belong in the BLE provider.
-- Adapter-specific GATT quirks do not belong in `libmblink` protocol code.
+## Next target
 
-Every manufacturer-specific value must have an explicit validation status. Captured real responses should become regression fixtures before experimental definitions are promoted to stable support.
+Development now moves to **0.6 — ISO-TP foundation in C**.
 
-## Current status
+That stage will establish reusable CAN addressing, single/multi-frame handling, segmentation/reassembly, sequence validation, timing and captured-frame regression fixtures before Mercedes-specific UDS work begins.
 
-**Pre-alpha / version 0.4.0.**
-
-The portable C foundation, ELM327 engine and standard OBD-II engine are implemented and tested on Ubuntu and macOS. The Apple CoreBluetooth/Objective-C/SwiftUI integration also builds successfully as an iOS Simulator target under Xcode CI. Physical BLE-adapter and vehicle validation is pending and is not represented as complete.
+The 0.4 physical Vgate/iPhone/vehicle validation remains an active parallel validation task and may produce narrow adapter-specific corrections when hardware becomes available.
 
 ## Documentation
 
@@ -195,6 +204,7 @@ The portable C foundation, ELM327 engine and standard OBD-II engine are implemen
 - [ELM327 engine](docs/ELM327.md)
 - [Standard OBD-II engine](docs/OBD2.md)
 - [Apple BLE and iPhone layer](docs/APPLE.md)
+- [Telemetry, scheduling and logging](docs/TELEMETRY.md)
 - [Adapter strategy](docs/ADAPTERS.md)
 - [Dependencies and shared-code policy](docs/DEPENDENCIES.md)
 - [Contributing](CONTRIBUTING.md)

@@ -8,10 +8,16 @@
  */
 #include "mblink/mblink.h"
 #include "mblink/transport.h"
+#include "mblink/scheduler.h"
+#include "mblink/telemetry.h"
 
 #include "infiltratr/core.h"
+#include "infiltratr/format.h"
 
+#include <math.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #ifndef MBLINK_VERSION
 #define MBLINK_VERSION "0.1.0"
@@ -57,3 +63,10 @@ bool mblink_transport_is_valid(const MblinkTransport *transport)
            transport->write != NULL &&
            transport->set_receiver != NULL;
 }
+
+
+/* Private implementation fragments remain part of this translation unit so the
+ * portable core and Xcode static-library target compile the same C sources. */
+#include "scheduler.inc"
+#include "telemetry_store.inc"
+#include "telemetry_csv.inc"

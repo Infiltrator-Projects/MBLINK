@@ -2,137 +2,143 @@
 
 # MBLINK Roadmap
 
-MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, testable and architecturally reusable.
+MBLINK is developed from the portable C core outward. Each milestone must leave the repository buildable, tested and architecturally reusable.
 
-**Current development target: 0.5 — scheduler, dashboard and logging.**
+**Current development target: 0.6 — ISO-TP foundation in C.**
 
 ## 0.1 — C foundation and dependency discipline
 
 **Status: complete.**
 
-- Establish `libmblink` as a portable C11 library.
-- Publish stable public headers under `include/mblink/`.
-- Define the platform-neutral C transport ABI.
-- Pin Infiltratr Common 1.5.0 at commit `a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`.
-- Compile Common `core.c` and `format.c` into the portable foundation.
-- Reuse Common project identity and shared primitives instead of private duplicates.
-- Add strict compiler warnings and C smoke tests.
-- Add Linux/macOS CI for the portable library.
+- Portable C11 `libmblink`.
+- Public headers under `include/mblink/`.
+- Platform-neutral C transport ABI.
+- Infiltratr Common 1.5.0 pinned at `a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb`.
+- Portable Common `core.c` and `format.c` integrated.
+- Strict warning-as-error builds and C smoke tests.
+- Ubuntu/macOS CI.
 
-**Exit condition:** the repository builds and tests a real portable C library with its shared dependency pinned and verified.
+**Exit condition:** a real portable C library builds and tests with its shared dependency pinned and verified. **Satisfied.**
 
 ## 0.2 — ELM327 command engine in C
 
 **Status: complete.**
 
-- Command model and bounded command construction.
-- Response framing/normalisation.
-- Prompt detection and echo handling.
+- Bounded command model and construction.
+- Response framing, normalisation and prompt detection.
+- Echo handling and adapter error classification.
 - Adapter reset/initialisation state machine.
-- Capability probing.
-- Automatic OBD protocol selection policy.
+- Capability and protocol probing.
 - One-command-at-a-time transport-backed session execution.
-- Monotonic timeout handling with checked deadline arithmetic.
-- Cancellation and explicit re-synchronisation protection.
-- Re-entrant completion callback protection.
-- Clean malformed-response and transport-error behaviour.
-- Deterministic mock transport tests.
+- Monotonic timeout handling.
+- Cancellation and re-synchronisation protection.
+- Re-entrant completion protection.
+- Deterministic mock-transport tests.
 
-The implementation is documented in [ELM327 Engine](ELM327.md).
+See [ELM327 Engine](ELM327.md).
 
-**Exit condition:** ELM327 conversations can be parsed and exercised completely without BLE hardware, including fragmented responses, command ownership, timeouts, capability probing and error paths.
+**Exit condition:** ELM327 conversations are testable without BLE hardware, including fragmentation, ownership, timeouts, probing and error paths. **Satisfied.**
 
 ## 0.3 — Standard OBD-II C engine
 
 **Status: complete.**
 
-- Supported-PID enumeration across standard 32-PID blocks.
-- Typed live RPM.
-- Coolant temperature.
-- Vehicle speed.
-- Manifold absolute pressure.
-- Mass-air-flow rate.
-- Intake-air temperature.
-- Throttle position.
-- Calculated engine load.
-- Mode 09 PID 02 VIN extraction.
-- Stored/pending/permanent DTC decoding.
-- Mode 02 freeze-frame decoding using the same typed PID formulas.
-- Mode 01 PID 01 readiness decoding for spark/compression metadata and monitor masks.
-- Explicitly gated Mode 04 DTC clearing with readiness-reset acknowledgement.
-- Strict malformed hexadecimal and ELM-error handling.
+- Supported-PID enumeration.
+- Typed RPM, coolant, speed, MAP, MAF, intake temperature, throttle and calculated load.
+- Mode 09 VIN extraction.
+- Stored, pending and permanent DTC decoding.
+- Mode 02 freeze-frame decoding.
+- Mode 01 PID 01 readiness decoding.
+- Explicitly gated Mode 04 clearing.
+- Strict malformed-hex and ELM-error handling.
+- Indexed long-response reassembly for ELM-compatible adapters.
 - Deterministic portable regression tests.
 
-The implementation is documented in [Standard OBD-II Engine](OBD2.md).
+See [Standard OBD-II Engine](OBD2.md).
 
-**Exit condition:** `libmblink` is useful as a generic OBD-II diagnostic engine independent of iOS.
+**Exit condition:** `libmblink` is useful as a generic standard OBD-II engine independent of iOS. **Satisfied.**
 
 ## 0.4 — Apple BLE provider and iPhone shell
 
-**Status: complete for software integration; physical adapter/vehicle validation pending.**
+**Status: software implementation complete; physical hardware validation pending.**
 
-Primary hardware target: **Vgate iCar Pro BLE 4.0**.
-
-Implemented in 0.4.0:
+Primary reference adapter: **Vgate iCar Pro BLE 4.0**.
 
 - Objective-C CoreBluetooth provider implementing the C transport boundary.
 - Peripheral scan/connect/disconnect.
 - Runtime service/characteristic discovery.
-- Notification subscription and negotiated write-size handling.
-- Deterministic writable/notify candidate ranking.
-- Candidate validation using the portable C ELM327 parser rather than a second Objective-C parser.
-- Explicit scan, connection, discovery and probe deadlines.
-- Controlled reconnect/rescan behaviour after transient failures and unexpected disconnects.
-- Bounded application write queue and CoreBluetooth backpressure handling.
-- Thin Objective-C diagnostics bridge over the C ELM327 and OBD-II engines.
+- C-parsed `ATI` candidate-channel probing.
+- Notification subscription and negotiated write sizing.
+- Explicit scan/connect/discovery/probe deadlines.
+- Controlled reconnect/rescan behaviour.
+- Bounded write queues and CoreBluetooth backpressure handling.
+- Thin Objective-C bridge to Swift.
 - Native SwiftUI connection/live-data shell.
-- Main-actor interoperability for the Apple application boundary.
-- CI coverage for Ubuntu C11, macOS C11 and an iOS Simulator Xcode build.
+- Xcode Simulator CI.
 
 No diagnostic parser or PID formula is duplicated in Swift/Objective-C.
 
-**Software exit condition:** the complete Apple/iPhone integration compiles under Xcode CI while the portable C suite remains green on Ubuntu and macOS. This condition is satisfied by 0.4.0.
+See [Apple BLE and iPhone Layer](APPLE.md).
 
-**Hardware validation still required:** the physical Vgate/iPhone/Mercedes combination must still be exercised before MBLINK claims verified adapter GATT identifiers, verified vehicle connectivity or stable real-car live data. Hardware findings may produce narrow 0.4.x fixes without changing the architecture.
+**Software exit condition:** Apple integration compiles under Xcode CI while preserving the C ownership boundary. **Satisfied.**
+
+**Outstanding physical validation:** discover/connect to the reference adapter on an iPhone, record actual GATT UUIDs, complete C ELM initialisation against the vehicle, verify Mode 01 PID `00`, exercise live values and reconnect behaviour, and document any real adapter quirks. This validation remains active in parallel and is not represented as already complete.
 
 ## 0.5 — Scheduler, dashboard and logging
 
-**Status: current target.**
+**Status: complete.**
 
-- C request scheduler with parameter groups and rates.
-- Priority for rapidly changing values.
-- Controlled pauses for exclusive operations.
-- Typed sample model.
-- Configurable dashboard.
-- Parameter favourites.
-- Time-series graphs.
-- Session recording.
-- CSV export.
-- Session metadata and diagnostic transcript support.
+- Portable C request scheduler with parameter rates and priorities.
+- Fast polling priority for rapidly changing values.
+- Lower rates for temperatures and slower state.
+- Pause/resume semantics for future exclusive diagnostic operations.
+- Delayed-request catch-up without burst polling.
+- Capability-driven standard eight-PID schedule.
+- Typed latest-value cache.
+- Bounded chronological recent-history ring for dashboard/graphs.
+- Total sample count independent of recent-history retention.
+- C-owned parameter favourites.
+- Full-session streaming recorder independent of the recent-history ring.
+- Full diagnostic command/response transcript in the streaming recorder.
+- Bounded recent transcript cache for UI/debug history.
+- Session start/end metadata.
+- C-formatted CSV output using Infiltratr Common formatting/string contracts.
+- SwiftUI dashboard for the eight standard live values.
+- Favourites presentation.
+- RPM and coolant time-series charts.
+- iOS share/export path for the C-generated session data.
+- Ubuntu/macOS C tests and Debug/Release Xcode Simulator release gates.
 
-**Exit condition:** drives can be captured, reviewed and exported without coupling logging logic to the UI.
+See [Telemetry, Scheduling and Logging](TELEMETRY.md).
+
+**Exit condition:** live polling, recent history, dashboard state and complete session recording operate without moving scheduling/logging policy into SwiftUI or CoreBluetooth. **Satisfied in software CI.**
 
 ## 0.6 — ISO-TP foundation in C
 
+**Status: current target.**
+
 - CAN addressing model.
-- Single/multi-frame handling.
+- Single-frame handling.
+- Multi-frame first/consecutive frame handling.
 - Segmentation and reassembly.
-- Flow-control handling where required by the adapter/transport model.
-- Timeouts and sequence validation.
+- Sequence-number validation.
+- Flow-control handling where required by the transport model.
+- Protocol timeouts and explicit state transitions.
+- Bounded buffers and malformed-frame handling.
 - Captured-frame regression fixtures.
 
-**Exit condition:** transport-layer protocol tests pass without Mercedes-specific logic.
+**Exit condition:** transport-layer ISO-TP tests pass without Mercedes-specific logic.
 
 ## 0.7 — UDS foundation in C
 
 - Request/response model.
-- Positive/negative response handling.
+- Positive and negative response handling.
 - ECU identification.
 - Diagnostic-session management.
 - Data-identifier abstraction.
-- Timing/state handling required by verified services.
+- Timing/state handling for verified services.
 
-**Exit condition:** verified UDS exchanges can be executed through the generic C engine without embedding manufacturer interpretation in the transport.
+**Exit condition:** verified UDS exchanges execute through the reusable C engine without manufacturer interpretation in the transport.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 
@@ -140,16 +146,16 @@ Investigate and validate:
 
 - ECU identity/software information;
 - DPF differential pressure;
-- DPF and exhaust temperature data;
-- regeneration state and counters where exposed;
+- DPF and exhaust temperatures;
+- regeneration state/counters where exposed;
 - turbo target/actual information;
-- boost data beyond generic Mode 01 values;
+- boost beyond generic Mode 01 values;
 - fuel-rail target/actual pressure;
 - injector-related values where exposed;
 - EGR command/actual information;
-- additional diesel-specific state/temperature values.
+- additional diesel-specific state and temperature values.
 
-Every Mercedes parameter carries a validation status. Experimental definitions remain separated from verified definitions.
+Every Mercedes parameter carries a validation status. Experimental definitions remain separate from verified definitions.
 
 **Exit condition:** MBLINK provides materially deeper, verified information on the development Mercedes than a generic OBD-II application.
 
@@ -165,7 +171,7 @@ Subject to adapter and vehicle-network access:
 - body modules;
 - other discoverable ECUs.
 
-Initial scope is module identification, DTCs and selected live data before write-oriented service functions are considered.
+Initial scope is module identification, DTCs and selected live data before write-oriented services are considered.
 
 ## 0.10 — Adapter portability
 
@@ -175,19 +181,20 @@ Initial scope is module identification, DTCs and selected live data before write
 - Capability probing rather than name assumptions.
 - Optional future Wi-Fi/native transports.
 
-The Vgate iCar Pro BLE 4.0 is the first physical validation target, not a permanent dependency of `libmblink`.
+The reference Vgate adapter is a validation target, not a permanent dependency of `libmblink`.
 
 ## 1.0 — Release hardening
 
 - Stable documented C ABI for supported functionality.
 - Public API documentation.
-- Complete test-fixture provenance/validation metadata.
+- Complete fixture provenance/validation metadata.
 - Saved vehicle profiles and reconnect behaviour.
 - Accessibility review of the iPhone front end.
 - Performance and battery-use profiling.
+- File-backed/long-session storage hardening as appropriate.
 - Reproducible release process.
 - Contributor/build documentation.
-- Security and privacy review of any telemetry before such functionality is considered.
+- Security/privacy review before any telemetry leaves the device.
 
 ## Later possibilities
 
