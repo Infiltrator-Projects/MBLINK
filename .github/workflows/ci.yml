@@ -34,8 +34,12 @@ jobs:
         run: ctest --test-dir build --build-config Release --output-on-failure
 
   apple-ios:
-    name: iOS / Xcode
+    name: iOS / Xcode / ${{ matrix.configuration }}
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
 
     steps:
       - name: Checkout
@@ -59,13 +63,30 @@ jobs:
           grep -q 'mblink_elm327_parser_finish' platform/apple/MBLinkBLETransport.m
           ! grep -q 'componentsSeparatedByCharactersInSet' platform/apple/MBLinkBLETransport.m
 
+      - name: Verify 0.5 C ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'mblink_scheduler_next' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'mblink_telemetry_store_record' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'mblink_telemetry_recorder_record_sample' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'mblink_telemetry_recorder_record_response' platform/apple/MBLinkDiagnosticsController.m
+
       - name: Build iPhone app for simulator
-        run: >
-          xcodebuild
-          -project app/ios/MBLINK.xcodeproj
-          -scheme MBLINK
-          -configuration Debug
-          -sdk iphonesimulator
-          -destination 'generic/platform=iOS Simulator'
-          CODE_SIGNING_ALLOWED=NO
-          build
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/mblink-xcodebuild-${{ matrix.configuration }}.log"
+          if ! xcodebuild \
+            -project app/ios/MBLINK.xcodeproj \
+            -scheme MBLINK \
+            -configuration "${{ matrix.configuration }}" \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build >"$log" 2>&1; then
+            echo 'Xcode build failed. Compiler diagnostics:'
+            grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 120 || true
+            exit 1
+          fi
+          tail -n 20 "$log"

@@ -5,13 +5,14 @@
 #import "mblink/elm327.h"
 #import "mblink/elm327_session.h"
 #import "mblink/obd2.h"
+#import "mblink/scheduler.h"
+#import "mblink/telemetry.h"
 
 typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     MBLinkDiagnosticsPhaseIdle = 0,
     MBLinkDiagnosticsPhaseInitializing,
     MBLinkDiagnosticsPhaseCheckingPids,
-    MBLinkDiagnosticsPhaseReadingRPM,
-    MBLinkDiagnosticsPhaseReadingCoolant,
+    MBLinkDiagnosticsPhaseReadingLive,
     MBLinkDiagnosticsPhaseLive,
     MBLinkDiagnosticsPhaseFailed
 };
@@ -22,10 +23,24 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, copy, readwrite, nullable) NSString *adapterIdentifier;
 @property(nonatomic, readwrite, getter=isActive) BOOL active;
 @property(nonatomic, readwrite, getter=isReady) BOOL ready;
-@property(nonatomic, readwrite) BOOL hasRPM;
-@property(nonatomic, readwrite) double rpm;
+
+@property(nonatomic, readwrite) BOOL hasEngineLoad;
+@property(nonatomic, readwrite) double engineLoadPercent;
 @property(nonatomic, readwrite) BOOL hasCoolantTemperature;
 @property(nonatomic, readwrite) double coolantTemperatureCelsius;
+@property(nonatomic, readwrite) BOOL hasManifoldPressure;
+@property(nonatomic, readwrite) double manifoldPressureKPa;
+@property(nonatomic, readwrite) BOOL hasRPM;
+@property(nonatomic, readwrite) double rpm;
+@property(nonatomic, readwrite) BOOL hasVehicleSpeed;
+@property(nonatomic, readwrite) double vehicleSpeedKmh;
+@property(nonatomic, readwrite) BOOL hasIntakeAirTemperature;
+@property(nonatomic, readwrite) double intakeAirTemperatureCelsius;
+@property(nonatomic, readwrite) BOOL hasMassAirFlow;
+@property(nonatomic, readwrite) double massAirFlowGramsPerSecond;
+@property(nonatomic, readwrite) BOOL hasThrottlePosition;
+@property(nonatomic, readwrite) double throttlePositionPercent;
+
 - (void)handleSessionEvent:(const MblinkElm327Session *)session;
 - (void)processCompletedResponse;
 - (void)beginPortableSession;
@@ -35,8 +50,10 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)stopTickTimer;
 - (void)processInitializationResponse:(const MblinkElm327Response *)response;
 - (void)processSupportedPidResponse:(const MblinkElm327Response *)response;
-- (void)processLiveResponse:(const MblinkElm327Response *)response pid:(uint8_t)pid;
-- (void)scheduleNextLiveRequestAfter:(NSTimeInterval)delay;
+- (void)processLiveResponse:(const MblinkElm327Response *)response;
+- (void)scheduleNextLiveRequest;
+- (void)applyMeasurement:(const MblinkObd2Sample *)sample;
+- (void)resetPublishedMeasurements;
 @end
 
 @implementation MBLinkDiagnosticsController {
@@ -45,10 +62,17 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     BOOL _sessionInitialized;
     MblinkElm327InitState _initialization;
     MblinkObd2PidSet _supportedPids;
+    MblinkScheduler _scheduler;
+    MblinkTelemetryStore _telemetry;
+    MblinkTelemetryRecorder _recorder;
+    MblinkTelemetrySessionMetadata _sessionMetadata;
+    NSMutableData *_sessionCSV;
     MBLinkDiagnosticsPhase _phase;
     dispatch_source_t _tickTimer;
-    BOOL _rpmSupported;
-    BOOL _coolantSupported;
+    size_t _activeScheduleIndex;
+    uint8_t _activePid;
+    NSUInteger _pollGeneration;
+    uint64_t _sessionMonotonicStartMs;
 }
 
 static uint64_t MBLinkMonotonicMilliseconds(void)
@@ -62,6 +86,35 @@ static uint64_t MBLinkMonotonicMilliseconds(void)
         return UINT64_MAX;
     }
     return (uint64_t)milliseconds;
+}
+
+static uint64_t MBLinkElapsedMilliseconds(uint64_t startedMs)
+{
+    const uint64_t nowMs = MBLinkMonotonicMilliseconds();
+    return nowMs >= startedMs ? nowMs - startedMs : 0U;
+}
+
+static uint64_t MBLinkEpochMilliseconds(void)
+{
+    NSTimeInterval seconds = [NSDate date].timeIntervalSince1970;
+    if (seconds <= 0.0) {
+        return 0U;
+    }
+    double milliseconds = seconds * 1000.0;
+    if (milliseconds >= (double)UINT64_MAX) {
+        return UINT64_MAX;
+    }
+    return (uint64_t)milliseconds;
+}
+
+static bool MBLinkAppendCSV(void *context, const char *bytes, size_t length)
+{
+    if (context == NULL || bytes == NULL) {
+        return false;
+    }
+    NSMutableData *data = (__bridge NSMutableData *)context;
+    [data appendBytes:bytes length:length];
+    return true;
 }
 
 static void MBLinkSessionEvent(void *context,
@@ -84,6 +137,16 @@ static void MBLinkSessionEvent(void *context,
         _statusText = @"Idle";
         _phase = MBLinkDiagnosticsPhaseIdle;
         mblink_obd2_pid_set_clear(&_supportedPids);
+        mblink_scheduler_init(&_scheduler);
+        mblink_telemetry_store_init(&_telemetry);
+        mblink_telemetry_recorder_init(&_recorder);
+        _sessionCSV = [[NSMutableData alloc] init];
+        mblink_telemetry_store_set_favourite(&_telemetry, 0x0cU, true);
+        mblink_telemetry_store_set_favourite(&_telemetry, 0x0dU, true);
+        mblink_telemetry_store_set_favourite(&_telemetry, 0x05U, true);
+        mblink_telemetry_store_set_favourite(&_telemetry, 0x0bU, true);
+        mblink_telemetry_session_metadata_init(
+            &_sessionMetadata, 0U, NULL, NULL);
     }
     return self;
 }
@@ -92,6 +155,10 @@ static void MBLinkSessionEvent(void *context,
 {
     _provider.delegate = nil;
     [self stopTickTimer];
+    if (_recorder.started && !_recorder.finished) {
+        (void)mblink_telemetry_recorder_finish(
+            &_recorder, MBLinkEpochMilliseconds());
+    }
     if (_sessionInitialized) {
         mblink_elm327_session_disconnect(&_session);
     } else {
@@ -113,6 +180,26 @@ static void MBLinkSessionEvent(void *context,
     [self notifyDelegate];
 }
 
+- (void)resetPublishedMeasurements
+{
+    self.hasEngineLoad = NO;
+    self.engineLoadPercent = 0.0;
+    self.hasCoolantTemperature = NO;
+    self.coolantTemperatureCelsius = 0.0;
+    self.hasManifoldPressure = NO;
+    self.manifoldPressureKPa = 0.0;
+    self.hasRPM = NO;
+    self.rpm = 0.0;
+    self.hasVehicleSpeed = NO;
+    self.vehicleSpeedKmh = 0.0;
+    self.hasIntakeAirTemperature = NO;
+    self.intakeAirTemperatureCelsius = 0.0;
+    self.hasMassAirFlow = NO;
+    self.massAirFlowGramsPerSecond = 0.0;
+    self.hasThrottlePosition = NO;
+    self.throttlePositionPercent = 0.0;
+}
+
 - (void)start
 {
     if (![NSThread isMainThread]) {
@@ -122,14 +209,21 @@ static void MBLinkSessionEvent(void *context,
         return;
     }
 
+    _pollGeneration++;
     self.active = YES;
     self.ready = NO;
-    self.hasRPM = NO;
-    self.hasCoolantTemperature = NO;
-    _rpmSupported = NO;
-    _coolantSupported = NO;
+    [self resetPublishedMeasurements];
     _phase = MBLinkDiagnosticsPhaseIdle;
+    _activePid = 0U;
+    _activeScheduleIndex = 0U;
     mblink_obd2_pid_set_clear(&_supportedPids);
+    mblink_scheduler_init(&_scheduler);
+    mblink_telemetry_store_clear_samples(&_telemetry);
+    mblink_telemetry_recorder_init(&_recorder);
+    _sessionCSV = [[NSMutableData alloc] init];
+    _sessionMonotonicStartMs = MBLinkMonotonicMilliseconds();
+    mblink_telemetry_session_metadata_init(
+        &_sessionMetadata, MBLinkEpochMilliseconds(), NULL, NULL);
     [self notifyDelegate];
     [_provider start];
 }
@@ -143,6 +237,7 @@ static void MBLinkSessionEvent(void *context,
         return;
     }
 
+    _pollGeneration++;
     [self stopTickTimer];
     if (_sessionInitialized) {
         mblink_elm327_session_disconnect(&_session);
@@ -150,11 +245,16 @@ static void MBLinkSessionEvent(void *context,
     } else {
         [_provider disconnect];
     }
+    const uint64_t endedEpochMs = MBLinkEpochMilliseconds();
+    mblink_telemetry_session_metadata_finish(
+        &_sessionMetadata, endedEpochMs);
+    if (_recorder.started && !_recorder.finished) {
+        (void)mblink_telemetry_recorder_finish(&_recorder, endedEpochMs);
+    }
     _phase = MBLinkDiagnosticsPhaseIdle;
     self.active = NO;
     self.ready = NO;
-    self.hasRPM = NO;
-    self.hasCoolantTemperature = NO;
+    [self resetPublishedMeasurements];
     [self setStatus:@"Disconnected"];
 }
 
@@ -162,6 +262,10 @@ static void MBLinkSessionEvent(void *context,
 {
     self.peripheralName = transport.peripheralName;
     self.adapterIdentifier = transport.adapterIdentifier;
+    if (transport.adapterIdentifier != nil) {
+        mblink_telemetry_session_metadata_set_adapter(
+            &_sessionMetadata, transport.adapterIdentifier.UTF8String);
+    }
 
     if (transport.isReady && !_sessionInitialized) {
         [self beginPortableSession];
@@ -170,11 +274,11 @@ static void MBLinkSessionEvent(void *context,
 
     if (!transport.isReady && _sessionInitialized &&
         transport.state != MBLinkBLETransportStateProbing) {
+        _pollGeneration++;
         [self stopTickTimer];
         _sessionInitialized = NO;
         self.ready = NO;
-        self.hasRPM = NO;
-        self.hasCoolantTemperature = NO;
+        [self resetPublishedMeasurements];
     }
 
     if (!_sessionInitialized) {
@@ -197,6 +301,14 @@ static void MBLinkSessionEvent(void *context,
     }
 
     _sessionInitialized = YES;
+    if (!_recorder.started &&
+        !mblink_telemetry_recorder_begin(
+            &_recorder, &_sessionMetadata, MBLinkAppendCSV,
+            (__bridge void *)_sessionCSV)) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not start portable session recorder"];
+        return;
+    }
     mblink_elm327_init_begin(&_initialization);
     _phase = MBLinkDiagnosticsPhaseInitializing;
     [self startTickTimer];
@@ -250,10 +362,11 @@ static void MBLinkSessionEvent(void *context,
                                     timeoutMs);
     if (result != MBLINK_ELM327_SESSION_OP_OK) {
         NSString *reason =
-            [NSString stringWithUTF8String:mblink_elm327_session_op_result_name(result)];
+            [NSString stringWithUTF8String:
+                mblink_elm327_session_op_result_name(result)];
         _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:[NSString stringWithFormat:@"Diagnostic command failed: %@",
-                                                    reason]];
+        [self setStatus:[NSString stringWithFormat:
+            @"Diagnostic command failed: %@", reason]];
         return NO;
     }
     return YES;
@@ -281,16 +394,17 @@ static void MBLinkSessionEvent(void *context,
 
     if (session->status == MBLINK_ELM327_SESSION_TIMED_OUT) {
         _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Diagnostic request timed out"];
+        [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
         return;
     }
 
     if (session->status == MBLINK_ELM327_SESSION_FAILED) {
         NSString *reason =
-            [NSString stringWithUTF8String:mblink_elm327_result_name(session->elm_result)];
+            [NSString stringWithUTF8String:
+                mblink_elm327_result_name(session->elm_result)];
         _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:[NSString stringWithFormat:@"Adapter response failed: %@",
-                                                    reason]];
+        [self setStatus:[NSString stringWithFormat:
+            @"Adapter response failed: %@", reason]];
         return;
     }
 
@@ -310,6 +424,21 @@ static void MBLinkSessionEvent(void *context,
         return;
     }
 
+    (void)mblink_telemetry_store_record_transcript(
+        &_telemetry,
+        MBLinkElapsedMilliseconds(_sessionMonotonicStartMs),
+        _session.parser.command,
+        response);
+    if (_recorder.started && !_recorder.finished &&
+        !mblink_telemetry_recorder_record_response(
+            &_recorder,
+            MBLinkElapsedMilliseconds(_sessionMonotonicStartMs),
+            _session.parser.command, response)) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not append diagnostic transcript"];
+        return;
+    }
+
     switch (_phase) {
     case MBLinkDiagnosticsPhaseInitializing:
         [self processInitializationResponse:response];
@@ -317,11 +446,8 @@ static void MBLinkSessionEvent(void *context,
     case MBLinkDiagnosticsPhaseCheckingPids:
         [self processSupportedPidResponse:response];
         break;
-    case MBLinkDiagnosticsPhaseReadingRPM:
-        [self processLiveResponse:response pid:0x0cU];
-        break;
-    case MBLinkDiagnosticsPhaseReadingCoolant:
-        [self processLiveResponse:response pid:0x05U];
+    case MBLinkDiagnosticsPhaseReadingLive:
+        [self processLiveResponse:response];
         break;
     case MBLinkDiagnosticsPhaseLive:
     case MBLinkDiagnosticsPhaseIdle:
@@ -344,14 +470,15 @@ static void MBLinkSessionEvent(void *context,
     if (_initialization.adapter_id[0] != '\0') {
         self.adapterIdentifier =
             [NSString stringWithUTF8String:_initialization.adapter_id];
+        mblink_telemetry_session_metadata_set_adapter(
+            &_sessionMetadata, _initialization.adapter_id);
     }
 
     if (_initialization.stage == MBLINK_ELM327_INIT_COMPLETE) {
         char command[8];
         MblinkObd2Result build =
-            mblink_obd2_build_supported_pid_request(0x00U,
-                                                     command,
-                                                     sizeof(command));
+            mblink_obd2_build_supported_pid_request(
+                0x00U, command, sizeof(command));
         if (build != MBLINK_OBD2_RESULT_OK) {
             _phase = MBLinkDiagnosticsPhaseFailed;
             [self setStatus:@"Could not build OBD-II capability request"];
@@ -371,94 +498,243 @@ static void MBLinkSessionEvent(void *context,
 {
     bool hasMore = false;
     MblinkObd2Result result =
-        mblink_obd2_accept_supported_pids(response,
-                                          0x00U,
-                                          &_supportedPids,
-                                          &hasMore);
+        mblink_obd2_accept_supported_pids(
+            response, 0x00U, &_supportedPids, &hasMore);
     if (result != MBLINK_OBD2_RESULT_OK) {
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Vehicle did not provide a valid OBD-II PID map"];
         return;
     }
-
-    _rpmSupported = mblink_obd2_pid_set_contains(&_supportedPids, 0x0cU);
-    _coolantSupported = mblink_obd2_pid_set_contains(&_supportedPids, 0x05U);
     (void)hasMore;
 
-    self.ready = YES;
-    [self notifyDelegate];
-
-    if (!_rpmSupported && !_coolantSupported) {
-        _phase = MBLinkDiagnosticsPhaseLive;
-        [self setStatus:@"Connected; RPM and coolant PIDs are not advertised"];
+    MblinkSchedulerResult scheduleResult =
+        mblink_scheduler_configure_standard_obd2(
+            &_scheduler, &_supportedPids, MBLinkMonotonicMilliseconds());
+    if (scheduleResult != MBLINK_SCHEDULER_RESULT_OK) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not configure portable live-data scheduler"];
         return;
     }
 
-    [self scheduleNextLiveRequestAfter:0.0];
+    self.ready = YES;
+    _phase = MBLinkDiagnosticsPhaseLive;
+    [self notifyDelegate];
+
+    if (_scheduler.count == 0U) {
+        [self setStatus:@"Connected; no supported dashboard PIDs were advertised"];
+        return;
+    }
+
+    [self setStatus:@"Live OBD-II scheduler active"];
+    [self scheduleNextLiveRequest];
 }
 
-- (void)scheduleNextLiveRequestAfter:(NSTimeInterval)delay
+- (void)scheduleNextLiveRequest
 {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                 (int64_t)(delay * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        if (!self->_sessionInitialized || !self->_provider.isReady) {
-            return;
-        }
+    if (!_sessionInitialized || !_provider.isReady ||
+        _phase == MBLinkDiagnosticsPhaseFailed) {
+        return;
+    }
 
-        char command[8];
-        uint8_t pid;
-        if (self->_rpmSupported &&
-            (self->_phase != MBLinkDiagnosticsPhaseReadingRPM)) {
-            pid = 0x0cU;
-            self->_phase = MBLinkDiagnosticsPhaseReadingRPM;
-        } else if (self->_coolantSupported) {
-            pid = 0x05U;
-            self->_phase = MBLinkDiagnosticsPhaseReadingCoolant;
-        } else {
-            pid = 0x0cU;
-            self->_phase = MBLinkDiagnosticsPhaseReadingRPM;
-        }
+    MblinkSchedulerDispatch dispatch;
+    MblinkSchedulerNextResult next =
+        mblink_scheduler_next(&_scheduler,
+                              MBLinkMonotonicMilliseconds(),
+                              &dispatch);
 
-        MblinkObd2Result result =
-            mblink_obd2_build_live_pid_request(pid, command, sizeof(command));
-        if (result != MBLINK_OBD2_RESULT_OK) {
-            self->_phase = MBLinkDiagnosticsPhaseFailed;
-            [self setStatus:@"Could not build live OBD-II request"];
-            return;
+    if (next == MBLINK_SCHEDULER_NEXT_EMPTY ||
+        next == MBLINK_SCHEDULER_NEXT_PAUSED) {
+        _phase = MBLinkDiagnosticsPhaseLive;
+        return;
+    }
+
+    if (next == MBLINK_SCHEDULER_NEXT_WAITING) {
+        uint64_t waitMs = dispatch.wait_ms;
+        if (waitMs > 60000U) {
+            waitMs = 60000U;
         }
-        (void)[self beginCommand:command timeout:2000U];
-    });
+        const NSUInteger generation = _pollGeneration;
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW,
+                          (int64_t)waitMs * NSEC_PER_MSEC),
+            dispatch_get_main_queue(), ^{
+                if (generation != self->_pollGeneration) {
+                    return;
+                }
+                [self scheduleNextLiveRequest];
+            });
+        return;
+    }
+
+    char command[8];
+    MblinkObd2Result build =
+        mblink_obd2_build_live_pid_request(
+            dispatch.pid, command, sizeof(command));
+    if (build != MBLINK_OBD2_RESULT_OK) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not build scheduled OBD-II request"];
+        return;
+    }
+
+    _activePid = dispatch.pid;
+    _activeScheduleIndex = dispatch.index;
+    _phase = MBLinkDiagnosticsPhaseReadingLive;
+    const uint64_t nowMs = MBLinkMonotonicMilliseconds();
+    if ([self beginCommand:command timeout:2000U]) {
+        (void)mblink_scheduler_mark_dispatched(
+            &_scheduler, _activeScheduleIndex, nowMs);
+    }
+}
+
+- (void)applyMeasurement:(const MblinkObd2Sample *)sample
+{
+    if (sample == NULL) {
+        return;
+    }
+
+    switch (sample->pid) {
+    case 0x04U:
+        self.engineLoadPercent = sample->value;
+        self.hasEngineLoad = YES;
+        break;
+    case 0x05U:
+        self.coolantTemperatureCelsius = sample->value;
+        self.hasCoolantTemperature = YES;
+        break;
+    case 0x0bU:
+        self.manifoldPressureKPa = sample->value;
+        self.hasManifoldPressure = YES;
+        break;
+    case 0x0cU:
+        self.rpm = sample->value;
+        self.hasRPM = YES;
+        break;
+    case 0x0dU:
+        self.vehicleSpeedKmh = sample->value;
+        self.hasVehicleSpeed = YES;
+        break;
+    case 0x0fU:
+        self.intakeAirTemperatureCelsius = sample->value;
+        self.hasIntakeAirTemperature = YES;
+        break;
+    case 0x10U:
+        self.massAirFlowGramsPerSecond = sample->value;
+        self.hasMassAirFlow = YES;
+        break;
+    case 0x11U:
+        self.throttlePositionPercent = sample->value;
+        self.hasThrottlePosition = YES;
+        break;
+    default:
+        break;
+    }
 }
 
 - (void)processLiveResponse:(const MblinkElm327Response *)response
-                        pid:(uint8_t)pid
 {
-    MblinkObd2Sample sample;
-    MblinkObd2Result result =
-        mblink_obd2_decode_live_pid(response, pid, &sample);
-    if (result != MBLINK_OBD2_RESULT_OK) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        NSString *reason =
-            [NSString stringWithUTF8String:mblink_obd2_result_name(result)];
-        [self setStatus:[NSString stringWithFormat:@"Live OBD-II decode failed: %@",
-                                                    reason]];
+    if (response->result == MBLINK_ELM327_RESULT_NO_DATA) {
+        _phase = MBLinkDiagnosticsPhaseLive;
+        self.statusText = @"Live OBD-II data; one PID returned no data";
+        [self notifyDelegate];
+        [self scheduleNextLiveRequest];
         return;
     }
 
-    if (pid == 0x0cU) {
-        self.rpm = sample.value;
-        self.hasRPM = YES;
-    } else if (pid == 0x05U) {
-        self.coolantTemperatureCelsius = sample.value;
-        self.hasCoolantTemperature = YES;
+    MblinkObd2Sample sample;
+    MblinkObd2Result result =
+        mblink_obd2_decode_live_pid(response, _activePid, &sample);
+    if (result != MBLINK_OBD2_RESULT_OK) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        NSString *reason =
+            [NSString stringWithUTF8String:
+                mblink_obd2_result_name(result)];
+        [self setStatus:[NSString stringWithFormat:
+            @"Live OBD-II decode failed: %@", reason]];
+        return;
     }
 
+    if (!mblink_telemetry_store_record(
+            &_telemetry,
+            MBLinkElapsedMilliseconds(_sessionMonotonicStartMs), &sample)) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not record live telemetry sample"];
+        return;
+    }
+
+    MblinkTelemetrySample recorded;
+    if (_recorder.started && !_recorder.finished &&
+        mblink_telemetry_store_latest(&_telemetry, sample.pid, &recorded) &&
+        !mblink_telemetry_recorder_record_sample(
+            &_recorder, &recorded,
+            mblink_telemetry_store_is_favourite(&_telemetry, sample.pid))) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not append session recording"];
+        return;
+    }
+
+    [self applyMeasurement:&sample];
     self.ready = YES;
+    _phase = MBLinkDiagnosticsPhaseLive;
     self.statusText = @"Live OBD-II data";
     [self notifyDelegate];
+    [self scheduleNextLiveRequest];
+}
 
-    [self scheduleNextLiveRequestAfter:0.35];
+- (NSUInteger)recordedSampleCount
+{
+    uint64_t total = mblink_telemetry_store_total_sample_count(&_telemetry);
+    if (total > (uint64_t)NSUIntegerMax) {
+        return NSUIntegerMax;
+    }
+    return (NSUInteger)total;
+}
+
+- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+                                      limit:(NSUInteger)limit
+{
+    if (limit == 0U) {
+        return @[];
+    }
+
+    NSMutableArray<NSNumber *> *values =
+        [[NSMutableArray alloc] initWithCapacity:limit];
+    const size_t count =
+        mblink_telemetry_store_history_count(&_telemetry);
+
+    for (size_t reverseIndex = count;
+         reverseIndex > 0U && values.count < limit;
+         --reverseIndex) {
+        MblinkTelemetrySample sample;
+        if (!mblink_telemetry_store_history_at(
+                &_telemetry, reverseIndex - 1U, &sample)) {
+            continue;
+        }
+        if (sample.measurement.pid != pid) {
+            continue;
+        }
+        [values insertObject:@(sample.measurement.value) atIndex:0U];
+    }
+    return values;
+}
+
+- (BOOL)favouriteForPID:(uint8_t)pid
+{
+    return mblink_telemetry_store_is_favourite(&_telemetry, pid);
+}
+
+- (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid
+{
+    mblink_telemetry_store_set_favourite(&_telemetry, pid, favourite);
+    [self notifyDelegate];
+}
+
+- (nullable NSString *)csvSnapshot
+{
+    if (_sessionCSV.length == 0U) {
+        return nil;
+    }
+    return [[NSString alloc] initWithData:[_sessionCSV copy]
+                                 encoding:NSUTF8StringEncoding];
 }
 
 @end
