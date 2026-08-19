@@ -126,6 +126,9 @@ jobs:
           grep -q 'mblink_telemetry_store_record' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_telemetry_recorder_record_sample' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_telemetry_recorder_record_response' platform/apple/MBLinkDiagnosticsController.m
+          test "$(grep -c 'uds.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/uds/uds.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          ! grep -q 'mblink/isotp.h' include/mblink/uds.h src/uds/uds.c
 
       - name: Build iPhone app for simulator
         shell: bash
