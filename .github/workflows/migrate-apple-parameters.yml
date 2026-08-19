@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Validate Apple parameter migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/migrate-apple-parameters.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - run: echo "Staged; next revision performs the validated migration."
