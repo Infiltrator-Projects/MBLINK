@@ -3,9 +3,10 @@ name: MBLINK Self-Hosted Smoke
 
 on:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/self-hosted-smoke.yml'
+    branches:
+      - main
+      - 'hardening/**'
+      - 'feature/**'
   workflow_dispatch:
 
 permissions:
