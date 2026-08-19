@@ -179,12 +179,11 @@ jobs:
           derived="$RUNNER_TEMP/mblink-device-derived"
           app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
           icon_set="app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset"
-          source_b64="$icon_set/MBLINK-AppIcon-source.base64"
-          source_jpg="$RUNNER_TEMP/MBLINK-AppIcon-source.jpg"
+          source_jpg="$icon_set/MBLINK-AppIcon-source.jpg"
           icon_png="$icon_set/MBLINK-AppIcon-1024.png"
           partial="$RUNNER_TEMP/mblink-appicon-info.plist"
 
-          /usr/bin/base64 -D < "$source_b64" > "$source_jpg"
+          test -s "$source_jpg"
           /usr/bin/sips -s format png "$source_jpg" --out "$icon_png" >/dev/null
 
           width="$(/usr/bin/sips -g pixelWidth "$icon_png" | awk '/pixelWidth/ {print $2}')"
