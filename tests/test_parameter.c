@@ -34,6 +34,12 @@ int main(void)
                     "unknown PID unexpectedly has a descriptor");
     passed &= check(mblink_parameter_obd2_definition_at(8U) == NULL,
                     "out-of-range descriptor index should fail");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
+        "stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key("obd2.missing") == NULL,
+        "unknown stable key unexpectedly resolved");
 
     if (rpm != NULL) {
         MblinkParameterKey same = rpm->key;
@@ -41,6 +47,8 @@ int main(void)
         different.identifier++;
         passed &= check(mblink_parameter_definition_is_valid(rpm),
                         "RPM definition should validate");
+        passed &= check(strcmp(rpm->short_name, "RPM") == 0,
+                        "RPM short name mismatch");
         passed &= check(mblink_parameter_key_equal(&rpm->key, &same),
                         "equal keys did not compare equal");
         passed &= check(!mblink_parameter_key_equal(&rpm->key, &different),
@@ -93,7 +101,7 @@ int main(void)
     {
         MblinkParameterDefinition uds = {
             { MBLINK_PARAMETER_PROTOCOL_UDS, 1U, 0xf190U },
-            "mercedes.engine.example", "Example UDS value", "", 1U,
+            "mercedes.engine.example", "EXAMPLE", "Example UDS value", "", 1U,
             false, 0.0, 0.0
         };
         MblinkParameterDefinition invalid = uds;
@@ -106,6 +114,10 @@ int main(void)
         invalid.decimal_places = 10U;
         passed &= check(!mblink_parameter_definition_is_valid(&invalid),
                         "invalid decimal precision accepted");
+        invalid = uds;
+        invalid.short_name = "";
+        passed &= check(!mblink_parameter_definition_is_valid(&invalid),
+                        "empty short name accepted");
     }
 
     return passed ? EXIT_SUCCESS : EXIT_FAILURE;
