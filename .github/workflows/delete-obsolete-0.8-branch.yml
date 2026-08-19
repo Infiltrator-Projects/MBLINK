@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Delete obsolete 0.8 feature branch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/delete-obsolete-0.8-branch.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'maintenance/delete-obsolete-0.8-branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete superseded 0.8 branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/feature/0.8-c207-om651"
+
+      - name: Remove temporary cleanup branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/maintenance/delete-obsolete-0.8-branch"
