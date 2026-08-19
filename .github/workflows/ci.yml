@@ -313,13 +313,17 @@ jobs:
               if (error.status !== 404) throw error;
             }
 
-            if (tagTarget !== null && tagTarget !== target) {
-              core.setFailed(`${tag} already exists at ${tagTarget}; current main is ${target}. Bump VERSION before publishing new code.`);
+            if (existingRelease !== null && tagTarget === null) {
+              core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
               return;
             }
 
-            if (existingRelease !== null && tagTarget === null) {
-              core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
+            if (tagTarget !== null && tagTarget !== target) {
+              if (existingRelease !== null) {
+                core.info(`${tag} is already released at ${tagTarget}; current main ${target} is post-release development, so no release action is required.`);
+                return;
+              }
+              core.setFailed(`${tag} exists at ${tagTarget} without a matching GitHub Release. Repair the release state before continuing.`);
               return;
             }
 
