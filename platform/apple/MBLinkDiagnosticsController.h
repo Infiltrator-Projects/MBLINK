@@ -28,23 +28,6 @@ NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 
-@property(nonatomic, readonly) BOOL hasEngineLoad;
-@property(nonatomic, readonly) double engineLoadPercent;
-@property(nonatomic, readonly) BOOL hasCoolantTemperature;
-@property(nonatomic, readonly) double coolantTemperatureCelsius;
-@property(nonatomic, readonly) BOOL hasManifoldPressure;
-@property(nonatomic, readonly) double manifoldPressureKPa;
-@property(nonatomic, readonly) BOOL hasRPM;
-@property(nonatomic, readonly) double rpm;
-@property(nonatomic, readonly) BOOL hasVehicleSpeed;
-@property(nonatomic, readonly) double vehicleSpeedKmh;
-@property(nonatomic, readonly) BOOL hasIntakeAirTemperature;
-@property(nonatomic, readonly) double intakeAirTemperatureCelsius;
-@property(nonatomic, readonly) BOOL hasMassAirFlow;
-@property(nonatomic, readonly) double massAirFlowGramsPerSecond;
-@property(nonatomic, readonly) BOOL hasThrottlePosition;
-@property(nonatomic, readonly) double throttlePositionPercent;
-
 @property(nonatomic, readonly) NSUInteger recordedSampleCount;
 
 - (void)start;

@@ -24,23 +24,6 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, readwrite, getter=isActive) BOOL active;
 @property(nonatomic, readwrite, getter=isReady) BOOL ready;
 
-@property(nonatomic, readwrite) BOOL hasEngineLoad;
-@property(nonatomic, readwrite) double engineLoadPercent;
-@property(nonatomic, readwrite) BOOL hasCoolantTemperature;
-@property(nonatomic, readwrite) double coolantTemperatureCelsius;
-@property(nonatomic, readwrite) BOOL hasManifoldPressure;
-@property(nonatomic, readwrite) double manifoldPressureKPa;
-@property(nonatomic, readwrite) BOOL hasRPM;
-@property(nonatomic, readwrite) double rpm;
-@property(nonatomic, readwrite) BOOL hasVehicleSpeed;
-@property(nonatomic, readwrite) double vehicleSpeedKmh;
-@property(nonatomic, readwrite) BOOL hasIntakeAirTemperature;
-@property(nonatomic, readwrite) double intakeAirTemperatureCelsius;
-@property(nonatomic, readwrite) BOOL hasMassAirFlow;
-@property(nonatomic, readwrite) double massAirFlowGramsPerSecond;
-@property(nonatomic, readwrite) BOOL hasThrottlePosition;
-@property(nonatomic, readwrite) double throttlePositionPercent;
-
 - (void)handleSessionEvent:(const MblinkElm327Session *)session;
 - (void)processCompletedResponse;
 - (void)beginPortableSession;
@@ -52,8 +35,6 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)processSupportedPidResponse:(const MblinkElm327Response *)response;
 - (void)processLiveResponse:(const MblinkElm327Response *)response;
 - (void)scheduleNextLiveRequest;
-- (void)applyMeasurement:(const MblinkObd2Sample *)sample;
-- (void)resetPublishedMeasurements;
 @end
 
 @implementation MBLinkDiagnosticsController {
@@ -182,26 +163,6 @@ static void MBLinkSessionEvent(void *context,
     [self notifyDelegate];
 }
 
-- (void)resetPublishedMeasurements
-{
-    self.hasEngineLoad = NO;
-    self.engineLoadPercent = 0.0;
-    self.hasCoolantTemperature = NO;
-    self.coolantTemperatureCelsius = 0.0;
-    self.hasManifoldPressure = NO;
-    self.manifoldPressureKPa = 0.0;
-    self.hasRPM = NO;
-    self.rpm = 0.0;
-    self.hasVehicleSpeed = NO;
-    self.vehicleSpeedKmh = 0.0;
-    self.hasIntakeAirTemperature = NO;
-    self.intakeAirTemperatureCelsius = 0.0;
-    self.hasMassAirFlow = NO;
-    self.massAirFlowGramsPerSecond = 0.0;
-    self.hasThrottlePosition = NO;
-    self.throttlePositionPercent = 0.0;
-}
-
 - (void)start
 {
     if (![NSThread isMainThread]) {
@@ -217,7 +178,6 @@ static void MBLinkSessionEvent(void *context,
     _pollGeneration++;
     self.active = YES;
     self.ready = NO;
-    [self resetPublishedMeasurements];
     _phase = MBLinkDiagnosticsPhaseIdle;
     _activePid = 0U;
     _activeScheduleIndex = 0U;
@@ -260,7 +220,6 @@ static void MBLinkSessionEvent(void *context,
     _phase = MBLinkDiagnosticsPhaseIdle;
     self.active = NO;
     self.ready = NO;
-    [self resetPublishedMeasurements];
     [self setStatus:@"Disconnected"];
 }
 
@@ -285,8 +244,7 @@ static void MBLinkSessionEvent(void *context,
         _sessionInitialized = NO;
         mblink_elm327_session_deinit(&_session);
         self.ready = NO;
-        [self resetPublishedMeasurements];
-    }
+        }
 
     if (!_sessionInitialized) {
         self.statusText = transport.statusText;
@@ -596,50 +554,6 @@ static void MBLinkSessionEvent(void *context,
     }
 }
 
-- (void)applyMeasurement:(const MblinkObd2Sample *)sample
-{
-    if (sample == NULL) {
-        return;
-    }
-
-    switch (sample->pid) {
-    case 0x04U:
-        self.engineLoadPercent = sample->value;
-        self.hasEngineLoad = YES;
-        break;
-    case 0x05U:
-        self.coolantTemperatureCelsius = sample->value;
-        self.hasCoolantTemperature = YES;
-        break;
-    case 0x0bU:
-        self.manifoldPressureKPa = sample->value;
-        self.hasManifoldPressure = YES;
-        break;
-    case 0x0cU:
-        self.rpm = sample->value;
-        self.hasRPM = YES;
-        break;
-    case 0x0dU:
-        self.vehicleSpeedKmh = sample->value;
-        self.hasVehicleSpeed = YES;
-        break;
-    case 0x0fU:
-        self.intakeAirTemperatureCelsius = sample->value;
-        self.hasIntakeAirTemperature = YES;
-        break;
-    case 0x10U:
-        self.massAirFlowGramsPerSecond = sample->value;
-        self.hasMassAirFlow = YES;
-        break;
-    case 0x11U:
-        self.throttlePositionPercent = sample->value;
-        self.hasThrottlePosition = YES;
-        break;
-    default:
-        break;
-    }
-}
-
 - (void)processLiveResponse:(const MblinkElm327Response *)response
 {
     if (response->result == MBLINK_ELM327_RESULT_NO_DATA) {
@@ -682,7 +596,6 @@ static void MBLinkSessionEvent(void *context,
         return;
     }
 
-    [self applyMeasurement:&sample];
     self.ready = YES;
     _phase = MBLinkDiagnosticsPhaseLive;
     self.statusText = @"Live OBD-II data";
