@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed feature milestone: 0.7 — portable UDS foundation. Current maintenance work prepares 0.7.1; next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest completed maintenance milestone: 0.7.1 — pre-Mercedes parameter and release hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 

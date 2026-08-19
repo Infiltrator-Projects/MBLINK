@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7. Current maintenance target: 0.7.1. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through 0.7.1. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -34,7 +34,7 @@ Module contracts and limitations are documented in the corresponding files under
 
 **Exit condition met:** deterministic UDS exchanges execute through the reusable C engine without manufacturer interpretation or ISO-TP duplication in platform transport code.
 
-## 0.7.1 — pre-Mercedes parameter and release hardening
+## 0.7.1 — pre-Mercedes parameter and release hardening (complete)
 
 - pin the released Infiltratr Common 1.7.0 dependency;
 - add one protocol-neutral C scalar parameter identity/metadata/formatting model for OBD-II and future UDS live values;
