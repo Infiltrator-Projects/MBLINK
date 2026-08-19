@@ -10,244 +10,473 @@
 		0225CCC3B437D6F9864CF259 /* MBLINKApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38A74E05685528DF94F3FED /* MBLINKApp.swift */; };
 		D780005DFC91027166F8FFD4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275013AA0724C0CE2E9F7B87 /* ContentView.swift */; };
 		66B05F8E65443E6407074F75 /* ConnectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */; };
-	C8E3DBC6EDA9C2C65A738DF5 /* BLETransport.m in Sources */ = {isa = PBXBuildFile; fileRef = BC3EA22A6C914BF98DE5FC4E /* BLETransport.m */; };
-	42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */ = {isa = PBXBuildFile; fileRef = 82715A34A1DA0E87C553301D /* Diagnostics.m */; };
-	08A0FD079A23C3A8155E827F5 /* mblink.c in Sources */ = {isa = PBXBuildFile; fileRef = 9B110E710D124AB4D19370DA /* mblink.c */; };
-	E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A01 /* scheduler.c */; };
-	E0A1B2C3D4E5F60718293B002 /* telemetry_store.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */; };
-	E0A1B2C3D4E5F60718293B003 /* telemetry_csv.c in Sources */ = {isa = PBXBuildFile; fileRef = F0C1B2C3D4E5F60718293A03 /* telemetry_csv.c */; };
-	E0A1B2C3D4E5F60718293B004 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
-	06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11617B4723669FC1AF042DF /* elm327.c */; };
-	9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
-	C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A860A01E9B823433E288953 /* probe.c */; };
-	B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */ = {isa = PBXBuildFile; fileRef = DCDEF808C26455A6B72E4584 /* obd2.c */; };
-	E282A55680BFE4F2A03F50A1 /* common_core.c in Sources */ = {isa = PBXBuildFile; fileRef = D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */; };
-	DAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };
-	{‡¸Ë-˚@∏=‘MÎnH à€‹ôPõY]€›ôúò[Y]€‹ö»[àúò[Y]€‹ö‹»
-ã»H⁄\ÿHHñùZ[ö[N»ö[TôYàHÃQçMÃP–ÕLåÃMåéPQH à€‹ôPõY]€›ôúò[Y]€‹ö»
-ãŒ»N¬ÇPçMçLêêQLåÃ–Må–—PLLQçà àXìPìSí–€‹ôKòH[àúò[Y]€‹ö‹»
-ã»H⁄\ÿHHñùZ[ö[N»ö[TôYàHéMLMMMêëêQëêÃçMNê–Ã» àXìPìSí–€‹ôKòH
-ãŒ»N¬ÇPLPåêÃ—MQçåÃNéL–ÃH à\‹Ÿ]Àûÿ\‹Ÿ]»[àô\€›\òŸ\»
-ã»H⁄\ÿHHñùZ[ö[N»ö[TôYàHLPåêÃ—MQçåÃNéL–Ãà à\‹Ÿ]Àûÿ\‹Ÿ]»
-ãŒ»N¬ã à[ôñùZ[ö[HŸX›[€à
-ã¬Çã àôY⁄[àñ€€ùZ[ô\í][TõﬁHŸX›[€à
-ã¬ÇBQŒNPêQS≠<8A90139B415FCC /* PBXContainerItemProxy */ = {
+		C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */ = {isa = PBXBuildFile; fileRef = BC3EA22A6C914BF98DE5FC4E /* BLETransport.m */; };
+		42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */ = {isa = PBXBuildFile; fileRef = 82715A34A1DA0E87C553301D /* Diagnostics.m */; };
+		8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */ = {isa = PBXBuildFile; fileRef = 9B110E710D124AB4D19370DA /* mblink.c */; };
+		E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A01 /* scheduler.c */; };
+		E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */; };
+		E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */; };
+		E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
+		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
+		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
+		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
+		B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */ = {isa = PBXBuildFile; fileRef = DCDEF808C26455A6B72E4784 /* obd2.c */; };
+		E282A55680BFE4F2A03F50A1 /* common_core.c in Sources */ = {isa = PBXBuildFile; fileRef = D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */; };
+		DAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };
+		74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C1F571CC485203162805ADE /* CoreBluetooth.framework */; };
+		B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */; };
+		A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D799BAE6088A90139B415FCC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 98F54143AB4E86B28C3AFEE0
+			containerPortal = 98F54143AB4E86B28C3AFEE0 /* Project object */;
 			proxyType = 1;
-			remoteGlobalID›ö[ô»HÕëQMLMéQŒLÕåNN¬ÇBB\ô[[›R[ôõ»HPìSí–€‹ôN¬ÇB_N¬ã à[ôñ€€ùZ[ô\í][TõﬁHŸX›[€à
-ã¬Çã àôY⁄[àñö[TôYô\ô[òŸHŸX›[€à
-ã¬ÇBPÃŒMÕLMéMLééMå—ëQ àPìSí–\ú›⁄Yù
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKú›⁄Yù»ò[YHHìPìSí–\ú›⁄Yùé»]HìPìSíÀ”PìSí–\ú›⁄Yùé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBLçÕLL–PLÃçÃ—LëNQç–é» à€€ù[ùöY]Àú›⁄Yù
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKú›⁄Yù»ò[YHHê€€ù[ùöY]Àú›⁄Yùé»]HìPìSíÀ–€€ù[ùöY]Àú›⁄Yùé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBNLçêÕêMŒMPåå–PêÃçåéH à€€õôX›[€ïöY]”[Ÿ[ú›⁄Yù
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKú›⁄Yù»ò[YHHê€€õôX›[€ïöY]”[Ÿ[ú›⁄Yùé»]HìPìSíÀ–€€õôX›[€ïöY]”[Ÿ[ú›⁄Yùé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBLMLëêMêêÃ—ëMÃéLMÃçPM» àúöY⁄[ô»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀö»ò[YHHìPìSíÀPúöY⁄[ôÀRXY\ãöé»]HìPìSíÀ”PìSíÀPúöY⁄[ôÀRXY\ãöé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBNLLŒåÃëÃç–LçÃéå àìUò[ú‹‹ùö
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀö»ò[YHHìPì[ö–ìUò[ú‹‹ùöé»]HãããÀãã‹]õ‹õKÿ\K”Pì[ö–ìUò[ú‹‹ùöé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBLLMêëåMçåPåéPëPNåç àìUò[ú‹‹ùö]ò]Kö
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀö»ò[YHHìPì[ö–ìUò[ú‹‹ù
-”PìSíÀöé»]HãããÀãã‹]õ‹õKÿ\K”Pì[ö–ìUò[ú‹‹ù
-”PìSíÀöé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBPêÃ—PLåêMêŒLMëéNMQêÕH àìUò[ú‹‹ùõH
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀõÿöòŒ»ò[YHHìPì[ö–ìUò[ú‹‹ùõHé»]HãããÀãã‹]õ‹õKÿ\K”Pì[ö–ìUò[ú‹‹ùõHé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇP—QåPM–ÃLPÃ—P–ÕÃQêÃëH àXY€õ‹›X‹Àö
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀö»ò[YHHìPì[ö—XY€õ‹›X‹–€€ùõ€\ãöé»]HãããÀãã‹]õ‹õKÿ\K”Pì[ö—XY€õ‹›X‹–€€ùõ€\ãöé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇNçÃMPLÕLQLN–ÕMLÃÃQ àXY€õ‹›X‹ÀõH
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀõÿöòŒ»ò[YHHìPì[ö—XY€õ‹›X‹–€€ùõ€\ãõHé»]HãããÀãã‹]õ‹õKÿ\K”Pì[ö—XY€õ‹›X‹–€€ùõ€\ãõHé»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBNPåLLMÃLLçPçNLÕÃH àXõ[öÀò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHõXõ[öÀò»é»]HãããÀãã‹‹òÀÿ€‹ôK€Xõ[öÀò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQåLPåêÃ—MQçåÃNéL–LH àÿ⁄Y[\ãò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHúÿ⁄Y[\ãò»é»]HãããÀãã‹‹òÀÿ€‹ôK‹ÿ⁄Y[\ãò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQåLPåêÃ—MQçåÃNéL–Là à[[Y]ûW‹›‹ôKò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHù[[Y]ûW‹›‹ôKò»é»]HãããÀãã‹‹òÀÿ€‹ôK›[[Y]ûW‹›‹ôKò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQåLPåêÃ—MQçåÃNéL–L» à[[Y]ûWÿ‹›ãò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHù[[Y]ûWÿ‹›ãò»é»]HãããÀãã‹‹òÀÿ€‹ôK›[[Y]ûWÿ‹›ãò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQåLPåêÃ—MQçåÃNéL–L à\€›ò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHö\€›ò»é»]HãããÀãã‹‹òÀÿ€‹ôK⁄\€›ò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQåLQåM–çÃåÕçéQêÃPQåëà à[LÃçÀò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHô[LÃçÀò»é»]HãããÀãã‹‹òÀŸ[LÃçÀŸ[LÃçÀò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBPMNLêQLŒMêLMNêŒNQêççà àŸ\‹⁄[€ãò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHúŸ\‹⁄[€ãò»é»]HãããÀãã‹‹òÀŸ[LÃçÀ‹Ÿ\‹⁄[€ãò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBMPNLQNPéåÕÃ—LéML» àõÿôKò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHúõÿôKò»é»]HãããÀãã‹‹òÀŸ[LÃçÀ‹õÿôKò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQ—QéÃççMPMêçÃëMŒ àÿôãò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHõÿôãò»é»]HãããÀãã‹‹òÀ€ÿôã€ÿôãò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQPQQM—éPÃ—êMçQQLŒ à€€[[€óÿ€‹ôKò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHò€‹ôKò»é»]HãããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã‹‹òÀÿ€‹ôKò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBQêçê–åê–åëNPéååÃMéå» à€€[[€óŸõ‹õX]ò»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH€›\òŸX€ŸKòÀòŒ»ò[YHHôõ‹õX]ò»é»]HãããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã‹‹òÀŸõ‹õX]ò»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ÇBNê—PêÕ—ëåLN–ÕŒà àPìSíÀò\
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»^X⁄]ö[U\HH‹ò\\ãò\Xÿ][€é»[ò€YR[í[ô^H»]HPìSíÀò\»€›\òŸUôYHHïRS‘ì—P’◊—Té»N¬ÇBQéMLMMMêëêQëêÃçMNê–Ã» àXìPìSí–€‹ôKòH
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»^X⁄]ö[U\HH\ò⁄]ôKò\é»[ò€YR[í[ô^H»]HXìPìSí–€‹ôKòN»€›\òŸUôYHHïRS‘ì—P’◊—Té»N¬ÇBMÃQçMÃP–ÕLåÃMåéPQH à€‹ôPõY]€›ôúò[Y]€‹ö»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HH‹ò\\ãôúò[Y]€‹öŒ»ò[YHH€‹ôPõY]€›ôúò[Y]€‹öŒ»]Hﬁ\›[K”Xúò\ûK—úò[Y]€‹ö‹À–€‹ôPõY]€›ôúò[Y]€‹öŒ»€›\òŸUôYHH—‘ì”’»N¬ÇBPLPåêÃ—MQçåÃNéL–Ãà à\‹Ÿ]Àûÿ\‹Ÿ]»
-ã»H⁄\ÿHHñö[TôYô\ô[òŸN»\›€õ›€ëö[U\HHõ€\ãò\‹Ÿ]ÿ][ŸŒ»ò[YHHê\‹Ÿ]Àûÿ\‹Ÿ]»é»]HìPìSíÀ–\‹Ÿ]Àûÿ\‹Ÿ]»é»€›\òŸUôYHH”’Tê—W‘ì”’»N¬ã à[ôñö[TôYô\ô[òŸHŸX›[€à
-ã¬Çã àôY⁄[àñúò[Y]€‹ö‹–ùZ[\ŸHŸX›[€à
-ã¬ÇBMŒQNÕêëPåêMMëç–—QH àúò[Y]€‹ö‹»
-ã»H¬ÇBBZ\ÿHHñúò[Y]€‹ö‹–ùZ[\ŸN¬ÇBBXùZ[X›[€ìX\⁄»HåMÕÕçŒ¬ÇBBYö[\»H
-ÇBBBMÕMŒêÃÕ–ÃÕPçLQLåçH à€‹ôPõY]€›ôúò[Y]€‹ö»[àúò[Y]€‹ö‹»
-ãÀÇBBBPçMçLêéQLåÃ–Nå–—PLLQçà àXìPìSí–€‹ôKòH[àúò[Y]€‹ö‹»
-ãÀÇBBJN¬ÇBB\ù[ì€õQõ‹ë\ﬁ[Y[ù‹›õÿŸ\‹⁄[ô»H¬ÇB_N¬ÇBQÃQåëMNNMŒNLMPM—PLH àúò[Y]€‹ö‹»
-ã»H¬ÇBBZ\ÿHHñúò[Y]€‹ö‹–ùZ[\ŸN¬ÇBBXùZ[X›[€ìX\⁄»HåMÕÕçŒ¬ÇBBYö[\»H
-ÇBBJN¬ÇBB\ù[ì€õQõ‹ë\ﬁ[Y[ù‹›õÿŸ\‹⁄[ô»H¬ÇB_N¬ã à[ôñúò[Y]€‹ö‹–ùZ[\ŸHŸX›[€à
-ã¬Çã àôY⁄[àñ‹õ›\ŸX›[€à
-ã¬ÇBQMLéLLçÕPMNPçÕ–ÕHH¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBMéQéMN—LåNNPêçŒ à\
-ãÀÇBBBMQçÃP—åçé–çLQçNÕÃà à\H]õ‹õH
-ãÀÇBBBNêÃåê–åéŒëçêÕMÃå–çMà à‹ùXõH€‹ôH
-ãÀÇBBBPëQåLLåQêM—çÃLMÕÃH à[ôö[ò]à€€[[€à
-ãÀÇBBBPPçQÕéMNéåêçëÕÕ àúò[Y]€‹ö‹»
-ãÀÇBBBLÃéPÃÃ—åŒMMŒPé—êLéH àõŸX›»
-ãÀÇBBJN¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBMéQéMN—LåNNPêçŒ à\
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBPÃŒMÕLMéMLééMå—ëQ àPìSí–\ú›⁄Yù
-ãÀÇBBBLçÕLL–PLÃçÃ—LëNQç–é» à€€ù[ùöY]Àú›⁄Yù
-ãÀÇBBBNLçêÕêMŒMPåå–PêÃçåéH à€€õôX›[€ïöY]”[Ÿ[ú›⁄Yù
-ãÀÇBBBLMLëêMêêÃ—ëMÃéLMÃçPM» àPìSíÀPúöY⁄[ôÀRXY\ãö
-ãÀÇBBBPLPåêÃ—MQçåÃNéL–Ãà à\‹Ÿ]Àûÿ\‹Ÿ]»
-ãÀÇBBJN¬ÇBB[ò[YHH\¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBMQçÃP—åçé–çLQçNÕÃà à\H]õ‹õH
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBNLLŒåÃëÃç–LçÃéå àPì[ö–ìUò[ú‹‹ùö
-ãÀÇBBBLLMêëåMçåPåéPëPNåç àPì[ö–ìUò[ú‹‹ù
-”PìSíÀö
-ãÀÇBBBPêÃ—PLåêMêŒLMëéNMQêÕH àPì[ö–ìUò[ú‹‹ùõH
-ãÀÇBBBP—QåPM–ÃLPÃ—P–ÕÃQêÃëH àPì[ö—XY€õ‹›X‹–€€ùõ€\ãö
-ãÀÇBBBNçÃMPLÕLQLN–ÕMLÃÃQ àPì[ö—XY€õ‹›X‹–€€ùõ€\ãõH
-ãÀÇBBJN¬ÇBB[ò[YHHê\H]õ‹õHé¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBNêÃåê–åéŒëçêÕMÃå–çMà à‹ùXõH€‹ôH
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBNPåLLMÃLLçPçNLÕÃH àXõ[öÀò»
-ãÀÇBBBQåLPåêÃ—MQçåÃNéL–LH àÿ⁄Y[\ãò»
-ãÀÇBBBQåLPåêÃ—MQçåÃNéL–Là à[[Y]ûW‹›‹ôKò»
-ãÀÇBBBQåLPåêÃ—MQçåÃNéL–L» à[[Y]ûWÿ‹›ãò»
-ãÀÇBBBQåLPåêÃ—MQçåÃNéL–L à\€›ò»
-ãÀÇBBBQåLQåM–çÃåÕçéQêÃPQåëà à[LÃçÀò»
-ãÀÇBBBPMNLêQLŒMêLMNêŒNQêçMà àŸ\‹⁄[€ãò»
-ãÀÇBBBMPNLQNPéåÕÃ—LéML» àõÿôKò»
-ãÀÇBBBQ—QéÃççMPMêçÃëMŒ àÿôãò»
-ãÀÇBBJN¬ÇBB[ò[YHHî‹ùXõH€‹ôHé¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBPëQåLLåQêM—çÃLMÕÃH à[ôö[ò]à€€[[€à
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBQPQQM—éPÃ—êMçQQLŒ à€‹ôKò»
-ãÀÇBBBQêçê–åê–åëNPéååÃMéå» àõ‹õX]ò»
-ãÀÇBBJN¬ÇBB[ò[YHHí[ôö[ò]à€€[[€àé¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBPPçQÕéMNéåêçëÕÕ àúò[Y]€‹ö‹»
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBMÃQçMÃP–ÕLåÃMåéPQH à€‹ôPõY]€›ôúò[Y]€‹ö»
-ãÀÇBBJN¬ÇBB[ò[YHHúò[Y]€‹ö‹Œ¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ÇBLÃéPÃÃ—åŒMMŒPé—êLéH àõŸX›»
-ã»H¬ÇBBZ\ÿHHñ‹õ›\¬ÇBBX⁄[ô[àH
-ÇBBBNê—PêÕ—ëåLN–ÕŒà àPìSíÀò\
-ãÀÇBBBQéMLMMMêëêQëêÃçMNê–Ã» àXìPìSí–€‹ôKòH
-ãÀÇBBJN¬ÇBB[ò[YHHõŸX›Œ¬ÇBB\€›\òŸUôYHHè‹õ›\àé¬ÇB_N¬ã à[ôñ‹õ›\ŸX›[€à
-ã¬Çã àôY⁄[àñò]]ôU\ôŸ]ŸX›[€à
-ã¬ÇBPÃLÕÃÃêŒMÃMPŒPëQMêMLPŒH àPìSí»
-ã»H¬ÇBBZ\ÿHHñò]]ôU\ôŸ]¬ÇBBXùZ[€€ôöY›\ò][€ì\›HLéMê—çç—MÃPçNÕêNH àùZ[€€ôöY›\ò][€à\›õ‹àñò]]ôU\ôŸ]ìPìSí»à
-ãŒ¬ÇBBXùZ[\Ÿ\»H
-ÇBBBNMÃQQQPåçQçêÕÕé à€›\òŸ\»
-ãÀÇBBBMŒQNÕêëPåêMMëç–—QH àúò[Y]€‹ö‹»
-ãÀÇBBBLÕçå—éQåëMMNåçLÃ—ê» àô\€›\òŸ\»
-ãÀÇBBJN¬ÇBBXùZ[ù[\»H
-ÇBBJN¬ÇBBY\[ô[ò⁄Y\»H
-ÇBBBQMNLêåM–ÃNMåÕŒMéMM» àñ\ôŸ]\[ô[òﬁH
-ãÀÇBBJN¬ÇBB[ò[YHHPìSíŒ¬ÇBB\õŸX›ò[YHHPìSíŒ¬ÇBB\õŸX›ôYô\ô[òŸHHê—PêÕ—ëåLN–ÕŒà àPìSíÀò\
-ãŒ¬ÇBB\õŸX›\HHò€€Kò\KúõŸX›]\Kò\Xÿ][€àé¬ÇB_N¬ÇBMÕëQMLMéQŒLÕåNH àPìSí–€‹ôH
-ã»H¬ÇBBZ\ÿHHñò]]ôU\ôŸ]¬ÇBBXùZ[€€ôöY›\ò][€ì\›HQÃÃçLPQMPMŒP—ç àùZ[€€ôöY›\ò][€à\›õ‹àñò]]ôU\ôŸ]ìPìSí–€‹ôHà
-ãŒ¬ÇBBXùZ[\Ÿ\»H
-ÇBBBPåMLLÃMQPMåëMëçåå à€›\òŸ\»
-ãÀÇBBBQÃQåëMNNMŒNLMPM—PLH àúò[Y]€‹ö‹»
-ãÀÇBBJN¬ÇBBXùZ[ù[\»H
-ÇBBJN¬ÇBBY\[ô[ò⁄Y\»H
-ÇBBJN¬ÇBB[ò[YHHPìSí–€‹ôN¬ÇBB\õŸX›ò[YHHPìSí–€‹ôN¬ÇBB\õŸX›ôYô\ô[òŸHHéMLMMMêëêQëêÃçMNê–Ã» àXìPìSí–€‹ôKòH
-ãŒ¬ÇBB\õŸX›\HHò€€Kò\KúõŸX›]\KõXúò\ûKú›]X»é¬ÇB_N¬ã à[ôñò]]ôU\ôŸ]ŸX›[€à
-ã¬Çã àôY⁄[àñõ⁄ôX›ŸX›[€à
-ã¬ÇBNNçMM–PçNêåéÃ–QëQL àõ⁄ôX›ÿöôX›
-ã»H¬ÇBBZ\ÿHHñõ⁄ôX›¬ÇBBX]öXù]\»H¬ÇBBBPùZ[[ô\[ô[ù\ôŸ]“[î\ò[[HQTŒ¬ÇBBBS\››⁄Yù\]P⁄X⁄»HMå¬ÇBBBS\›\‹òYP⁄X⁄»HMå¬ÇBBBU\ôŸ]]öXù]\»H¬ÇBBBBPÃLÕÃÃêŒMÃMPŒPëQMêMLPŒHH¬ÇBBBBBP‹ôX]Y€ï€€’ô\ú⁄[€àHMãå¬ÇBBBB_N¬ÇBBBBMÕëQMLMéQŒLÕåNHH¬ÇBBBBBP‹ôX]Y€ï€€’ô\ú⁄[€àHMãå¬ÇBBBB_N¬ÇBBB_N¬ÇBB_N¬ÇBBXùZ[€€ôöY›\ò][€ì\›HMLëPêëLçLççLçëNëH àùZ[€€ôöY›\ò][€à\›õ‹àñõ⁄ôX›ìPìSí»à
-ãŒ¬ÇBBX€€\]Xö[]Uô\ú⁄[€àHñ€ŸHMåé¬ÇBBY]ô[‹Y[ùôY⁄[€àH[é¬ÇBBZ\‘ÿÿ[õôYõ‹ë[ò€Ÿ[ô‹»H¬ÇBBZ€õ›€îôY⁄[€ú»H
-ÇBBBY[ãÇBBBPò\ŸKÇBBJN¬ÇBB[XZ[ë‹õ›\HMLéLLçÕPMNPçÕ–ÕN¬ÇBB\õŸX›ôYë‹õ›\HÃéPÃÃ—åŒMMŒPé—êLéH àõŸX›»
-ãŒ¬ÇBB\õ⁄ôX›\î]Hàé¬ÇBB\õ⁄ôX›õ€›Hàé¬ÇBB]\ôŸ]»H
-ÇBBBPÃLÕÃÃêŒMÃMPŒPëQMêMLPŒH àPìSí»
-ãÀÇBBBMÕëQMLMéQŒLÕåNH àPìSí–€‹ôH
-ãÀÇBBJN¬ÇB_N¬ã à[ôñõ⁄ôX›ŸX›[€à
-ã¬Çã àôY⁄[àñô\€›\òŸ\–ùZ[\ŸHŸX›[€à
-ã¬ÇBLÕçå—éQåëMMNåçLÃ—ê» àô\€›\òŸ\»
-ã»H¬ÇBBZ\ÿHHñô\€›\òŸ\–ùZ[\ŸN¬ÇBBXùZ[X›[€ìX\⁄»HåMÕÕçŒ¬ÇBBYö[\»H
-ÇBBBPLPåêÃ—MQçåÃNéL–ÃH à\‹Ÿ]Àûÿ\‹Ÿ]»[àô\€›\òŸ\»
-ãÀÇBBJN¬ÇBB\ù[ì€õQõ‹ë\ﬁ[Y[ù‹›õÿŸ\‹⁄[ô»H¬ÇB_N¬ã à[ôñô\€›\òŸ\–ùZ[\ŸHŸX›[€à
-ã¬Çã àôY⁄[àñ€›\òŸ\–ùZ[\ŸHŸX›[€à
-ã¬ÇBNMÃQQQPåçQçêÕÕé à€›\òŸ\»
-ã»H¬ÇBBZ\ÿHHñ€›\òŸ\–ùZ[\ŸN¬ÇBBXùZ[X›[€ìX\⁄»HåMÕÕçŒ¬ÇBBYö[\»H
-ÇBBBLåçP––Ã–çÕ—ëéNç—åçNH àPìSí–\ú›⁄Yù[à€›\òŸ\»
-ãÀÇBBBQŒQêŒLLçÃMçëéëë à€€ù[ùöY]Àú›⁄Yù[à€›\òŸ\»
-ãÀÇBBBMçêåQéMçM—MçÃÕçÕH à€€õôX›[€ïöY]”[Ÿ[ú›⁄Yù[à€›\òŸ\»
-ãÀÇBBBPŒL—êÕëQéPÃêÕçPMÃŒçH àìUò[ú‹‹ùõH[à€›\òŸ\»
-ãÀÇBBBMëê–ëQNëPŒLëëååçåà àXY€õ‹›X‹ÀõH[à€›\òŸ\»
-ãÀÇBBJN¬ÇBB\ù[ì€õQõ‹ë\ﬁ[Y[ù‹›õÿŸ\‹⁄[ô»H¬ÇB_N¬ÇBPåMLLÃMQPMåëMëçåå à€›\òŸ\»
-ã»H¬ÇBBZ\ÿHHñ€›\òŸ\–ùZ[\ŸN¬ÇBBXùZ[X›[€ìX\⁄»HåMÕÕçŒ¬ÇBBYö[\»H
-ÇBBBNLëŒPLå–Ã–NMMQNç—çH àXõ[öÀò»[à€›\òŸ\»
-ãÀÇBBBQLLPåêÃ—MQçåÃNéL–åH àÿ⁄Y[\ãò»[à€›\òŸ\»
-ãÀÇBBBQLLPåêÃ—MQçåÃNéL–åà à[[Y]ûW‹›‹ôKò»[à€›\òŸ\»
-ãÀÇBBBQLLPåêÃ—MQçåÃNéL–å» à[[Y]ûWÿ‹›ãò»[à€›\òŸ\»
-ãÀÇBBBQLLPåêÃ—MQçåÃNéL–å à\€›ò»[à€›\òŸ\»
-ãÀÇBBBLçåëéQåçéÕQQéMåêMH à[LÃçÀò»[à€›\òŸ\»
-ãÀÇBBBNQêÃëçQQêÃ—êçMÕN–à àŸ\‹⁄[€ãò»[à€›\òŸ\»
-ãÀÇBBBPÃ–MëLÕŒçPNéŒPÕçëåMà àõÿôKò»[à€›\òŸ\»
-ãÀÇBBBPç––Lëé—åPQéNPÕ—ëåQP» àÿôãò»[à€›\òŸ\»
-ãÀÇBBBQLéêMMMéëëMåêL—çLLH à€‹ôKò»[à€›\òŸ\»
-ãÀÇBBBQQM—LLéL–QPçMê—çà àõ‹õX]ò»[à€›\òŸ\»
-ãÀÇBBJN¬ÇBB\ù[ì€õQõ‹ë\ﬁ[Y[ù‹›õÿŸ\‹⁄[ô»H¬ÇB_N¬ã à[ôñ€›\òŸ\–ùZ[\ŸHŸX›[€à
-ã¬Çã àôY⁄[àñ\ôŸ]\[ô[òﬁHŸX›[€à
-ã¬ÇBQMNLêåM–ÃNMåÕŒMéMM» àñ\ôŸ]\[ô[òﬁH
-ã»H¬ÇBBZ\ÿHHñ\ôŸ]\[ô[òﬁN¬ÇBB]\ôŸ]HÕëQMLMéQŒLÕåNH àPìSí–€‹ôH
-ãŒ¬ÇBB]\ôŸ]õﬁHHŒNPêQMåNLLŒPçMQê–» àñ€€ùZ[ô\í][TõﬁH
-ãŒ¬ÇB_N¬ã à[ôñ\ôŸ]\[ô[òﬁHŸX›[€à
-ã¬Çã àôY⁄[à–ùZ[€€ôöY›\ò][€àŸX›[€à
-ã¬ÇBQå—QQLQÃ–åç àXùY»
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBP”Së◊—SêPìW”S—ST»HQTŒ¬ÇBBBP”Së◊—SêPìW”–íê◊–Tê»HQTŒ¬ÇBBBP”Së◊’–Tìó—–’SQSïUS”ó–””SQSï»HQTŒ¬ÇBBBP”Së◊’–Tìó‘US’Q“Sê”QW“Só—îêSQU”‘í◊“PQTàHQTŒ¬ÇBBBQ––◊–◊”Së’PQ—W‘’SëTëHÃLN¬ÇBBBRT”ëS‘◊—T÷SQSï’Të—UHMÀå¬ÇBBBT—‘ì”’H\€ô[‹Œ¬ÇBBBT’“Qï’ëTî“S”àHKå¬ÇBB_N¬ÇBB[ò[YHHXùYŒ¬ÇB_N¬ÇBNLP–éNQç–LéMëçŒêÃNM—à àô[X\ŸH
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBP”Së◊—SêPìW”S—ST»HQTŒ¬ÇBBBP”Së◊—SêPìW”–íê◊–Tê»HQTŒ¬ÇBBBP”Së◊’–Tìó—–’SQSïUS”ó–””SQSï»HQTŒ¬ÇBBBP”Së◊’–Tìó‘US’Q“Sê”QW“Só—îêSQU”‘í◊“PQTàHQTŒ¬ÇBBBQ––◊–◊”Së’PQ—W‘’SëTëHÃLN¬ÇBBBRT”ëS‘◊—T÷SQSï’Të—UHMÀå¬ÇBBBT—‘ì”’H\€ô[‹Œ¬ÇBBBT’“Qï–””TSUS”ó”S—HH⁄€[[Ÿ[N¬ÇBBBT’“Qï’ëTî“S”àHKå¬ÇBB_N¬ÇBB[ò[YHHô[X\ŸN¬ÇB_N¬ÇBMPMPé—M—êåPMêLåLH àXùY»
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBQ––◊–◊”Së’PQ—W‘’SëTëHÃLN¬ÇBBBQ––◊‘ëTì–—T‘”‘ó—QíSíUS”î»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBHìPìSí◊’ëTî“S”èWâ
-PTí—USë◊’ëTî“S”äWàãÇBBBJN¬ÇBBBRPQTó‘—PTê“‘U»H
-ÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã⁄[ò€YHãÇBBBJN¬ÇBBBSPTí—USë◊’ëTî“S”àHçãåN¬ÇBBBS”ìW–P’UëW–Tê“HQTŒ¬ÇBBBS’Tó–—ìQ‘»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBKUÿ[ÇBBBBKUŸ^òKÇBBBBKU‹Y[ùXÀÇBBBBKU‹⁄Y›ÀÇBBBBHãUŸõ‹õX]LàãÇBBBBKU‹›öX›\õ››\\ÀÇBBBBKU€Z\‹⁄[ôÀ\õ››\\ÀÇBBBBKUŸ\úõ‹ãÇBBBJN¬ÇBBBTì—P’”êSQHHâ
-Të—U”êSQJHé¬ÇBBBT““T“Sî’SHQTŒ¬ÇBBBT’T‘ïQ‘Uì‘ìT»Hö\€ô[‹»\€ô\⁄[][]‹àé¬ÇBB_N¬ÇBB[ò[YHHXùYŒ¬ÇB_N¬ÇBLPë—PÃåéLQQPPP—éMåëà àô[X\ŸH
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBQ––◊–◊”Së’PQ—W‘’SëTëHÃLN¬ÇBBBQ––◊‘ëTì–—T‘”‘ó—QíSíUS”î»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBHìPìSí◊’ëTî“S”èWâ
-PTí—USë◊’ëTî“S”äWàãÇBBBJN¬ÇBBBRPQTó‘—PTê“‘U»H
-ÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã⁄[ò€YHãÇBBBJN¬ÇBBBSPTí—USë◊’ëTî“S”àHçãåN¬ÇBBBS’Tó–—ìQ‘»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBKUÿ[ÇBBBBKUŸ^òKÇBBBBKU‹Y[ùXÀÇBBBBKU‹⁄Y›ÀÇBBBBHãUŸõ‹õX]LàãÇBBBBKU‹›öX›\õ››\\ÀÇBBBBKU€Z\‹⁄[ôÀ\õ››\\ÀÇBBBBKUŸ\úõ‹ãÇBBBJN¬ÇBBBTì—P’”êSQHHâ
-Të—U”êSQJHé¬ÇBBBT““T“Sî’SHQTŒ¬ÇBBBT’T‘ïQ‘Uì‘ìT»Hö\€ô[‹»\€ô\⁄[][]‹àé¬ÇBB_N¬ÇBB[ò[YHHô[X\ŸN¬ÇB_N¬ÇBQNPåëNMêPêÕQçéMëåêëMŒP—à àXùY»
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBPT‘—U–US—◊–””TSTó–TP””ó”êSQHH\X€€é¬ÇBBBPT‘—U–US—◊–””TSTó——SëTêUW‘’“Qï–T‘—U‘÷SPì”—VSî“S”î»HQTŒ¬ÇBBBP”—W‘“Q”ó‘’SHH]]€X]XŒ¬ÇBBBP’TîëSï‘ì“ëP’’ëTî“S”àHN¬ÇBBBQ––◊’ëPU’–TìíSë‘◊–T◊—Tîì‘î»HQTŒ¬ÇBBBQQíSëT◊”S—SHHQTŒ¬ÇBBBQ—SëTêUW“Sëì‘T’—íSHHQTŒ¬ÇBBBRPQTó‘—PTê“‘U»H
-ÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹]õ‹õKÿ\HãÇBBBJN¬ÇBBBRSëì‘T’“—VW–—êù[ôQ\‹^Sò[YHHPìSíŒ¬ÇBBBRSëì‘T’“—VW”î–õY]€›[ÿ^\’\ÿYŸQ\ÿ‹ö\[€àHìPìSí»\Ÿ\»õY]€›»€€[][öXÿ]H⁄][›\à–ëRRHXY€õ‹›X»Y\\ãàé¬ÇBBBRT”ëS‘◊—T÷SQSï’Të—UHMÀå¬ÇBBBS‘ïSîU‘—PTê“‘U»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBHê^X›]XõW‹]—úò[Y]€‹ö‹»ãÇBBBJN¬ÇBBBSPTí—USë◊’ëTî“S”àHçãåN¬ÇBBBTì—P’–ïSëW“QSïQíQTàHò€€Kô⁄]XãïKQö\ú›R[ôö[ò]‹ãìPìSí»é¬ÇBBBTì—P’”êSQHHâ
-Të—U”êSQJHé¬ÇBBBT’“Qï”–íê◊–îíQ“Së◊“PQTàHìPìSíÀ”PìSíÀPúöY⁄[ôÀRXY\ãöé¬ÇBBBT’“Qï’ëPU’–TìíSë‘◊–T◊—Tîì‘î»HQTŒ¬ÇBBBT’“Qï’ëTî“S”àHKå¬ÇBBBT’T‘ï◊”PP––UST’HìŒ¬ÇBBBUTë—UQ—UíP—W—êSRSHHN¬ÇBB_N¬ÇBB[ò[YHHXùYŒ¬ÇB_N¬ÇBMPNŒLNM—ççÕLMëLçÃçç» àô[X\ŸH
-ã»H¬ÇBBZ\ÿHH–ùZ[€€ôöY›\ò][€é¬ÇBBXùZ[Ÿ][ô‹»H¬ÇBBBPT‘—U–US—◊–””TSTó–TP””ó”êSQHH\X€€é¬ÇBBBPT‘—U–US—◊–””TSTó——SëTêUW‘’“Qï–T‘—U‘÷SPì”—VSî“S”î»HQTŒ¬ÇBBBP”—W‘“Q”ó‘’SHH]]€X]XŒ¬ÇBBBP’TîëSï‘ì“ëP’’ëTî“S”àHN¬ÇBBBQ––◊’ëPU’–TìíSë‘◊–T◊—Tîì‘î»HQTŒ¬ÇBBBQQíSëT◊”S—SHHQTŒ¬ÇBBBQ—SëTêUW“Sëì‘T’—íSHHQTŒ¬ÇBBBRPQTó‘—PTê“‘U»H
-ÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹‹òÀ⁄[ôö[ò]ãX€€[[€ã⁄[ò€YHãÇBBBBHâ
-‘ê‘ì”’
-KÀããÀãã‹]õ‹õKÿ\HãÇBBBJN¬ÇBBBRSëì‘T’“—VW–—êù[ôQ\‹^Sò[YHHPìSíŒ¬ÇBBBRSëì‘T’“—VW”î–õY]€›[ÿ^\’\ÿYŸQ\ÿ‹ö\[€àHìPìSí»\Ÿ\»õY]€›»€€[][öXÿ]H⁄][›\à–ëRRHXY€õ‹›X»Y\\ãàé¬ÇBBBRT”ëS‘◊—T÷SQSï’Të—UHMÀå¬ÇBBBS‘ïSîU‘—PTê“‘U»H
-ÇBBBBHâ
-[ö\ö]Y
-HãÇBBBBHê^X›]XõW‹]—úò[Y]€‹ö‹»ãÇBBBJN¬ÇBBBSPTí—USë◊’ëTî“S”àHçãåN¬ÇBBBTì—P’–ïSëW“QSïQíQTàHò€€Kô⁄]XãïKQö\ú›R[ôö[ò]‹ãìPìSí»é¬ÇBBBTì—P’”êSQHHâ
-Të—U”êSQJHé¬ÇBBBT’“Qï”–íê◊–îíQ“Së◊“PQTàHìPìSíÀ”PìSíÀPúöY⁄[ôÀRXY\ãöé¬ÇBBBT’“Qï’ëPU’–TìíSë‘◊–T◊—Tîì‘î»HQTŒ¬ÇBBBT’“Qï’ëTî“S”àHKå¬ÇBBBT’T‘ï◊”PP––UST’HìŒ¬ÇBBBUTë—UQ—UíP—W—êSRSHHN¬ÇBB_N¬ÇBB[ò[YHHô[X\ŸN¬ÇB_N¬ã à[ô–ùZ[€€ôöY›\ò][€àŸX›[€à
-ã¬Çã àôY⁄[à–€€ôöY›\ò][€ì\›ŸX›[€à
-ã¬ÇBMMLëPêëLçLççLçëNëH àùZ[€€ôöY›\ò][€à\›õ‹àñõ⁄ôX›ìPìSí»à
-ã»H¬ÇBBZ\ÿHH–€€ôöY›\ò][€ì\›¬ÇBBXùZ[€€ôöY›\ò][€ú»H
-ÇBBBQå—QQLQÃ–åç àXùY»
-ãÀÇBBBNLP–éNQç–LéMëçŒêÃNM—à àô[X\ŸH
-ãÀÇBBJN¬ÇBBYYò][€€ôöY›\ò][€í\’ö\⁄XõHH¬ÇBBYYò][€€ôöY›\ò][€ìò[YHHô[X\ŸN¬ÇB_N¬ÇBPLéMê—çç—MÃPçNÕêNH àùZ[€€ôöY›\ò][€à\›õ‹àñò]]ôU\ôŸ]ìPìSí»à
-ã»H¬ÇBBZ\ÿHH–€€ôöY›\ò][€ì\›¬ÇBBXùZ[€€ôöY›\ò][€ú»H
-ÇBBBQNPåëNMêPêÕQçéMëåêëMŒP—à àXùY»
-ãÀÇBBBMPNŒLNM—ççÕLMëLçÃçç» àô[X\ŸH
-ãÀÇBBJN¬ÇBBYYò][€€ôöY›\ò][€í\’ö\⁄XõHH¬ÇBBYYò][€€ôöY›\ò][€ìò[YHHô[X\ŸN¬ÇB_N¬ÇBLQÃÃçLPQMPMŒP—ç àùZ[€€ôöY›\ò][€à\›õ‹àñò]]ôU\ôŸ]ìPìSí–€‹ôHà
-ã»H¬ÇBBZ\ÿHH–€€ôöY›\ò][€ì\›¬ÇBBXùZ[€€ôöY›\ò][€ú»H
-ÇBBBMPMPé—M—êåPMêLåLH àXùY»
-ãÀÇBBBLPë—PÃåéLQQPPP—éMåëà àô[X\ŸH
-ãÀÇBBJN¬ÇBBYYò][€€ôöY›\ò][€í\’ö\⁄XõHH¬ÇBBYYò][€€ôöY›\ò][€ìò[YHHô[X\ŸN¬ÇB_N¬ã à[ô–€€ôöY›\ò][€ì\›ŸX›[€à
-ã¬Ç_N¬Ç\õ€›ÿöôX›HNçMM–PçNêåéÃ–QëQL àõ⁄ôX›ÿöôX›
-ãŒ¬üB
+			remoteGlobalIDString = 744DBEE4E0A69DC936004899;
+			remoteInfo = MBLINKCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		C38A74E05685528DF94F3FED /* MBLINKApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MBLINKApp.swift"; path = "MBLINK/MBLINKApp.swift"; sourceTree = SOURCE_ROOT; };
+		275013AA0724C0CE2E9F7B87 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ContentView.swift"; path = "MBLINK/ContentView.swift"; sourceTree = SOURCE_ROOT; };
+		9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ConnectionViewModel.swift"; path = "MBLINK/ConnectionViewModel.swift"; sourceTree = SOURCE_ROOT; };
+		152DBA6BC3FE7288A1725A47 /* Bridging */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLINK-Bridging-Header.h"; path = "MBLINK/MBLINK-Bridging-Header.h"; sourceTree = SOURCE_ROOT; };
+		89138232D47027A270684020 /* BLETransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkBLETransport.h"; path = "../../platform/apple/MBLinkBLETransport.h"; sourceTree = SOURCE_ROOT; };
+		10A6BF01640F09B29BEA8B24 /* BLETransportPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkBLETransport+MBLINK.h"; path = "../../platform/apple/MBLinkBLETransport+MBLINK.h"; sourceTree = SOURCE_ROOT; };
+		BC3EA22A6C914BF98DE5FC4E /* BLETransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = "MBLinkBLETransport.m"; path = "../../platform/apple/MBLinkBLETransport.m"; sourceTree = SOURCE_ROOT; };
+		CEDB09A7C0E1C3ECC71DFC2E /* Diagnostics.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkDiagnosticsController.h"; path = "../../platform/apple/MBLinkDiagnosticsController.h"; sourceTree = SOURCE_ROOT; };
+		82715A34A1DA0E87C553301D /* Diagnostics.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = "MBLinkDiagnosticsController.m"; path = "../../platform/apple/MBLinkDiagnosticsController.m"; sourceTree = SOURCE_ROOT; };
+		9B110E710D124AB4D19370DA /* mblink.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mblink.c"; path = "../../src/core/mblink.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A01 /* scheduler.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "scheduler.c"; path = "../../src/core/scheduler.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_store.c"; path = "../../src/core/telemetry_store.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_csv.c"; path = "../../src/core/telemetry_csv.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
+		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
+		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
+		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
+		DCDEF808C26455A6B72E4784 /* obd2.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "obd2.c"; path = "../../src/obd2/obd2.c"; sourceTree = SOURCE_ROOT; };
+		D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "core.c"; path = "../../src/infiltratr-common/src/core.c"; sourceTree = SOURCE_ROOT; };
+		FB46CB06CB0FE9B8B23168B3 /* common_format.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "format.c"; path = "../../src/infiltratr-common/src/format.c"; sourceTree = SOURCE_ROOT; };
+		8BCD5BC4CDFDF0918087C782 /* MBLINK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MBLINK.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		78AE8C6BEB2A40A6D824CCEE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */,
+				B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D4C0AF2E5997990815A7D5A1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E50290A24C49A459B43487C5 = {
+			isa = PBXGroup;
+			children = (
+				69F8D45498D7E20DA99BB780 /* App */,
+				5DF70ECF24283B4E1F583432 /* Apple Platform */,
+				82C062CB28C8FF6C54323B56 /* Portable Core */,
+				BEDB112081DBA7F70010E771 /* Infiltratr Common */,
+				AB5D76948E8B8022B6DC48C4 /* Frameworks */,
+				328EC33DF3954DC9B83FA285 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		69F8D45498D7E20DA99BB780 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C38A74E05685528DF94F3FED /* MBLINKApp.swift */,
+				275013AA0724C0CE2E9F7B87 /* ContentView.swift */,
+				9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */,
+				152DBA6BC3FE7288A1725A47 /* MBLINK-Bridging-Header.h */,
+				A1B2C3D4E5F60718293C0002 /* Assets.xcassets */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		5DF70ECF24283B4E1F583432 /* Apple Platform */ = {
+			isa = PBXGroup;
+			children = (
+				89138232D47027A270684020 /* MBLinkBLETransport.h */,
+				10A6BF01640F09B29BEA8B24 /* MBLinkBLETransport+MBLINK.h */,
+				BC3EA22A6C914BF98DE5FC4E /* MBLinkBLETransport.m */,
+				CEDB09A7C0E1C3ECC71DFC2E /* MBLinkDiagnosticsController.h */,
+				82715A34A1DA0E87C553301D /* MBLinkDiagnosticsController.m */,
+			);
+			name = "Apple Platform";
+			sourceTree = "<group>";
+		};
+		82C062CB28C8FF6C54323B56 /* Portable Core */ = {
+			isa = PBXGroup;
+			children = (
+				9B110E710D124AB4D19370DA /* mblink.c */,
+				F0A1B2C3D4E5F60718293A01 /* scheduler.c */,
+				F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */,
+				F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */,
+				F0A1B2C3D4E5F60718293A04 /* isotp.c */,
+				F11F17B4723669FC1AF042DF /* elm327.c */,
+				A4A92AE396A1586C99D8BB56 /* session.c */,
+				41A80A01E9B823433E288953 /* probe.c */,
+				DCDEF808C26455A6B72E4784 /* obd2.c */,
+			);
+			name = "Portable Core";
+			sourceTree = "<group>";
+		};
+		BEDB112081DBA7F70010E771 /* Infiltratr Common */ = {
+			isa = PBXGroup;
+			children = (
+				D5AEE7D0F9C3D6A65D0D9E38 /* core.c */,
+				FB46CB06CB0FE9B8B23168B3 /* format.c */,
+			);
+			name = "Infiltratr Common";
+			sourceTree = "<group>";
+		};
+		AB5D76948E8B8022B6DC48C4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4C1F571CC485203162805ADE /* CoreBluetooth.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		328EC33DF3954DC9B83FA285 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8BCD5BC4CDFDF0918087C782 /* MBLINK.app */,
+				D069509556BFAFFC25586CC3 /* libMBLINKCore.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C13732C8E715C9BEE4FA51C9 /* MBLINK */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A296CF4B7E708AB4E80076A9 /* Build configuration list for PBXNativeTarget "MBLINK" */;
+			buildPhases = (
+				971ED9D05B25DB6C4D7680D4 /* Sources */,
+				78AE8C6BEB2A40A6D824CCEE /* Frameworks */,
+				364863F9F2E558B0F50473FC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DE58E2B17C19600779694943 /* PBXTargetDependency */,
+			);
+			name = MBLINK;
+			productName = MBLINK;
+			productReference = 8BCD5BC4CDFDF0918087C782 /* MBLINK.app */;
+			productType = "com.apple.product-type.application";
+		};
+		744DBEE4E0A69DC936004899 /* MBLINKCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1D303251AE5A78ACD8D4DDB4 /* Build configuration list for PBXNativeTarget "MBLINKCore" */;
+			buildPhases = (
+				B0145090C14EEA62E4BF6060 /* Sources */,
+				D4C0AF2E5997990815A7D5A1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MBLINKCore;
+			productName = MBLINKCore;
+			productReference = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					C13732C8E715C9BEE4FA51C9 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					744DBEE4E0A69DC936004899 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 550FEBBE252641242DA80FDE /* Build configuration list for PBXProject "MBLINK" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E50290A24C49A459B43487C5;
+			productRefGroup = 328EC33DF3954DC9B83FA285 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C13732C8E715C9BEE4FA51C9 /* MBLINK */,
+				744DBEE4E0A69DC936004899 /* MBLINKCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		364863F9F2E558B0F50473FC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		971ED9D05B25DB6C4D7680D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0225CCC3B437D6F9864CF259 /* MBLINKApp.swift in Sources */,
+				D780005DFC91027166F8FFD4 /* ContentView.swift in Sources */,
+				66B05F8E65443E6407074F75 /* ConnectionViewModel.swift in Sources */,
+				C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */,
+				42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0145090C14EEA62E4BF6060 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */,
+				E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */,
+				E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */,
+				E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */,
+				E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,
+				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
+				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
+				C3A42E37825A806839C66F16 /* probe.c in Sources */,
+				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
+				E282A55680BFE4F2A03F50A1 /* core.c in Sources */,
+				DAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DE58E2B17C19600779694943 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 744DBEE4E0A69DC936004899 /* MBLINKCore */;
+			targetProxy = D799BAE6088A90139B415FCC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		D08DD63EED508AD30D0CB0B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				GCC_C_LANGUAGE_STANDARD = c11;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		811CB99F7A296F7846C18A7F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				GCC_C_LANGUAGE_STANDARD = c11;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5A485B880CD57FB1A6A04211 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_C_LANGUAGE_STANDARD = c11;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../../include",
+					"$(SRCROOT)/../../src/infiltratr-common/include",
+				);
+				MARKETING_VERSION = 0.6.1;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					-Wall,
+					-Wextra,
+					-Wpedantic,
+					-Wshadow,
+					"-Wformat=2",
+					-Wstrict-prototypes,
+					-Wmissing-prototypes,
+					-Werror,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+			};
+			name = Debug;
+		};
+		1BD3EC2284E1D1EAACF8A62F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_C_LANGUAGE_STANDARD = c11;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../../include",
+					"$(SRCROOT)/../../src/infiltratr-common/include",
+				);
+				MARKETING_VERSION = 0.6.1;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					-Wall,
+					-Wextra,
+					-Wpedantic,
+					-Wshadow,
+					"-Wformat=2",
+					-Wstrict-prototypes,
+					-Wmissing-prototypes,
+					-Werror,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+			};
+			name = Release;
+		};
+		E9B2E96ABC5F6856F2BE79CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../../include",
+					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../platform/apple",
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.6.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5A8C91857F674E16E2724F47 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../../include",
+					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../platform/apple",
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.6.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		550FEBBE252641242DA80FDE /* Build configuration list for PBXProject "MBLINK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D08DD63EED508AD30D0CB0B4 /* Debug */,
+				811CB99F7A296F7846C18A7F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A296CF4B7E708AB4E80076A9 /* Build configuration list for PBXNativeTarget "MBLINK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9B2E96ABC5F6856F2BE79CF /* Debug */,
+				5A8C91857F674E16E2724F47 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1D303251AE5A78ACD8D4DDB4 /* Build configuration list for PBXNativeTarget "MBLINKCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A485B880CD57FB1A6A04211 /* Debug */,
+				1BD3EC2284E1D1EAACF8A62F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}
