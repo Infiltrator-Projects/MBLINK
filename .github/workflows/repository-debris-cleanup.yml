@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot repository debris cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/repository-debris-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'maintenance/repository-debris-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete known obsolete branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            agent/app-icon \
+            agent/ios-app-icon \
+            feature/0.7-uds-foundation \
+            chore/community-standards
+          do
+            if gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+              gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+              echo "Deleted obsolete branch: ${branch}"
+            else
+              echo "Branch already absent: ${branch}"
+            fi
+          done
+
+      - name: Remove temporary cleanup branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/maintenance/repository-debris-cleanup"
