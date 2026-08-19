@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot merged branch cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/merged-branch-cleanup.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'maintenance/merged-branch-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete only fully merged inactive branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t active_heads < <(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json headRefName --jq '.[].headRefName')
+          mapfile -t branches < <(gh api --paginate "/repos/${GITHUB_REPOSITORY}/branches" --jq '.[].name')
+          is_active_head() {
+            local candidate="$1" head
+            for head in "${active_heads[@]}"; do
+              [ "$candidate" = "$head" ] && return 0
+            done
+            return 1
+          }
+          for branch in "${branches[@]}"; do
+            case "$branch" in main|maintenance/merged-branch-cleanup) continue ;; esac
+            if is_active_head "$branch"; then
+              echo "Preserving active PR head: $branch"
+              continue
+            fi
+            ahead="$(gh api "/repos/${GITHUB_REPOSITORY}/compare/main...${branch}" --jq '.ahead_by')"
+            if [ "$ahead" = '0' ]; then
+              gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+              echo "Deleted fully merged branch: $branch"
+            else
+              echo "Preserving branch with ${ahead} unique commit(s): $branch"
+            fi
+          done
+      - name: Remove this temporary maintenance branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/maintenance/merged-branch-cleanup"
