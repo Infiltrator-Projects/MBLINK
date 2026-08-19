@@ -14,7 +14,7 @@ permissions:
 jobs:
   local-linux-smoke:
     name: Local Linux / C11 smoke
-    runs-on: [self-hosted, Linux, X64, mblink]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
 
     steps:
