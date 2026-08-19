@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Wire UDS into Xcode
+
+on:
+  push:
+    branches: [feature/0.7-uds-foundation]
+    paths:
+      - '.github/workflows/wire-uds-xcode.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    name: Wire uds.c into MBLINKCore
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/0.7-uds-foundation
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Patch and verify Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = path.read_text()
+
+          edits = [
+              (
+                  '\t\tE0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };\n',
+                  '\t\tE0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };\n'
+                  '\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };\n'
+              ),
+              (
+                  '\t\tF0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };\n',
+                  '\t\tF0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };\n'
+                  '\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };\n'
+              ),
+              (
+                  '\t\t\t\tF0A1B2C3D4E5F60718293A04 /* isotp.c */,\n',
+                  '\t\t\t\tF0A1B2C3D4E5F60718293A04 /* isotp.c */,\n'
+                  '\t\t\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */,\n'
+              ),
+              (
+                  '\t\t\t\tE0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,\n',
+                  '\t\t\t\tE0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,\n'
+                  '\t\t\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,\n'
+              ),
+          ]
+
+          for old, new in edits:
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one Xcode anchor, got {text.count(old)}: {old!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+          project='app/ios/MBLINK.xcodeproj/project.pbxproj'
+          test "$(grep -c 'E0A1B2C3D4E5F60718293B05 /\* uds.c in Sources \*/' "$project")" -eq 2
+          test "$(grep -c 'F0A1B2C3D4E5F60718293A05 /\* uds.c \*/' "$project")" -eq 3
+          grep -q 'path = "../../src/uds/uds.c"' "$project"
+
+      - name: Commit Xcode wiring and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          rm .github/workflows/wire-uds-xcode.yml
+          git add app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/wire-uds-xcode.yml
+          git commit -m 'build(ios): compile portable UDS engine'
+          git push origin HEAD:feature/0.7-uds-foundation
