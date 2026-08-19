@@ -18,6 +18,8 @@
 		E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */; };
 		E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
 		E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };
+		E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A06 /* mercedes.c */; };
+		E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
@@ -55,6 +57,8 @@
 		F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_csv.c"; path = "../../src/core/telemetry_csv.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -127,11 +131,13 @@
 			isa = PBXGroup;
 			children = (
 				9B110E710D124AB4D19370DA /* mblink.c */,
+				F0A1B2C3D4E5F60718293A07 /* parameter.c */,
 				F0A1B2C3D4E5F60718293A01 /* scheduler.c */,
 				F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */,
 				F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */,
 				F0A1B2C3D4E5F60718293A04 /* isotp.c */,
 				F0A1B2C3D4E5F60718293A05 /* uds.c */,
+				F0A1B2C3D4E5F60718293A06 /* mercedes.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
 				A4A92AE396A1586C99D8BB56 /* session.c */,
 				41A80A01E9B823433E288953 /* probe.c */,
@@ -269,11 +275,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */,
+				E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */,
 				E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */,
 				E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */,
 				E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */,
 				E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,
 				E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,
+				E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
