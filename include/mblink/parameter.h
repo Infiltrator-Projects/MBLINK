@@ -39,6 +39,7 @@ typedef struct {
 typedef struct {
     MblinkParameterKey key;
     const char *stable_key;
+    const char *short_name;
     const char *name;
     const char *suffix;
     unsigned int decimal_places;
@@ -80,6 +81,8 @@ const MblinkParameterDefinition *mblink_parameter_obd2_definition_at(
     size_t index);
 const MblinkParameterDefinition *mblink_parameter_obd2_definition(
     uint8_t pid);
+const MblinkParameterDefinition *mblink_parameter_obd2_definition_for_stable_key(
+    const char *stable_key);
 
 /** Convert one decoded OBD-II scalar into the shared parameter model. */
 bool mblink_parameter_from_obd2(
