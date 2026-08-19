@@ -50,6 +50,22 @@ const char *mblink_parameter_protocol_name(MblinkParameterProtocol protocol)
     return "unknown";
 }
 
+bool mblink_parameter_key_is_valid(const MblinkParameterKey *key)
+{
+    if (key == NULL) {
+        return false;
+    }
+
+    switch (key->protocol) {
+    case MBLINK_PARAMETER_PROTOCOL_OBD2:
+        return key->module == MBLINK_PARAMETER_MODULE_STANDARD_OBD2 &&
+               key->identifier <= UINT8_MAX;
+    case MBLINK_PARAMETER_PROTOCOL_UDS:
+        return key->identifier <= UINT16_MAX;
+    }
+    return false;
+}
+
 bool mblink_parameter_key_equal(const MblinkParameterKey *left,
                                 const MblinkParameterKey *right)
 {
@@ -62,23 +78,12 @@ bool mblink_parameter_key_equal(const MblinkParameterKey *left,
 bool mblink_parameter_definition_is_valid(
     const MblinkParameterDefinition *definition)
 {
-    if (definition == NULL || definition->stable_key == NULL ||
-        definition->stable_key[0] == '\0' || definition->short_name == NULL ||
-        definition->short_name[0] == '\0' || definition->name == NULL ||
-        definition->name[0] == '\0' || definition->suffix == NULL ||
-        definition->decimal_places > 9U ||
-        definition->key.protocol < MBLINK_PARAMETER_PROTOCOL_OBD2 ||
-        definition->key.protocol > MBLINK_PARAMETER_PROTOCOL_UDS) {
-        return false;
-    }
-
-    if (definition->key.protocol == MBLINK_PARAMETER_PROTOCOL_OBD2 &&
-        (definition->key.module != MBLINK_PARAMETER_MODULE_STANDARD_OBD2 ||
-         definition->key.identifier > UINT8_MAX)) {
-        return false;
-    }
-    if (definition->key.protocol == MBLINK_PARAMETER_PROTOCOL_UDS &&
-        definition->key.identifier > UINT16_MAX) {
+    if (definition == NULL ||
+        !mblink_parameter_key_is_valid(&definition->key) ||
+        definition->stable_key == NULL || definition->stable_key[0] == '\0' ||
+        definition->short_name == NULL || definition->short_name[0] == '\0' ||
+        definition->name == NULL || definition->name[0] == '\0' ||
+        definition->suffix == NULL || definition->decimal_places > 9U) {
         return false;
     }
 
@@ -218,7 +223,7 @@ static size_t mblink_parameter_store_find_key(
 {
     size_t index;
 
-    if (store == NULL || key == NULL) {
+    if (store == NULL || !mblink_parameter_key_is_valid(key)) {
         return SIZE_MAX;
     }
 
@@ -357,11 +362,12 @@ MblinkParameterStoreResult mblink_parameter_store_set_favourite(
     const MblinkParameterKey *key,
     bool favourite)
 {
-    const size_t index = mblink_parameter_store_find_key(store, key);
+    size_t index;
 
-    if (store == NULL || key == NULL) {
+    if (store == NULL || !mblink_parameter_key_is_valid(key)) {
         return MBLINK_PARAMETER_STORE_INVALID_ARGUMENT;
     }
+    index = mblink_parameter_store_find_key(store, key);
     if (index == SIZE_MAX) {
         return MBLINK_PARAMETER_STORE_NOT_FOUND;
     }
@@ -422,10 +428,14 @@ bool mblink_parameter_store_latest(
     const MblinkParameterKey *key,
     MblinkParameterSample *sample)
 {
-    const size_t index = mblink_parameter_store_find_key(store, key);
+    size_t index;
 
-    if (sample == NULL || index == SIZE_MAX ||
-        !store->slots[index].latest_valid) {
+    if (store == NULL || sample == NULL ||
+        !mblink_parameter_key_is_valid(key)) {
+        return false;
+    }
+    index = mblink_parameter_store_find_key(store, key);
+    if (index == SIZE_MAX || !store->slots[index].latest_valid) {
         return false;
     }
     *sample = store->slots[index].latest;
