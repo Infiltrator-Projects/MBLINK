@@ -1,0 +1,604 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Advance MBLINK 0.7.1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/advance-0.7.1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Pin Infiltratr Common 1.7.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=a5b52f7ad62fcbb3462c496b7831e7f974161bcf
+          git -C src/infiltratr-common fetch --depth=1 origin v1.7.0
+          git -C src/infiltratr-common checkout --detach "$expected"
+          test "$(git -C src/infiltratr-common rev-parse HEAD)" = "$expected"
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.7.0"
+
+      - name: Apply 0.7.1 source and project hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              return text.replace(old, new, 1)
+
+          root = Path('.')
+
+          # CMake: consume the released Common 1.7.0 pin and build the generic
+          # diagnostic-parameter foundation on every portable platform.
+          cmake_path = root / 'CMakeLists.txt'
+          cmake = cmake_path.read_text(encoding='utf-8')
+          cmake = replace_once(cmake,
+              'set(MBLINK_COMMON_VERSION "1.5.0")',
+              'set(MBLINK_COMMON_VERSION "1.7.0")',
+              'Common version pin')
+          cmake = replace_once(cmake,
+              'set(MBLINK_COMMON_COMMIT "a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb")',
+              'set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")',
+              'Common commit pin')
+          cmake = replace_once(cmake,
+              '    src/core/mblink.c\n    src/core/scheduler.c',
+              '    src/core/mblink.c\n    src/core/parameter.c\n    src/core/scheduler.c',
+              'parameter source')
+          cmake = replace_once(cmake,
+              '    mblink_add_test(mblink-test-runtime tests/test_runtime.c)\n',
+              '    mblink_add_test(mblink-test-runtime tests/test_runtime.c)\n    mblink_add_test(mblink-test-parameter tests/test_parameter.c)\n',
+              'parameter test')
+          cmake_path.write_text(cmake, encoding='utf-8')
+
+          (root / 'include/mblink/parameter.h').write_text(r'''// SPDX-License-Identifier: GPL-3.0-or-later
+/**
+ * @file parameter.h
+ * @brief Protocol-neutral live diagnostic parameter contracts.
+ *
+ * This layer gives OBD-II and manufacturer UDS data one stable C-facing model
+ * for live-data, table, dashboard and graph presentation. Protocol decoding
+ * remains in its owning layer; this module owns only parameter identity,
+ * metadata and presentation-safe scalar formatting.
+ */
+#ifndef MBLINK_PARAMETER_H
+#define MBLINK_PARAMETER_H
+
+#include "mblink/obd2.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MBLINK_PARAMETER_MODULE_STANDARD_OBD2 0U
+
+typedef enum {
+    MBLINK_PARAMETER_PROTOCOL_OBD2 = 0,
+    MBLINK_PARAMETER_PROTOCOL_UDS
+} MblinkParameterProtocol;
+
+/** Stable machine identity for one diagnostic parameter. */
+typedef struct {
+    MblinkParameterProtocol protocol;
+    uint32_t module;
+    uint32_t identifier;
+} MblinkParameterKey;
+
+/**
+ * Portable metadata for one scalar diagnostic parameter.
+ *
+ * `suffix` is presentation text appended directly to the scalar (for example
+ * "%", " rpm" or " kPa"). `stable_key` is intended for persistence and must
+ * not depend on translated display text.
+ */
+typedef struct {
+    MblinkParameterKey key;
+    const char *stable_key;
+    const char *name;
+    const char *suffix;
+    unsigned int decimal_places;
+    bool clamp;
+    double minimum;
+    double maximum;
+} MblinkParameterDefinition;
+
+typedef struct {
+    const MblinkParameterDefinition *definition;
+    uint64_t timestamp_ms;
+    bool available;
+    double value;
+} MblinkParameterSample;
+
+const char *mblink_parameter_protocol_name(MblinkParameterProtocol protocol);
+bool mblink_parameter_key_equal(const MblinkParameterKey *left,
+                                const MblinkParameterKey *right);
+bool mblink_parameter_definition_is_valid(
+    const MblinkParameterDefinition *definition);
+bool mblink_parameter_sample_is_valid(const MblinkParameterSample *sample);
+
+/** Format a scalar through Infiltratr Common's canonical scalar formatter. */
+bool mblink_parameter_format_value(
+    const MblinkParameterDefinition *definition,
+    bool available,
+    double value,
+    char *buffer,
+    size_t buffer_size);
+
+bool mblink_parameter_format_sample(
+    const MblinkParameterSample *sample,
+    char *buffer,
+    size_t buffer_size);
+
+/** Standard OBD-II descriptors currently used by the live workspace. */
+size_t mblink_parameter_obd2_definition_count(void);
+const MblinkParameterDefinition *mblink_parameter_obd2_definition_at(
+    size_t index);
+const MblinkParameterDefinition *mblink_parameter_obd2_definition(
+    uint8_t pid);
+
+/** Convert one decoded OBD-II scalar into the shared parameter model. */
+bool mblink_parameter_from_obd2(
+    const MblinkObd2Sample *sample,
+    uint64_t timestamp_ms,
+    MblinkParameterSample *parameter);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+''', encoding='utf-8')
+
+          (root / 'src/core/parameter.c').write_text(r'''// SPDX-License-Identifier: GPL-3.0-or-later
+/**
+ * @file parameter.c
+ * @brief Protocol-neutral diagnostic parameter metadata and formatting.
+ */
+#include "mblink/parameter.h"
+
+#include "infiltratr/core.h"
+#include "infiltratr/format.h"
+
+#include <math.h>
+#include <stdint.h>
+
+#define OBD_KEY(pid_value) \
+    { MBLINK_PARAMETER_PROTOCOL_OBD2, \
+      MBLINK_PARAMETER_MODULE_STANDARD_OBD2, (pid_value) }
+
+typedef struct {
+    MblinkParameterDefinition definition;
+    MblinkObd2Unit expected_unit;
+} MblinkObd2ParameterEntry;
+
+static const MblinkObd2ParameterEntry mblink_obd2_parameters[] = {
+    { { OBD_KEY(0x0cU), "obd2.engine.rpm", "Engine speed", " rpm",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_RPM },
+    { { OBD_KEY(0x0dU), "obd2.vehicle.speed", "Vehicle speed", " km/h",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KMH },
+    { { OBD_KEY(0x0bU), "obd2.engine.map", "Manifold pressure", " kPa",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KPA },
+    { { OBD_KEY(0x11U), "obd2.engine.throttle", "Throttle position", "%",
+        0U, true, 0.0, 100.0 }, MBLINK_OBD2_UNIT_PERCENT },
+    { { OBD_KEY(0x04U), "obd2.engine.load", "Calculated engine load", "%",
+        0U, true, 0.0, 100.0 }, MBLINK_OBD2_UNIT_PERCENT },
+    { { OBD_KEY(0x10U), "obd2.engine.maf", "Mass air flow", " g/s",
+        1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_GRAMS_PER_SECOND },
+    { { OBD_KEY(0x05U), "obd2.engine.coolant", "Coolant temperature", " C",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x0fU), "obd2.engine.intake_air", "Intake air temperature", " C",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS }
+};
+
+const char *mblink_parameter_protocol_name(MblinkParameterProtocol protocol)
+{
+    switch (protocol) {
+    case MBLINK_PARAMETER_PROTOCOL_OBD2: return "obd2";
+    case MBLINK_PARAMETER_PROTOCOL_UDS: return "uds";
+    }
+    return "unknown";
+}
+
+bool mblink_parameter_key_equal(const MblinkParameterKey *left,
+                                const MblinkParameterKey *right)
+{
+    return left != NULL && right != NULL &&
+           left->protocol == right->protocol &&
+           left->module == right->module &&
+           left->identifier == right->identifier;
+}
+
+bool mblink_parameter_definition_is_valid(
+    const MblinkParameterDefinition *definition)
+{
+    if (definition == NULL || definition->stable_key == NULL ||
+        definition->stable_key[0] == '\0' || definition->name == NULL ||
+        definition->name[0] == '\0' || definition->suffix == NULL ||
+        definition->decimal_places > 9U ||
+        definition->key.protocol < MBLINK_PARAMETER_PROTOCOL_OBD2 ||
+        definition->key.protocol > MBLINK_PARAMETER_PROTOCOL_UDS) {
+        return false;
+    }
+
+    if (definition->key.protocol == MBLINK_PARAMETER_PROTOCOL_OBD2 &&
+        (definition->key.module != MBLINK_PARAMETER_MODULE_STANDARD_OBD2 ||
+         definition->key.identifier > UINT8_MAX)) {
+        return false;
+    }
+    if (definition->key.protocol == MBLINK_PARAMETER_PROTOCOL_UDS &&
+        definition->key.identifier > UINT16_MAX) {
+        return false;
+    }
+
+    if (definition->clamp &&
+        (!isfinite(definition->minimum) || !isfinite(definition->maximum) ||
+         definition->minimum > definition->maximum)) {
+        return false;
+    }
+    return true;
+}
+
+bool mblink_parameter_sample_is_valid(const MblinkParameterSample *sample)
+{
+    return sample != NULL &&
+           mblink_parameter_definition_is_valid(sample->definition) &&
+           (!sample->available || isfinite(sample->value));
+}
+
+bool mblink_parameter_format_value(
+    const MblinkParameterDefinition *definition,
+    bool available,
+    double value,
+    char *buffer,
+    size_t buffer_size)
+{
+    InfiltratrScalarFormatOptions options = INFILTRATR_SCALAR_FORMAT_OPTIONS_INIT;
+
+    if (!mblink_parameter_definition_is_valid(definition) ||
+        buffer == NULL || buffer_size == 0U) {
+        return false;
+    }
+
+    options.decimal_places = definition->decimal_places;
+    options.clamp = definition->clamp;
+    options.minimum = (long double)definition->minimum;
+    options.maximum = (long double)definition->maximum;
+    options.suffix = definition->suffix;
+    return infiltratr_format_scalar(
+        available, (long double)value, &options, buffer, buffer_size);
+}
+
+bool mblink_parameter_format_sample(
+    const MblinkParameterSample *sample,
+    char *buffer,
+    size_t buffer_size)
+{
+    if (sample == NULL ||
+        !mblink_parameter_definition_is_valid(sample->definition)) {
+        return false;
+    }
+    return mblink_parameter_format_value(
+        sample->definition, sample->available, sample->value,
+        buffer, buffer_size);
+}
+
+size_t mblink_parameter_obd2_definition_count(void)
+{
+    return INFILTRATR_ARRAY_LENGTH(mblink_obd2_parameters);
+}
+
+const MblinkParameterDefinition *mblink_parameter_obd2_definition_at(
+    size_t index)
+{
+    if (index >= mblink_parameter_obd2_definition_count()) {
+        return NULL;
+    }
+    return &mblink_obd2_parameters[index].definition;
+}
+
+const MblinkParameterDefinition *mblink_parameter_obd2_definition(uint8_t pid)
+{
+    size_t index;
+
+    for (index = 0U; index < mblink_parameter_obd2_definition_count(); ++index) {
+        if (mblink_obd2_parameters[index].definition.key.identifier ==
+            (uint32_t)pid) {
+            return &mblink_obd2_parameters[index].definition;
+        }
+    }
+    return NULL;
+}
+
+bool mblink_parameter_from_obd2(
+    const MblinkObd2Sample *sample,
+    uint64_t timestamp_ms,
+    MblinkParameterSample *parameter)
+{
+    size_t index;
+    MblinkParameterSample converted;
+
+    if (sample == NULL || parameter == NULL || !isfinite(sample->value)) {
+        return false;
+    }
+
+    for (index = 0U; index < mblink_parameter_obd2_definition_count(); ++index) {
+        const MblinkObd2ParameterEntry *entry = &mblink_obd2_parameters[index];
+        if (entry->definition.key.identifier != (uint32_t)sample->pid) {
+            continue;
+        }
+        if (entry->expected_unit != sample->unit) {
+            return false;
+        }
+
+        converted.definition = &entry->definition;
+        converted.timestamp_ms = timestamp_ms;
+        converted.available = true;
+        converted.value = sample->value;
+        *parameter = converted;
+        return true;
+    }
+
+    return false;
+}
+''', encoding='utf-8')
+
+          (root / 'tests/test_parameter.c').write_text(r'''// SPDX-License-Identifier: GPL-3.0-or-later
+#include "mblink/parameter.h"
+
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static bool check(bool condition, const char *message)
+{
+    if (!condition) {
+        fprintf(stderr, "mblink-parameter-test: %s\n", message);
+    }
+    return condition;
+}
+
+int main(void)
+{
+    bool passed = true;
+    char buffer[64];
+    MblinkObd2Sample obd = { 0x0cU, 1234.4, MBLINK_OBD2_UNIT_RPM };
+    MblinkParameterSample parameter = { 0 };
+    const MblinkParameterDefinition *rpm =
+        mblink_parameter_obd2_definition(0x0cU);
+    const MblinkParameterDefinition *maf =
+        mblink_parameter_obd2_definition(0x10U);
+
+    passed &= check(mblink_parameter_obd2_definition_count() == 8U,
+                    "standard descriptor count mismatch");
+    passed &= check(rpm != NULL && maf != NULL,
+                    "expected OBD descriptors missing");
+    passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
+                    "unknown PID unexpectedly has a descriptor");
+    passed &= check(mblink_parameter_obd2_definition_at(8U) == NULL,
+                    "out-of-range descriptor index should fail");
+
+    if (rpm != NULL) {
+        MblinkParameterKey same = rpm->key;
+        MblinkParameterKey different = rpm->key;
+        different.identifier++;
+        passed &= check(mblink_parameter_definition_is_valid(rpm),
+                        "RPM definition should validate");
+        passed &= check(mblink_parameter_key_equal(&rpm->key, &same),
+                        "equal keys did not compare equal");
+        passed &= check(!mblink_parameter_key_equal(&rpm->key, &different),
+                        "different keys compared equal");
+    }
+
+    passed &= check(mblink_parameter_from_obd2(&obd, 42U, &parameter),
+                    "OBD conversion failed");
+    passed &= check(parameter.definition == rpm && parameter.available &&
+                    parameter.timestamp_ms == 42U &&
+                    fabs(parameter.value - 1234.4) < 0.0001,
+                    "OBD conversion produced wrong parameter");
+    passed &= check(mblink_parameter_format_sample(
+                        &parameter, buffer, sizeof(buffer)) &&
+                    strcmp(buffer, "1234 rpm") == 0,
+                    "RPM formatting mismatch");
+
+    obd.pid = 0x10U;
+    obd.value = 12.34;
+    obd.unit = MBLINK_OBD2_UNIT_GRAMS_PER_SECOND;
+    passed &= check(mblink_parameter_from_obd2(&obd, 100U, &parameter),
+                    "MAF conversion failed");
+    passed &= check(parameter.definition == maf &&
+                    mblink_parameter_format_sample(
+                        &parameter, buffer, sizeof(buffer)) &&
+                    strcmp(buffer, "12.3 g/s") == 0,
+                    "MAF formatting mismatch");
+
+    if (rpm != NULL) {
+        MblinkParameterSample unavailable = { rpm, 0U, false, NAN };
+        passed &= check(mblink_parameter_sample_is_valid(&unavailable),
+                        "unavailable sample should validate");
+        passed &= check(mblink_parameter_format_sample(
+                            &unavailable, buffer, sizeof(buffer)) &&
+                        strcmp(buffer, "N/A") == 0,
+                        "unavailable formatting mismatch");
+    }
+
+    {
+        MblinkParameterSample sentinel = parameter;
+        obd.pid = 0x0cU;
+        obd.value = 2000.0;
+        obd.unit = MBLINK_OBD2_UNIT_KPA;
+        passed &= check(!mblink_parameter_from_obd2(&obd, 200U, &parameter),
+                        "wrong OBD unit should be rejected");
+        passed &= check(memcmp(&parameter, &sentinel, sizeof(parameter)) == 0,
+                        "failed conversion must be transactional");
+    }
+
+    {
+        MblinkParameterDefinition uds = {
+            { MBLINK_PARAMETER_PROTOCOL_UDS, 1U, 0xf190U },
+            "mercedes.engine.example", "Example UDS value", "", 1U,
+            false, 0.0, 0.0
+        };
+        MblinkParameterDefinition invalid = uds;
+        passed &= check(mblink_parameter_definition_is_valid(&uds),
+                        "valid UDS definition rejected");
+        invalid.key.identifier = 0x10000U;
+        passed &= check(!mblink_parameter_definition_is_valid(&invalid),
+                        "out-of-range UDS identifier accepted");
+        invalid = uds;
+        invalid.decimal_places = 10U;
+        passed &= check(!mblink_parameter_definition_is_valid(&invalid),
+                        "invalid decimal precision accepted");
+    }
+
+    return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+''', encoding='utf-8')
+
+          (root / 'docs/PARAMETERS.md').write_text('''<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
+# Diagnostic Parameters
+
+MBLINK uses a protocol-neutral C parameter contract so the Live Data, Table, Dashboard and Graphs workspaces do not need separate application models for standard OBD-II and Mercedes UDS data.
+
+`MblinkParameterKey` identifies a value by protocol, module and protocol identifier. `MblinkParameterDefinition` supplies stable persistence identity, display metadata, precision and optional display clamping. `MblinkParameterSample` carries availability, timestamp and scalar value without exposing platform objects.
+
+The first descriptor set covers the eight standard OBD-II values already polled by MBLINK. `mblink_parameter_from_obd2()` converts a decoded `MblinkObd2Sample` transactionally into the shared model. Manufacturer-specific UDS definitions can use the same contract later without teaching SwiftUI or GTK protocol formulas.
+
+Scalar rendering deliberately reuses `infiltratr_format_scalar()` from the pinned Infiltratr Common library rather than maintaining another precision, clamping and unavailable-value formatter in MBLINK.
+
+This layer does not decode OBD-II or UDS and does not own polling. OBD-II formulas stay in `obd2.c`; UDS and Mercedes interpretation stay in their owning layers; the scheduler remains application diagnostic policy.
+''', encoding='utf-8')
+
+          # Xcode: the real iPhone core must compile both the new generic
+          # parameter layer and the Mercedes layer already present in CMake.
+          pbx_path = root / 'app/ios/MBLINK.xcodeproj/project.pbxproj'
+          pbx = pbx_path.read_text(encoding='utf-8')
+          pbx = replace_once(pbx,
+              '\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };\n',
+              '\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };\n'
+              '\t\tE0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A06 /* mercedes.c */; };\n'
+              '\t\tE0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };\n',
+              'Xcode build-file entries')
+          pbx = replace_once(pbx,
+              '\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };\n',
+              '\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };\n'
+              '\t\tF0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };\n'
+              '\t\tF0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };\n',
+              'Xcode file references')
+          pbx = replace_once(pbx,
+              '\t\t\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */,\n',
+              '\t\t\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */,\n'
+              '\t\t\t\tF0A1B2C3D4E5F60718293A06 /* mercedes.c */,\n'
+              '\t\t\t\tF0A1B2C3D4E5F60718293A07 /* parameter.c */,\n',
+              'Xcode portable-core group')
+          pbx = replace_once(pbx,
+              '\t\t\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,\n',
+              '\t\t\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,\n'
+              '\t\t\t\tE0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,\n'
+              '\t\t\t\tE0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */,\n',
+              'Xcode core source phase')
+          version_count = pbx.count('MARKETING_VERSION = 0.7.0;')
+          if version_count != 4:
+              raise SystemExit(f'Xcode version: expected 4 old version entries, found {version_count}')
+          pbx = pbx.replace('MARKETING_VERSION = 0.7.0;', 'MARKETING_VERSION = 0.7.1;')
+          pbx_path.write_text(pbx, encoding='utf-8')
+
+          (root / 'VERSION').write_text('0.7.1\n', encoding='utf-8')
+
+          readme_path = root / 'README.md'
+          readme = readme_path.read_text(encoding='utf-8')
+          readme = replace_once(readme,
+              '**Pre-alpha. Latest completed feature milestone: 0.7 — portable UDS foundation. Next: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**',
+              '**Pre-alpha. Latest completed maintenance milestone: 0.7.1 — pre-Mercedes parameter and release hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**',
+              'README status')
+          readme = replace_once(readme,
+              '- portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;\n',
+              '- portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;\n- protocol-neutral C diagnostic parameter descriptors and Common-backed scalar formatting for shared live-data presentation;\n',
+              'README parameter capability')
+          readme = replace_once(readme,
+              '- [UDS](docs/UDS.md) — response, session, timing and DID contracts\n',
+              '- [UDS](docs/UDS.md) — response, session, timing and DID contracts\n- [Diagnostic parameters](docs/PARAMETERS.md) — shared OBD/UDS live-value identity and formatting contract\n',
+              'README parameter docs')
+          readme = readme.replace('[Contributing](CONTRIBUTING.md)',
+                                  '[Contributing](.github/CONTRIBUTING.md)')
+          readme_path.write_text(readme, encoding='utf-8')
+
+          architecture_path = root / 'docs/ARCHITECTURE.md'
+          architecture = architecture_path.read_text(encoding='utf-8')
+          architecture = architecture.replace(
+              '          ELM327 | OBD-II | scheduler | telemetry | ISO-TP | future UDS',
+              '        parameters | ELM327 | OBD-II | scheduler | telemetry | ISO-TP | UDS')
+          architecture = replace_once(architecture,
+              'ELM327 uses a byte-stream transport contract. ISO-TP uses a transport-neutral Classical-CAN frame model. UDS must consume complete ISO-TP PDUs instead of reimplementing segmentation or CAN addressing.\n',
+              'ELM327 uses a byte-stream transport contract. ISO-TP uses a transport-neutral Classical-CAN frame model. UDS must consume complete ISO-TP PDUs instead of reimplementing segmentation or CAN addressing. Protocol-neutral parameter descriptors give OBD-II and manufacturer UDS scalar data one shared identity/formatting model for Live Data, Table, Dashboard and Graphs.\n',
+              'architecture parameter contract')
+          architecture_path.write_text(architecture, encoding='utf-8')
+
+          roadmap_path = root / 'docs/ROADMAP.md'
+          roadmap = roadmap_path.read_text(encoding='utf-8')
+          roadmap = replace_once(roadmap,
+              '**Completed through 0.7. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**',
+              '**Completed through 0.7.1. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**',
+              'roadmap status')
+          roadmap = replace_once(roadmap,
+              '| 0.6.3 | Trusted self-hosted Linux smoke validation for main, hardening and feature branch pushes |',
+              '| 0.6.3 | Trusted self-hosted Linux smoke validation for the main development branch |',
+              'roadmap main-only workflow')
+          roadmap = replace_once(roadmap,
+              '| 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |\n',
+              '| 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |\n| 0.7.1 | Common 1.7.0 adoption, protocol-neutral diagnostic parameter foundation, iPhone Mercedes-source wiring and permanent IPA release assets |\n',
+              'roadmap 0.7.1 row')
+          marker = '**Exit condition met:** deterministic UDS exchanges execute through the reusable C engine without manufacturer interpretation or ISO-TP duplication in platform transport code.\n\n'
+          section = '''**Exit condition met:** deterministic UDS exchanges execute through the reusable C engine without manufacturer interpretation or ISO-TP duplication in platform transport code.\n\n## 0.7.1 — pre-Mercedes parameter and release hardening (complete)\n\n- pin the released Infiltratr Common 1.7.0 dependency;\n- add one protocol-neutral C scalar parameter identity/metadata/formatting model for OBD-II and future UDS live values;\n- compile the Mercedes layer in the iPhone core and guard that wiring in CI;\n- attach the unsigned iPhone IPA directly to each new GitHub Release.\n\nThis maintenance release does not claim verified Mercedes manufacturer DIDs. Those remain a 0.8 hardware-validation responsibility.\n\n'''
+          roadmap = replace_once(roadmap, marker, section, 'roadmap 0.7.1 section')
+          roadmap_path.write_text(roadmap, encoding='utf-8')
+          PY
+
+      - name: Verify generated repository state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = "0.7.1"
+          test "$(git -C src/infiltratr-common rev-parse HEAD)" = "a5b52f7ad62fcbb3462c496b7831e7f974161bcf"
+          test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          test "$(grep -c 'MARKETING_VERSION = 0.7.1;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+      - name: Commit 0.7.1 candidate to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add CMakeLists.txt VERSION README.md docs/ARCHITECTURE.md docs/ROADMAP.md docs/PARAMETERS.md \
+                  include/mblink/parameter.h src/core/parameter.c tests/test_parameter.c \
+                  app/ios/MBLINK.xcodeproj/project.pbxproj src/infiltratr-common
+          git diff --cached --check
+          git commit -m "MBLINK 0.7.1: harden pre-Mercedes diagnostics foundation"
+          git push origin HEAD:main
