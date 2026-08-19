@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7.1. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through 0.7.2. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -20,6 +20,8 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.6.2 | Scheduler fairness, transactional OBD samples, stricter VIN validation, Apple lifecycle and release-identity hardening |
 | 0.6.3 | Trusted self-hosted Linux smoke validation for the main development branch |
 | 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |
+| 0.7.1 | Common 1.7.0 adoption, iPhone Mercedes-source wiring and permanent IPA release assets |
+| 0.7.2 | Shared C live-data catalog, full-key parameter store and UDS-capable 64-item scheduler |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -43,6 +45,18 @@ Module contracts and limitations are documented in the corresponding files under
 - keep manufacturer-specific DIDs empty until real vehicle evidence exists.
 
 **Exit condition:** all portable, sanitizer, Linux, iOS Debug/Release and unsigned-device build gates pass on one exact 0.7.1 commit, and that exact release publishes its IPA as a Release asset.
+
+## 0.7.2 — shared live-data model hardening (complete)
+
+- drive iPhone Live Data, Table, Dashboard and Graphs from C-owned parameter names, units, stable keys and Common-backed formatting instead of a second Swift parameter table;
+- add a bounded 256-definition / 1024-sample protocol-neutral parameter store with full `{protocol,module,identifier}` keys, favourites, latest values and chronological history;
+- expand the scheduler to 64 items and give each item the same full parameter key, allowing future UDS DIDs from different modules without colliding;
+- retain explicit OBD-II scheduler wrappers and the proven OBD telemetry/CSV path while the generic store is integrated incrementally;
+- remove obsolete per-PID measurement publication properties from the Objective-C bridge.
+
+No Mercedes manufacturer DID or ECU address is promoted by this release. Those remain 0.8 vehicle-validation work.
+
+**Exit condition:** C regression coverage includes the generic parameter catalog, store and keyed scheduler, and the generic iPhone presentation builds without the removed per-PID publication surface.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 

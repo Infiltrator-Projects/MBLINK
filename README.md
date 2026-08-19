@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed maintenance milestone: 0.7.1 — pre-Mercedes parameter and release hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest completed maintenance milestone: 0.7.2 — shared live-data model hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -20,9 +20,11 @@ Implemented today:
 - Classical-CAN ISO-TP transmit/receive state machines;
 - portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;
 - protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting for OBD-II and future manufacturer UDS live values;
+- bounded protocol-neutral parameter state/history keyed by protocol, module and identifier;
+- 64-item live-data scheduler with full parameter keys plus compatibility wrappers for the current OBD-II session loop;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
-- SwiftUI diagnostic workspace with live data, table, dashboard, graphs and CSV export;
+- SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
 - Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds, unsigned physical-iPhone IPA builds and trusted self-hosted Linux smoke validation.
 
