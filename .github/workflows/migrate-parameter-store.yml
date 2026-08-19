@@ -1,0 +1,445 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Migrate Apple to parameter store
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/migrate-parameter-store.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Route Apple history and favourites through generic parameter store
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
+
+          header_path = Path('platform/apple/MBLinkDiagnosticsController.h')
+          header = header_path.read_text(encoding='utf-8')
+          old = '''- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+                                      limit:(NSUInteger)limit
+    NS_SWIFT_NAME(recentValues(forPID:limit:));
+- (BOOL)favouriteForPID:(uint8_t)pid
+    NS_SWIFT_NAME(favourite(forPID:));
+- (void)setFavourite:(BOOL)favourite
+              forPID:(uint8_t)pid
+    NS_SWIFT_NAME(setFavourite(_:forPID:));
+'''
+          new = '''- (NSArray<NSNumber *> *)recentValuesForParameterKey:(NSString *)stableKey
+                                                   limit:(NSUInteger)limit
+    NS_SWIFT_NAME(recentValues(forParameterKey:limit:));
+- (BOOL)favouriteForParameterKey:(NSString *)stableKey
+    NS_SWIFT_NAME(favourite(forParameterKey:));
+- (void)setFavourite:(BOOL)favourite
+     forParameterKey:(NSString *)stableKey
+    NS_SWIFT_NAME(setFavourite(_:forParameterKey:));
+'''
+          header = replace_once(header, old, new, 'public parameter accessors')
+          header_path.write_text(header, encoding='utf-8')
+
+          source_path = Path('platform/apple/MBLinkDiagnosticsController.m')
+          source = source_path.read_text(encoding='utf-8')
+          source = replace_once(
+              source,
+              '#import "mblink/obd2.h"\n#import "mblink/scheduler.h"\n',
+              '#import "mblink/obd2.h"\n#import "mblink/parameter.h"\n#import "mblink/parameter_store.h"\n#import "mblink/scheduler.h"\n',
+              'parameter imports')
+          source = replace_once(
+              source,
+              '    MblinkScheduler _scheduler;\n    MblinkTelemetryStore _telemetry;\n',
+              '    MblinkScheduler _scheduler;\n    MblinkParameterStore _parameterStore;\n    BOOL _parameterStoreReady;\n    MblinkTelemetryStore _telemetry;\n',
+              'parameter store ivars')
+
+          helper_marker = '''static void MBLinkSessionEvent(void *context,
+                               const MblinkElm327Session *session)
+{
+    MBLinkDiagnosticsController *controller =
+        (__bridge MBLinkDiagnosticsController *)context;
+    if (controller == nil || session == NULL) {
+        return;
+    }
+    [controller handleSessionEvent:session];
+}
+
+'''
+          helper = helper_marker + '''static bool MBLinkRegisterParameterCatalog(MblinkParameterStore *store)
+{
+    static const uint8_t defaultFavourites[] = {
+        0x0cU, 0x0dU, 0x05U, 0x0bU
+    };
+    size_t index;
+
+    if (store == NULL) {
+        return false;
+    }
+
+    mblink_parameter_store_init(store);
+    for (index = 0U; index < mblink_parameter_obd2_definition_count(); ++index) {
+        const MblinkParameterDefinition *definition =
+            mblink_parameter_obd2_definition_at(index);
+        if (definition == NULL ||
+            mblink_parameter_store_register(store, definition) !=
+                MBLINK_PARAMETER_STORE_OK) {
+            return false;
+        }
+    }
+
+    for (index = 0U;
+         index < sizeof(defaultFavourites) / sizeof(defaultFavourites[0]);
+         ++index) {
+        const MblinkParameterDefinition *definition =
+            mblink_parameter_obd2_definition(defaultFavourites[index]);
+        if (definition == NULL ||
+            mblink_parameter_store_set_favourite(
+                store, &definition->key, true) != MBLINK_PARAMETER_STORE_OK) {
+            return false;
+        }
+    }
+    return true;
+}
+
+'''
+          source = replace_once(source, helper_marker, helper, 'parameter catalog helper')
+
+          source = replace_once(
+              source,
+              '        mblink_scheduler_init(&_scheduler);\n        mblink_telemetry_store_init(&_telemetry);\n',
+              '        mblink_scheduler_init(&_scheduler);\n        _parameterStoreReady = MBLinkRegisterParameterCatalog(&_parameterStore);\n        mblink_telemetry_store_init(&_telemetry);\n',
+              'parameter store initialization')
+
+          source = replace_once(
+              source,
+              '''    if (self.active) {
+        return;
+    }
+
+    _pollGeneration++;
+''',
+              '''    if (self.active) {
+        return;
+    }
+    if (!_parameterStoreReady) {
+        [self setStatus:@"Diagnostic parameter catalog failed validation"];
+        return;
+    }
+
+    _pollGeneration++;
+''',
+              'parameter catalog start guard')
+          source = replace_once(
+              source,
+              '    mblink_scheduler_init(&_scheduler);\n    mblink_telemetry_store_clear_samples(&_telemetry);\n',
+              '    mblink_scheduler_init(&_scheduler);\n    mblink_parameter_store_clear_samples(&_parameterStore);\n    mblink_telemetry_store_clear_samples(&_telemetry);\n',
+              'parameter sample reset')
+
+          old_record = '''    if (!mblink_telemetry_store_record(
+            &_telemetry,
+            MBLinkElapsedMilliseconds(_sessionMonotonicStartMs), &sample)) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not record live telemetry sample"];
+        return;
+    }
+
+    MblinkTelemetrySample recorded;
+    if (_recorder.started && !_recorder.finished &&
+        mblink_telemetry_store_latest(&_telemetry, sample.pid, &recorded) &&
+        !mblink_telemetry_recorder_record_sample(
+            &_recorder, &recorded,
+            mblink_telemetry_store_is_favourite(&_telemetry, sample.pid))) {
+'''
+          new_record = '''    const uint64_t elapsedMs =
+        MBLinkElapsedMilliseconds(_sessionMonotonicStartMs);
+    if (!mblink_telemetry_store_record(&_telemetry, elapsedMs, &sample)) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not record live telemetry sample"];
+        return;
+    }
+
+    MblinkParameterSample parameterSample;
+    if (!mblink_parameter_from_obd2(&sample, elapsedMs, &parameterSample) ||
+        mblink_parameter_store_record(&_parameterStore, &parameterSample) !=
+            MBLINK_PARAMETER_STORE_OK) {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Could not record shared diagnostic parameter"];
+        return;
+    }
+
+    MblinkTelemetrySample recorded;
+    if (_recorder.started && !_recorder.finished &&
+        mblink_telemetry_store_latest(&_telemetry, sample.pid, &recorded) &&
+        !mblink_telemetry_recorder_record_sample(
+            &_recorder, &recorded,
+            mblink_parameter_store_is_favourite(
+                &_parameterStore, &parameterSample.definition->key))) {
+'''
+          source = replace_once(source, old_record, new_record, 'dual telemetry/parameter recording')
+
+          old_tail = '''- (NSUInteger)recordedSampleCount
+{
+    uint64_t total = mblink_telemetry_store_total_sample_count(&_telemetry);
+    if (total > (uint64_t)NSUIntegerMax) {
+        return NSUIntegerMax;
+    }
+    return (NSUInteger)total;
+}
+
+- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+                                      limit:(NSUInteger)limit
+{
+    if (limit == 0U) {
+        return @[];
+    }
+
+    NSMutableArray<NSNumber *> *values =
+        [[NSMutableArray alloc] initWithCapacity:limit];
+    const size_t count =
+        mblink_telemetry_store_history_count(&_telemetry);
+
+    for (size_t reverseIndex = count;
+         reverseIndex > 0U && values.count < limit;
+         --reverseIndex) {
+        MblinkTelemetrySample sample;
+        if (!mblink_telemetry_store_history_at(
+                &_telemetry, reverseIndex - 1U, &sample)) {
+            continue;
+        }
+        if (sample.measurement.pid != pid) {
+            continue;
+        }
+        [values insertObject:@(sample.measurement.value) atIndex:0U];
+    }
+    return values;
+}
+
+- (BOOL)favouriteForPID:(uint8_t)pid
+{
+    return mblink_telemetry_store_is_favourite(&_telemetry, pid);
+}
+
+- (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid
+{
+    mblink_telemetry_store_set_favourite(&_telemetry, pid, favourite);
+    [self notifyDelegate];
+}
+
+'''
+          new_tail = '''- (NSUInteger)recordedSampleCount
+{
+    uint64_t total = mblink_parameter_store_total_sample_count(&_parameterStore);
+    if (total > (uint64_t)NSUIntegerMax) {
+        return NSUIntegerMax;
+    }
+    return (NSUInteger)total;
+}
+
+- (NSArray<NSNumber *> *)recentValuesForParameterKey:(NSString *)stableKey
+                                               limit:(NSUInteger)limit
+{
+    const char *keyText = stableKey.UTF8String;
+    const MblinkParameterDefinition *definition =
+        mblink_parameter_store_definition_for_stable_key(
+            &_parameterStore, keyText);
+    if (definition == NULL || limit == 0U) {
+        return @[];
+    }
+
+    NSMutableArray<NSNumber *> *values =
+        [[NSMutableArray alloc] initWithCapacity:limit];
+    const size_t count =
+        mblink_parameter_store_history_count(&_parameterStore);
+
+    for (size_t reverseIndex = count;
+         reverseIndex > 0U && values.count < limit;
+         --reverseIndex) {
+        MblinkParameterSample sample;
+        if (!mblink_parameter_store_history_at(
+                &_parameterStore, reverseIndex - 1U, &sample)) {
+            continue;
+        }
+        if (!mblink_parameter_key_equal(
+                &sample.definition->key, &definition->key)) {
+            continue;
+        }
+        [values insertObject:@(sample.value) atIndex:0U];
+    }
+    return values;
+}
+
+- (BOOL)favouriteForParameterKey:(NSString *)stableKey
+{
+    const MblinkParameterDefinition *definition =
+        mblink_parameter_store_definition_for_stable_key(
+            &_parameterStore, stableKey.UTF8String);
+    return definition != NULL &&
+        mblink_parameter_store_is_favourite(
+            &_parameterStore, &definition->key);
+}
+
+- (void)setFavourite:(BOOL)favourite
+     forParameterKey:(NSString *)stableKey
+{
+    const MblinkParameterDefinition *definition =
+        mblink_parameter_store_definition_for_stable_key(
+            &_parameterStore, stableKey.UTF8String);
+    if (definition == NULL ||
+        mblink_parameter_store_set_favourite(
+            &_parameterStore, &definition->key, favourite) !=
+            MBLINK_PARAMETER_STORE_OK) {
+        return;
+    }
+
+    if (definition->key.protocol == MBLINK_PARAMETER_PROTOCOL_OBD2 &&
+        definition->key.module == MBLINK_PARAMETER_MODULE_STANDARD_OBD2 &&
+        definition->key.identifier <= UINT8_MAX) {
+        mblink_telemetry_store_set_favourite(
+            &_telemetry, (uint8_t)definition->key.identifier, favourite);
+    }
+    [self notifyDelegate];
+}
+
+'''
+          source = replace_once(source, old_tail, new_tail, 'generic Apple parameter accessors')
+          source_path.write_text(source, encoding='utf-8')
+
+          swift_path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          swift = swift_path.read_text(encoding='utf-8')
+          old_toggle = '''    func toggleFavourite(stableKey: String) {
+        let pid: UInt8? = stableKey.withCString { key in
+            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else {
+                return nil
+            }
+            return UInt8(exactly: definition.pointee.key.identifier)
+        }
+        guard let pid else { return }
+
+        controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
+        refresh()
+    }
+'''
+          new_toggle = '''    func toggleFavourite(stableKey: String) {
+        controller.setFavourite(
+            !controller.favourite(forParameterKey: stableKey),
+            forParameterKey: stableKey
+        )
+        refresh()
+    }
+'''
+          swift = replace_once(swift, old_toggle, new_toggle, 'Swift favourite bridge')
+          old_pid_guard = '''            let metadata = definition.pointee
+            guard let pid = UInt8(exactly: metadata.key.identifier) else {
+                continue
+            }
+
+            let history = controller
+                .recentValues(forPID: pid, limit: 60)
+                .map(\\.doubleValue)
+            let value = history.last
+            let stableKey = string(from: metadata.stable_key)
+'''
+          new_pid_guard = '''            let metadata = definition.pointee
+            let stableKey = string(from: metadata.stable_key)
+            let history = controller
+                .recentValues(forParameterKey: stableKey, limit: 60)
+                .map(\\.doubleValue)
+            let value = history.last
+'''
+          swift = replace_once(swift, old_pid_guard, new_pid_guard, 'Swift history bridge')
+          swift = replace_once(
+              swift,
+              '                    favourite: controller.favourite(forPID: pid),\n',
+              '                    favourite: controller.favourite(forParameterKey: stableKey),\n',
+              'Swift favourite read')
+          swift_path.write_text(swift, encoding='utf-8')
+          PY
+
+          ! grep -q 'recentValuesForPID\|favouriteForPID\|forPID:' \
+            platform/apple/MBLinkDiagnosticsController.h \
+            app/ios/MBLINK/ConnectionViewModel.swift
+          grep -q 'mblink_parameter_store_record(&_parameterStore' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'recentValuesForParameterKey' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'recentValues(forParameterKey:' app/ios/MBLINK/ConnectionViewModel.swift
+
+      - name: Run complete portable C suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+
+      - name: Build iOS Debug and Release simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          for configuration in Debug Release; do
+            log="$RUNNER_TEMP/mblink-${configuration}.log"
+            if ! xcodebuild \
+              -project app/ios/MBLINK.xcodeproj \
+              -scheme MBLINK \
+              -configuration "$configuration" \
+              -sdk iphonesimulator \
+              -destination 'generic/platform=iOS Simulator' \
+              CODE_SIGNING_ALLOWED=NO \
+              build >"$log" 2>&1; then
+              echo "${configuration} simulator build failed:" >&2
+              grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+              exit 1
+            fi
+          done
+
+      - name: Build unsigned arm64 iPhone target
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device"
+          log="$RUNNER_TEMP/mblink-device.log"
+          if ! xcodebuild \
+            -project app/ios/MBLINK.xcodeproj \
+            -scheme MBLINK \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build >"$log" 2>&1; then
+            echo 'Physical-iPhone build failed:' >&2
+            grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+            exit 1
+          fi
+          app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
+          test -x "$app/MBLINK"
+          /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
+
+      - name: Commit validated migration and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/migrate-parameter-store.yml
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "apple: use protocol-neutral parameter store"
+          git push origin HEAD:main
