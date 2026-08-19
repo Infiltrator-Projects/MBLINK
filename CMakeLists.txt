@@ -73,6 +73,7 @@ add_library(mblink STATIC
     src/core/telemetry_csv.c
     src/core/isotp.c
     src/elm327/elm327.c
+    src/elm327/can.c
     src/elm327/session.c
     src/elm327/probe.c
     src/obd2/obd2.c
@@ -132,6 +133,7 @@ if(BUILD_TESTING)
         MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
 
     mblink_add_test(mblink-test-elm327 tests/test_elm327.c)
+    mblink_add_test(mblink-test-elm327-can tests/test_elm327_can.c)
     mblink_add_test(mblink-test-elm327-session tests/test_elm327_session.c)
     mblink_add_test(mblink-test-elm327-probe tests/test_elm327_probe.c)
     mblink_add_test(mblink-test-obd2 tests/test_obd2.c)
