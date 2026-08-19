@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: Diagnose Apple parameter migration
+name: Finalize Apple parameter migration
 
 on:
   push:
@@ -11,9 +11,9 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  finalize:
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Check out current main
         uses: actions/checkout@v4
@@ -21,62 +21,147 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Run diagnostics and publish result
+      - name: Remove superseded per-PID Apple publication state
         shell: bash
         run: |
-          set -uo pipefail
-          result="docs/APPLE-PARAMETER-VALIDATION.txt"
-          : > "$result"
-          echo "validated_head=$GITHUB_SHA" >> "$result"
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >"$RUNNER_TEMP/cmake-configure.log" 2>&1
-          configure_status=$?
-          echo "cmake_configure=$configure_status" >> "$result"
+          header_path = Path('platform/apple/MBLinkDiagnosticsController.h')
+          header = header_path.read_text(encoding='utf-8')
+          property_names = [
+              'hasEngineLoad', 'engineLoadPercent',
+              'hasCoolantTemperature', 'coolantTemperatureCelsius',
+              'hasManifoldPressure', 'manifoldPressureKPa',
+              'hasRPM', 'rpm',
+              'hasVehicleSpeed', 'vehicleSpeedKmh',
+              'hasIntakeAirTemperature', 'intakeAirTemperatureCelsius',
+              'hasMassAirFlow', 'massAirFlowGramsPerSecond',
+              'hasThrottlePosition', 'throttlePositionPercent',
+          ]
+          for name in property_names:
+              pattern = rf'^@property\(nonatomic, readonly\) (?:BOOL|double) {name};\n'
+              header, count = re.subn(pattern, '', header, count=1, flags=re.MULTILINE)
+              if count != 1:
+                  raise SystemExit(f'public property {name}: expected one match, found {count}')
+          header = header.replace('\n\n\n@property(nonatomic, readonly) NSUInteger recordedSampleCount;',
+                                  '\n\n@property(nonatomic, readonly) NSUInteger recordedSampleCount;')
+          header_path.write_text(header, encoding='utf-8')
 
-          build_status=99
-          ctest_status=99
-          if [ "$configure_status" -eq 0 ]; then
-            cmake --build build --parallel 2 >"$RUNNER_TEMP/cmake-build.log" 2>&1
-            build_status=$?
-            echo "cmake_build=$build_status" >> "$result"
-            if [ "$build_status" -eq 0 ]; then
-              ctest --test-dir build --output-on-failure >"$RUNNER_TEMP/ctest.log" 2>&1
-              ctest_status=$?
-            fi
-          fi
-          echo "ctest=$ctest_status" >> "$result"
+          source_path = Path('platform/apple/MBLinkDiagnosticsController.m')
+          source = source_path.read_text(encoding='utf-8')
+          for name in property_names:
+              pattern = rf'^@property\(nonatomic, readwrite\) (?:BOOL|double) {name};\n'
+              source, count = re.subn(pattern, '', source, count=1, flags=re.MULTILINE)
+              if count != 1:
+                  raise SystemExit(f'private property {name}: expected one match, found {count}')
 
+          for declaration in (
+              '- (void)applyMeasurement:(const MblinkObd2Sample *)sample;\n',
+              '- (void)resetPublishedMeasurements;\n',
+          ):
+              if source.count(declaration) != 1:
+                  raise SystemExit(f'declaration mismatch: {declaration.strip()}')
+              source = source.replace(declaration, '', 1)
+
+          source, count = re.subn(
+              r'\n- \(void\)resetPublishedMeasurements\n\{.*?\n\}\n\n(?=- \(void\)start\n)',
+              '\n', source, count=1, flags=re.DOTALL)
+          if count != 1:
+              raise SystemExit(f'resetPublishedMeasurements method: expected one match, found {count}')
+
+          source, count = re.subn(
+              r'\n- \(void\)applyMeasurement:\(const MblinkObd2Sample \*\)sample\n\{.*?\n\}\n\n(?=- \(void\)processLiveResponse:)',
+              '\n', source, count=1, flags=re.DOTALL)
+          if count != 1:
+              raise SystemExit(f'applyMeasurement method: expected one match, found {count}')
+
+          reset_call = '    [self resetPublishedMeasurements];\n'
+          reset_count = source.count(reset_call)
+          if reset_count != 3:
+              raise SystemExit(f'reset call count: expected 3, found {reset_count}')
+          source = source.replace(reset_call, '')
+
+          apply_call = '    [self applyMeasurement:&sample];\n'
+          if source.count(apply_call) != 1:
+              raise SystemExit('applyMeasurement call count mismatch')
+          source = source.replace(apply_call, '', 1)
+          source = source.replace('\n\n\n- (void)handleSessionEvent:', '\n\n- (void)handleSessionEvent:')
+          source_path.write_text(source, encoding='utf-8')
+          PY
+
+          ! grep -Eq 'hasEngineLoad|engineLoadPercent|hasRPM|applyMeasurement|resetPublishedMeasurements' \
+            platform/apple/MBLinkDiagnosticsController.h \
+            platform/apple/MBLinkDiagnosticsController.m
+          ! grep -q 'String(format:' app/ios/MBLINK/ContentView.swift
+          grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -q 'mblink_parameter_store_record' src/core/parameter.c
+          grep -q 'mblink_scheduler_add_parameter' src/core/scheduler.c
+
+      - name: Run complete portable C suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+
+      - name: Build iOS Debug and Release simulators
+        shell: bash
+        run: |
+          set -euo pipefail
           for configuration in Debug Release; do
-            log="$RUNNER_TEMP/xcode-${configuration}.log"
-            xcodebuild \
+            log="$RUNNER_TEMP/mblink-${configuration}.log"
+            if ! xcodebuild \
               -project app/ios/MBLINK.xcodeproj \
               -scheme MBLINK \
               -configuration "$configuration" \
               -sdk iphonesimulator \
               -destination 'generic/platform=iOS Simulator' \
               CODE_SIGNING_ALLOWED=NO \
-              build >"$log" 2>&1
-            status=$?
-            echo "xcode_${configuration}=$status" >> "$result"
-            if [ "$status" -ne 0 ]; then
-              echo "--- xcode ${configuration} diagnostics ---" >> "$result"
-              grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 120 >> "$result" || true
+              build >"$log" 2>&1; then
+              echo "${configuration} simulator build failed:" >&2
+              grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+              exit 1
             fi
           done
 
-          if [ "$configure_status" -ne 0 ]; then
-            echo "--- cmake configure tail ---" >> "$result"
-            tail -n 120 "$RUNNER_TEMP/cmake-configure.log" >> "$result" || true
-          elif [ "$build_status" -ne 0 ]; then
-            echo "--- cmake build tail ---" >> "$result"
-            tail -n 160 "$RUNNER_TEMP/cmake-build.log" >> "$result" || true
-          elif [ "$ctest_status" -ne 0 ]; then
-            echo "--- ctest output ---" >> "$result"
-            tail -n 200 "$RUNNER_TEMP/ctest.log" >> "$result" || true
+      - name: Build unsigned arm64 iPhone target
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device"
+          log="$RUNNER_TEMP/mblink-device.log"
+          if ! xcodebuild \
+            -project app/ios/MBLINK.xcodeproj \
+            -scheme MBLINK \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build >"$log" 2>&1; then
+            echo 'Physical-iPhone build failed:' >&2
+            grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+            exit 1
           fi
+          app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
+          test -x "$app/MBLINK"
+          /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
 
+      - name: Commit validated cleanup and remove temporary validation files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f docs/APPLE-PARAMETER-VALIDATION.txt
+          rm .github/workflows/migrate-apple-parameters.yml
           git config user.name "Shannon Smith"
           git config user.email "infiltratr@yandex.com"
-          git add "$result"
-          git commit -m "ci: record Apple parameter validation diagnostics"
+          git add -A
+          git diff --cached --check
+          git commit -m "apple: complete generic parameter workspace migration"
           git push origin HEAD:main
