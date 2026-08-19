@@ -13,7 +13,7 @@ permissions:
 jobs:
   finalize:
     name: Finalize 0.7 metadata and guards
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
