@@ -138,6 +138,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-runtime tests/test_runtime.c)
     mblink_add_test(mblink-test-parameter tests/test_parameter.c)
     mblink_add_test(mblink-test-parameter-store tests/test_parameter_store.c)
+    mblink_add_test(mblink-test-scheduler-parameters tests/test_scheduler_parameters.c)
     mblink_add_test(mblink-test-isotp tests/test_isotp.c)
     mblink_add_test(mblink-test-isotp-failed-state
         tests/test_isotp_failed_state.c)
