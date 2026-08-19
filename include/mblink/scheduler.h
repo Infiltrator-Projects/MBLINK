@@ -6,7 +6,7 @@
 #ifndef MBLINK_SCHEDULER_H
 #define MBLINK_SCHEDULER_H
 
-#include "mblink/obd2.h"
+#include "mblink/parameter.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define MBLINK_SCHEDULER_MAX_ITEMS 16U
+#define MBLINK_SCHEDULER_MAX_ITEMS 64U
 
 typedef enum {
     MBLINK_SCHEDULER_PRIORITY_LOW = 0,
@@ -42,7 +42,9 @@ typedef enum {
 } MblinkSchedulerNextResult;
 
 typedef struct {
+    MblinkParameterKey key;
     uint8_t pid;
+    bool pid_valid;
     uint32_t interval_ms;
     uint64_t next_due_ms;
     MblinkSchedulerPriority priority;
@@ -58,7 +60,9 @@ typedef struct {
 
 typedef struct {
     size_t index;
+    MblinkParameterKey key;
     uint8_t pid;
+    bool pid_valid;
     uint64_t due_ms;
     uint64_t wait_ms;
 } MblinkSchedulerDispatch;
@@ -69,6 +73,19 @@ const char *mblink_scheduler_next_result_name(MblinkSchedulerNextResult result);
 void mblink_scheduler_init(MblinkScheduler *scheduler);
 
 /** All scheduler timestamps use one caller-supplied monotonic millisecond clock. */
+MblinkSchedulerResult mblink_scheduler_add_parameter(
+    MblinkScheduler *scheduler,
+    const MblinkParameterKey *key,
+    uint32_t interval_ms,
+    MblinkSchedulerPriority priority,
+    uint64_t first_due_ms);
+
+MblinkSchedulerResult mblink_scheduler_set_parameter_enabled(
+    MblinkScheduler *scheduler,
+    const MblinkParameterKey *key,
+    bool enabled);
+
+/** Compatibility wrapper for standard OBD-II PID scheduling. */
 MblinkSchedulerResult mblink_scheduler_add(
     MblinkScheduler *scheduler,
     uint8_t pid,
@@ -76,6 +93,7 @@ MblinkSchedulerResult mblink_scheduler_add(
     MblinkSchedulerPriority priority,
     uint64_t first_due_ms);
 
+/** Compatibility wrapper for standard OBD-II PID scheduling. */
 MblinkSchedulerResult mblink_scheduler_set_enabled(
     MblinkScheduler *scheduler, uint8_t pid, bool enabled);
 
