@@ -26,6 +26,7 @@
 		B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */ = {isa = PBXBuildFile; fileRef = DCDEF808C26455A6B72E4784 /* obd2.c */; };
 		E282A55680BFE4F2A03F50A1 /* common_core.c in Sources */ = {isa = PBXBuildFile; fileRef = D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */; };
 		DAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };
+		E0A1B2C3D4E5F60718293B08 /* common_timing.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A08 /* common_timing.c */; };
 		74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C1F571CC485203162805ADE /* CoreBluetooth.framework */; };
 		B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */; };
 		A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };
@@ -65,6 +66,7 @@
 		DCDEF808C26455A6B72E4784 /* obd2.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "obd2.c"; path = "../../src/obd2/obd2.c"; sourceTree = SOURCE_ROOT; };
 		D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "core.c"; path = "../../src/infiltratr-common/src/core.c"; sourceTree = SOURCE_ROOT; };
 		FB46CB06CB0FE9B8B23168B3 /* common_format.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "format.c"; path = "../../src/infiltratr-common/src/format.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A08 /* common_timing.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "timing.c"; path = "../../src/infiltratr-common/src/timing.c"; sourceTree = SOURCE_ROOT; };
 		8BCD5BC4CDFDF0918087C782 /* MBLINK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MBLINK.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
@@ -150,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				D5AEE7D0F9C3D6A65D0D9E38 /* core.c */,
+				F0A1B2C3D4E5F60718293A08 /* timing.c */,
 				FB46CB06CB0FE9B8B23168B3 /* format.c */,
 			);
 			name = "Infiltratr Common";
@@ -287,6 +290,7 @@
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
 				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
 				E282A55680BFE4F2A03F50A1 /* core.c in Sources */,
+				E0A1B2C3D4E5F60718293B08 /* timing.c in Sources */,
 				DAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

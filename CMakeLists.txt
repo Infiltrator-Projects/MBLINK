@@ -28,8 +28,8 @@ endif()
 include(CTest)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
-set(MBLINK_COMMON_VERSION "1.7.0")
-set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")
+set(MBLINK_COMMON_VERSION "1.8.0")
+set(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")
 
 if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
     message(FATAL_ERROR
@@ -60,6 +60,7 @@ endif()
 
 add_library(infiltratr-common STATIC
     "${MBLINK_COMMON_DIR}/src/core.c"
+    "${MBLINK_COMMON_DIR}/src/timing.c"
     "${MBLINK_COMMON_DIR}/src/format.c")
 target_include_directories(infiltratr-common PUBLIC
     "${MBLINK_COMMON_DIR}/include")

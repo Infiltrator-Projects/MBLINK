@@ -6,6 +6,7 @@
 #include "mblink/scheduler.h"
 
 #include "infiltratr/core.h"
+#include "infiltratr/timing.h"
 
 #include <string.h>
 
@@ -296,9 +297,6 @@ MblinkSchedulerResult mblink_scheduler_mark_dispatched(
 {
     MblinkSchedulerItem *item;
     uint64_t interval;
-    uint64_t late_by;
-    uint64_t steps;
-    uint64_t advance;
 
     if (scheduler == NULL || index >= scheduler->count) {
         return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;
@@ -306,20 +304,9 @@ MblinkSchedulerResult mblink_scheduler_mark_dispatched(
 
     item = &scheduler->items[index];
     interval = (uint64_t)item->interval_ms;
-    if (interval == 0U) {
+    if (!infiltratr_periodic_deadline_advance(
+            item->next_due_ms, now_ms, interval, &item->next_due_ms)) {
         return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;
     }
-
-    if (item->next_due_ms > now_ms) {
-        item->next_due_ms =
-            infiltratr_u64_add_saturating(item->next_due_ms, interval);
-        return MBLINK_SCHEDULER_RESULT_OK;
-    }
-
-    late_by = now_ms - item->next_due_ms;
-    steps = infiltratr_u64_add_saturating(late_by / interval, 1U);
-    advance = infiltratr_u64_multiply_saturating(interval, steps);
-    item->next_due_ms =
-        infiltratr_u64_add_saturating(item->next_due_ms, advance);
     return MBLINK_SCHEDULER_RESULT_OK;
 }
