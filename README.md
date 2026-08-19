@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed feature milestone: 0.7 — portable UDS foundation. Next: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest completed feature milestone: 0.7 — portable UDS foundation. Current maintenance work prepares 0.7.1; next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -19,6 +19,8 @@ Implemented today:
 - portable polling scheduler, telemetry history and session recording;
 - Classical-CAN ISO-TP transmit/receive state machines;
 - portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;
+- protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting for OBD-II and future manufacturer UDS live values;
+- Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace with live data, table, dashboard, graphs and CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
@@ -32,7 +34,7 @@ Physical iPhone installation has been validated. Live Vgate/vehicle communicatio
 SwiftUI / Objective-C              GTK4 / Linux shell
           \                          /
            +---- shared libmblink C11 ----+
-             workspace | ELM327 | OBD-II
+         workspace | parameters | ELM327 | OBD-II
           scheduler | telemetry | ISO-TP | UDS
                          |
                  transport/provider boundary
@@ -72,7 +74,7 @@ ctest --test-dir build-sanitized --output-on-failure
 
 ## iPhone target
 
-The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP or UDS implementations.
+The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations.
 
 ## Linux target
 
@@ -90,7 +92,7 @@ The desktop toolkit is optional: building only `libmblink` does not require GTK4
 
 - Portable protocol and shared diagnostic workspace behaviour belongs in C.
 - ELM327 parsing does not belong in Objective-C or GTK code.
-- PID formulas, polling policy and canonical telemetry state do not belong in Swift or Linux presentation code.
+- PID/DID formulas, polling policy and canonical telemetry state do not belong in Swift or Linux presentation code.
 - UDS consumes complete ISO-TP PDUs and must not duplicate segmentation or CAN addressing.
 - Mercedes definitions do not belong in BLE or desktop providers.
 - Adapter quirks stay at the provider/profile boundary.
@@ -106,8 +108,10 @@ The desktop toolkit is optional: building only `libmblink` does not require GTK4
 - [Telemetry](docs/TELEMETRY.md) — scheduling, history and recording
 - [ISO-TP](docs/ISOTP.md) — transport-layer scope and state machines
 - [UDS](docs/UDS.md) — response, session, timing and DID contracts
+- [Diagnostic parameters](docs/PARAMETERS.md) — shared OBD/UDS live-value identity and formatting contract
+- [Common reuse](docs/COMMON-REUSE.md) — shared-library ownership and reuse boundary
 - [Apple](docs/APPLE.md) — CoreBluetooth/iPhone boundary and hardware validation
-- [Contributing](CONTRIBUTING.md) — build and contribution rules
+- [Contributing](.github/CONTRIBUTING.md) — build and contribution rules
 
 ## Licence
 
