@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Final presentation branch cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/final-presentation-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'maintenance/final-presentation-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete completed presentation branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/chore/repo-presentation-cleanup" >/dev/null 2>&1; then
+            gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/chore/repo-presentation-cleanup"
+          fi
+
+      - name: Remove temporary cleanup branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/maintenance/final-presentation-cleanup"
