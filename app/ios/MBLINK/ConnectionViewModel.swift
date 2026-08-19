@@ -2,6 +2,22 @@
 import Combine
 import Foundation
 
+struct DiagnosticParameter: Identifiable {
+    let id: String
+    let protocolName: String
+    let moduleIdentifier: UInt32
+    let parameterIdentifier: UInt32
+    let shortName: String
+    let title: String
+    let suffix: String
+    let formattedValue: String
+    let value: Double?
+    let favourite: Bool
+    let history: [Double]
+
+    var isAvailable: Bool { value != nil }
+}
+
 @MainActor
 final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsControllerDelegate {
     @Published private(set) var statusText = "Idle"
@@ -10,25 +26,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
 
-    @Published private(set) var engineLoadPercent: Double?
-    @Published private(set) var coolantTemperatureCelsius: Double?
-    @Published private(set) var manifoldPressureKPa: Double?
-    @Published private(set) var rpm: Double?
-    @Published private(set) var vehicleSpeedKmh: Double?
-    @Published private(set) var intakeAirTemperatureCelsius: Double?
-    @Published private(set) var massAirFlowGramsPerSecond: Double?
-    @Published private(set) var throttlePositionPercent: Double?
-
+    @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
     @Published private(set) var recordedSampleCount = 0
-    @Published private(set) var favouritePIDs = Set<UInt8>()
-    @Published private(set) var recentRPM = [Double]()
-    @Published private(set) var recentCoolant = [Double]()
     @Published private(set) var csvExportURL: URL?
 
     private let controller = MBLinkDiagnosticsController()
-    private let dashboardPIDs: [UInt8] = [
-        0x0c, 0x0d, 0x0b, 0x11, 0x04, 0x10, 0x05, 0x0f
-    ]
 
     override init() {
         super.init()
@@ -45,7 +47,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         controller.disconnect()
     }
 
-    func toggleFavourite(pid: UInt8) {
+    func toggleFavourite(stableKey: String) {
+        let pid: UInt8? = stableKey.withCString { key in
+            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else {
+                return nil
+            }
+            return UInt8(exactly: definition.pointee.key.identifier)
+        }
+        guard let pid else { return }
+
         controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
         refresh()
     }
@@ -80,38 +90,88 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         csvExportURL = nil
     }
 
+    private func string(from cString: UnsafePointer<CChar>?) -> String {
+        guard let cString else { return "" }
+        return String(cString: cString)
+    }
+
+    private func formattedValue(
+        definition: UnsafePointer<MblinkParameterDefinition>,
+        value: Double?
+    ) -> String {
+        var buffer = [CChar](repeating: 0, count: 96)
+        let success = buffer.withUnsafeMutableBufferPointer { storage in
+            mblink_parameter_format_value(
+                definition,
+                value != nil,
+                value ?? 0.0,
+                storage.baseAddress,
+                storage.count
+            )
+        }
+        guard success else { return "N/A" }
+        return buffer.withUnsafeBufferPointer { storage in
+            guard let baseAddress = storage.baseAddress else { return "N/A" }
+            return String(cString: baseAddress)
+        }
+    }
+
+    private func loadDiagnosticParameters() -> [DiagnosticParameter] {
+        let count = mblink_parameter_obd2_definition_count()
+        guard count > 0 else { return [] }
+
+        var result = [DiagnosticParameter]()
+        result.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let definition = mblink_parameter_obd2_definition_at(index) else {
+                continue
+            }
+
+            let metadata = definition.pointee
+            guard let pid = UInt8(exactly: metadata.key.identifier) else {
+                continue
+            }
+
+            let history = controller
+                .recentValues(forPID: pid, limit: 60)
+                .map(\.doubleValue)
+            let value = history.last
+            let stableKey = string(from: metadata.stable_key)
+            guard !stableKey.isEmpty else { continue }
+
+            result.append(
+                DiagnosticParameter(
+                    id: stableKey,
+                    protocolName: string(
+                        from: mblink_parameter_protocol_name(metadata.key.protocol)
+                    ),
+                    moduleIdentifier: metadata.key.module,
+                    parameterIdentifier: metadata.key.identifier,
+                    shortName: string(from: metadata.short_name),
+                    title: string(from: metadata.name),
+                    suffix: string(from: metadata.suffix),
+                    formattedValue: formattedValue(
+                        definition: definition,
+                        value: value
+                    ),
+                    value: value,
+                    favourite: controller.favourite(forPID: pid),
+                    history: history
+                )
+            )
+        }
+
+        return result
+    }
+
     private func refresh() {
         statusText = controller.statusText
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
         isActive = controller.isActive
         isReady = controller.isReady
-
-        engineLoadPercent = controller.hasEngineLoad
-            ? controller.engineLoadPercent : nil
-        coolantTemperatureCelsius = controller.hasCoolantTemperature
-            ? controller.coolantTemperatureCelsius : nil
-        manifoldPressureKPa = controller.hasManifoldPressure
-            ? controller.manifoldPressureKPa : nil
-        rpm = controller.hasRPM ? controller.rpm : nil
-        vehicleSpeedKmh = controller.hasVehicleSpeed
-            ? controller.vehicleSpeedKmh : nil
-        intakeAirTemperatureCelsius = controller.hasIntakeAirTemperature
-            ? controller.intakeAirTemperatureCelsius : nil
-        massAirFlowGramsPerSecond = controller.hasMassAirFlow
-            ? controller.massAirFlowGramsPerSecond : nil
-        throttlePositionPercent = controller.hasThrottlePosition
-            ? controller.throttlePositionPercent : nil
-
+        diagnosticParameters = loadDiagnosticParameters()
         recordedSampleCount = Int(clamping: controller.recordedSampleCount)
-        favouritePIDs = Set(
-            dashboardPIDs.filter { controller.favourite(forPID: $0) }
-        )
-        recentRPM = controller
-            .recentValues(forPID: 0x0c, limit: 60)
-            .map(\.doubleValue)
-        recentCoolant = controller
-            .recentValues(forPID: 0x05, limit: 60)
-            .map(\.doubleValue)
     }
 }
