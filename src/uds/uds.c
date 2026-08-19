@@ -229,6 +229,47 @@ MblinkUdsResult mblink_uds_decode_session_control_response(
     return MBLINK_UDS_RESULT_OK;
 }
 
+MblinkUdsResult mblink_uds_build_tester_present_request(
+    bool suppress_positive_response,
+    uint8_t *buffer,
+    size_t buffer_size,
+    size_t *written)
+{
+    if (buffer == NULL || written == NULL) {
+        return uds_write_failure(buffer, buffer_size, written,
+                                 MBLINK_UDS_RESULT_INVALID_ARGUMENT);
+    }
+    if (buffer_size < 2U) {
+        return uds_write_failure(buffer, buffer_size, written,
+                                 MBLINK_UDS_RESULT_BUFFER_TOO_SMALL);
+    }
+
+    buffer[0] = MBLINK_UDS_SERVICE_TESTER_PRESENT;
+    buffer[1] = suppress_positive_response ? 0x80U : 0x00U;
+    *written = 2U;
+    return MBLINK_UDS_RESULT_OK;
+}
+
+MblinkUdsResult mblink_uds_decode_tester_present_response(
+    const uint8_t *pdu,
+    size_t pdu_length)
+{
+    MblinkUdsResponse generic;
+    MblinkUdsResult result = mblink_uds_decode_response(
+        MBLINK_UDS_SERVICE_TESTER_PRESENT, pdu, pdu_length, &generic);
+
+    if (result != MBLINK_UDS_RESULT_OK) {
+        return result;
+    }
+    if (generic.data_length != 1U) {
+        return MBLINK_UDS_RESULT_MALFORMED_PDU;
+    }
+    if (generic.data[0] != 0x00U) {
+        return MBLINK_UDS_RESULT_UNEXPECTED_RESPONSE;
+    }
+    return MBLINK_UDS_RESULT_OK;
+}
+
 MblinkUdsResult mblink_uds_build_read_did_request(
     uint16_t identifier,
     uint8_t *buffer,
@@ -286,6 +327,60 @@ MblinkUdsResult mblink_uds_decode_read_did_response(
     decoded.data = generic.data + 2U;
     decoded.data_length = generic.data_length - 2U;
     *record = decoded;
+    return MBLINK_UDS_RESULT_OK;
+}
+
+bool mblink_uds_did_definition_is_valid(
+    const MblinkUdsDidDefinition *definition)
+{
+    return definition != NULL && definition->key != NULL &&
+           definition->key[0] != '\0' && definition->name != NULL &&
+           definition->name[0] != '\0' &&
+           definition->minimum_length <= definition->maximum_length;
+}
+
+MblinkUdsResult mblink_uds_build_defined_did_request(
+    const MblinkUdsDidDefinition *definition,
+    uint8_t *buffer,
+    size_t buffer_size,
+    size_t *written)
+{
+    if (!mblink_uds_did_definition_is_valid(definition)) {
+        return uds_write_failure(buffer, buffer_size, written,
+                                 MBLINK_UDS_RESULT_INVALID_ARGUMENT);
+    }
+    return mblink_uds_build_read_did_request(
+        definition->identifier, buffer, buffer_size, written);
+}
+
+MblinkUdsResult mblink_uds_decode_defined_did_response(
+    const uint8_t *pdu,
+    size_t pdu_length,
+    const MblinkUdsDidDefinition *definition,
+    MblinkUdsDidValue *value)
+{
+    MblinkUdsDidRecord record;
+    MblinkUdsDidValue decoded;
+    MblinkUdsResult result;
+
+    if (!mblink_uds_did_definition_is_valid(definition) || value == NULL) {
+        return MBLINK_UDS_RESULT_INVALID_ARGUMENT;
+    }
+
+    result = mblink_uds_decode_read_did_response(
+        pdu, pdu_length, definition->identifier, &record);
+    if (result != MBLINK_UDS_RESULT_OK) {
+        return result;
+    }
+    if (record.data_length < definition->minimum_length ||
+        record.data_length > definition->maximum_length) {
+        return MBLINK_UDS_RESULT_UNEXPECTED_RESPONSE;
+    }
+
+    decoded.definition = definition;
+    decoded.data = record.data;
+    decoded.data_length = record.data_length;
+    *value = decoded;
     return MBLINK_UDS_RESULT_OK;
 }
 
@@ -366,6 +461,21 @@ MblinkUdsResult mblink_uds_client_begin(
         }
         client->request_has_subfunction = true;
         client->request_subfunction = session_type;
+    } else if (service == MBLINK_UDS_SERVICE_TESTER_PRESENT) {
+        if (request_length != 2U) {
+            uds_clear_request(client);
+            return MBLINK_UDS_RESULT_MALFORMED_PDU;
+        }
+        if ((request_pdu[1] & 0x80U) != 0U) {
+            uds_clear_request(client);
+            return MBLINK_UDS_RESULT_UNSUPPORTED;
+        }
+        if (request_pdu[1] != 0x00U) {
+            uds_clear_request(client);
+            return MBLINK_UDS_RESULT_MALFORMED_PDU;
+        }
+        client->request_has_subfunction = true;
+        client->request_subfunction = 0x00U;
     } else if (service == MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER) {
         if (request_length != 3U) {
             uds_clear_request(client);
@@ -439,6 +549,13 @@ MblinkUdsResult mblink_uds_client_accept(
                 (uint64_t)session.p2_server_max_ms, UINT64_C(1000));
             client->p2_star_timeout_us = infiltratr_u64_multiply_saturating(
                 (uint64_t)session.p2_star_server_max_10ms, UINT64_C(10000));
+        }
+    } else if (client->request_has_subfunction &&
+               client->request_service == MBLINK_UDS_SERVICE_TESTER_PRESENT) {
+        result = mblink_uds_decode_tester_present_response(
+            response_pdu, response_length);
+        if (result != MBLINK_UDS_RESULT_OK) {
+            return uds_client_fail(client, result);
         }
     } else if (client->request_has_did &&
                client->request_service ==
