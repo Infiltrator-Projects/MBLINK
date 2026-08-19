@@ -28,8 +28,8 @@ endif()
 include(CTest)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
-set(MBLINK_COMMON_VERSION "1.5.0")
-set(MBLINK_COMMON_COMMIT "a0e75ffbe4e038c74c8f1e3d589f2dae87b2b7bb")
+set(MBLINK_COMMON_VERSION "1.7.0")
+set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")
 
 if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
     message(FATAL_ERROR
@@ -67,6 +67,7 @@ target_compile_features(infiltratr-common PUBLIC c_std_11)
 
 add_library(mblink STATIC
     src/core/mblink.c
+    src/core/parameter.c
     src/core/scheduler.c
     src/core/telemetry_store.c
     src/core/telemetry_csv.c
@@ -135,6 +136,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-elm327-probe tests/test_elm327_probe.c)
     mblink_add_test(mblink-test-obd2 tests/test_obd2.c)
     mblink_add_test(mblink-test-runtime tests/test_runtime.c)
+    mblink_add_test(mblink-test-parameter tests/test_parameter.c)
     mblink_add_test(mblink-test-isotp tests/test_isotp.c)
     mblink_add_test(mblink-test-isotp-failed-state
         tests/test_isotp_failed_state.c)
