@@ -15,6 +15,8 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(MBLINK_BUILD_LINUX_APP "Build the native GTK4 Linux front end" OFF)
+
 if(MBLINK_ENABLE_SANITIZERS)
     if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         message(FATAL_ERROR "MBLINK_ENABLE_SANITIZERS requires GCC or Clang.")
@@ -95,6 +97,21 @@ endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(infiltratr-common PUBLIC m)
+endif()
+
+if(MBLINK_BUILD_LINUX_APP)
+    if(NOT UNIX OR APPLE)
+        message(FATAL_ERROR "MBLINK_BUILD_LINUX_APP is supported on Linux only.")
+    endif()
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
+
+    add_executable(mblink-linux app/linux/main.c)
+    target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(mblink-linux PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
+    endif()
 endif()
 
 function(mblink_add_test target source)

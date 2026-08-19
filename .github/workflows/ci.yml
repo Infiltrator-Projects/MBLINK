@@ -61,6 +61,32 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build-sanitized --output-on-failure
 
+  linux-app:
+    name: Linux / GTK4 app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install GTK4 development files
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev
+
+      - name: Configure Linux app
+        run: >-
+          cmake -S . -B build-linux-app
+          -DCMAKE_BUILD_TYPE=Release
+          -DMBLINK_BUILD_LINUX_APP=ON
+          -DBUILD_TESTING=OFF
+
+      - name: Build Linux app
+        run: cmake --build build-linux-app --target mblink-linux
+
   apple-ios:
     name: iOS / Xcode / ${{ matrix.configuration }}
     runs-on: macos-latest
@@ -207,7 +233,7 @@ jobs:
 
   release:
     name: Publish version release
-    needs: [portable-core, sanitizers, apple-ios]
+    needs: [portable-core, sanitizers, linux-app, apple-ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

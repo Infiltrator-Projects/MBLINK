@@ -2,7 +2,7 @@
 
 # MBLINK
 
-MBLINK is a C-first, open-source vehicle diagnostics platform with a native iPhone front end. Portable diagnostic behaviour lives in C; platform frameworks stay behind narrow interfaces at the edge.
+MBLINK is a C-first, open-source vehicle diagnostics platform with native iPhone and Linux front ends. Portable diagnostic behaviour and the shared diagnostic workspace live in C; platform frameworks stay behind narrow interfaces at the edge.
 
 The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is the Vgate iCar Pro BLE 4.0, but adapter-specific behaviour is not part of the diagnostic core.
 
@@ -13,31 +13,30 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 Implemented today:
 
 - portable C11 core and transport ABI;
+- shared Vehicle / Modules / Faults / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract;
 - ELM327 command, parser, initialisation and session engines;
 - standard OBD-II PID, readiness, VIN, freeze-frame and DTC handling;
 - portable polling scheduler, telemetry history and session recording;
 - Classical-CAN ISO-TP transmit/receive state machines;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
-- SwiftUI dashboard, favourites, charts and CSV sharing;
-- Ubuntu/macOS C CI plus Debug/Release iOS Simulator builds.
+- SwiftUI diagnostic workspace with live data, table, dashboard, graphs and CSV export;
+- native GTK4 Linux workspace shell consuming the same C model;
+- Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds and unsigned physical-iPhone IPA builds.
 
-Physical Vgate/iPhone/vehicle validation is still pending. Simulator CI proves source/framework integration, not BLE radio behaviour or live vehicle communication.
+Physical iPhone installation has been validated. Live Vgate/vehicle communication and Mercedes-Benz ECU discovery remain pending; simulator/device build success does not prove vehicle protocol behaviour.
 
 ## Architecture
 
 ```text
-SwiftUI presentation
-        |
-Objective-C application bridge
-        |
-libmblink / C11
-  ELM327 | OBD-II | scheduler | telemetry | ISO-TP
-        |
-C transport/provider boundary
-        |
-Objective-C CoreBluetooth provider / future native providers
-        |
-adapter -> vehicle
+SwiftUI / Objective-C              GTK4 / Linux shell
+          \                          /
+           +---- shared libmblink C11 ----+
+             workspace | ELM327 | OBD-II
+             scheduler | telemetry | ISO-TP
+                         |
+                 transport/provider boundary
+                         |
+                  adapter -> vehicle
 ```
 
 Detailed boundaries and invariants are in [Architecture](docs/ARCHITECTURE.md). Milestone history and future work are in [Roadmap](docs/ROADMAP.md).
@@ -74,13 +73,25 @@ ctest --test-dir build-sanitized --output-on-failure
 
 The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II or ISO-TP implementations.
 
+## Linux target
+
+The Linux shell is written in C with GTK4. On a system with GTK4 development files installed:
+
+```sh
+cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_LINUX_APP=ON
+cmake --build build-linux --target mblink-linux
+./build-linux/mblink-linux
+```
+
+The desktop toolkit is optional: building only `libmblink` does not require GTK4.
+
 ## Engineering rules
 
-- Portable protocol behaviour belongs in C.
-- ELM327 parsing does not belong in Objective-C.
-- PID formulas, polling policy and canonical telemetry state do not belong in Swift.
+- Portable protocol and shared diagnostic workspace behaviour belongs in C.
+- ELM327 parsing does not belong in Objective-C or GTK code.
+- PID formulas, polling policy and canonical telemetry state do not belong in Swift or Linux presentation code.
 - UDS must consume ISO-TP PDUs rather than duplicate segmentation or CAN addressing.
-- Mercedes definitions do not belong in BLE providers.
+- Mercedes definitions do not belong in BLE or desktop providers.
 - Adapter quirks stay at the provider/profile boundary.
 - Undocumented manufacturer data remains experimental until verified against real responses and regression fixtures.
 - Reuse Infiltratr Common when its existing contract matches; do not modify the pinned submodule from this repository.
