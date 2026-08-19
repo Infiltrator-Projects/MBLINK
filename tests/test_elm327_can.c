@@ -145,6 +145,9 @@ static void test_channel_validation_and_failure(void)
               MBLINK_ELM327_CAN_RESULT_MALFORMED_RESPONSE,
           "configuration response without OK accepted");
 
+    check(mblink_elm327_can_channel_begin(&state, &valid) ==
+              MBLINK_ELM327_CAN_RESULT_OK,
+          "ELM-error channel reset failed");
     elm_error = text_response("?");
     elm_error.result = MBLINK_ELM327_RESULT_ADAPTER_ERROR;
     check(mblink_elm327_can_channel_accept(&state, &elm_error) ==
