@@ -2,9 +2,6 @@
 /**
  * @file elm327_probe.h
  * @brief Adapter and active-protocol capability probing for ELM327 devices.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_ELM327_PROBE_H
 #define MBLINK_ELM327_PROBE_H

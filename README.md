@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed feature milestone: 0.6 — ISO-TP foundation.**
+**Pre-alpha. Current release gate: 0.6.2 — final pre-UDS hardening.**
 
 Implemented today:
 

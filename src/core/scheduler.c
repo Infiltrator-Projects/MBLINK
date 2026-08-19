@@ -203,11 +203,11 @@ MblinkSchedulerNextResult mblink_scheduler_next(
         }
 
         if (!have_due ||
-            item->priority > scheduler->items[selected].priority ||
-            (item->priority == scheduler->items[selected].priority &&
-             item->next_due_ms < scheduler->items[selected].next_due_ms) ||
-            (item->priority == scheduler->items[selected].priority &&
-             item->next_due_ms == scheduler->items[selected].next_due_ms &&
+            item->next_due_ms < scheduler->items[selected].next_due_ms ||
+            (item->next_due_ms == scheduler->items[selected].next_due_ms &&
+             item->priority > scheduler->items[selected].priority) ||
+            (item->next_due_ms == scheduler->items[selected].next_due_ms &&
+             item->priority == scheduler->items[selected].priority &&
              index < selected)) {
             selected = index;
             have_due = true;

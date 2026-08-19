@@ -2,9 +2,6 @@
 /**
  * @file probe.c
  * @brief Deterministic ELM327 adapter/protocol capability probing.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #include "mblink/elm327_probe.h"
 

@@ -23,13 +23,13 @@ Unknown typed PIDs return `MBLINK_OBD2_RESULT_UNSUPPORTED_PID`; MBLINK does not 
 
 Supported-PID discovery accepts the standard 32-PID block bases from `00` through `E0` and unions matching responses from multiple ECUs into one `MblinkObd2PidSet`.
 
-PID-set unions and DTC-list decodes commit caller-visible output only after the complete response validates.
+PID-set unions, typed samples and DTC-list decodes commit caller-visible output only after the complete response validates.
 
 Mode 01 PID 01 preserves MIL/DTC information, spark/compression ignition selection, monitor masks and the original four bytes. Raw masks are retained because non-continuous monitor meanings differ by ignition type.
 
 ## VIN and ELM long responses
 
-Mode 09 PID 02 decoding requires exactly 17 printable VIN characters. Output is transactional: a failed decode leaves the caller-visible VIN empty rather than partially updated.
+Mode 09 PID 02 decoding requires exactly 17 VIN characters: digits or uppercase `A`–`Z`, excluding `I`, `O` and `Q`. Output is transactional: a failed decode leaves the caller-visible VIN empty rather than partially updated.
 
 ELM-compatible adapters may display a long CAN reply as indexed text lines (`0:`, `1:`, ...), preceded by the extracted three-hex-digit total data length. MBLINK validates both index continuity and the final assembled byte count before decoding VIN/DTC data. This is ELM presentation reassembly, not the generic raw ISO-TP engine.
 
@@ -44,5 +44,3 @@ Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in 
 ## Error policy
 
 The layer distinguishes invalid arguments, ELM errors, malformed payloads, unexpected service/PID responses, unsupported typed PIDs, bounded-buffer failure, DTC overflow and denied destructive requests. Adapter errors are never reinterpreted as OBD payload data.
-
-Regression tests cover builders, supported-PID union/continuation, all formulas above, readiness, freeze-frame, VIN, DTC kinds, indexed ELM length/index validation, clear-code gating and malformed/error inputs.

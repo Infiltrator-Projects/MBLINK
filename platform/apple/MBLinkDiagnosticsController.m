@@ -210,6 +210,9 @@ static void MBLinkSessionEvent(void *context,
         });
         return;
     }
+    if (self.active) {
+        return;
+    }
 
     _pollGeneration++;
     self.active = YES;
