@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   local-linux-smoke:
@@ -44,83 +44,3 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-self-hosted --build-config Release --output-on-failure
-
-  wire-mercedes-xcode:
-    name: Wire Mercedes C layer into iPhone core
-    if: github.ref == 'refs/heads/feature/0.8-c207-om651'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: feature/0.8-c207-om651
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Patch Xcode and CI ownership guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
-          text = project.read_text()
-          edits = [
-              (
-                  '\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };\n',
-                  '\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };\n'
-                  '\t\tE0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A06 /* mercedes.c */; };\n'
-              ),
-              (
-                  '\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };\n',
-                  '\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };\n'
-                  '\t\tF0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };\n'
-              ),
-              (
-                  '\t\t\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */,\n',
-                  '\t\t\t\tF0A1B2C3D4E5F60718293A05 /* uds.c */,\n'
-                  '\t\t\t\tF0A1B2C3D4E5F60718293A06 /* mercedes.c */,\n'
-              ),
-              (
-                  '\t\t\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,\n',
-                  '\t\t\t\tE0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,\n'
-                  '\t\t\t\tE0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,\n'
-              ),
-          ]
-          for old, new in edits:
-              if text.count(old) != 1:
-                  raise SystemExit(f'Xcode anchor not unique: {old!r} count={text.count(old)}')
-              text = text.replace(old, new, 1)
-          project.write_text(text)
-
-          ci = Path('.github/workflows/ci.yml')
-          text = ci.read_text()
-          anchor = '          ! grep -q \'mblink/isotp.h\' include/mblink/uds.h src/uds/uds.c\n'
-          addition = anchor + (
-              '          test "$(grep -c \'mercedes.c in Sources\' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2\n'
-              '          grep -q \'path = "../../src/mercedes/mercedes.c"\' app/ios/MBLINK.xcodeproj/project.pbxproj\n'
-              '          ! grep -q \'CoreBluetooth\' include/mblink/mercedes.h src/mercedes/mercedes.c\n'
-          )
-          if text.count(anchor) != 1:
-              raise SystemExit('CI UDS ownership anchor not unique')
-          ci.write_text(text.replace(anchor, addition, 1))
-          PY
-
-          project='app/ios/MBLINK.xcodeproj/project.pbxproj'
-          test "$(grep -c 'mercedes.c in Sources' "$project")" -eq 2
-          test "$(grep -c 'F0A1B2C3D4E5F60718293A06 /\* mercedes.c \*/' "$project")" -eq 3
-          grep -q 'path = "../../src/mercedes/mercedes.c"' "$project"
-
-      - name: Commit wiring and restore normal smoke workflow
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'Shannon Smith'
-          git config user.email 'infiltratr@yandex.com'
-          git checkout origin/main -- .github/workflows/self-hosted-smoke.yml
-          git add app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/ci.yml .github/workflows/self-hosted-smoke.yml
-          git commit -m 'build(ios): compile Mercedes manufacturer layer'
-          git push origin HEAD:feature/0.8-c207-om651
