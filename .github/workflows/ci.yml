@@ -172,6 +172,57 @@ jobs:
           /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
           tail -n 20 "$log"
 
+      - name: Compile MBLINK app icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device-derived"
+          app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
+          icon_set="app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset"
+          source_b64="$icon_set/MBLINK-AppIcon-source.base64"
+          source_jpg="$RUNNER_TEMP/MBLINK-AppIcon-source.jpg"
+          icon_png="$icon_set/MBLINK-AppIcon-1024.png"
+          partial="$RUNNER_TEMP/mblink-appicon-info.plist"
+
+          /usr/bin/base64 -D < "$source_b64" > "$source_jpg"
+          /usr/bin/sips -s format png "$source_jpg" --out "$icon_png" >/dev/null
+
+          width="$(/usr/bin/sips -g pixelWidth "$icon_png" | awk '/pixelWidth/ {print $2}')"
+          height="$(/usr/bin/sips -g pixelHeight "$icon_png" | awk '/pixelHeight/ {print $2}')"
+          test "$width" = 1024
+          test "$height" = 1024
+
+          /usr/bin/xcrun actool \
+            app/ios/MBLINK/Assets.xcassets \
+            --compile "$app" \
+            --platform iphoneos \
+            --minimum-deployment-target 17.0 \
+            --target-device iphone \
+            --app-icon AppIcon \
+            --output-partial-info-plist "$partial" \
+            --warnings \
+            --notices
+
+          APP_PATH="$app" PARTIAL_PLIST="$partial" /usr/bin/python3 - <<'PY'
+          import os
+          import plistlib
+
+          app_plist = os.path.join(os.environ["APP_PATH"], "Info.plist")
+          partial_plist = os.environ["PARTIAL_PLIST"]
+
+          with open(app_plist, "rb") as handle:
+              info = plistlib.load(handle)
+          with open(partial_plist, "rb") as handle:
+              icon_info = plistlib.load(handle)
+
+          info.update(icon_info)
+          with open(app_plist, "wb") as handle:
+              plistlib.dump(info, handle, fmt=plistlib.FMT_BINARY)
+          PY
+
+          test -f "$app/Assets.car"
+          /usr/bin/plutil -p "$app/Info.plist" | grep -q 'AppIcon'
+
       - name: Package unsigned IPA
         shell: bash
         env:
