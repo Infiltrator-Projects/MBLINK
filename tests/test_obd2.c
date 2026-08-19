@@ -177,6 +177,23 @@ static void test_live_pid_decoding(void)
                          cases[index].tolerance),
               "sample formula matches");
     }
+
+    {
+        MblinkElm327Response response =
+            parse_response("010C", "410C1A\r>");
+        MblinkObd2Sample sample = {
+            .pid = 0xa5U,
+            .value = 12345.5,
+            .unit = MBLINK_OBD2_UNIT_KMH
+        };
+        MblinkObd2Sample snapshot = sample;
+        check(mblink_obd2_decode_live_pid(
+                  &response, 0x0cU, &sample) ==
+                  MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+              "truncated live sample is rejected");
+        check(memcmp(&sample, &snapshot, sizeof(sample)) == 0,
+              "failed live sample decode leaves output unchanged");
+    }
 }
 
 static void test_freeze_frame_and_readiness(void)
@@ -191,6 +208,20 @@ static void test_freeze_frame_and_readiness(void)
           "freeze-frame RPM decodes");
     check(near_value(sample.value, 1726.0, 0.001),
           "freeze-frame formula matches live formula");
+
+    sample.pid = 0x5aU;
+    sample.value = -77.0;
+    sample.unit = MBLINK_OBD2_UNIT_PERCENT;
+    {
+        MblinkObd2Sample snapshot = sample;
+        response = parse_response("020C00", "420C001A\r>");
+        check(mblink_obd2_decode_freeze_pid(
+                  &response, 0x0cU, 0x00U, &sample) ==
+                  MBLINK_OBD2_RESULT_MALFORMED_RESPONSE,
+              "truncated freeze-frame sample is rejected");
+        check(memcmp(&sample, &snapshot, sizeof(sample)) == 0,
+              "failed freeze-frame decode leaves output unchanged");
+    }
 
     response = parse_response("0101", "410181070000\r>");
     check(mblink_obd2_decode_readiness(
@@ -253,6 +284,20 @@ static void test_vin(void)
     check(mblink_obd2_decode_vin(&response, vin) ==
               MBLINK_OBD2_RESULT_MALFORMED_RESPONSE && vin[0] == '\0',
           "malformed multi-line VIN leaves output empty");
+
+    strcpy(vin, "sentinel");
+    response = parse_response(
+        "0902", "4902015744443230373030303030303030303021\r>");
+    check(mblink_obd2_decode_vin(&response, vin) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE && vin[0] == '\0',
+          "printable punctuation is rejected in VIN");
+
+    strcpy(vin, "sentinel");
+    response = parse_response(
+        "0902", "4902015744443230373030303030303030303069\r>");
+    check(mblink_obd2_decode_vin(&response, vin) ==
+              MBLINK_OBD2_RESULT_MALFORMED_RESPONSE && vin[0] == '\0',
+          "lowercase character is rejected in VIN");
 }
 
 static void test_dtcs(void)

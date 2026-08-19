@@ -121,6 +121,40 @@ static int test_scheduler(void)
     return 0;
 }
 
+static int test_scheduler_fairness(void)
+{
+    MblinkScheduler scheduler;
+    MblinkSchedulerDispatch dispatch;
+    MblinkObd2PidSet supported = { { 0 } };
+    bool seen[256] = { false };
+    static const uint8_t expected[] = {
+        0x0cU, 0x0dU, 0x0bU, 0x11U, 0x04U, 0x10U, 0x05U, 0x0fU
+    };
+    uint64_t now_ms = 0U;
+
+    for (size_t index = 0U; index < sizeof(expected); ++index) {
+        set_supported(&supported, expected[index]);
+    }
+    CHECK(mblink_scheduler_configure_standard_obd2(
+              &scheduler, &supported, 0U) == MBLINK_SCHEDULER_RESULT_OK);
+    CHECK(scheduler.count == sizeof(expected));
+
+    for (size_t dispatch_count = 0U; dispatch_count < 16U; ++dispatch_count) {
+        CHECK(mblink_scheduler_next(&scheduler, now_ms, &dispatch) ==
+              MBLINK_SCHEDULER_NEXT_READY);
+        seen[dispatch.pid] = true;
+        CHECK(mblink_scheduler_mark_dispatched(
+                  &scheduler, dispatch.index, now_ms) ==
+              MBLINK_SCHEDULER_RESULT_OK);
+        now_ms += 300U;
+    }
+
+    for (size_t index = 0U; index < sizeof(expected); ++index) {
+        CHECK(seen[expected[index]]);
+    }
+    return 0;
+}
+
 static int test_telemetry(void)
 {
     MblinkTelemetryStore store;
@@ -224,6 +258,9 @@ static int test_telemetry(void)
 int main(void)
 {
     if (test_scheduler() != 0) {
+        return 1;
+    }
+    if (test_scheduler_fairness() != 0) {
         return 1;
     }
     if (test_telemetry() != 0) {

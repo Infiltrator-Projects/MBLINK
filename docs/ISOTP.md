@@ -70,7 +70,3 @@ STmin is enforced using caller-provided monotonic microseconds so the 100–900 
 `MblinkIsoTpResult` distinguishes normal progress (`complete`, waiting for Flow Control/separation) from malformed/unexpected frames, wrong sequence, buffer/payload limits, timeout, Flow Control overflow, WAIT limit and unsupported framing.
 
 The engine does not repair missing frames, infer sequence numbers or reinterpret malformed PCI. A terminal RX/TX failure latches its original result until explicit reset, so later calls do not degrade a timeout or sequence error into a generic state error.
-
-## Regression focus
-
-Tests cover identifier/STmin validation, SF/FF/CF/FC framing, extended addressing, end-to-end segmentation/reassembly, sequence wrap, block-size flow control, receive/transmit timeouts, wrong sequence, failure-cause retention, unrelated Flow Control traffic, buffer overflow, WAIT/OVERFLOW handling, functional multi-frame rejection and physical multi-frame response routing after a functional request.

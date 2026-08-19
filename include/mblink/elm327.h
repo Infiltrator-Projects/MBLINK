@@ -7,9 +7,6 @@
  * prompt detection, normalisation, adapter-status classification and the
  * deterministic initialisation sequence. It does not know about BLE, Wi-Fi,
  * sockets or any other concrete transport.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #ifndef MBLINK_ELM327_H
 #define MBLINK_ELM327_H

@@ -233,7 +233,7 @@ jobs:
 
   release:
     name: Publish version release
-    needs: [portable-core, sanitizers, linux-app, apple-ios]
+    needs: [portable-core, sanitizers, linux-app, apple-ios, iphone-device-ipa]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -286,31 +286,46 @@ jobs:
               return;
             }
 
-            try {
-              const existingRelease = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              core.info(`${tag} already has release ${existingRelease.data.html_url}; nothing to do.`);
-              return;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-
-            let tagExists = false;
+            let tagTarget = null;
             try {
               const existingRef = await github.rest.git.getRef({
                 owner,
                 repo,
                 ref: `tags/${tag}`
               });
-              tagExists = true;
-              if (existingRef.data.object.sha !== target) {
-                core.setFailed(`${tag} exists at ${existingRef.data.object.sha} without a release; expected ${target}.`);
-                return;
-              }
+              tagTarget = existingRef.data.object.sha;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
 
-            if (!tagExists) {
+            let existingRelease = null;
+            try {
+              const response = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag
+              });
+              existingRelease = response.data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            if (tagTarget !== null && tagTarget !== target) {
+              core.setFailed(`${tag} already exists at ${tagTarget}; current main is ${target}. Bump VERSION before publishing new code.`);
+              return;
+            }
+
+            if (existingRelease !== null && tagTarget === null) {
+              core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
+              return;
+            }
+
+            if (existingRelease !== null) {
+              core.info(`${tag} already identifies this exact commit and has release ${existingRelease.html_url}; nothing to do.`);
+              return;
+            }
+
+            if (tagTarget === null) {
               await github.rest.git.createRef({
                 owner,
                 repo,

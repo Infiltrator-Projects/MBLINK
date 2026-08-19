@@ -37,6 +37,16 @@ static char obd2_hex_digit(unsigned int value)
     return digits[value & 0x0fU];
 }
 
+static bool obd2_vin_character_valid(uint8_t value)
+{
+    if (value >= (uint8_t)'0' && value <= (uint8_t)'9') {
+        return true;
+    }
+    return value >= (uint8_t)'A' && value <= (uint8_t)'Z' &&
+           value != (uint8_t)'I' && value != (uint8_t)'O' &&
+           value != (uint8_t)'Q';
+}
+
 static MblinkObd2Result obd2_write_command(
     const uint8_t *bytes, size_t byte_count, char *buffer, size_t buffer_size)
 {
@@ -313,7 +323,6 @@ static MblinkObd2Result obd2_find_pid_payload(
         size_t data_index;
         size_t data_length;
 
-        /* Indexed ELM CAN display lines are only used for long replies. */
         if (memchr(cursor, ':', line_length) != NULL) {
             goto next_line;
         }
@@ -321,7 +330,6 @@ static MblinkObd2Result obd2_find_pid_payload(
         result = obd2_parse_hex_line(cursor, line_length, bytes,
                                      sizeof(bytes), &byte_count);
         if (result != MBLINK_OBD2_RESULT_OK) {
-            /* A three-nibble length line belongs to a following indexed block. */
             size_t indexed_length = 0U;
             if (obd2_parse_indexed_length(cursor, line_length,
                                           &indexed_length)) {
@@ -363,76 +371,81 @@ next_line:
 static MblinkObd2Result obd2_decode_sample_data(
     uint8_t pid, const uint8_t *data, size_t length, MblinkObd2Sample *sample)
 {
+    MblinkObd2Sample decoded = {
+        .pid = pid,
+        .value = 0.0,
+        .unit = MBLINK_OBD2_UNIT_NONE
+    };
+
     if (data == NULL || sample == NULL) {
         return MBLINK_OBD2_RESULT_INVALID_ARGUMENT;
     }
-
-    sample->pid = pid;
-    sample->value = 0.0;
-    sample->unit = MBLINK_OBD2_UNIT_NONE;
 
     switch (pid) {
     case 0x04U:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0] * 100.0 / 255.0;
-        sample->unit = MBLINK_OBD2_UNIT_PERCENT;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0] * 100.0 / 255.0;
+        decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
+        break;
     case 0x05U:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0] - 40.0;
-        sample->unit = MBLINK_OBD2_UNIT_CELSIUS;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0] - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
     case 0x0bU:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0];
-        sample->unit = MBLINK_OBD2_UNIT_KPA;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0];
+        decoded.unit = MBLINK_OBD2_UNIT_KPA;
+        break;
     case 0x0cU:
         if (length < 2U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value =
+        decoded.value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 4.0;
-        sample->unit = MBLINK_OBD2_UNIT_RPM;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.unit = MBLINK_OBD2_UNIT_RPM;
+        break;
     case 0x0dU:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0];
-        sample->unit = MBLINK_OBD2_UNIT_KMH;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0];
+        decoded.unit = MBLINK_OBD2_UNIT_KMH;
+        break;
     case 0x0fU:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0] - 40.0;
-        sample->unit = MBLINK_OBD2_UNIT_CELSIUS;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0] - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
     case 0x10U:
         if (length < 2U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value =
+        decoded.value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 100.0;
-        sample->unit = MBLINK_OBD2_UNIT_GRAMS_PER_SECOND;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.unit = MBLINK_OBD2_UNIT_GRAMS_PER_SECOND;
+        break;
     case 0x11U:
         if (length < 1U) {
             return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         }
-        sample->value = (double)data[0] * 100.0 / 255.0;
-        sample->unit = MBLINK_OBD2_UNIT_PERCENT;
-        return MBLINK_OBD2_RESULT_OK;
+        decoded.value = (double)data[0] * 100.0 / 255.0;
+        decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
+        break;
     default:
         return MBLINK_OBD2_RESULT_UNSUPPORTED_PID;
     }
+
+    *sample = decoded;
+    return MBLINK_OBD2_RESULT_OK;
 }
 
 static uint8_t obd2_dtc_response_service(MblinkObd2DtcKind kind)
@@ -818,7 +831,7 @@ MblinkObd2Result mblink_obd2_decode_vin(
         for (index = 3U;
              index < indexed_length && written < MBLINK_OBD2_VIN_LENGTH;
              ++index) {
-            if (indexed[index] < 0x20U || indexed[index] > 0x7eU) {
+            if (!obd2_vin_character_valid(indexed[index])) {
                 return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
             }
             decoded[written++] = (char)indexed[index];
@@ -852,7 +865,7 @@ MblinkObd2Result mblink_obd2_decode_vin(
                      index < byte_count &&
                      written < MBLINK_OBD2_VIN_LENGTH;
                      ++index) {
-                    if (bytes[index] < 0x20U || bytes[index] > 0x7eU) {
+                    if (!obd2_vin_character_valid(bytes[index])) {
                         return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
                     }
                     decoded[written++] = (char)bytes[index];

@@ -2,9 +2,6 @@
 /**
  * @file elm327.c
  * @brief Portable ELM327 command framing, response parsing and initialisation.
- *
- * @author Shannon Smith
- * @copyright Copyright (C) 2026 Shannon Smith
  */
 #include "mblink/elm327.h"
 

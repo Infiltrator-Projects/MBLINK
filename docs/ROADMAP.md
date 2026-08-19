@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Current gate: 0.6.1 — pre-UDS quality hardening. Next feature milestone: 0.7 — UDS foundation in C.**
+**Current gate: 0.6.2 — final pre-UDS hardening. Next feature milestone: 0.7 — UDS foundation in C.**
 
 ## Completed foundations
 
@@ -13,26 +13,13 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.1 | Portable C11 core, public C API/transport ABI, pinned Infiltratr Common, strict CI |
 | 0.2 | ELM327 command/parser/init/session engine with deterministic mock tests |
 | 0.3 | Standard OBD-II PID discovery/decoding, VIN, readiness, freeze-frame and DTCs |
-| 0.4 | Objective-C CoreBluetooth provider and native iPhone shell; physical hardware validation remains pending |
+| 0.4 | Objective-C CoreBluetooth provider and native iPhone shell; physical BLE/vehicle validation remains pending |
 | 0.5 | C-owned scheduler, telemetry/history, full-session recording and SwiftUI dashboard/export |
 | 0.6 | Reusable Classical-CAN ISO-TP TX/RX state machines independent of UDS/Mercedes |
+| 0.6.1 | Lifetime, overflow and failure-state hardening; sanitizer CI and device-IPA build path |
+| 0.6.2 | Scheduler fairness, transactional OBD samples, stricter VIN validation, Apple lifecycle and release-identity hardening |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
-
-## 0.6.1 — quality and API hardening
-
-No new diagnostic feature belongs in this milestone.
-
-Targets:
-
-- close lifetime, overflow and failure-state edge cases found in the pre-0.7 review;
-- strengthen regression coverage and add sanitizer CI;
-- keep build configuration deterministic;
-- reduce redundant documentation/comments;
-- clean small iPhone export/presentation issues;
-- leave 0.7 with a sharper, more deliberate C contract.
-
-**Exit condition:** the final hardening branch head passes Linux/macOS C tests, ASan+UBSan, and Debug/Release iOS Simulator builds.
 
 ## 0.7 — UDS foundation in C
 
