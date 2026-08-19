@@ -56,6 +56,7 @@ typedef struct {
 } MblinkParameterSample;
 
 const char *mblink_parameter_protocol_name(MblinkParameterProtocol protocol);
+bool mblink_parameter_key_is_valid(const MblinkParameterKey *key);
 bool mblink_parameter_key_equal(const MblinkParameterKey *left,
                                 const MblinkParameterKey *right);
 bool mblink_parameter_definition_is_valid(
