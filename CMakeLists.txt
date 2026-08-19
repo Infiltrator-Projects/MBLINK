@@ -74,7 +74,8 @@ add_library(mblink STATIC
     src/elm327/elm327.c
     src/elm327/session.c
     src/elm327/probe.c
-    src/obd2/obd2.c)
+    src/obd2/obd2.c
+    src/uds/uds.c)
 target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
@@ -138,4 +139,5 @@ if(BUILD_TESTING)
         tests/test_isotp_failed_state.c)
     mblink_add_test(mblink-test-isotp-functional-response
         tests/test_isotp_functional_response.c)
+    mblink_add_test(mblink-test-uds tests/test_uds.c)
 endif()
