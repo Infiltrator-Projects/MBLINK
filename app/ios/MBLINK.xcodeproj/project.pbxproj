@@ -17,6 +17,7 @@
 		E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */; };
 		E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */; };
 		E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
+		E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
@@ -53,6 +54,7 @@
 		F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_store.c"; path = "../../src/core/telemetry_store.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_csv.c"; path = "../../src/core/telemetry_csv.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -129,6 +131,7 @@
 				F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */,
 				F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */,
 				F0A1B2C3D4E5F60718293A04 /* isotp.c */,
+				F0A1B2C3D4E5F60718293A05 /* uds.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
 				A4A92AE396A1586C99D8BB56 /* session.c */,
 				41A80A01E9B823433E288953 /* probe.c */,
@@ -270,6 +273,7 @@
 				E0A1B2C3D4E5F60718293B02 /* telemetry_store.c in Sources */,
 				E0A1B2C3D4E5F60718293B03 /* telemetry_csv.c in Sources */,
 				E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,
+				E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
