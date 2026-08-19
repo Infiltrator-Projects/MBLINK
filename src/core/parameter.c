@@ -21,21 +21,21 @@ typedef struct {
 } MblinkObd2ParameterEntry;
 
 static const MblinkObd2ParameterEntry mblink_obd2_parameters[] = {
-    { { OBD_KEY(0x0cU), "obd2.engine.rpm", "Engine speed", " rpm",
+    { { OBD_KEY(0x0cU), "obd2.engine.rpm", "RPM", "Engine speed", " rpm",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_RPM },
-    { { OBD_KEY(0x0dU), "obd2.vehicle.speed", "Vehicle speed", " km/h",
+    { { OBD_KEY(0x0dU), "obd2.vehicle.speed", "SPEED", "Vehicle speed", " km/h",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KMH },
-    { { OBD_KEY(0x0bU), "obd2.engine.map", "Manifold pressure", " kPa",
+    { { OBD_KEY(0x0bU), "obd2.engine.map", "MAP", "Manifold pressure", " kPa",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KPA },
-    { { OBD_KEY(0x11U), "obd2.engine.throttle", "Throttle position", "%",
+    { { OBD_KEY(0x11U), "obd2.engine.throttle", "THROTTLE", "Throttle position", "%",
         0U, true, 0.0, 100.0 }, MBLINK_OBD2_UNIT_PERCENT },
-    { { OBD_KEY(0x04U), "obd2.engine.load", "Calculated engine load", "%",
+    { { OBD_KEY(0x04U), "obd2.engine.load", "LOAD", "Calculated engine load", "%",
         0U, true, 0.0, 100.0 }, MBLINK_OBD2_UNIT_PERCENT },
-    { { OBD_KEY(0x10U), "obd2.engine.maf", "Mass air flow", " g/s",
+    { { OBD_KEY(0x10U), "obd2.engine.maf", "MAF", "Mass air flow", " g/s",
         1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_GRAMS_PER_SECOND },
-    { { OBD_KEY(0x05U), "obd2.engine.coolant", "Coolant temperature", " C",
+    { { OBD_KEY(0x05U), "obd2.engine.coolant", "ECT", "Coolant temperature", " °C",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
-    { { OBD_KEY(0x0fU), "obd2.engine.intake_air", "Intake air temperature", " C",
+    { { OBD_KEY(0x0fU), "obd2.engine.intake_air", "IAT", "Intake air temperature", " °C",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS }
 };
 
@@ -61,7 +61,8 @@ bool mblink_parameter_definition_is_valid(
     const MblinkParameterDefinition *definition)
 {
     if (definition == NULL || definition->stable_key == NULL ||
-        definition->stable_key[0] == '\0' || definition->name == NULL ||
+        definition->stable_key[0] == '\0' || definition->short_name == NULL ||
+        definition->short_name[0] == '\0' || definition->name == NULL ||
         definition->name[0] == '\0' || definition->suffix == NULL ||
         definition->decimal_places > 9U ||
         definition->key.protocol < MBLINK_PARAMETER_PROTOCOL_OBD2 ||
@@ -152,6 +153,25 @@ const MblinkParameterDefinition *mblink_parameter_obd2_definition(uint8_t pid)
     for (index = 0U; index < mblink_parameter_obd2_definition_count(); ++index) {
         if (mblink_obd2_parameters[index].definition.key.identifier ==
             (uint32_t)pid) {
+            return &mblink_obd2_parameters[index].definition;
+        }
+    }
+    return NULL;
+}
+
+const MblinkParameterDefinition *mblink_parameter_obd2_definition_for_stable_key(
+    const char *stable_key)
+{
+    size_t index;
+
+    if (stable_key == NULL || stable_key[0] == '\0') {
+        return NULL;
+    }
+
+    for (index = 0U; index < mblink_parameter_obd2_definition_count(); ++index) {
+        if (infiltratr_string_equal(
+                mblink_obd2_parameters[index].definition.stable_key,
+                stable_key)) {
             return &mblink_obd2_parameters[index].definition;
         }
     }
