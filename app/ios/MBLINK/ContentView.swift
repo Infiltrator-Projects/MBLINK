@@ -3,39 +3,9 @@ import Charts
 import Foundation
 import SwiftUI
 
-private struct DiagnosticMetric: Identifiable {
-    let id: UInt8
-    let shortName: String
-    let title: String
-    let value: String?
-}
-
 private struct HistoryPoint: Identifiable {
     let id: Int
     let value: Double
-}
-
-private extension ConnectionViewModel {
-    var diagnosticMetrics: [DiagnosticMetric] {
-        [
-            DiagnosticMetric(id: 0x0c, shortName: "RPM", title: "Engine speed",
-                             value: rpm.map { String(format: "%.0f rpm", $0) }),
-            DiagnosticMetric(id: 0x0d, shortName: "SPEED", title: "Vehicle speed",
-                             value: vehicleSpeedKmh.map { String(format: "%.0f km/h", $0) }),
-            DiagnosticMetric(id: 0x0b, shortName: "MAP", title: "Manifold pressure",
-                             value: manifoldPressureKPa.map { String(format: "%.0f kPa", $0) }),
-            DiagnosticMetric(id: 0x11, shortName: "THROTTLE", title: "Throttle position",
-                             value: throttlePositionPercent.map { String(format: "%.0f%%", $0) }),
-            DiagnosticMetric(id: 0x04, shortName: "LOAD", title: "Calculated engine load",
-                             value: engineLoadPercent.map { String(format: "%.0f%%", $0) }),
-            DiagnosticMetric(id: 0x10, shortName: "MAF", title: "Mass air flow",
-                             value: massAirFlowGramsPerSecond.map { String(format: "%.1f g/s", $0) }),
-            DiagnosticMetric(id: 0x05, shortName: "ECT", title: "Coolant temperature",
-                             value: coolantTemperatureCelsius.map { String(format: "%.0f °C", $0) }),
-            DiagnosticMetric(id: 0x0f, shortName: "IAT", title: "Intake air temperature",
-                             value: intakeAirTemperatureCelsius.map { String(format: "%.0f °C", $0) })
-        ]
-    }
 }
 
 struct ContentView: View {
@@ -166,11 +136,13 @@ private struct VehicleView: View {
             }
             Section("Vehicle") {
                 LabeledContent("Target platform", value: "Mercedes-Benz C207")
-                LabeledContent("Diagnostic layer", value: "Standard OBD-II")
-                LabeledContent("Mercedes ECU discovery", value: "Not yet available")
+                LabeledContent("Engine family", value: "OM651")
+                LabeledContent("Generic diagnostics", value: "OBD-II")
+                LabeledContent("Advanced diagnostics", value: "UDS foundation ready")
+                LabeledContent("Mercedes ECU discovery", value: "Hardware validation pending")
             }
             Section {
-                Text("UDS ECU identification and Mercedes-Benz module discovery will populate this screen as those portable C layers are implemented and verified against real vehicle responses.")
+                Text("The portable UDS and Mercedes definition layers are present, but MBLINK does not invent control units or manufacturer data. ECU discovery and Mercedes live values will appear here only after they are observed and verified against the vehicle.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -184,12 +156,13 @@ private struct ModulesView: View {
         List {
             Section("Available now") {
                 Label("Generic OBD-II engine diagnostics", systemImage: "engine.combustion.fill")
+                Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
             }
             Section("Mercedes-Benz discovery") {
                 ContentUnavailableView(
-                    "ECU discovery not available yet",
+                    "ECU discovery awaiting vehicle validation",
                     systemImage: "square.stack.3d.up.slash",
-                    description: Text("UDS and Mercedes-specific module discovery are the next diagnostic layers. No control units are invented or assumed before the vehicle reports them.")
+                    description: Text("The Mercedes layer carries explicit candidate and vehicle-verified provenance. Control units will populate this workspace only after real C207 / OM651 responses are captured and validated.")
                 )
             }
         }
@@ -212,24 +185,29 @@ private struct LiveDataView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     var body: some View {
-        List(connection.diagnosticMetrics) { metric in
+        List(connection.diagnosticParameters) { parameter in
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(metric.shortName)
-                        .font(.caption.monospaced().weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(metric.title)
+                    HStack(spacing: 6) {
+                        Text(parameter.shortName)
+                            .font(.caption.monospaced().weight(.semibold))
+                        Text(parameter.protocolName.uppercased())
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(parameter.title)
                 }
                 Spacer()
-                Text(metric.value ?? "—")
+                Text(parameter.formattedValue)
                     .monospacedDigit()
+                    .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
                 Button {
-                    connection.toggleFavourite(pid: metric.id)
+                    connection.toggleFavourite(stableKey: parameter.id)
                 } label: {
-                    Image(systemName: connection.favouritePIDs.contains(metric.id) ? "star.fill" : "star")
+                    Image(systemName: parameter.favourite ? "star.fill" : "star")
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(connection.favouritePIDs.contains(metric.id) ? "Remove favourite" : "Add favourite")
+                .accessibilityLabel(parameter.favourite ? "Remove favourite" : "Add favourite")
             }
             .padding(.vertical, 3)
         }
@@ -243,14 +221,15 @@ private struct TableDataView: View {
     var body: some View {
         List {
             Section {
-                ForEach(connection.diagnosticMetrics) { metric in
+                ForEach(connection.diagnosticParameters) { parameter in
                     LabeledContent {
-                        Text(metric.value ?? "—")
+                        Text(parameter.formattedValue)
                             .monospacedDigit()
+                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
                     } label: {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(metric.title)
-                            Text(metric.shortName)
+                            Text(parameter.title)
+                            Text("\(parameter.protocolName.uppercased()) · \(parameter.shortName)")
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                         }
@@ -267,23 +246,29 @@ private struct TableDataView: View {
 private struct DashboardView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
-    private var displayedMetrics: [DiagnosticMetric] {
-        let favourites = connection.diagnosticMetrics.filter { connection.favouritePIDs.contains($0.id) }
-        return favourites.isEmpty ? connection.diagnosticMetrics : favourites
+    private var displayedParameters: [DiagnosticParameter] {
+        let favourites = connection.diagnosticParameters.filter(\.favourite)
+        return favourites.isEmpty ? connection.diagnosticParameters : favourites
     }
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
-                ForEach(displayedMetrics) { metric in
+                ForEach(displayedParameters) { parameter in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(metric.shortName)
-                            .font(.caption.monospaced().weight(.bold))
-                            .foregroundStyle(.secondary)
-                        Text(metric.value ?? "—")
+                        HStack {
+                            Text(parameter.shortName)
+                                .font(.caption.monospaced().weight(.bold))
+                            Spacer()
+                            Text(parameter.protocolName.uppercased())
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(parameter.formattedValue)
                             .font(.title2.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
                             .minimumScaleFactor(0.7)
-                        Text(metric.title)
+                        Text(parameter.title)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -301,31 +286,55 @@ private struct DashboardView: View {
 private struct GraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private var graphedParameters: [DiagnosticParameter] {
+        let withHistory = connection.diagnosticParameters.filter { !$0.history.isEmpty }
+        let favourites = withHistory.filter(\.favourite)
+        let selected = favourites.isEmpty ? withHistory : favourites
+        return Array(selected.prefix(4))
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                graphCard(title: "Engine speed", unit: "rpm", values: connection.recentRPM)
-                graphCard(title: "Coolant temperature", unit: "°C", values: connection.recentCoolant)
+            if graphedParameters.isEmpty {
+                ContentUnavailableView(
+                    "Waiting for live samples",
+                    systemImage: "chart.xyaxis.line",
+                    description: Text("Connect to the vehicle and MBLINK will graph recent history for available parameters. Favourite parameters are prioritised automatically.")
+                )
+                .padding(.top, 60)
+            } else {
+                VStack(spacing: 20) {
+                    ForEach(graphedParameters) { parameter in
+                        graphCard(parameter)
+                    }
+                }
+                .padding()
             }
-            .padding()
         }
         .navigationTitle("Graphs")
     }
 
-    private func graphCard(title: String, unit: String, values: [Double]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func graphCard(_ parameter: DiagnosticParameter) -> some View {
+        let unit = parameter.suffix.trimmingCharacters(in: .whitespaces)
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(title).font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(parameter.title).font(.headline)
+                    Text("\(parameter.protocolName.uppercased()) · \(parameter.shortName)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Text(values.last.map { String(format: "%.0f %@", $0, unit) } ?? "—")
+                Text(parameter.formattedValue)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            if values.count > 1 {
-                Chart(historyPoints(values)) { point in
+            if parameter.history.count > 1 {
+                Chart(historyPoints(parameter.history)) { point in
                     LineMark(
                         x: .value("Sample", point.id),
-                        y: .value(title, point.value)
+                        y: .value(parameter.title, point.value)
                     )
                 }
                 .frame(height: 180)
@@ -384,7 +393,7 @@ private struct SettingsView: View {
                 LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "Unknown")
             }
             Section("Architecture") {
-                Text("SwiftUI is presentation only. Portable diagnostics, scheduling, telemetry and protocol behaviour remain owned by the shared C core used by every platform front end.")
+                Text("SwiftUI renders the shared C diagnostic parameter catalog. Portable diagnostics, parameter metadata/formatting, scheduling, telemetry and protocol behaviour remain owned by libmblink and Infiltratr Common rather than being duplicated in the iPhone UI.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
