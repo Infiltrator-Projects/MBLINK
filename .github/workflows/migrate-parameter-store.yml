@@ -27,50 +27,77 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(text, old, new, label):
+          def once(text, old, new, label):
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f"{label}: expected one match, found {count}")
               return text.replace(old, new, 1)
 
-          header_path = Path('platform/apple/MBLinkDiagnosticsController.h')
-          header = header_path.read_text(encoding='utf-8')
-          old = '''- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-                                      limit:(NSUInteger)limit
-    NS_SWIFT_NAME(recentValues(forPID:limit:));
-- (BOOL)favouriteForPID:(uint8_t)pid
-    NS_SWIFT_NAME(favourite(forPID:));
-- (void)setFavourite:(BOOL)favourite
-              forPID:(uint8_t)pid
-    NS_SWIFT_NAME(setFavourite(_:forPID:));
-'''
-          new = '''- (NSArray<NSNumber *> *)recentValuesForParameterKey:(NSString *)stableKey
-                                                   limit:(NSUInteger)limit
+          # The Objective-C public surface now speaks stable parameter keys.
+          Path('platform/apple/MBLinkDiagnosticsController.h').write_text(r'''// SPDX-License-Identifier: GPL-3.0-or-later
+#import <Foundation/Foundation.h>
+
+#include <stdint.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@class MBLinkDiagnosticsController;
+
+NS_SWIFT_UI_ACTOR
+@protocol MBLinkDiagnosticsControllerDelegate <NSObject>
+- (void)diagnosticsControllerDidUpdate:(MBLinkDiagnosticsController *)controller;
+@end
+
+/**
+ * Thin Apple application bridge over libmblink.
+ *
+ * CoreBluetooth remains transport-only. Poll scheduling, parameter history and
+ * CSV formatting are owned by the portable C core.
+ */
+NS_SWIFT_UI_ACTOR
+@interface MBLinkDiagnosticsController : NSObject
+
+@property(nonatomic, weak, nullable) id<MBLinkDiagnosticsControllerDelegate> delegate;
+@property(nonatomic, copy, readonly) NSString *statusText;
+@property(nonatomic, copy, readonly, nullable) NSString *peripheralName;
+@property(nonatomic, copy, readonly, nullable) NSString *adapterIdentifier;
+@property(nonatomic, readonly, getter=isActive) BOOL active;
+@property(nonatomic, readonly, getter=isReady) BOOL ready;
+@property(nonatomic, readonly) NSUInteger recordedSampleCount;
+
+- (void)start;
+- (void)disconnect;
+
+- (NSArray<NSNumber *> *)recentValuesForParameterKey:(NSString *)stableKey
+                                               limit:(NSUInteger)limit
     NS_SWIFT_NAME(recentValues(forParameterKey:limit:));
 - (BOOL)favouriteForParameterKey:(NSString *)stableKey
     NS_SWIFT_NAME(favourite(forParameterKey:));
 - (void)setFavourite:(BOOL)favourite
      forParameterKey:(NSString *)stableKey
     NS_SWIFT_NAME(setFavourite(_:forParameterKey:));
-'''
-          header = replace_once(header, old, new, 'public parameter accessors')
-          header_path.write_text(header, encoding='utf-8')
+- (nullable NSString *)csvSnapshot
+    NS_SWIFT_NAME(csvSnapshot());
+
+@end
+
+NS_ASSUME_NONNULL_END
+''', encoding='utf-8')
 
           source_path = Path('platform/apple/MBLinkDiagnosticsController.m')
           source = source_path.read_text(encoding='utf-8')
-          source = replace_once(
-              source,
+          source = once(source,
               '#import "mblink/obd2.h"\n#import "mblink/scheduler.h"\n',
               '#import "mblink/obd2.h"\n#import "mblink/parameter.h"\n#import "mblink/parameter_store.h"\n#import "mblink/scheduler.h"\n',
               'parameter imports')
-          source = replace_once(
-              source,
+          source = once(source,
               '    MblinkScheduler _scheduler;\n    MblinkTelemetryStore _telemetry;\n',
               '    MblinkScheduler _scheduler;\n    MblinkParameterStore _parameterStore;\n    BOOL _parameterStoreReady;\n    MblinkTelemetryStore _telemetry;\n',
               'parameter store ivars')
 
-          helper_marker = '''static void MBLinkSessionEvent(void *context,
+          session_event = '''static void MBLinkSessionEvent(void *context,
                                const MblinkElm327Session *session)
 {
     MBLinkDiagnosticsController *controller =
@@ -82,7 +109,7 @@ jobs:
 }
 
 '''
-          helper = helper_marker + '''static bool MBLinkRegisterParameterCatalog(MblinkParameterStore *store)
+          registration = session_event + '''static bool MBLinkRegisterParameterCatalog(MblinkParameterStore *store)
 {
     static const uint8_t defaultFavourites[] = {
         0x0cU, 0x0dU, 0x05U, 0x0bU
@@ -119,16 +146,12 @@ jobs:
 }
 
 '''
-          source = replace_once(source, helper_marker, helper, 'parameter catalog helper')
-
-          source = replace_once(
-              source,
+          source = once(source, session_event, registration, 'parameter catalog helper')
+          source = once(source,
               '        mblink_scheduler_init(&_scheduler);\n        mblink_telemetry_store_init(&_telemetry);\n',
               '        mblink_scheduler_init(&_scheduler);\n        _parameterStoreReady = MBLinkRegisterParameterCatalog(&_parameterStore);\n        mblink_telemetry_store_init(&_telemetry);\n',
               'parameter store initialization')
-
-          source = replace_once(
-              source,
+          source = once(source,
               '''    if (self.active) {
         return;
     }
@@ -146,28 +169,19 @@ jobs:
     _pollGeneration++;
 ''',
               'parameter catalog start guard')
-          source = replace_once(
-              source,
+          source = once(source,
               '    mblink_scheduler_init(&_scheduler);\n    mblink_telemetry_store_clear_samples(&_telemetry);\n',
               '    mblink_scheduler_init(&_scheduler);\n    mblink_parameter_store_clear_samples(&_parameterStore);\n    mblink_telemetry_store_clear_samples(&_telemetry);\n',
               'parameter sample reset')
 
-          old_record = '''    if (!mblink_telemetry_store_record(
-            &_telemetry,
-            MBLinkElapsedMilliseconds(_sessionMonotonicStartMs), &sample)) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not record live telemetry sample"];
-        return;
-    }
-
-    MblinkTelemetrySample recorded;
-    if (_recorder.started && !_recorder.finished &&
-        mblink_telemetry_store_latest(&_telemetry, sample.pid, &recorded) &&
-        !mblink_telemetry_recorder_record_sample(
-            &_recorder, &recorded,
-            mblink_telemetry_store_is_favourite(&_telemetry, sample.pid))) {
-'''
-          new_record = '''    const uint64_t elapsedMs =
+          record_pattern = re.compile(
+              r'    if \(!mblink_telemetry_store_record\(\n'
+              r'            &_telemetry,\n'
+              r'            MBLinkElapsedMilliseconds\(_sessionMonotonicStartMs\), &sample\)\) \{\n'
+              r'.*?'
+              r'            mblink_telemetry_store_is_favourite\(&_telemetry, sample\.pid\)\)\) \{',
+              re.DOTALL)
+          replacement = '''    const uint64_t elapsedMs =
         MBLinkElapsedMilliseconds(_sessionMonotonicStartMs);
     if (!mblink_telemetry_store_record(&_telemetry, elapsedMs, &sample)) {
         _phase = MBLinkDiagnosticsPhaseFailed;
@@ -190,60 +204,16 @@ jobs:
         !mblink_telemetry_recorder_record_sample(
             &_recorder, &recorded,
             mblink_parameter_store_is_favourite(
-                &_parameterStore, &parameterSample.definition->key))) {
-'''
-          source = replace_once(source, old_record, new_record, 'dual telemetry/parameter recording')
+                &_parameterStore, &parameterSample.definition->key))) {'''
+          source, count = record_pattern.subn(replacement, source, count=1)
+          if count != 1:
+              raise SystemExit(f'live record migration: expected one match, found {count}')
 
-          old_tail = '''- (NSUInteger)recordedSampleCount
-{
-    uint64_t total = mblink_telemetry_store_total_sample_count(&_telemetry);
-    if (total > (uint64_t)NSUIntegerMax) {
-        return NSUIntegerMax;
-    }
-    return (NSUInteger)total;
-}
-
-- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-                                      limit:(NSUInteger)limit
-{
-    if (limit == 0U) {
-        return @[];
-    }
-
-    NSMutableArray<NSNumber *> *values =
-        [[NSMutableArray alloc] initWithCapacity:limit];
-    const size_t count =
-        mblink_telemetry_store_history_count(&_telemetry);
-
-    for (size_t reverseIndex = count;
-         reverseIndex > 0U && values.count < limit;
-         --reverseIndex) {
-        MblinkTelemetrySample sample;
-        if (!mblink_telemetry_store_history_at(
-                &_telemetry, reverseIndex - 1U, &sample)) {
-            continue;
-        }
-        if (sample.measurement.pid != pid) {
-            continue;
-        }
-        [values insertObject:@(sample.measurement.value) atIndex:0U];
-    }
-    return values;
-}
-
-- (BOOL)favouriteForPID:(uint8_t)pid
-{
-    return mblink_telemetry_store_is_favourite(&_telemetry, pid);
-}
-
-- (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid
-{
-    mblink_telemetry_store_set_favourite(&_telemetry, pid, favourite);
-    [self notifyDelegate];
-}
-
-'''
-          new_tail = '''- (NSUInteger)recordedSampleCount
+          tail_pattern = re.compile(
+              r'- \(NSUInteger\)recordedSampleCount\n\{.*?\n\}\n\n'
+              r'- \(nullable NSString \*\)csvSnapshot',
+              re.DOTALL)
+          tail = '''- (NSUInteger)recordedSampleCount
 {
     uint64_t total = mblink_parameter_store_total_sample_count(&_parameterStore);
     if (total > (uint64_t)NSUIntegerMax) {
@@ -255,10 +225,9 @@ jobs:
 - (NSArray<NSNumber *> *)recentValuesForParameterKey:(NSString *)stableKey
                                                limit:(NSUInteger)limit
 {
-    const char *keyText = stableKey.UTF8String;
     const MblinkParameterDefinition *definition =
         mblink_parameter_store_definition_for_stable_key(
-            &_parameterStore, keyText);
+            &_parameterStore, stableKey.UTF8String);
     if (definition == NULL || limit == 0U) {
         return @[];
     }
@@ -317,62 +286,184 @@ jobs:
     [self notifyDelegate];
 }
 
-'''
-          source = replace_once(source, old_tail, new_tail, 'generic Apple parameter accessors')
+- (nullable NSString *)csvSnapshot'''
+          source, count = tail_pattern.subn(tail, source, count=1)
+          if count != 1:
+              raise SystemExit(f'generic accessor tail: expected one match, found {count}')
           source_path.write_text(source, encoding='utf-8')
 
-          swift_path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
-          swift = swift_path.read_text(encoding='utf-8')
-          old_toggle = '''    func toggleFavourite(stableKey: String) {
-        let pid: UInt8? = stableKey.withCString { key in
-            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else {
-                return nil
-            }
-            return UInt8(exactly: definition.pointee.key.identifier)
-        }
-        guard let pid else { return }
+          Path('app/ios/MBLINK/ConnectionViewModel.swift').write_text(r'''// SPDX-License-Identifier: GPL-3.0-or-later
+import Combine
+import Foundation
 
-        controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
+struct DiagnosticParameter: Identifiable {
+    let id: String
+    let protocolName: String
+    let moduleIdentifier: UInt32
+    let parameterIdentifier: UInt32
+    let shortName: String
+    let title: String
+    let suffix: String
+    let formattedValue: String
+    let value: Double?
+    let favourite: Bool
+    let history: [Double]
+
+    var isAvailable: Bool { value != nil }
+}
+
+@MainActor
+final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsControllerDelegate {
+    @Published private(set) var statusText = "Idle"
+    @Published private(set) var peripheralName = "No adapter"
+    @Published private(set) var adapterIdentifier = "Unknown"
+    @Published private(set) var isActive = false
+    @Published private(set) var isReady = false
+    @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
+    @Published private(set) var recordedSampleCount = 0
+    @Published private(set) var csvExportURL: URL?
+
+    private let controller = MBLinkDiagnosticsController()
+
+    override init() {
+        super.init()
+        controller.delegate = self
         refresh()
     }
-'''
-          new_toggle = '''    func toggleFavourite(stableKey: String) {
+
+    func connect() {
+        clearPreparedExport()
+        controller.start()
+    }
+
+    func disconnect() {
+        controller.disconnect()
+    }
+
+    func toggleFavourite(stableKey: String) {
         controller.setFavourite(
             !controller.favourite(forParameterKey: stableKey),
             forParameterKey: stableKey
         )
         refresh()
     }
-'''
-          swift = replace_once(swift, old_toggle, new_toggle, 'Swift favourite bridge')
-          old_pid_guard = '''            let metadata = definition.pointee
-            guard let pid = UInt8(exactly: metadata.key.identifier) else {
+
+    func prepareCSVExport() {
+        guard let csv = controller.csvSnapshot(),
+              let data = csv.data(using: .utf8) else {
+            clearPreparedExport()
+            return
+        }
+
+        clearPreparedExport()
+        let filename = "MBLINK-session-\(UUID().uuidString).csv"
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
+            csvExportURL = url
+        } catch {
+            csvExportURL = nil
+        }
+    }
+
+    func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
+        refresh()
+    }
+
+    private func clearPreparedExport() {
+        if let url = csvExportURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        csvExportURL = nil
+    }
+
+    private func string(from cString: UnsafePointer<CChar>?) -> String {
+        guard let cString else { return "" }
+        return String(cString: cString)
+    }
+
+    private func formattedValue(
+        definition: UnsafePointer<MblinkParameterDefinition>,
+        value: Double?
+    ) -> String {
+        var buffer = [CChar](repeating: 0, count: 96)
+        let success = buffer.withUnsafeMutableBufferPointer { storage in
+            mblink_parameter_format_value(
+                definition,
+                value != nil,
+                value ?? 0.0,
+                storage.baseAddress,
+                storage.count
+            )
+        }
+        guard success else { return "N/A" }
+        return buffer.withUnsafeBufferPointer { storage in
+            guard let baseAddress = storage.baseAddress else { return "N/A" }
+            return String(cString: baseAddress)
+        }
+    }
+
+    private func loadDiagnosticParameters() -> [DiagnosticParameter] {
+        let count = mblink_parameter_obd2_definition_count()
+        guard count > 0 else { return [] }
+
+        var result = [DiagnosticParameter]()
+        result.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let definition = mblink_parameter_obd2_definition_at(index) else {
                 continue
             }
 
-            let history = controller
-                .recentValues(forPID: pid, limit: 60)
-                .map(\\.doubleValue)
-            let value = history.last
+            let metadata = definition.pointee
             let stableKey = string(from: metadata.stable_key)
-'''
-          new_pid_guard = '''            let metadata = definition.pointee
-            let stableKey = string(from: metadata.stable_key)
+            guard !stableKey.isEmpty else { continue }
+
             let history = controller
                 .recentValues(forParameterKey: stableKey, limit: 60)
-                .map(\\.doubleValue)
+                .map(\.doubleValue)
             let value = history.last
-'''
-          swift = replace_once(swift, old_pid_guard, new_pid_guard, 'Swift history bridge')
-          swift = replace_once(
-              swift,
-              '                    favourite: controller.favourite(forPID: pid),\n',
-              '                    favourite: controller.favourite(forParameterKey: stableKey),\n',
-              'Swift favourite read')
-          swift_path.write_text(swift, encoding='utf-8')
+
+            result.append(
+                DiagnosticParameter(
+                    id: stableKey,
+                    protocolName: string(
+                        from: mblink_parameter_protocol_name(metadata.key.protocol)
+                    ),
+                    moduleIdentifier: metadata.key.module,
+                    parameterIdentifier: metadata.key.identifier,
+                    shortName: string(from: metadata.short_name),
+                    title: string(from: metadata.name),
+                    suffix: string(from: metadata.suffix),
+                    formattedValue: formattedValue(
+                        definition: definition,
+                        value: value
+                    ),
+                    value: value,
+                    favourite: controller.favourite(forParameterKey: stableKey),
+                    history: history
+                )
+            )
+        }
+
+        return result
+    }
+
+    private func refresh() {
+        statusText = controller.statusText
+        peripheralName = controller.peripheralName ?? "No adapter"
+        adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
+        isActive = controller.isActive
+        isReady = controller.isReady
+        diagnosticParameters = loadDiagnosticParameters()
+        recordedSampleCount = Int(clamping: controller.recordedSampleCount)
+    }
+}
+''', encoding='utf-8')
           PY
 
-          ! grep -q 'recentValuesForPID\|favouriteForPID\|forPID:' \
+          ! grep -Eq 'recentValuesForPID|favouriteForPID|forPID:' \
             platform/apple/MBLinkDiagnosticsController.h \
             app/ios/MBLINK/ConnectionViewModel.swift
           grep -q 'mblink_parameter_store_record(&_parameterStore' platform/apple/MBLinkDiagnosticsController.m
@@ -401,7 +492,6 @@ jobs:
               -destination 'generic/platform=iOS Simulator' \
               CODE_SIGNING_ALLOWED=NO \
               build >"$log" 2>&1; then
-              echo "${configuration} simulator build failed:" >&2
               grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
               exit 1
             fi
@@ -424,7 +514,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
             build >"$log" 2>&1; then
-            echo 'Physical-iPhone build failed:' >&2
             grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
             exit 1
           fi
