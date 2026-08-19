@@ -126,18 +126,33 @@ jobs:
           grep -q 'mblink_telemetry_store_record' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_telemetry_recorder_record_sample' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_telemetry_recorder_record_response' platform/apple/MBLinkDiagnosticsController.m
+
           test "$(grep -c 'uds.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/uds/uds.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
           ! grep -q 'mblink/isotp.h' include/mblink/uds.h src/uds/uds.c
 
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [ "$version" != "0.7.0" ]; then
-            test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-            grep -q 'path = "../../src/mercedes/mercedes.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-            test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-            grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-            test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.7.0"
-          fi
+          test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/mercedes/mercedes.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.7.0"
+          grep -q 'set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")' CMakeLists.txt
+
+          grep -q 'mblink/parameter.h' app/ios/MBLINK/MBLINK-Bridging-Header.h
+          grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -q 'diagnosticParameters' app/ios/MBLINK/ContentView.swift
+          ! grep -q 'String(format:' app/ios/MBLINK/ContentView.swift
+          ! grep -Eq 'hasRPM|hasEngineLoad|applyMeasurement|resetPublishedMeasurements' \
+            platform/apple/MBLinkDiagnosticsController.h \
+            platform/apple/MBLinkDiagnosticsController.m
+
+          grep -q 'mblink_parameter_store_record' src/core/parameter.c
+          grep -q 'MBLINK_PARAMETER_STORE_HISTORY_CAPACITY 1024U' include/mblink/parameter_store.h
+          grep -q 'mblink_scheduler_add_parameter' src/core/scheduler.c
+          grep -q 'MBLINK_SCHEDULER_MAX_ITEMS 64U' include/mblink/scheduler.h
+          grep -q 'mblink-test-parameter-store' CMakeLists.txt
+          grep -q 'mblink-test-scheduler-parameters' CMakeLists.txt
 
       - name: Build iPhone app for simulator
         shell: bash
@@ -262,13 +277,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           version="$(tr -d '[:space:]' < VERSION)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
             exit 1
           fi
-
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "target=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
@@ -299,11 +312,7 @@ jobs:
             const assetPath = path.join(process.env.GITHUB_WORKSPACE,
                                         'release-assets', assetName);
 
-            const main = await github.rest.repos.getBranch({
-              owner,
-              repo,
-              branch: 'main'
-            });
+            const main = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
             if (main.data.commit.sha !== target) {
               core.info(`Skipping stale successful run at ${target}; main is ${main.data.commit.sha}.`);
               return;
@@ -311,11 +320,7 @@ jobs:
 
             let tagTarget = null;
             try {
-              const existingRef = await github.rest.git.getRef({
-                owner,
-                repo,
-                ref: `tags/${tag}`
-              });
+              const existingRef = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
               tagTarget = existingRef.data.object.sha;
             } catch (error) {
               if (error.status !== 404) throw error;
@@ -323,11 +328,7 @@ jobs:
 
             let release = null;
             try {
-              const response = await github.rest.repos.getReleaseByTag({
-                owner,
-                repo,
-                tag
-              });
+              const response = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
               release = response.data;
             } catch (error) {
               if (error.status !== 404) throw error;
@@ -337,7 +338,6 @@ jobs:
               core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
               return;
             }
-
             if (tagTarget !== null && tagTarget !== target) {
               if (release !== null) {
                 core.info(`${tag} is already released at ${tagTarget}; current main ${target} is post-release development, so no release action is required.`);
@@ -346,22 +346,15 @@ jobs:
               core.setFailed(`${tag} exists at ${tagTarget} without a matching GitHub Release. Repair the release state before continuing.`);
               return;
             }
-
             if (!fs.existsSync(assetPath)) {
               core.setFailed(`Expected IPA release asset is missing: ${assetPath}`);
               return;
             }
 
             if (tagTarget === null) {
-              await github.rest.git.createRef({
-                owner,
-                repo,
-                ref: `refs/tags/${tag}`,
-                sha: target
-              });
+              await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha: target });
               tagTarget = target;
             }
-
             if (release === null) {
               const response = await github.rest.repos.createRelease({
                 owner,
