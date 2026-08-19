@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK Self-Hosted Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/self-hosted-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-linux-smoke:
+    name: Local Linux / C11 smoke
+    runs-on: [self-hosted, Linux, X64, mblink]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "runner=$RUNNER_NAME"
+          echo "os=$RUNNER_OS"
+          echo "arch=$RUNNER_ARCH"
+          uname -a
+          nproc
+          cmake --version
+          cc --version | head -n 1
+
+      - name: Configure
+        run: cmake -S . -B build-self-hosted -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-self-hosted --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build-self-hosted --build-config Release --output-on-failure
