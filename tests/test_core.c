@@ -55,6 +55,49 @@ static bool check(bool condition, const char *message)
     return condition;
 }
 
+static bool check_workspace(void)
+{
+    size_t index;
+    bool passed = true;
+
+    if (!check(mblink_workspace_section_count() ==
+                   (size_t)MBLINK_WORKSPACE_SECTION_COUNT,
+               "workspace section count mismatch")) {
+        passed = false;
+    }
+
+    for (index = 0U; index < mblink_workspace_section_count(); ++index) {
+        const MblinkWorkspaceSectionDescriptor *descriptor =
+            mblink_workspace_section_at(index);
+        if (!check(descriptor != NULL,
+                   "workspace descriptor missing")) {
+            passed = false;
+            continue;
+        }
+        if (!check(descriptor->section == (MblinkWorkspaceSection)index,
+                   "workspace section order is not stable") ||
+            !check(descriptor->key != NULL && descriptor->key[0] != '\0',
+                   "workspace key missing") ||
+            !check(descriptor->title != NULL && descriptor->title[0] != '\0',
+                   "workspace title missing") ||
+            !check(descriptor->summary != NULL && descriptor->summary[0] != '\0',
+                   "workspace summary missing") ||
+            !check(mblink_workspace_section(descriptor->section) == descriptor,
+                   "workspace identifier lookup mismatch")) {
+            passed = false;
+        }
+    }
+
+    if (!check(mblink_workspace_section_at(mblink_workspace_section_count()) == NULL,
+               "out-of-range workspace index should fail") ||
+        !check(mblink_workspace_section(MBLINK_WORKSPACE_SECTION_COUNT) == NULL,
+               "out-of-range workspace identifier should fail")) {
+        passed = false;
+    }
+
+    return passed;
+}
+
 int main(void)
 {
     bool passed = true;
@@ -66,6 +109,9 @@ int main(void)
         passed = false;
     }
     if (!check(mblink_self_check(), "project identity validation failed")) {
+        passed = false;
+    }
+    if (!check_workspace()) {
         passed = false;
     }
     if (!check(!mblink_transport_is_valid(&transport),
