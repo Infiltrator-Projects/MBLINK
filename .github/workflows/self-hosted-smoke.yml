@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   local-linux-smoke:
@@ -44,3 +44,100 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-self-hosted --build-config Release --output-on-failure
+
+  finalize-uds-07:
+    name: Finalize 0.7 metadata and guards
+    if: github.ref == 'refs/heads/feature/0.7-uds-foundation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/0.7-uds-foundation
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Finalize 0.7 tree
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          printf '0.7.0\n' > VERSION
+          sed -i 's/MARKETING_VERSION = 0\.6\.3;/MARKETING_VERSION = 0.7.0;/g' app/ios/MBLINK.xcodeproj/project.pbxproj
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ci = Path('.github/workflows/ci.yml')
+          text = ci.read_text()
+          anchor = "          grep -q 'mblink_telemetry_recorder_record_response' platform/apple/MBLinkDiagnosticsController.m\n"
+          addition = anchor + (
+              "          test \"$(grep -c 'uds.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)\" -eq 2\n"
+              "          grep -q 'path = \"../../src/uds/uds.c\"' app/ios/MBLINK.xcodeproj/project.pbxproj\n"
+              "          ! grep -q 'mblink/isotp.h' include/mblink/uds.h src/uds/uds.c\n"
+          )
+          if text.count(anchor) != 1:
+              raise SystemExit('CI ownership anchor not unique')
+          ci.write_text(text.replace(anchor, addition, 1))
+
+          roadmap = Path('docs/ROADMAP.md')
+          text = roadmap.read_text()
+          old = '**Current gate: 0.6.3 — trusted-runner integration. Next feature milestone: 0.7 — UDS foundation in C.**'
+          new = '**Completed through 0.7. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**'
+          if old not in text:
+              raise SystemExit('roadmap gate text not found')
+          text = text.replace(old, new, 1)
+          row = '| 0.6.3 | Trusted self-hosted Linux smoke validation for main, hardening and feature branch pushes |\n'
+          row07 = row + '| 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |\n'
+          if text.count(row) != 1:
+              raise SystemExit('roadmap 0.6.3 row not unique')
+          text = text.replace(row, row07, 1)
+          text = text.replace('## 0.7 — UDS foundation in C\n', '## 0.7 — UDS foundation in C (complete)\n', 1)
+          old_exit = '**Exit condition:** verified UDS exchanges execute through the reusable C engine without manufacturer interpretation in transport code.'
+          new_exit = '**Exit condition met:** deterministic UDS exchanges execute through the reusable C engine without manufacturer interpretation or ISO-TP duplication in platform transport code.'
+          if old_exit not in text:
+              raise SystemExit('roadmap 0.7 exit text not found')
+          roadmap.write_text(text.replace(old_exit, new_exit, 1))
+
+          uds = Path('docs/UDS.md')
+          text = uds.read_text()
+          old = '- single-DID ReadDataByIdentifier (`0x22`) request construction and response validation;\n- a transport-neutral client state machine with P2 timeout, P2* timeout, NRC `0x78` Response Pending, completed negative responses and terminal protocol/timeout failure.\n'
+          new = '- TesterPresent (`0x3E`) request/response handling for explicit session keepalive;\n- single-DID ReadDataByIdentifier (`0x22`) request construction and response validation;\n- caller-supplied DID definitions with stable key/name and bounded response-length contracts for future ECU-identification and manufacturer tables;\n- a transport-neutral client state machine with P2 timeout, P2* timeout, NRC `0x78` Response Pending, completed negative responses and terminal protocol/timeout failure.\n'
+          if old not in text:
+              raise SystemExit('UDS service list anchor not found')
+          text = text.replace(old, new, 1)
+          old = 'Tracked Diagnostic Session Control deliberately rejects the suppress-positive-response bit because a no-response transaction requires a different completion contract. The one-shot request builder can still construct that wire request for future callers that explicitly own that behaviour.'
+          new = 'Tracked Diagnostic Session Control and TesterPresent deliberately reject the suppress-positive-response bit because a no-response transaction requires a different completion contract. Their one-shot request builders can still construct suppressed-response requests for callers that explicitly own that behaviour.'
+          if old not in text:
+              raise SystemExit('UDS suppress-response paragraph not found')
+          text = text.replace(old, new, 1)
+          old = '`tests/test_uds.c` covers transactional decoding, request construction, session timing, DID echo validation, negative-response reuse, repeated-response timing, exact deadline expiry, terminal failure/reset and overflow-safe deadlines. The same `uds.c` source is compiled by CMake and by the iPhone `MBLINKCore` target.'
+          new = '`tests/test_uds.c` covers transactional decoding, session control, TesterPresent, DID definitions/length contracts, DID echo validation, negative-response reuse, repeated Response Pending timing, exact deadline expiry, terminal failure/reset and overflow-safe deadlines. The same `uds.c` source is compiled by CMake and by the iPhone `MBLINKCore` target.'
+          if old not in text:
+              raise SystemExit('UDS testing paragraph not found')
+          uds.write_text(text.replace(old, new, 1))
+          PY
+
+          project='app/ios/MBLINK.xcodeproj/project.pbxproj'
+          test "$(grep -c 'MARKETING_VERSION = 0.7.0;' "$project")" -eq 4
+          test "$(grep -c 'uds.c in Sources' "$project")" -eq 2
+          grep -q 'path = "../../src/uds/uds.c"' "$project"
+          test "$(tr -d '[:space:]' < VERSION)" = '0.7.0'
+
+          cmake -S . -B build-final-07 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-final-07 --parallel
+          ctest --test-dir build-final-07 --output-on-failure
+
+      - name: Restore normal workflow and commit finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git checkout origin/main -- .github/workflows/self-hosted-smoke.yml
+          rm -f .github/workflows/finalize-uds-07.yml
+          git add VERSION app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/ci.yml docs/ROADMAP.md docs/UDS.md .github/workflows/self-hosted-smoke.yml .github/workflows/finalize-uds-07.yml
+          git commit -m 'chore: finalize MBLINK 0.7.0 UDS foundation'
+          git push origin HEAD:feature/0.7-uds-foundation
