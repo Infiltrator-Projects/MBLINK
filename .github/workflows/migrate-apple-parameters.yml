@@ -13,5 +13,127 @@ permissions:
 jobs:
   validate:
     runs-on: macos-latest
+    timeout-minutes: 25
     steps:
-      - run: echo "Staged; next revision performs the validated migration."
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Remove superseded hard-coded Apple measurement properties
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
+
+          header_path = Path('platform/apple/MBLinkDiagnosticsController.h')
+          header = header_path.read_text(encoding='utf-8')
+          public_block = '''@property(nonatomic, readonly) BOOL hasEngineLoad;\n@property(nonatomic, readonly) double engineLoadPercent;\n@property(nonatomic, readonly) BOOL hasCoolantTemperature;\n@property(nonatomic, readonly) double coolantTemperatureCelsius;\n@property(nonatomic, readonly) BOOL hasManifoldPressure;\n@property(nonatomic, readonly) double manifoldPressureKPa;\n@property(nonatomic, readonly) BOOL hasRPM;\n@property(nonatomic, readonly) double rpm;\n@property(nonatomic, readonly) BOOL hasVehicleSpeed;\n@property(nonatomic, readonly) double vehicleSpeedKmh;\n@property(nonatomic, readonly) BOOL hasIntakeAirTemperature;\n@property(nonatomic, readonly) double intakeAirTemperatureCelsius;\n@property(nonatomic, readonly) BOOL hasMassAirFlow;\n@property(nonatomic, readonly) double massAirFlowGramsPerSecond;\n@property(nonatomic, readonly) BOOL hasThrottlePosition;\n@property(nonatomic, readonly) double throttlePositionPercent;\n\n'''
+          header = replace_once(header, public_block, '', 'public measurement property block')
+          header_path.write_text(header, encoding='utf-8')
+
+          source_path = Path('platform/apple/MBLinkDiagnosticsController.m')
+          source = source_path.read_text(encoding='utf-8')
+          private_block = '''@property(nonatomic, readwrite) BOOL hasEngineLoad;\n@property(nonatomic, readwrite) double engineLoadPercent;\n@property(nonatomic, readwrite) BOOL hasCoolantTemperature;\n@property(nonatomic, readwrite) double coolantTemperatureCelsius;\n@property(nonatomic, readwrite) BOOL hasManifoldPressure;\n@property(nonatomic, readwrite) double manifoldPressureKPa;\n@property(nonatomic, readwrite) BOOL hasRPM;\n@property(nonatomic, readwrite) double rpm;\n@property(nonatomic, readwrite) BOOL hasVehicleSpeed;\n@property(nonatomic, readwrite) double vehicleSpeedKmh;\n@property(nonatomic, readwrite) BOOL hasIntakeAirTemperature;\n@property(nonatomic, readwrite) double intakeAirTemperatureCelsius;\n@property(nonatomic, readwrite) BOOL hasMassAirFlow;\n@property(nonatomic, readwrite) double massAirFlowGramsPerSecond;\n@property(nonatomic, readwrite) BOOL hasThrottlePosition;\n@property(nonatomic, readwrite) double throttlePositionPercent;\n\n'''
+          source = replace_once(source, private_block, '', 'private measurement property block')
+          source = replace_once(source,
+              '- (void)applyMeasurement:(const MblinkObd2Sample *)sample;\n- (void)resetPublishedMeasurements;\n',
+              '',
+              'private measurement method declarations')
+
+          reset_method = '''- (void)resetPublishedMeasurements\n{\n    self.hasEngineLoad = NO;\n    self.engineLoadPercent = 0.0;\n    self.hasCoolantTemperature = NO;\n    self.coolantTemperatureCelsius = 0.0;\n    self.hasManifoldPressure = NO;\n    self.manifoldPressureKPa = 0.0;\n    self.hasRPM = NO;\n    self.rpm = 0.0;\n    self.hasVehicleSpeed = NO;\n    self.vehicleSpeedKmh = 0.0;\n    self.hasIntakeAirTemperature = NO;\n    self.intakeAirTemperatureCelsius = 0.0;\n    self.hasMassAirFlow = NO;\n    self.massAirFlowGramsPerSecond = 0.0;\n    self.hasThrottlePosition = NO;\n    self.throttlePositionPercent = 0.0;\n}\n\n'''
+          source = replace_once(source, reset_method, '', 'reset measurement method')
+
+          apply_method = '''- (void)applyMeasurement:(const MblinkObd2Sample *)sample\n{\n    if (sample == NULL) {\n        return;\n    }\n\n    switch (sample->pid) {\n    case 0x04U:\n        self.engineLoadPercent = sample->value;\n        self.hasEngineLoad = YES;\n        break;\n    case 0x05U:\n        self.coolantTemperatureCelsius = sample->value;\n        self.hasCoolantTemperature = YES;\n        break;\n    case 0x0bU:\n        self.manifoldPressureKPa = sample->value;\n        self.hasManifoldPressure = YES;\n        break;\n    case 0x0cU:\n        self.rpm = sample->value;\n        self.hasRPM = YES;\n        break;\n    case 0x0dU:\n        self.vehicleSpeedKmh = sample->value;\n        self.hasVehicleSpeed = YES;\n        break;\n    case 0x0fU:\n        self.intakeAirTemperatureCelsius = sample->value;\n        self.hasIntakeAirTemperature = YES;\n        break;\n    case 0x10U:\n        self.massAirFlowGramsPerSecond = sample->value;\n        self.hasMassAirFlow = YES;\n        break;\n    case 0x11U:\n        self.throttlePositionPercent = sample->value;\n        self.hasThrottlePosition = YES;\n        break;\n    default:\n        break;\n    }\n}\n\n'''
+          source = replace_once(source, apply_method, '', 'apply measurement method')
+
+          reset_call = '    [self resetPublishedMeasurements];\n'
+          reset_count = source.count(reset_call)
+          if reset_count != 3:
+              raise SystemExit(f'reset call count: expected 3, found {reset_count}')
+          source = source.replace(reset_call, '')
+          source = replace_once(source,
+              '    [self applyMeasurement:&sample];\n',
+              '',
+              'apply measurement call')
+          source_path.write_text(source, encoding='utf-8')
+          PY
+
+          ! grep -q 'hasEngineLoad\|hasRPM\|applyMeasurement\|resetPublishedMeasurements' \
+            platform/apple/MBLinkDiagnosticsController.h \
+            platform/apple/MBLinkDiagnosticsController.m
+          ! grep -q 'String(format:' app/ios/MBLINK/ContentView.swift
+          grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -q 'mblink_parameter_store_record' src/core/parameter.c
+          grep -q 'mblink_scheduler_add_parameter' src/core/scheduler.c
+
+      - name: Run portable C regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+
+      - name: Build iOS Debug and Release simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          for configuration in Debug Release; do
+            log="$RUNNER_TEMP/mblink-${configuration}.log"
+            if ! xcodebuild \
+              -project app/ios/MBLINK.xcodeproj \
+              -scheme MBLINK \
+              -configuration "$configuration" \
+              -sdk iphonesimulator \
+              -destination 'generic/platform=iOS Simulator' \
+              CODE_SIGNING_ALLOWED=NO \
+              build >"$log" 2>&1; then
+              grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+              exit 1
+            fi
+          done
+
+      - name: Build unsigned physical-iPhone target
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-device"
+          log="$RUNNER_TEMP/mblink-device.log"
+          if ! xcodebuild \
+            -project app/ios/MBLINK.xcodeproj \
+            -scheme MBLINK \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build >"$log" 2>&1; then
+            grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 160 || true
+            exit 1
+          fi
+          app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
+          test -x "$app/MBLINK"
+          /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
+
+      - name: Commit validated migration and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/migrate-apple-parameters.yml
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "apple: complete generic parameter workspace migration"
+          git push origin HEAD:main
