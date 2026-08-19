@@ -1,0 +1,6 @@
+validated_head=012b056f691e74fce1d3605d9833c69e692396e9
+cmake_configure=0
+cmake_build=0
+ctest=0
+xcode_Debug=0
+xcode_Release=0
