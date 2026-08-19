@@ -20,6 +20,7 @@ extern "C" {
 
 #define MBLINK_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL 0x10U
 #define MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER 0x22U
+#define MBLINK_UDS_SERVICE_TESTER_PRESENT 0x3eU
 #define MBLINK_UDS_SERVICE_NEGATIVE_RESPONSE 0x7fU
 
 #define MBLINK_UDS_SESSION_DEFAULT 0x01U
@@ -71,6 +72,21 @@ typedef struct {
     const uint8_t *data;
     size_t data_length;
 } MblinkUdsDidRecord;
+
+/** Caller/manufacturer-owned DID metadata consumed by the generic UDS layer. */
+typedef struct {
+    uint16_t identifier;
+    const char *key;
+    const char *name;
+    size_t minimum_length;
+    size_t maximum_length;
+} MblinkUdsDidDefinition;
+
+typedef struct {
+    const MblinkUdsDidDefinition *definition;
+    const uint8_t *data;
+    size_t data_length;
+} MblinkUdsDidValue;
 
 typedef struct {
     uint64_t p2_timeout_us;
@@ -124,6 +140,16 @@ MblinkUdsResult mblink_uds_decode_session_control_response(
     uint8_t expected_session_type,
     MblinkUdsSessionResponse *response);
 
+MblinkUdsResult mblink_uds_build_tester_present_request(
+    bool suppress_positive_response,
+    uint8_t *buffer,
+    size_t buffer_size,
+    size_t *written);
+
+MblinkUdsResult mblink_uds_decode_tester_present_response(
+    const uint8_t *pdu,
+    size_t pdu_length);
+
 MblinkUdsResult mblink_uds_build_read_did_request(
     uint16_t identifier,
     uint8_t *buffer,
@@ -136,6 +162,21 @@ MblinkUdsResult mblink_uds_decode_read_did_response(
     uint16_t expected_identifier,
     MblinkUdsDidRecord *record);
 
+bool mblink_uds_did_definition_is_valid(
+    const MblinkUdsDidDefinition *definition);
+
+MblinkUdsResult mblink_uds_build_defined_did_request(
+    const MblinkUdsDidDefinition *definition,
+    uint8_t *buffer,
+    size_t buffer_size,
+    size_t *written);
+
+MblinkUdsResult mblink_uds_decode_defined_did_response(
+    const uint8_t *pdu,
+    size_t pdu_length,
+    const MblinkUdsDidDefinition *definition,
+    MblinkUdsDidValue *value);
+
 MblinkUdsResult mblink_uds_client_init(
     MblinkUdsClient *client,
     const MblinkUdsClientConfig *config);
@@ -146,8 +187,8 @@ void mblink_uds_client_reset(MblinkUdsClient *client);
 /**
  * Begin tracking a complete UDS request PDU at monotonic time `now_us`.
  *
- * Tracked DiagnosticSessionControl requests must request a positive response;
- * suppress-positive operation is intentionally left to one-shot callers.
+ * Tracked DiagnosticSessionControl and TesterPresent requests must request a
+ * positive response; suppress-positive operation is left to one-shot callers.
  */
 MblinkUdsResult mblink_uds_client_begin(
     MblinkUdsClient *client,
