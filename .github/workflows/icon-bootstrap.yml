@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK App Icon Bootstrap
+
+on:
+  push:
+    branches: [agent/app-icon]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-icon:
+    name: Materialize app icon
+    runs-on: macos-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: agent/app-icon
+          fetch-depth: 0
+
+      - name: Reconstruct and verify approved artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/MBLINK-AppIcon-source.jpg"
+          tmp="$RUNNER_TEMP/MBLINK-AppIcon-source.jpg"
+
+          cat \
+            .github/icon-transfer/part00 \
+            .github/icon-transfer/part01 \
+            .github/icon-transfer/part02 \
+            .github/icon-transfer/part03 \
+            .github/icon-transfer/part04 \
+            | /usr/bin/base64 -D > "$tmp"
+
+          actual="$(/usr/bin/shasum -a 256 "$tmp" | awk '{print $1}')"
+          expected="19a12e82772b4d0ecb0c23e579d29bd8b28466932163f285f03f92ab5b288ab1"
+          test "$actual" = "$expected"
+
+          /usr/bin/sips -g pixelWidth -g pixelHeight "$tmp"
+          cp "$tmp" "$target"
+
+      - name: Commit binary icon when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/MBLINK-AppIcon-source.jpg"
+          if git diff --quiet -- "$target"; then
+            echo "Approved icon is already materialized."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$target"
+          git commit -m "ios: materialize approved app icon"
+          git push origin HEAD:agent/app-icon
