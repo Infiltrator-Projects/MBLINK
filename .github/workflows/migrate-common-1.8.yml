@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Migrate MBLINK to Common 1.8
+
+on:
+  push:
+    branches: [feature/common-1.8-timing]
+    paths:
+      - .github/workflows/migrate-common-1.8.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/common-1.8-timing
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake git
+
+      - name: Apply Common 1.8 timing migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: {label}: expected 1 match, found {count}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "CMakeLists.txt",
+              'set(MBLINK_COMMON_VERSION "1.7.0")\nset(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")',
+              'set(MBLINK_COMMON_VERSION "1.8.0")\nset(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")',
+              "Common pin")
+          replace_once(
+              "CMakeLists.txt",
+              'add_library(infiltratr-common STATIC\n    "${MBLINK_COMMON_DIR}/src/core.c"\n    "${MBLINK_COMMON_DIR}/src/format.c")',
+              'add_library(infiltratr-common STATIC\n    "${MBLINK_COMMON_DIR}/src/core.c"\n    "${MBLINK_COMMON_DIR}/src/timing.c"\n    "${MBLINK_COMMON_DIR}/src/format.c")',
+              "Common timing source")
+
+          replace_once(
+              "src/core/scheduler.c",
+              '#include "infiltratr/core.h"\n',
+              '#include "infiltratr/core.h"\n#include "infiltratr/timing.h"\n',
+              "timing include")
+          old = '''MblinkSchedulerResult mblink_scheduler_mark_dispatched(\n    MblinkScheduler *scheduler, size_t index, uint64_t now_ms)\n{\n    MblinkSchedulerItem *item;\n    uint64_t interval;\n    uint64_t late_by;\n    uint64_t steps;\n    uint64_t advance;\n\n    if (scheduler == NULL || index >= scheduler->count) {\n        return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;\n    }\n\n    item = &scheduler->items[index];\n    interval = (uint64_t)item->interval_ms;\n    if (interval == 0U) {\n        return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;\n    }\n\n    if (item->next_due_ms > now_ms) {\n        item->next_due_ms =\n            infiltratr_u64_add_saturating(item->next_due_ms, interval);\n        return MBLINK_SCHEDULER_RESULT_OK;\n    }\n\n    late_by = now_ms - item->next_due_ms;\n    steps = infiltratr_u64_add_saturating(late_by / interval, 1U);\n    advance = infiltratr_u64_multiply_saturating(interval, steps);\n    item->next_due_ms =\n        infiltratr_u64_add_saturating(item->next_due_ms, advance);\n    return MBLINK_SCHEDULER_RESULT_OK;\n}\n'''
+          new = '''MblinkSchedulerResult mblink_scheduler_mark_dispatched(\n    MblinkScheduler *scheduler, size_t index, uint64_t now_ms)\n{\n    MblinkSchedulerItem *item;\n    uint64_t interval;\n\n    if (scheduler == NULL || index >= scheduler->count) {\n        return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;\n    }\n\n    item = &scheduler->items[index];\n    interval = (uint64_t)item->interval_ms;\n    if (!infiltratr_periodic_deadline_advance(\n            item->next_due_ms, now_ms, interval, &item->next_due_ms)) {\n        return MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT;\n    }\n    return MBLINK_SCHEDULER_RESULT_OK;\n}\n'''
+          replace_once("src/core/scheduler.c", old, new, "deadline advancement")
+
+          project = "app/ios/MBLINK.xcodeproj/project.pbxproj"
+          replace_once(
+              project,
+              '\t\tDAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };',
+              '\t\tDAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };\n\t\tE0A1B2C3D4E5F60718293B08 /* common_timing.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A08 /* common_timing.c */; };',
+              "Xcode timing build file")
+          replace_once(
+              project,
+              '\t\tFB46CB06CB0FE9B8B23168B3 /* common_format.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "format.c"; path = "../../src/infiltratr-common/src/format.c"; sourceTree = SOURCE_ROOT; };',
+              '\t\tFB46CB06CB0FE9B8B23168B3 /* common_format.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "format.c"; path = "../../src/infiltratr-common/src/format.c"; sourceTree = SOURCE_ROOT; };\n\t\tF0A1B2C3D4E5F60718293A08 /* common_timing.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "timing.c"; path = "../../src/infiltratr-common/src/timing.c"; sourceTree = SOURCE_ROOT; };',
+              "Xcode timing file reference")
+          replace_once(
+              project,
+              '\t\t\t\tD5AEE7D0F9C3D6A65D0D9E38 /* core.c */,\n\t\t\t\tFB46CB06CB0FE9B8B23168B3 /* format.c */,',
+              '\t\t\t\tD5AEE7D0F9C3D6A65D0D9E38 /* core.c */,\n\t\t\t\tF0A1B2C3D4E5F60718293A08 /* timing.c */,\n\t\t\t\tFB46CB06CB0FE9B8B23168B3 /* format.c */,',
+              "Xcode Common group")
+          replace_once(
+              project,
+              '\t\t\t\tE282A55680BFE4F2A03F50A1 /* core.c in Sources */,\n\t\t\t\tDAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,',
+              '\t\t\t\tE282A55680BFE4F2A03F50A1 /* core.c in Sources */,\n\t\t\t\tE0A1B2C3D4E5F60718293B08 /* timing.c in Sources */,\n\t\t\t\tDAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,',
+              "Xcode Common source phase")
+
+          replace_once(
+              ".github/workflows/ci.yml",
+              'test "$(tr -d \'[:space:]\' < src/infiltratr-common/VERSION)" = "1.7.0"\n          grep -q \'set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")\' CMakeLists.txt',
+              'test "$(tr -d \'[:space:]\' < src/infiltratr-common/VERSION)" = "1.8.0"\n          grep -q \'set(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")\' CMakeLists.txt\n          test "$(grep -c \'timing.c in Sources\' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 1\n          grep -q \'path = "../../src/infiltratr-common/src/timing.c"\' app/ios/MBLINK.xcodeproj/project.pbxproj\n          grep -q \'infiltratr_periodic_deadline_advance\' src/core/scheduler.c',
+              "CI Common contract")
+
+          docs = Path("docs/COMMON-REUSE.md")
+          text = docs.read_text(encoding="utf-8")
+          text = text.replace(
+              'The 0.7.1 baseline pins Infiltratr Common 1.7.0 at exact release commit `a5b52f7ad62fcbb3462c496b7831e7f974161bcf`.',
+              'The 0.7.2 baseline pins Infiltratr Common 1.8.0 at exact release commit `318b1babc7343403ae5e222ea01235a0fc84d752`.')
+          text = text.replace(
+              "Common's configuration parser is the preferred implementation when MBLINK adds portable `key=value` settings. The interval-due helper is useful for ordinary refresh policy, but exact ELM327, scheduler, ISO-TP and UDS timing/state semantics remain in MBLINK because those contracts are protocol-specific.",
+              "Common's configuration parser is the preferred implementation when MBLINK adds portable `key=value` settings. Common also owns the generic overflow-safe periodic-deadline advancement used by the MBLINK request scheduler; request selection, priorities, pause semantics, ELM327, ISO-TP and UDS state remain MBLINK-specific.")
+          docs.write_text(text, encoding="utf-8")
+          PY
+
+          git -C src/infiltratr-common fetch origin 318b1babc7343403ae5e222ea01235a0fc84d752
+          git -C src/infiltratr-common checkout --detach 318b1babc7343403ae5e222ea01235a0fc84d752
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.8.0"
+          git diff --check
+
+      - name: Verify portable build and tests
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+          cmake -S . -B build-sanitized -DMBLINK_ENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-sanitized --parallel 2
+          ctest --test-dir build-sanitized --output-on-failure
+
+      - name: Commit verified migration
+        run: |
+          set -euo pipefail
+          rm .github/workflows/migrate-common-1.8.yml
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add CMakeLists.txt src/core/scheduler.c app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/ci.yml docs/COMMON-REUSE.md src/infiltratr-common
+          git add -u .github/workflows/migrate-common-1.8.yml
+          git diff --cached --check
+          git commit -m "Adopt Common 1.8 periodic scheduler timing"
+          git push origin HEAD:feature/common-1.8-timing
