@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Current gate: 0.6.2 — final pre-UDS hardening. Next feature milestone: 0.7 — UDS foundation in C.**
+**Current gate: 0.6.3 — trusted-runner integration. Next feature milestone: 0.7 — UDS foundation in C.**
 
 ## Completed foundations
 
@@ -18,6 +18,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.6 | Reusable Classical-CAN ISO-TP TX/RX state machines independent of UDS/Mercedes |
 | 0.6.1 | Lifetime, overflow and failure-state hardening; sanitizer CI and device-IPA build path |
 | 0.6.2 | Scheduler fairness, transactional OBD samples, stricter VIN validation, Apple lifecycle and release-identity hardening |
+| 0.6.3 | Trusted self-hosted Linux smoke validation for main, hardening and feature branch pushes |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
