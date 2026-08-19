@@ -15,7 +15,7 @@ Objective-C application bridge     Linux application shell
         |                               |
         +----------- libmblink / portable C11 -----------+
                     shared workspace model
-          ELM327 | OBD-II | scheduler | telemetry | ISO-TP | future UDS
+       parameters | ELM327 | OBD-II | scheduler | telemetry | ISO-TP | UDS
                                 |
                     transport/provider boundary
                                 |
@@ -30,7 +30,7 @@ Objective-C application bridge     Linux application shell
 
 Public headers live under `include/mblink/`. Public types use ordinary C data and explicit ownership/lifetime rules. Platform framework objects must never enter the C ABI.
 
-ELM327 uses a byte-stream transport contract. ISO-TP uses a transport-neutral Classical-CAN frame model. UDS must consume complete ISO-TP PDUs instead of reimplementing segmentation or CAN addressing.
+ELM327 uses a byte-stream transport contract. ISO-TP uses a transport-neutral Classical-CAN frame model. UDS consumes complete ISO-TP PDUs instead of reimplementing segmentation or CAN addressing. Protocol-neutral parameter descriptors give OBD-II and manufacturer UDS scalar data one shared identity, metadata and formatting model for Live Data, Table, Dashboard and Graphs.
 
 ### Shared diagnostic workspace
 
@@ -42,7 +42,7 @@ The workspace contract is intentionally small. It defines shared navigation and 
 
 MBLINK consumes the pinned `src/infiltratr-common` submodule for generic cross-project primitives such as bounded strings, parsing, checked/saturating arithmetic, formatting and project metadata.
 
-Protocol-specific behaviour remains in MBLINK. Common is reused when an existing contract matches; it is not modified from this repository and does not receive speculative vehicle-diagnostics helpers.
+Protocol-specific behaviour remains in MBLINK. Common is reused when an existing contract matches; it is not modified from this repository and does not receive speculative vehicle-diagnostics helpers. The shared diagnostic parameter layer deliberately uses Common's scalar formatter rather than carrying another numeric precision/clamping/unavailable-value implementation.
 
 The authoritative Common version and commit pin are enforced by CMake and the submodule itself rather than duplicated throughout the documentation.
 
@@ -70,9 +70,11 @@ MBLINK discovers GATT services and characteristics at runtime and validates cand
 
 Generic OBD-II, ISO-TP and UDS remain manufacturer-neutral. Mercedes-Benz definitions sit above those reusable layers and carry explicit validation status where identifiers are not yet proven against real vehicle responses.
 
+Manufacturer UDS values can project into the protocol-neutral parameter model only after their decoding/provenance contract is defined; the parameter layer is not a shortcut around manufacturer verification.
+
 ## Timing, ownership and failure
 
-Portable engines do not read OS clocks directly. Callers provide the documented monotonic time domain for scheduler/session/ISO-TP operations.
+Portable engines do not read OS clocks directly. Callers provide the documented monotonic time domain for scheduler/session/ISO-TP/UDS operations.
 
 Buffers and provider/session lifetimes are explicit. Where a state machine enters a terminal error state, reuse requires the documented reset/resynchronisation operation rather than heuristic recovery.
 
