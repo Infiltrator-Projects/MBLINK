@@ -43,6 +43,8 @@ static int test_generic_response_decode(void)
     CHECK(response.negative_response_code == MBLINK_UDS_NRC_RESPONSE_PENDING);
     CHECK(strcmp(mblink_uds_negative_response_code_name(0x78U),
                  "response-pending") == 0);
+    CHECK(strcmp(mblink_uds_negative_response_code_name(0x99U),
+                 "unknown-nrc") == 0);
 
     memset(&response, 0x5a, sizeof(response));
     {
@@ -130,6 +132,34 @@ static int test_session_control(void)
     return 0;
 }
 
+static int test_tester_present(void)
+{
+    uint8_t request[3] = { 0xa5U, 0xa5U, 0xa5U };
+    size_t written = 99U;
+    const uint8_t response_pdu[] = { 0x7eU, 0x00U };
+    const uint8_t wrong_subfunction[] = { 0x7eU, 0x01U };
+    const uint8_t extra_data[] = { 0x7eU, 0x00U, 0x00U };
+
+    CHECK(mblink_uds_build_tester_present_request(
+              false, request, sizeof(request), &written) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(written == 2U && request[0] == 0x3eU && request[1] == 0x00U);
+
+    CHECK(mblink_uds_build_tester_present_request(
+              true, request, sizeof(request), &written) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(written == 2U && request[1] == 0x80U);
+
+    CHECK(mblink_uds_decode_tester_present_response(
+              response_pdu, sizeof(response_pdu)) == MBLINK_UDS_RESULT_OK);
+    CHECK(mblink_uds_decode_tester_present_response(
+              wrong_subfunction, sizeof(wrong_subfunction)) ==
+          MBLINK_UDS_RESULT_UNEXPECTED_RESPONSE);
+    CHECK(mblink_uds_decode_tester_present_response(
+              extra_data, sizeof(extra_data)) == MBLINK_UDS_RESULT_MALFORMED_PDU);
+    return 0;
+}
+
 static int test_read_did(void)
 {
     uint8_t request[4] = { 0 };
@@ -167,6 +197,53 @@ static int test_read_did(void)
     CHECK(mblink_uds_decode_read_did_response(
               truncated, sizeof(truncated), 0xf190U, &record) ==
           MBLINK_UDS_RESULT_MALFORMED_PDU);
+    return 0;
+}
+
+static int test_did_definitions(void)
+{
+    const MblinkUdsDidDefinition definition = {
+        .identifier = 0x1234U,
+        .key = "ecu-identity",
+        .name = "ECU identity",
+        .minimum_length = 2U,
+        .maximum_length = 4U
+    };
+    MblinkUdsDidDefinition invalid = definition;
+    uint8_t request[4] = { 0 };
+    size_t written = 0U;
+    const uint8_t response_pdu[] = { 0x62U, 0x12U, 0x34U, 0xaaU, 0xbbU, 0xccU };
+    const uint8_t too_short[] = { 0x62U, 0x12U, 0x34U, 0xaaU };
+    MblinkUdsDidValue value;
+
+    CHECK(mblink_uds_did_definition_is_valid(&definition));
+    invalid.key = "";
+    CHECK(!mblink_uds_did_definition_is_valid(&invalid));
+    invalid = definition;
+    invalid.minimum_length = 5U;
+    CHECK(!mblink_uds_did_definition_is_valid(&invalid));
+
+    CHECK(mblink_uds_build_defined_did_request(
+              &definition, request, sizeof(request), &written) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(written == 3U && request[0] == 0x22U &&
+          request[1] == 0x12U && request[2] == 0x34U);
+
+    CHECK(mblink_uds_decode_defined_did_response(
+              response_pdu, sizeof(response_pdu), &definition, &value) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(value.definition == &definition);
+    CHECK(value.data == response_pdu + 3U);
+    CHECK(value.data_length == 3U);
+
+    memset(&value, 0x5a, sizeof(value));
+    {
+        MblinkUdsDidValue snapshot = value;
+        CHECK(mblink_uds_decode_defined_did_response(
+                  too_short, sizeof(too_short), &definition, &value) ==
+              MBLINK_UDS_RESULT_UNEXPECTED_RESPONSE);
+        CHECK(memcmp(&value, &snapshot, sizeof(value)) == 0);
+    }
     return 0;
 }
 
@@ -209,6 +286,34 @@ static int test_client_session_and_timing(void)
     return 0;
 }
 
+static int test_client_tester_present(void)
+{
+    MblinkUdsClient client;
+    const MblinkUdsClientConfig config = {
+        .p2_timeout_us = UINT64_C(100000),
+        .p2_star_timeout_us = UINT64_C(1000000)
+    };
+    const uint8_t request[] = { 0x3eU, 0x00U };
+    const uint8_t suppressed[] = { 0x3eU, 0x80U };
+    const uint8_t response_pdu[] = { 0x7eU, 0x00U };
+    MblinkUdsResponse response;
+
+    CHECK(mblink_uds_client_init(&client, &config) == MBLINK_UDS_RESULT_OK);
+    CHECK(mblink_uds_client_begin(
+              &client, suppressed, sizeof(suppressed), 0U) ==
+          MBLINK_UDS_RESULT_UNSUPPORTED);
+    CHECK(client.state == MBLINK_UDS_CLIENT_IDLE);
+
+    CHECK(mblink_uds_client_begin(
+              &client, request, sizeof(request), UINT64_C(1000)) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(mblink_uds_client_accept(
+              &client, response_pdu, sizeof(response_pdu), UINT64_C(1001),
+              &response) == MBLINK_UDS_RESULT_COMPLETE);
+    CHECK(client.state == MBLINK_UDS_CLIENT_COMPLETE);
+    return 0;
+}
+
 static int test_client_pending_timeout_and_reset(void)
 {
     MblinkUdsClient client;
@@ -229,9 +334,14 @@ static int test_client_pending_timeout_and_reset(void)
           MBLINK_UDS_RESULT_RESPONSE_PENDING);
     CHECK(client.state == MBLINK_UDS_CLIENT_RESPONSE_PENDING);
     CHECK(client.deadline_us == UINT64_C(1050000));
-    CHECK(mblink_uds_client_tick(&client, UINT64_C(1049999)) ==
+
+    CHECK(mblink_uds_client_accept(
+              &client, pending, sizeof(pending), UINT64_C(500000), &response) ==
+          MBLINK_UDS_RESULT_RESPONSE_PENDING);
+    CHECK(client.deadline_us == UINT64_C(1500000));
+    CHECK(mblink_uds_client_tick(&client, UINT64_C(1499999)) ==
           MBLINK_UDS_RESULT_WAITING);
-    CHECK(mblink_uds_client_tick(&client, UINT64_C(1050000)) ==
+    CHECK(mblink_uds_client_tick(&client, UINT64_C(1500000)) ==
           MBLINK_UDS_RESULT_TIMEOUT);
     CHECK(client.state == MBLINK_UDS_CLIENT_FAILED);
     CHECK(client.failure == MBLINK_UDS_RESULT_TIMEOUT);
@@ -348,8 +458,11 @@ int main(void)
 {
     if (test_generic_response_decode() != 0) return 1;
     if (test_session_control() != 0) return 1;
+    if (test_tester_present() != 0) return 1;
     if (test_read_did() != 0) return 1;
+    if (test_did_definitions() != 0) return 1;
     if (test_client_session_and_timing() != 0) return 1;
+    if (test_client_tester_present() != 0) return 1;
     if (test_client_pending_timeout_and_reset() != 0) return 1;
     if (test_client_negative_reuse_and_wrong_response() != 0) return 1;
     if (test_client_busy_suppress_and_deadline() != 0) return 1;
