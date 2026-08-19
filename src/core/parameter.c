@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file parameter.c
- * @brief Protocol-neutral diagnostic parameter metadata and formatting.
+ * @brief Protocol-neutral diagnostic parameter metadata, formatting and store.
  */
 #include "mblink/parameter.h"
+#include "mblink/parameter_store.h"
 
 #include "infiltratr/core.h"
 #include "infiltratr/format.h"
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #define OBD_KEY(pid_value) \
     { MBLINK_PARAMETER_PROTOCOL_OBD2, \
@@ -208,4 +210,252 @@ bool mblink_parameter_from_obd2(
     }
 
     return false;
+}
+
+static size_t mblink_parameter_store_find_key(
+    const MblinkParameterStore *store,
+    const MblinkParameterKey *key)
+{
+    size_t index;
+
+    if (store == NULL || key == NULL) {
+        return SIZE_MAX;
+    }
+
+    for (index = 0U; index < store->slot_count; ++index) {
+        const MblinkParameterDefinition *definition = store->slots[index].definition;
+        if (definition != NULL &&
+            mblink_parameter_key_equal(&definition->key, key)) {
+            return index;
+        }
+    }
+    return SIZE_MAX;
+}
+
+static size_t mblink_parameter_store_find_stable_key(
+    const MblinkParameterStore *store,
+    const char *stable_key)
+{
+    size_t index;
+
+    if (store == NULL || stable_key == NULL || stable_key[0] == '\0') {
+        return SIZE_MAX;
+    }
+
+    for (index = 0U; index < store->slot_count; ++index) {
+        const MblinkParameterDefinition *definition = store->slots[index].definition;
+        if (definition != NULL &&
+            infiltratr_string_equal(definition->stable_key, stable_key)) {
+            return index;
+        }
+    }
+    return SIZE_MAX;
+}
+
+const char *mblink_parameter_store_result_name(MblinkParameterStoreResult result)
+{
+    switch (result) {
+    case MBLINK_PARAMETER_STORE_OK: return "ok";
+    case MBLINK_PARAMETER_STORE_INVALID_ARGUMENT: return "invalid-argument";
+    case MBLINK_PARAMETER_STORE_FULL: return "full";
+    case MBLINK_PARAMETER_STORE_DUPLICATE_KEY: return "duplicate-key";
+    case MBLINK_PARAMETER_STORE_DUPLICATE_STABLE_KEY:
+        return "duplicate-stable-key";
+    case MBLINK_PARAMETER_STORE_NOT_FOUND: return "not-found";
+    case MBLINK_PARAMETER_STORE_DEFINITION_MISMATCH:
+        return "definition-mismatch";
+    }
+    return "unknown";
+}
+
+void mblink_parameter_store_init(MblinkParameterStore *store)
+{
+    if (store != NULL) {
+        memset(store, 0, sizeof(*store));
+    }
+}
+
+void mblink_parameter_store_clear_samples(MblinkParameterStore *store)
+{
+    size_t index;
+
+    if (store == NULL) {
+        return;
+    }
+
+    for (index = 0U; index < store->slot_count; ++index) {
+        memset(&store->slots[index].latest, 0,
+               sizeof(store->slots[index].latest));
+        store->slots[index].latest_valid = false;
+    }
+    memset(store->history, 0, sizeof(store->history));
+    store->history_head = 0U;
+    store->history_count = 0U;
+    store->total_sample_count = 0U;
+}
+
+MblinkParameterStoreResult mblink_parameter_store_register(
+    MblinkParameterStore *store,
+    const MblinkParameterDefinition *definition)
+{
+    MblinkParameterStoreSlot slot;
+
+    if (store == NULL || !mblink_parameter_definition_is_valid(definition)) {
+        return MBLINK_PARAMETER_STORE_INVALID_ARGUMENT;
+    }
+    if (mblink_parameter_store_find_key(store, &definition->key) != SIZE_MAX) {
+        return MBLINK_PARAMETER_STORE_DUPLICATE_KEY;
+    }
+    if (mblink_parameter_store_find_stable_key(
+            store, definition->stable_key) != SIZE_MAX) {
+        return MBLINK_PARAMETER_STORE_DUPLICATE_STABLE_KEY;
+    }
+    if (store->slot_count >= MBLINK_PARAMETER_STORE_DEFINITION_CAPACITY) {
+        return MBLINK_PARAMETER_STORE_FULL;
+    }
+
+    memset(&slot, 0, sizeof(slot));
+    slot.definition = definition;
+    store->slots[store->slot_count] = slot;
+    store->slot_count++;
+    return MBLINK_PARAMETER_STORE_OK;
+}
+
+size_t mblink_parameter_store_definition_count(const MblinkParameterStore *store)
+{
+    return store != NULL ? store->slot_count : 0U;
+}
+
+const MblinkParameterDefinition *mblink_parameter_store_definition_at(
+    const MblinkParameterStore *store,
+    size_t index)
+{
+    if (store == NULL || index >= store->slot_count) {
+        return NULL;
+    }
+    return store->slots[index].definition;
+}
+
+const MblinkParameterDefinition *mblink_parameter_store_definition(
+    const MblinkParameterStore *store,
+    const MblinkParameterKey *key)
+{
+    const size_t index = mblink_parameter_store_find_key(store, key);
+    return index != SIZE_MAX ? store->slots[index].definition : NULL;
+}
+
+const MblinkParameterDefinition *mblink_parameter_store_definition_for_stable_key(
+    const MblinkParameterStore *store,
+    const char *stable_key)
+{
+    const size_t index = mblink_parameter_store_find_stable_key(store, stable_key);
+    return index != SIZE_MAX ? store->slots[index].definition : NULL;
+}
+
+MblinkParameterStoreResult mblink_parameter_store_set_favourite(
+    MblinkParameterStore *store,
+    const MblinkParameterKey *key,
+    bool favourite)
+{
+    const size_t index = mblink_parameter_store_find_key(store, key);
+
+    if (store == NULL || key == NULL) {
+        return MBLINK_PARAMETER_STORE_INVALID_ARGUMENT;
+    }
+    if (index == SIZE_MAX) {
+        return MBLINK_PARAMETER_STORE_NOT_FOUND;
+    }
+    store->slots[index].favourite = favourite;
+    return MBLINK_PARAMETER_STORE_OK;
+}
+
+bool mblink_parameter_store_is_favourite(
+    const MblinkParameterStore *store,
+    const MblinkParameterKey *key)
+{
+    const size_t index = mblink_parameter_store_find_key(store, key);
+    return index != SIZE_MAX && store->slots[index].favourite;
+}
+
+MblinkParameterStoreResult mblink_parameter_store_record(
+    MblinkParameterStore *store,
+    const MblinkParameterSample *sample)
+{
+    size_t slot_index;
+    size_t history_index;
+    MblinkParameterSample copied;
+
+    if (store == NULL || !mblink_parameter_sample_is_valid(sample)) {
+        return MBLINK_PARAMETER_STORE_INVALID_ARGUMENT;
+    }
+
+    slot_index = mblink_parameter_store_find_key(
+        store, &sample->definition->key);
+    if (slot_index == SIZE_MAX) {
+        return MBLINK_PARAMETER_STORE_NOT_FOUND;
+    }
+    if (store->slots[slot_index].definition != sample->definition) {
+        return MBLINK_PARAMETER_STORE_DEFINITION_MISMATCH;
+    }
+
+    copied = *sample;
+    store->slots[slot_index].latest = copied;
+    store->slots[slot_index].latest_valid = true;
+
+    if (store->history_count < MBLINK_PARAMETER_STORE_HISTORY_CAPACITY) {
+        history_index = (store->history_head + store->history_count) %
+                        MBLINK_PARAMETER_STORE_HISTORY_CAPACITY;
+        store->history_count++;
+    } else {
+        history_index = store->history_head;
+        store->history_head = (store->history_head + 1U) %
+                              MBLINK_PARAMETER_STORE_HISTORY_CAPACITY;
+    }
+    store->history[history_index] = copied;
+    store->total_sample_count = infiltratr_u64_add_saturating(
+        store->total_sample_count, 1U);
+    return MBLINK_PARAMETER_STORE_OK;
+}
+
+bool mblink_parameter_store_latest(
+    const MblinkParameterStore *store,
+    const MblinkParameterKey *key,
+    MblinkParameterSample *sample)
+{
+    const size_t index = mblink_parameter_store_find_key(store, key);
+
+    if (sample == NULL || index == SIZE_MAX ||
+        !store->slots[index].latest_valid) {
+        return false;
+    }
+    *sample = store->slots[index].latest;
+    return true;
+}
+
+size_t mblink_parameter_store_history_count(const MblinkParameterStore *store)
+{
+    return store != NULL ? store->history_count : 0U;
+}
+
+uint64_t mblink_parameter_store_total_sample_count(const MblinkParameterStore *store)
+{
+    return store != NULL ? store->total_sample_count : 0U;
+}
+
+bool mblink_parameter_store_history_at(
+    const MblinkParameterStore *store,
+    size_t chronological_index,
+    MblinkParameterSample *sample)
+{
+    size_t physical_index;
+
+    if (store == NULL || sample == NULL ||
+        chronological_index >= store->history_count) {
+        return false;
+    }
+
+    physical_index = (store->history_head + chronological_index) %
+                     MBLINK_PARAMETER_STORE_HISTORY_CAPACITY;
+    *sample = store->history[physical_index];
+    return true;
 }
