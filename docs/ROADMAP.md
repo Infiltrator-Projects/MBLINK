@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through 0.7. Current maintenance target: 0.7.1. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -18,7 +18,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.6 | Reusable Classical-CAN ISO-TP TX/RX state machines independent of UDS/Mercedes |
 | 0.6.1 | Lifetime, overflow and failure-state hardening; sanitizer CI and device-IPA build path |
 | 0.6.2 | Scheduler fairness, transactional OBD samples, stricter VIN validation, Apple lifecycle and release-identity hardening |
-| 0.6.3 | Trusted self-hosted Linux smoke validation for main, hardening and feature branch pushes |
+| 0.6.3 | Trusted self-hosted Linux smoke validation for the main development branch |
 | 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
@@ -33,6 +33,16 @@ Module contracts and limitations are documented in the corresponding files under
 - complete reuse of ISO-TP PDUs without duplicated segmentation or CAN addressing.
 
 **Exit condition met:** deterministic UDS exchanges execute through the reusable C engine without manufacturer interpretation or ISO-TP duplication in platform transport code.
+
+## 0.7.1 — pre-Mercedes parameter and release hardening
+
+- pin the released Infiltratr Common 1.7.0 dependency;
+- add one protocol-neutral C scalar parameter identity/metadata/formatting model for OBD-II and future UDS live values;
+- compile the Mercedes and parameter layers in the iPhone core and guard that wiring in CI;
+- attach the unsigned iPhone IPA directly to each new GitHub Release;
+- keep manufacturer-specific DIDs empty until real vehicle evidence exists.
+
+**Exit condition:** all portable, sanitizer, Linux, iOS Debug/Release and unsigned-device build gates pass on one exact 0.7.1 commit, and that exact release publishes its IPA as a Release asset.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 
