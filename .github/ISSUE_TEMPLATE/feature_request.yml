@@ -1,0 +1,66 @@
+name: Feature request
+description: Propose an improvement to MBLINK.
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem first, then the proposed solution. Manufacturer-specific diagnostic definitions need provenance and real-vehicle validation before they can be treated as verified.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What limitation or user need does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behaviour or API you would like to see.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Portable C core
+        - ELM327 / adapter support
+        - OBD-II
+        - ISO-TP
+        - UDS
+        - Mercedes-Benz diagnostics
+        - iPhone / iOS
+        - Linux
+        - Build / CI / release engineering
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or references
+      description: For protocol or manufacturer features, include standards, captures, fixtures, or other provenance where available.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Note other approaches or workarounds you considered.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests for the same request.
+          required: true
+        - label: I understand that unverified manufacturer data must not be presented as verified.
+          required: true
