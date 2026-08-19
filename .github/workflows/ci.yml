@@ -130,6 +130,15 @@ jobs:
           grep -q 'path = "../../src/uds/uds.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
           ! grep -q 'mblink/isotp.h' include/mblink/uds.h src/uds/uds.c
 
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "$version" != "0.7.0" ]; then
+            test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+            grep -q 'path = "../../src/mercedes/mercedes.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+            test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+            grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+            test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.7.0"
+          fi
+
       - name: Build iPhone app for simulator
         shell: bash
         run: |
@@ -264,7 +273,13 @@ jobs:
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "target=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Create missing tag and GitHub Release
+      - name: Download unsigned IPA release asset
+        uses: actions/download-artifact@v4
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
+          path: release-assets
+
+      - name: Create or verify tag, GitHub Release and IPA asset
         uses: actions/github-script@v7
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
@@ -273,11 +288,16 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
+            const path = require('path');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const version = process.env.RELEASE_VERSION;
             const tag = process.env.RELEASE_TAG;
             const target = process.env.RELEASE_TARGET;
+            const assetName = `MBLINK-${version}-unsigned.ipa`;
+            const assetPath = path.join(process.env.GITHUB_WORKSPACE,
+                                        'release-assets', assetName);
 
             const main = await github.rest.repos.getBranch({
               owner,
@@ -301,25 +321,25 @@ jobs:
               if (error.status !== 404) throw error;
             }
 
-            let existingRelease = null;
+            let release = null;
             try {
               const response = await github.rest.repos.getReleaseByTag({
                 owner,
                 repo,
                 tag
               });
-              existingRelease = response.data;
+              release = response.data;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
 
-            if (existingRelease !== null && tagTarget === null) {
+            if (release !== null && tagTarget === null) {
               core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
               return;
             }
 
             if (tagTarget !== null && tagTarget !== target) {
-              if (existingRelease !== null) {
+              if (release !== null) {
                 core.info(`${tag} is already released at ${tagTarget}; current main ${target} is post-release development, so no release action is required.`);
                 return;
               }
@@ -327,8 +347,8 @@ jobs:
               return;
             }
 
-            if (existingRelease !== null) {
-              core.info(`${tag} already identifies this exact commit and has release ${existingRelease.html_url}; nothing to do.`);
+            if (!fs.existsSync(assetPath)) {
+              core.setFailed(`Expected IPA release asset is missing: ${assetPath}`);
               return;
             }
 
@@ -339,17 +359,45 @@ jobs:
                 ref: `refs/tags/${tag}`,
                 sha: target
               });
+              tagTarget = target;
             }
 
-            const release = await github.rest.repos.createRelease({
+            if (release === null) {
+              const response = await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: tag,
+                target_commitish: target,
+                name: `MBLINK ${version}`,
+                generate_release_notes: true,
+                draft: false,
+                prerelease: false
+              });
+              release = response.data;
+              core.info(`Published ${release.html_url}`);
+            } else {
+              core.info(`${tag} already identifies this exact commit; checking release assets.`);
+            }
+
+            const assets = await github.paginate(
+              github.rest.repos.listReleaseAssets,
+              { owner, repo, release_id: release.id, per_page: 100 }
+            );
+            if (assets.some(asset => asset.name === assetName)) {
+              core.info(`${assetName} is already attached to ${tag}.`);
+              return;
+            }
+
+            const data = fs.readFileSync(assetPath);
+            await github.rest.repos.uploadReleaseAsset({
               owner,
               repo,
-              tag_name: tag,
-              target_commitish: target,
-              name: `MBLINK ${version}`,
-              generate_release_notes: true,
-              draft: false,
-              prerelease: false
+              release_id: release.id,
+              name: assetName,
+              data,
+              headers: {
+                'content-type': 'application/octet-stream',
+                'content-length': data.length
+              }
             });
-
-            core.info(`Published ${release.data.html_url}`);
+            core.info(`Attached ${assetName} to ${tag}.`);
