@@ -146,7 +146,7 @@ static void test_channel_validation_and_failure(void)
           "configuration response without OK accepted");
 
     elm_error = text_response("?");
-    elm_error.result = MBLINK_ELM327_RESULT_ERROR;
+    elm_error.result = MBLINK_ELM327_RESULT_ADAPTER_ERROR;
     check(mblink_elm327_can_channel_accept(&state, &elm_error) ==
               MBLINK_ELM327_CAN_RESULT_ELM_ERROR,
           "ELM error response not reported");
