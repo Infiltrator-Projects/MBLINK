@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a reproducible problem in MBLINK.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve MBLINK. Do not include secrets or sensitive security details here; use SECURITY.md for vulnerability reports.
+
+  - type: input
+    id: version
+    attributes:
+      label: MBLINK version or commit
+      description: Release number, tag, or commit SHA.
+      placeholder: "0.7.0 or b291fec..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iPhone / iOS
+        - Linux
+        - Portable C library
+        - GitHub Actions / build infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS/device, compiler or Xcode version, adapter model/firmware, and vehicle details when relevant.
+      placeholder: "iPhone model / iOS version / Vgate iCar Pro BLE 4.0 / vehicle year-model-engine"
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable sequence that reproduces the problem.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or evidence
+      description: Paste relevant logs, screenshots, traces, or sanitized diagnostic responses. Remove credentials, VINs, registration details, and other private information unless essential.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I have not included secrets or sensitive security information.
+          required: true
