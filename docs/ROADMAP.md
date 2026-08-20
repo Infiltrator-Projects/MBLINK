@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7.2. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through 0.7.3. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -22,6 +22,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.7 | Portable UDS response/session/timing engine, TesterPresent and caller-supplied DID definitions |
 | 0.7.1 | Common 1.7.0 adoption, iPhone Mercedes-source wiring and permanent IPA release assets |
 | 0.7.2 | Shared C live-data catalog, full-key parameter store and UDS-capable 64-item scheduler |
+| 0.7.3 | ELM-managed ISO 15765 CAN channel, Common 1.8 timing reuse and cross-build recovery hardening |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -57,6 +58,18 @@ Module contracts and limitations are documented in the corresponding files under
 No Mercedes manufacturer DID or ECU address is promoted by this release. Those remain 0.8 vehicle-validation work.
 
 **Exit condition:** C regression coverage includes the generic parameter catalog, store and keyed scheduler, and the generic iPhone presentation builds without the removed per-PID publication surface.
+
+## 0.7.3 — ELM-managed CAN and recovery hardening (complete)
+
+- retain the complete portable ELM-managed ISO 15765 CAN-channel implementation and its PDU encode/decode regression coverage;
+- compile that implementation in both CMake and the iPhone portable core;
+- adopt released Infiltratr Common 1.8.0 for generic periodic-deadline advancement without moving scheduler selection policy out of MBLINK;
+- strengthen CI so dependency, source-ownership and ELM CAN coverage omissions fail before an iPhone or release build can be presented as healthy;
+- align version metadata and documentation with the actual 64-item scheduler and the distinction between physical installation and live vehicle validation.
+
+No ECU endpoint, Mercedes DID or successful Vgate/vehicle exchange is claimed by this maintenance release. Those remain evidence-driven 0.8 work.
+
+**Exit condition:** all portable tests retain their ELM CAN PDU coverage, CMake and iPhone compile the same new C sources, and all portable, sanitizer, Linux, iOS and unsigned-device gates pass on one exact 0.7.3 commit.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 

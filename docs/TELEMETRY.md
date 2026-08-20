@@ -6,7 +6,7 @@ Scheduling, canonical sample state and session formatting live in portable C. Ap
 
 ## Default OBD-II schedule
 
-`MblinkScheduler` is bounded to 16 items and uses caller-supplied monotonic milliseconds.
+`MblinkScheduler` is bounded to 64 items and uses caller-supplied monotonic milliseconds.
 
 | PID | Value | Interval | Priority |
 | --- | --- | ---: | --- |

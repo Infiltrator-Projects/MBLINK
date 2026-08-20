@@ -88,6 +88,7 @@ static void test_channel_configuration_29_bit(void)
         UINT32_C(0x18daf110), UINT32_C(0x18da10f1), true
     };
     MblinkElm327CanChannelState state;
+    MblinkElm327Response response = ok_response();
     char command[32];
 
     check(mblink_elm327_can_channel_config_is_valid(&config),
@@ -102,7 +103,7 @@ static void test_channel_configuration_29_bit(void)
     check(strcmp(command, "ATSH18DAF110") == 0,
           "29-bit header command mismatch");
 
-    check(mblink_elm327_can_channel_accept(&state, &ok_response()) ==
+    check(mblink_elm327_can_channel_accept(&state, &response) ==
               MBLINK_ELM327_CAN_RESULT_OK,
           "29-bit header accept failed");
     check(mblink_elm327_can_channel_command(

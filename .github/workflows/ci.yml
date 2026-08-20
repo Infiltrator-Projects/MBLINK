@@ -136,8 +136,17 @@ jobs:
           test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
 
-          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.7.0"
-          grep -q 'set(MBLINK_COMMON_COMMIT "a5b52f7ad62fcbb3462c496b7831e7f974161bcf")' CMakeLists.txt
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.8.0"
+          grep -q 'set(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")' CMakeLists.txt
+          test "$(grep -c 'timing.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/infiltratr-common/src/timing.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -q 'infiltratr_periodic_deadline_advance' src/core/scheduler.c
+
+          test "$(grep -c 'elm327_can.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/elm327/can.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -q 'src/elm327/can.c' CMakeLists.txt
+          grep -q 'mblink-test-elm327-can' CMakeLists.txt
+          test "$(grep -Ec '^static void test_pdu_(command|decode_single|decode_indexed|decode_failures)\(void\)$' tests/test_elm327_can.c)" -eq 4
 
           grep -q 'mblink/parameter.h' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift

@@ -8,13 +8,13 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed maintenance milestone: 0.7.2 — shared live-data model hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest completed maintenance milestone: 0.7.3 — ELM-managed CAN and shared-timing recovery hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
 - portable C11 core and transport ABI;
 - shared Vehicle / Modules / Faults / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract;
-- ELM327 command, parser, initialisation and session engines;
+- ELM327 command, parser, initialisation and session engines, plus an ELM-managed ISO 15765 CAN-channel contract;
 - standard OBD-II PID, readiness, VIN, freeze-frame and DTC handling;
 - portable polling scheduler, telemetry history and session recording;
 - Classical-CAN ISO-TP transmit/receive state machines;
@@ -22,6 +22,7 @@ Implemented today:
 - protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting for OBD-II and future manufacturer UDS live values;
 - bounded protocol-neutral parameter state/history keyed by protocol, module and identifier;
 - 64-item live-data scheduler with full parameter keys plus compatibility wrappers for the current OBD-II session loop;
+- Infiltratr Common 1.8-backed periodic deadline advancement with identical CMake and iPhone source wiring;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
