@@ -4,7 +4,7 @@
 
 MBLINK consumes the released Infiltratr Common submodule as its generic portable C foundation. Shared code is reused when the existing contract genuinely matches; vehicle-diagnostics behaviour remains owned by MBLINK.
 
-The 0.7.3 baseline pins Infiltratr Common 1.8.0 at exact release commit `318b1babc7343403ae5e222ea01235a0fc84d752`. CMake validates both the release version and gitlink commit so a mismatched Common checkout fails configuration rather than silently changing the shared contract.
+Post-0.7.3 development pins Infiltratr Common 1.9.0 at exact release commit `a65b279b40682791f2cfefb4d9bdc274790b0c77`. CMake validates both the release version and gitlink commit so a mismatched Common checkout fails configuration rather than silently changing the shared contract. Common's `core.c`, `arithmetic.c`, `timing.c` and `format.c` are compiled identically by CMake and the iPhone target because the 1.9 timing contract uses the canonical signed-arithmetic implementation.
 
 Current direct reuse includes project metadata, bounded string helpers, deterministic string comparison, strict parsing, checked/saturating arithmetic, array sizing, periodic-deadline advancement and presentation-safe scalar formatting. The protocol-neutral diagnostic parameter layer uses Common's scalar formatter so precision, clamping and unavailable-value rendering are not reimplemented in Swift, Objective-C or MBLINK C. The scheduler uses Common's integer deadline helper to skip missed occurrences without cadence drift or overflow.
 

@@ -40,6 +40,13 @@ Generic UDS owns DID request/response structure but not manufacturer meaning. `M
 
 This is the contract the C207/OM651 manufacturer layer will consume in 0.8.
 
+The first 0.8 integration uses the existing positive-response TesterPresent
+contract as a read-only endpoint probe after the ELM-managed physical CAN
+channel is configured. That confirms only that the selected endpoint speaks
+UDS; it does not establish ECU identity or validate manufacturer data. It does
+not enter a session or write vehicle data, although a responding ECU may refresh
+its diagnostic inactivity timer.
+
 ## Manufacturer policy
 
 This layer contains no Mercedes-Benz ECU addresses, DIDs, scaling formulas or DTC interpretation. Mercedes definitions belong above UDS and remain explicitly unverified until supported by real vehicle responses and regression fixtures.

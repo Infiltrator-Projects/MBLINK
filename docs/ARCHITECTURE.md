@@ -68,7 +68,7 @@ MBLINK discovers GATT services and characteristics at runtime and validates cand
 
 ### Manufacturer extensions
 
-Generic OBD-II, ISO-TP and UDS remain manufacturer-neutral. Mercedes-Benz definitions sit above those reusable layers and carry explicit validation status where identifiers are not yet proven against real vehicle responses.
+Generic OBD-II, ISO-TP and UDS remain manufacturer-neutral. Mercedes-Benz endpoint and DID definitions sit above those reusable layers and carry explicit validation status where addresses or identifiers are not yet proven against real vehicle responses. Endpoint profiles use the transport-neutral ISO-TP address contract; the ELM-managed read-only probe adapts only the normal physical subset it can represent without making the manufacturer profile adapter-specific.
 
 Manufacturer UDS values can project into the protocol-neutral parameter model only after their decoding/provenance contract is defined; the parameter layer is not a shortcut around manufacturer verification.
 

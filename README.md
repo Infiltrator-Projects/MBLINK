@@ -22,8 +22,9 @@ Implemented today:
 - protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting for OBD-II and future manufacturer UDS live values;
 - bounded protocol-neutral parameter state/history keyed by protocol, module and identifier;
 - 64-item live-data scheduler with full parameter keys plus compatibility wrappers for the current OBD-II session loop;
-- Infiltratr Common 1.8-backed periodic deadline advancement with identical CMake and iPhone source wiring;
+- Infiltratr Common 1.9-backed portable primitives and periodic deadline advancement with identical CMake and iPhone source wiring;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
+- read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
@@ -111,6 +112,7 @@ The desktop toolkit is optional: building only `libmblink` does not require GTK4
 - [Telemetry](docs/TELEMETRY.md) — scheduling, history and recording
 - [ISO-TP](docs/ISOTP.md) — transport-layer scope and state machines
 - [UDS](docs/UDS.md) — response, session, timing and DID contracts
+- [Mercedes-Benz diagnostics](docs/MERCEDES.md) — C207/OM651 endpoint provenance, probing and verification policy
 - [Diagnostic parameters](docs/PARAMETERS.md) — shared OBD/UDS live-value identity and formatting contract
 - [Common reuse](docs/COMMON-REUSE.md) — shared-library ownership and reuse boundary
 - [Apple](docs/APPLE.md) — CoreBluetooth/iPhone boundary and hardware validation

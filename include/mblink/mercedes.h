@@ -6,6 +6,7 @@
 #ifndef MBLINK_MERCEDES_H
 #define MBLINK_MERCEDES_H
 
+#include "mblink/isotp.h"
 #include "mblink/uds.h"
 
 #include <stdbool.h>
@@ -40,9 +41,20 @@ typedef struct {
 } MblinkMercedesDidDefinition;
 
 typedef struct {
+    const char *key;
+    const char *name;
+    MblinkMercedesModuleKind module;
+    MblinkIsoTpAddress address;
+    MblinkMercedesDefinitionStatus status;
+    const char *provenance;
+} MblinkMercedesEcuEndpointDefinition;
+
+typedef struct {
     const char *chassis_code;
     const char *engine_family;
     const char *display_name;
+    const MblinkMercedesEcuEndpointDefinition *endpoints;
+    size_t endpoint_count;
     const MblinkMercedesDidDefinition *definitions;
     size_t definition_count;
 } MblinkMercedesVehicleProfile;
@@ -58,8 +70,19 @@ bool mblink_mercedes_did_definition_is_valid(
 bool mblink_mercedes_did_definition_is_verified(
     const MblinkMercedesDidDefinition *definition);
 
+bool mblink_mercedes_ecu_endpoint_is_valid(
+    const MblinkMercedesEcuEndpointDefinition *endpoint);
+
+bool mblink_mercedes_ecu_endpoint_is_verified(
+    const MblinkMercedesEcuEndpointDefinition *endpoint);
+
 bool mblink_mercedes_vehicle_profile_is_valid(
     const MblinkMercedesVehicleProfile *profile);
+
+const MblinkMercedesEcuEndpointDefinition *
+mblink_mercedes_profile_find_endpoint(
+    const MblinkMercedesVehicleProfile *profile,
+    const char *key);
 
 const MblinkMercedesDidDefinition *mblink_mercedes_profile_find_did(
     const MblinkMercedesVehicleProfile *profile,
@@ -75,8 +98,9 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
 /**
  * Return the C207 / OM651 development profile.
  *
- * The profile starts with no manufacturer DIDs: definitions are added only
- * after provenance is recorded and vehicle responses become regression fixtures.
+ * The profile contains a conventional read-only EOBD engine-address candidate
+ * for physical probing. It remains a candidate until confirmed on the vehicle.
+ * Manufacturer DIDs remain empty until responses become regression fixtures.
  */
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void);
 

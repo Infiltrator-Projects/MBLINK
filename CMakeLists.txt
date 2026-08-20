@@ -28,8 +28,8 @@ endif()
 include(CTest)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
-set(MBLINK_COMMON_VERSION "1.8.0")
-set(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")
+set(MBLINK_COMMON_VERSION "1.9.0")
+set(MBLINK_COMMON_COMMIT "a65b279b40682791f2cfefb4d9bdc274790b0c77")
 
 if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
     message(FATAL_ERROR
@@ -60,6 +60,7 @@ endif()
 
 add_library(infiltratr-common STATIC
     "${MBLINK_COMMON_DIR}/src/core.c"
+    "${MBLINK_COMMON_DIR}/src/arithmetic.c"
     "${MBLINK_COMMON_DIR}/src/timing.c"
     "${MBLINK_COMMON_DIR}/src/format.c")
 target_include_directories(infiltratr-common PUBLIC
@@ -79,7 +80,8 @@ add_library(mblink STATIC
     src/elm327/probe.c
     src/obd2/obd2.c
     src/uds/uds.c
-    src/mercedes/mercedes.c)
+    src/mercedes/mercedes.c
+    src/mercedes/probe.c)
 target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
@@ -149,4 +151,5 @@ if(BUILD_TESTING)
         tests/test_isotp_functional_response.c)
     mblink_add_test(mblink-test-uds tests/test_uds.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
+    mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)
 endif()

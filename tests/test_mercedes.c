@@ -38,11 +38,89 @@ static int test_development_profile(void)
     CHECK(strcmp(profile->chassis_code, "C207") == 0);
     CHECK(strcmp(profile->engine_family, "OM651") == 0);
     CHECK(strcmp(profile->display_name, "Mercedes-Benz C207 / OM651") == 0);
+    CHECK(profile->endpoints != NULL);
+    CHECK(profile->endpoint_count == 1U);
+    CHECK(strcmp(profile->endpoints[0].key,
+                 "c207-om651-engine-eobd-11bit") == 0);
+    CHECK(profile->endpoints[0].module == MBLINK_MERCEDES_MODULE_ENGINE);
+    CHECK(profile->endpoints[0].address.tx_can_id == 0x7e0U);
+    CHECK(profile->endpoints[0].address.rx_can_id == 0x7e8U);
+    CHECK(!profile->endpoints[0].address.tx_extended_id);
+    CHECK(!profile->endpoints[0].address.rx_extended_id);
+    CHECK(profile->endpoints[0].address.addressing_mode ==
+          MBLINK_ISOTP_ADDRESSING_NORMAL);
+    CHECK(!mblink_mercedes_ecu_endpoint_is_verified(&profile->endpoints[0]));
+    CHECK(mblink_mercedes_profile_find_endpoint(
+              profile, "c207-om651-engine-eobd-11bit") ==
+          &profile->endpoints[0]);
+    CHECK(mblink_mercedes_profile_find_endpoint(profile, "missing") == NULL);
     CHECK(profile->definitions == NULL);
     CHECK(profile->definition_count == 0U);
     CHECK(mblink_mercedes_vehicle_profile_is_valid(profile));
     CHECK(mblink_mercedes_profile_find_did(
               profile, MBLINK_MERCEDES_MODULE_ENGINE, 0x1234U) == NULL);
+    return 0;
+}
+
+static MblinkMercedesEcuEndpointDefinition make_endpoint(
+    const char *key,
+    uint32_t tx_can_id,
+    uint32_t rx_can_id)
+{
+    MblinkMercedesEcuEndpointDefinition endpoint = {
+        .key = key,
+        .name = "Test endpoint",
+        .module = MBLINK_MERCEDES_MODULE_ENGINE,
+        .address = {
+            .tx_can_id = tx_can_id,
+            .rx_can_id = rx_can_id,
+            .tx_extended_id = false,
+            .rx_extended_id = false,
+            .addressing_mode = MBLINK_ISOTP_ADDRESSING_NORMAL,
+            .target_type = MBLINK_ISOTP_TARGET_PHYSICAL,
+            .tx_address_extension = 0U,
+            .rx_address_extension = 0U
+        },
+        .status = MBLINK_MERCEDES_DEFINITION_CANDIDATE,
+        .provenance = "test fixture"
+    };
+    return endpoint;
+}
+
+static int test_endpoint_validation(void)
+{
+    MblinkMercedesEcuEndpointDefinition endpoints[2] = {
+        make_endpoint("engine-a", 0x7e0U, 0x7e8U),
+        make_endpoint("engine-b", 0x7e1U, 0x7e9U)
+    };
+    MblinkMercedesVehicleProfile profile = {
+        .chassis_code = "C207",
+        .engine_family = "OM651",
+        .display_name = "test profile",
+        .endpoints = endpoints,
+        .endpoint_count = 2U,
+        .definitions = NULL,
+        .definition_count = 0U
+    };
+
+    CHECK(mblink_mercedes_ecu_endpoint_is_valid(&endpoints[0]));
+    CHECK(!mblink_mercedes_ecu_endpoint_is_verified(&endpoints[0]));
+    endpoints[0].status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED;
+    CHECK(mblink_mercedes_ecu_endpoint_is_verified(&endpoints[0]));
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(&profile));
+
+    endpoints[1].key = "engine-a";
+    CHECK(!mblink_mercedes_vehicle_profile_is_valid(&profile));
+    endpoints[1] = make_endpoint("engine-b", 0x7e0U, 0x7e8U);
+    CHECK(!mblink_mercedes_vehicle_profile_is_valid(&profile));
+    endpoints[1] = make_endpoint("engine-b", 0x7e1U, 0x7e9U);
+    endpoints[1].address.rx_can_id = endpoints[1].address.tx_can_id;
+    CHECK(!mblink_mercedes_ecu_endpoint_is_valid(&endpoints[1]));
+    endpoints[1] = make_endpoint("engine-b", 0x800U, 0x7e9U);
+    CHECK(!mblink_mercedes_ecu_endpoint_is_valid(&endpoints[1]));
+    endpoints[1] = make_endpoint("engine-b", 0x7e1U, 0x7e9U);
+    endpoints[1].address.target_type = MBLINK_ISOTP_TARGET_FUNCTIONAL;
+    CHECK(!mblink_mercedes_ecu_endpoint_is_valid(&endpoints[1]));
     return 0;
 }
 
@@ -92,6 +170,8 @@ static int test_profile_lookup_and_duplicates(void)
         .chassis_code = "C207",
         .engine_family = "OM651",
         .display_name = "test profile",
+        .endpoints = NULL,
+        .endpoint_count = 0U,
         .definitions = definitions,
         .definition_count = 2U
     };
@@ -144,6 +224,7 @@ static int test_decode_wrapper(void)
 int main(void)
 {
     if (test_development_profile() != 0) return 1;
+    if (test_endpoint_validation() != 0) return 1;
     if (test_definition_validation() != 0) return 1;
     if (test_profile_lookup_and_duplicates() != 0) return 1;
     if (test_decode_wrapper() != 0) return 1;

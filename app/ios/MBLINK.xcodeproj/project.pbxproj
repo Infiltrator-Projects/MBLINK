@@ -22,6 +22,8 @@
 		E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };
 		E0A1B2C3D4E5F60718293B08 /* timing.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A08 /* timing.c */; };
 		E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A09 /* elm327_can.c */; };
+		E0A1B2C3D4E5F60718293B0A /* arithmetic.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0A /* arithmetic.c */; };
+		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
@@ -63,6 +65,8 @@
 		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A08 /* timing.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "timing.c"; path = "../../src/infiltratr-common/src/timing.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A09 /* elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327_can.c"; path = "../../src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A0A /* arithmetic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "arithmetic.c"; path = "../../src/infiltratr-common/src/arithmetic.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -142,6 +146,7 @@
 				F0A1B2C3D4E5F60718293A04 /* isotp.c */,
 				F0A1B2C3D4E5F60718293A05 /* uds.c */,
 				F0A1B2C3D4E5F60718293A06 /* mercedes.c */,
+				F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
 				F0A1B2C3D4E5F60718293A09 /* elm327_can.c */,
 				A4A92AE396A1586C99D8BB56 /* session.c */,
@@ -155,6 +160,7 @@
 			isa = PBXGroup;
 			children = (
 				D5AEE7D0F9C3D6A65D0D9E38 /* core.c */,
+				F0A1B2C3D4E5F60718293A0A /* arithmetic.c */,
 				F0A1B2C3D4E5F60718293A08 /* timing.c */,
 				FB46CB06CB0FE9B8B23168B3 /* format.c */,
 			);
@@ -288,12 +294,14 @@
 				E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */,
 				E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,
 				E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,
+				E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
 				E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */,
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
 				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
 				E282A55680BFE4F2A03F50A1 /* core.c in Sources */,
+				E0A1B2C3D4E5F60718293B0A /* arithmetic.c in Sources */,
 				E0A1B2C3D4E5F60718293B08 /* timing.c in Sources */,
 				DAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,
 			);

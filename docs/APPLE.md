@@ -31,7 +31,7 @@ Scan, connect, discovery and candidate-probe operations have explicit deadlines.
 
 `MBLinkBLETransportMakeCTransport()` exposes the provider through the C transport ABI. The diagnostics controller then runs the C ELM initialization, discovers standard OBD-II capability, asks the C scheduler what is due, decodes through C, records C telemetry and exposes final typed values/history/favourites/export data to SwiftUI.
 
-The iPhone core also compiles the portable ELM-managed ISO 15765 CAN-channel implementation used by CMake. Selecting a manufacturer ECU endpoint and running that channel through the live controller remain 0.8 discovery/integration work; source inclusion alone does not claim a working Mercedes exchange.
+The iPhone core also compiles the portable ELM-managed ISO 15765 CAN-channel implementation and read-only Mercedes ECU probe used by CMake. The C207/OM651 profile now supplies a provenance-labelled conventional engine-address candidate, but invoking the probe through the live controller and validating it on the vehicle remain 0.8 integration work; source inclusion and deterministic fixtures do not claim a working Mercedes exchange.
 
 CoreBluetooth and diagnostics delegate delivery are main-queue-bound. Objective-C exposes that contract with `NS_SWIFT_UI_ACTOR`; the Swift view model remains `@MainActor` rather than suppressing concurrency diagnostics.
 

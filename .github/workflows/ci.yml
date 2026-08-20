@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
@@ -98,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
@@ -133,11 +133,17 @@ jobs:
 
           test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/mercedes/mercedes.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(grep -c 'mercedes_probe.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/mercedes/probe.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -q 'mblink-test-mercedes-probe' CMakeLists.txt
+          grep -q 'mblink_mercedes_ecu_probe_accept' tests/test_mercedes_probe.c
           test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
 
-          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.8.0"
-          grep -q 'set(MBLINK_COMMON_COMMIT "318b1babc7343403ae5e222ea01235a0fc84d752")' CMakeLists.txt
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.9.0"
+          grep -q 'set(MBLINK_COMMON_COMMIT "a65b279b40682791f2cfefb4d9bdc274790b0c77")' CMakeLists.txt
+          test "$(grep -c 'arithmetic.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          grep -q 'path = "../../src/infiltratr-common/src/arithmetic.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
           test "$(grep -c 'timing.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/infiltratr-common/src/timing.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -q 'infiltratr_periodic_deadline_advance' src/core/scheduler.c
@@ -189,7 +195,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
@@ -259,7 +265,7 @@ jobs:
           /usr/bin/unzip -tq "$ipa"
 
       - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MBLINK-${{ steps.version.outputs.version }}-unsigned-iphone-ipa
           path: ${{ runner.temp }}/MBLINK-${{ steps.version.outputs.version }}-unsigned.ipa
@@ -277,7 +283,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
 
@@ -296,13 +302,13 @@ jobs:
           echo "target=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Download unsigned IPA release asset
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
           path: release-assets
 
       - name: Create or verify tag, GitHub Release and IPA asset
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}

@@ -75,6 +75,14 @@ No ECU endpoint, Mercedes DID or successful Vgate/vehicle exchange is claimed by
 
 Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters.
 
+In progress after 0.7.3:
+
+- the C207/OM651 profile now carries a conventional 11-bit physical engine-endpoint candidate with explicit source provenance and unverified status;
+- a portable read-only ECU probe configures the ELM-managed CAN channel and validates a positive UDS TesterPresent response without entering a session or writing vehicle data;
+- probe failures preserve whether configuration, ELM PDU decoding or UDS validation failed, including the underlying ELM result and UDS negative-response code;
+- the portable probe is not yet invoked by the iPhone connection workflow, and successful vehicle communication remains unclaimed;
+- no successful vehicle exchange or manufacturer DID is claimed until physical captures exist.
+
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
 **Exit condition:** verified information materially exceeds generic OBD-II capability on the development vehicle.
