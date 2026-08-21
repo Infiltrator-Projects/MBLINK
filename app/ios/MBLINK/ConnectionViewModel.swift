@@ -70,7 +70,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
 
         clearPreparedExport()
-        let filename = "MBLINK-session-\(UUID().uuidString).csv"
+        let filename = "MBLINK-diagnostic-evidence-\(UUID().uuidString).csv"
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(filename)
         do {
