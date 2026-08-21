@@ -109,8 +109,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
     }
 
-    func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
-        refresh()
+    nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
+        Task { @MainActor [weak self] in
+            self?.refresh()
+        }
     }
 
     private func clearPreparedExport() {
