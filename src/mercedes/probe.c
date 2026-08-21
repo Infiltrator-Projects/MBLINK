@@ -131,6 +131,16 @@ static MblinkMercedesEcuProbeResult mercedes_probe_complete(
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE;
 }
 
+static MblinkMercedesEcuProbeResult mercedes_probe_begin_dtc(
+    MblinkMercedesEcuProbe *probe)
+{
+    if (probe == NULL) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_INVALID_ARGUMENT;
+    }
+    probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION;
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+}
+
 static MblinkMercedesEcuProbeResult mercedes_probe_begin_crd3(
     MblinkMercedesEcuProbe *probe)
 {
@@ -163,7 +173,7 @@ static MblinkMercedesEcuProbeResult mercedes_probe_advance_crd3(
     }
     probe->crd3_index++;
     if (probe->crd3_index >= MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT) {
-        return mercedes_probe_complete(probe);
+        return mercedes_probe_begin_dtc(probe);
     }
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }
@@ -204,6 +214,8 @@ const char *mblink_mercedes_ecu_probe_stage_name(
         return "read-standard-identity";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT:
         return "read-crd3-fingerprint";
+    case MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION:
+        return "read-dtc-information";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED: return "failed";
     }
@@ -223,6 +235,22 @@ const char *mblink_mercedes_ecu_probe_vin_result_name(
     case MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE:
         return "negative-response";
     case MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE:
+        return "invalid-response";
+    }
+    return "unknown";
+}
+
+const char *mblink_mercedes_ecu_probe_dtc_result_name(
+    MblinkMercedesEcuProbeDtcResult result)
+{
+    switch (result) {
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED:
+        return "not-attempted";
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE: return "available";
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE: return "no-response";
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE:
+        return "negative-response";
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE:
         return "invalid-response";
     }
     return "unknown";
@@ -316,6 +344,11 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_begin(
     probe->vin[0] = '\0';
     probe->identity_index = 0U;
     probe->crd3_index = 0U;
+    probe->dtc_result = MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED;
+    probe->dtc_elm_can_result = MBLINK_ELM327_CAN_RESULT_OK;
+    probe->dtc_elm_result = MBLINK_ELM327_RESULT_OK;
+    probe->dtc_uds_result = MBLINK_UDS_RESULT_OK;
+    probe->dtc_negative_response_code = 0U;
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }
 
@@ -329,6 +362,33 @@ static MblinkMercedesEcuProbeResult mercedes_probe_build_read_did_command(
     size_t pdu_length = 0U;
     MblinkUdsResult uds_result = mblink_uds_build_read_did_request(
         did, pdu, sizeof(pdu), &pdu_length);
+    MblinkElm327CanResult elm_result;
+
+    if (uds_result != MBLINK_UDS_RESULT_OK) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR;
+    }
+    elm_result = mblink_elm327_can_build_pdu_command(
+        pdu, pdu_length, buffer, buffer_size, written);
+    if (elm_result == MBLINK_ELM327_CAN_RESULT_BUFFER_TOO_SMALL) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_BUFFER_TOO_SMALL;
+    }
+    if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR;
+    }
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_build_dtc_command(
+    char *buffer,
+    size_t buffer_size,
+    size_t *written)
+{
+    uint8_t pdu[3];
+    size_t pdu_length = 0U;
+    MblinkUdsResult uds_result =
+        mblink_uds_build_report_dtcs_by_status_mask_request(
+            MBLINK_UDS_DTC_STATUS_MASK_ALL,
+            pdu, sizeof(pdu), &pdu_length);
     MblinkElm327CanResult elm_result;
 
     if (uds_result != MBLINK_UDS_RESULT_OK) {
@@ -415,6 +475,10 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_command(
         return mercedes_probe_build_read_did_command(
             mercedes_probe_crd3_dids[probe->crd3_index],
             buffer, buffer_size, written);
+    }
+
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+        return mercedes_probe_build_dtc_command(buffer, buffer_size, written);
     }
 
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
@@ -521,6 +585,32 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_identity(
     return mercedes_probe_advance_identity(probe);
 }
 
+static void mercedes_probe_decode_crd3_identity(
+    MblinkMercedesEcuProbe *probe,
+    uint16_t did,
+    const MblinkUdsDidRecord *record)
+{
+    if (probe == NULL || record == NULL) {
+        return;
+    }
+
+    if (did == MBLINK_MERCEDES_CRD3_DID_SESSION_VARIANT) {
+        MblinkMercedesCrd3SessionVariant decoded;
+        if (mblink_mercedes_crd3_decode_session_variant(
+                record->data, record->data_length, &decoded)) {
+            probe->crd3_session_variant = decoded;
+            probe->crd3_session_variant_available = true;
+        }
+    } else if (did == MBLINK_MERCEDES_CRD3_DID_SUPPLIER_IDENTIFIER) {
+        MblinkMercedesCrd3Supplier decoded;
+        if (mblink_mercedes_crd3_decode_supplier(
+                record->data, record->data_length, &decoded)) {
+            probe->crd3_supplier = decoded;
+            probe->crd3_supplier_available = true;
+        }
+    }
+}
+
 static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
     MblinkMercedesEcuProbe *probe,
     const MblinkElm327Response *response)
@@ -561,6 +651,7 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
     if (uds_result == MBLINK_UDS_RESULT_OK) {
         probe->crd3_positive_mask |= bit;
         probe->identity_positive_mask |= evidence_bit;
+        mercedes_probe_decode_crd3_identity(probe, did, &record);
     } else if (uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
         probe->crd3_negative_mask |= bit;
         probe->identity_negative_mask |= evidence_bit;
@@ -569,6 +660,46 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
         probe->identity_invalid_mask |= evidence_bit;
     }
     return mercedes_probe_advance_crd3(probe);
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_accept_dtc(
+    MblinkMercedesEcuProbe *probe,
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MERCEDES_PROBE_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    MblinkElm327CanResult elm_result;
+
+    elm_result = mblink_elm327_can_decode_pdu(
+        response, pdu, sizeof(pdu), &pdu_length);
+    probe->dtc_elm_can_result = elm_result;
+    probe->dtc_elm_result = response->result;
+
+    if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+        probe->dtc_result = response->result == MBLINK_ELM327_RESULT_NO_DATA
+            ? MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE
+            : MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE;
+        return mercedes_probe_complete(probe);
+    }
+
+    probe->dtc_uds_result =
+        mblink_uds_decode_report_dtcs_by_status_mask_response(
+            pdu, pdu_length, &probe->dtcs);
+    if (probe->dtc_uds_result == MBLINK_UDS_RESULT_OK) {
+        probe->dtc_result = MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE;
+    } else if (probe->dtc_uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+        MblinkUdsResponse decoded;
+        if (mblink_uds_decode_response(
+                MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
+                pdu, pdu_length, &decoded) ==
+            MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+            probe->dtc_negative_response_code = decoded.negative_response_code;
+        }
+        probe->dtc_result = MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE;
+    } else {
+        probe->dtc_result = MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE;
+    }
+    return mercedes_probe_complete(probe);
 }
 
 MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
@@ -609,6 +740,10 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
 
     if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT) {
         return mercedes_probe_accept_crd3(probe, response);
+    }
+
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+        return mercedes_probe_accept_dtc(probe, response);
     }
 
     if (probe->stage != MBLINK_MERCEDES_ECU_PROBE_STAGE_TESTER_PRESENT) {
