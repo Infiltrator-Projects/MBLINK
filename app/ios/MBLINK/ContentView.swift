@@ -28,7 +28,7 @@ struct ContentView: View {
                     workspaceLink("Faults", "Stored, pending and permanent OBD-II trouble codes", "exclamationmark.triangle.fill") {
                         FaultsView()
                     }
-                    workspaceLink("Diesel", "DPF, turbo, rail pressure, EGR and temperatures", "engine.combustion.fill") {
+                    workspaceLink("Diesel", "OM651 targets, DPF, turbo, rail pressure and EGR", "engine.combustion.fill") {
                         DieselDiagnosticsView()
                     }
                     workspaceLink("Live Data", "Select and favourite diagnostic parameters", "waveform.path.ecg") {
@@ -141,8 +141,8 @@ private struct VehicleView: View {
                 LabeledContent("Target platform", value: "Mercedes-Benz C207")
                 LabeledContent("Engine family", value: "OM651")
                 LabeledContent("Generic diagnostics", value: "OBD-II")
-                LabeledContent("Advanced diagnostics", value: "UDS identity sweep active")
-                LabeledContent("Standard identity reads", value: "VIN + 6 ECU IDs")
+                LabeledContent("Advanced diagnostics", value: "UDS + CRD3 evidence")
+                LabeledContent("Identity reads", value: "VIN + 6 standard + 5 CRD3")
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
@@ -156,7 +156,7 @@ private struct VehicleView: View {
                 }
             }
             Section {
-                Text("MBLINK now walks every advertised OBD-II capability block instead of stopping at PID 20, then performs the read-only Mercedes UDS identity sweep. Standard VIN and ECU identity responses remain evidence until the physical capture is promoted into a regression fixture.")
+                Text("MBLINK performs the read-only Mercedes UDS identity sweep and then a bounded CRD3 fingerprint pass. The OM651 manufacturer capability catalogue can be developed offline; physical evidence is required only before endpoint, DID and scaling mappings are promoted as vehicle-verified.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -173,7 +173,7 @@ private struct ModulesView: View {
             Section("Available now") {
                 Label("Generic OBD-II engine diagnostics", systemImage: "engine.combustion.fill")
                 Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
-                Label("Read-only standardized ECU identity sweep", systemImage: "magnifyingglass.circle.fill")
+                Label("Standard UDS + CRD3 read-only identity evidence", systemImage: "magnifyingglass.circle.fill")
             }
             Section("Mercedes-Benz discovery") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
@@ -204,7 +204,7 @@ private struct FaultsView: View {
         List {
             Section("Scan") {
                 LabeledContent("Status", value: connection.faultScanStatusText)
-                Text("Fault codes are read automatically after connection using standard OBD-II services 03, 07 and 0A. The requests are read-only and every response is retained in the diagnostic evidence log.")
+                Text("Fault codes are read automatically after connection using standard OBD-II services 03, 07 and 0A. The portable Mercedes engine layer now also has a read-only UDS 0x19 decoder and offline replay coverage; that path is being wired into the phone connection sequence rather than faked as generic OBD.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -236,6 +236,23 @@ private struct DieselDiagnosticsView: View {
 
     var body: some View {
         List {
+            Section("OM651 / CDID3") {
+                NavigationLink {
+                    MercedesOm651TargetsView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mercedes manufacturer targets")
+                            .font(.body.weight(.medium))
+                        Text("\(connection.mercedesTargetSignals.count) corroborated values · protocol mapping in progress")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("These targets come from OM651/CDID3 diagnostic evidence. They are visible before an adapter is available, but MBLINK will not attach a guessed DID, scaling rule or live value to them.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("DPF") {
                 parameterRow("obd2.dpf.bank1_delta_pressure", fallback: "DPF differential pressure")
                 parameterRow("obd2.dpf.bank1_inlet_temperature", fallback: "DPF inlet temperature")
@@ -256,7 +273,7 @@ private struct DieselDiagnosticsView: View {
             Section("Fuel / injection") {
                 parameterRow("obd2.diesel.rail_pressure", fallback: "Fuel rail pressure")
                 parameterRow("obd2.engine.fuel_rate", fallback: "Fuel rate")
-                LabeledContent("Injector corrections", value: "Awaiting verified OM651 DID")
+                LabeledContent("Injector corrections", value: "OM651 mapping in progress")
             }
 
             Section("EGR") {
@@ -297,6 +314,39 @@ private struct DieselDiagnosticsView: View {
         } else {
             LabeledContent(fallback, value: "Unavailable")
         }
+    }
+}
+
+private struct MercedesOm651TargetsView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    private let categories = ["dpf", "exhaust", "fuel", "air", "egr", "injector"]
+
+    var body: some View {
+        List {
+            Section {
+                Text("This is the manufacturer-level feature map MBLINK is implementing for OM651/CDID3. ‘Corroborated · mapping pending’ means the diagnostic value is independently evidenced, but its raw request/encoding has not yet met MBLINK's provenance threshold.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(categories, id: \.self) { category in
+                Section(category.uppercased()) {
+                    ForEach(connection.mercedesSignals(category: category)) { signal in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(signal.title)
+                            Text(signal.status == "corroborated-unmapped"
+                                 ? "Corroborated · mapping pending"
+                                 : signal.status)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+        .navigationTitle("OM651 Targets")
     }
 }
 
@@ -483,7 +533,7 @@ private struct LogView: View {
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Identity results", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Fault scan", value: connection.faultScanStatusText)
-                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS identity sweep, all three OBD-II fault services and every live diesel/DPF request. Export it after a vehicle test even if some values remain unavailable; that capture is the evidence used to promote vehicle-specific definitions safely.")
+                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS/CRD3 identity evidence, all three OBD-II fault services and every live diesel/DPF request. The portable engine scanner also has offline UDS 0x19 replay coverage while hardware validation is pending.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -523,7 +573,7 @@ private struct SettingsView: View {
                 LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "Unknown")
             }
             Section("Architecture") {
-                Text("SwiftUI renders the shared C diagnostic parameter catalog. Portable diagnostics, parameter metadata/formatting, scheduling, telemetry and protocol behaviour remain owned by libmblink and Infiltratr Common rather than being duplicated in the iPhone UI.")
+                Text("SwiftUI renders the shared C diagnostic parameter catalog and the evidence-backed OM651 target catalogue. Portable diagnostics, parameter metadata/formatting, scheduling, telemetry and protocol behaviour remain owned by libmblink and Infiltratr Common rather than being duplicated in the iPhone UI.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
