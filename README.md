@@ -8,14 +8,17 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest test release: 0.7.9 — read-only C207 / OM651 UDS endpoint evidence, standardized VIN and ECU-identity sweep. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest test release: 0.7.10 — read-only C207 / OM651 ECU identity, automatic fault scanning and standard diesel/DPF live diagnostics. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
 - portable C11 core and transport ABI;
-- shared Vehicle / Modules / Faults / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract;
+- shared Vehicle / Modules / Faults / Diesel / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract;
 - ELM327 command, parser, initialisation and session engines, plus an ELM-managed ISO 15765 CAN-channel contract;
 - standard OBD-II PID, readiness, VIN, freeze-frame and DTC handling;
+- complete chained OBD-II supported-PID discovery beyond the first 0x00-0x20 capability block;
+- automatic read-only stored, pending and permanent OBD-II fault scans using services `03`, `07` and `0A`;
+- standard diesel/aftertreatment live-data decoding for advertised rail pressure, EGR, barometric pressure, catalyst/EGT temperature, DPF differential pressure and inlet temperature, control-module voltage, oil/ambient temperature and fuel rate;
 - portable polling scheduler, telemetry history and session recording;
 - Classical-CAN ISO-TP transmit/receive state machines;
 - portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;
@@ -28,14 +31,15 @@ Implemented today:
 - automatic iPhone probe flow after generic OBD-II capability discovery;
 - standardized UDS VIN DID `F190` evidence capture after a positive TesterPresent response;
 - bounded standardized ECU-identity reads for `F18C`, `F187`, `F188`, `F189`, `F191` and `F197`, recording positive, negative, silent and malformed outcomes without inventing manufacturer-specific interpretations;
+- visible iPhone VIN and per-DID ECU identity evidence summaries;
 - complete raw diagnostic-evidence export from the iPhone Log workspace even when no live-data samples were recorded;
 - visible iPhone project identity with `Copyright © 2026 Shannon Smith`, About, author/version/licence information and matching iOS copyright metadata;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
-- SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
+- SwiftUI diagnostic workspace whose live data, diesel, faults, table, dashboard and graphs consume the shared C diagnostic model, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
 - Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds and unsigned physical-iPhone IPA builds.
 
-Physical iPhone installation has been validated. Release 0.7.9 is the current physical C207/OM651 evidence build. A successful Mercedes-Benz ECU response remains unverified until the real vehicle capture is exported and promoted into a deterministic regression fixture. Manufacturer-specific DPF, boost, rail-pressure, injector and EGR definitions remain deliberately absent until that evidence exists.
+Physical iPhone installation has been validated. Release 0.7.10 is the current physical C207/OM651 evidence build. A successful Mercedes-Benz ECU response remains unverified until the real vehicle capture is exported and promoted into a deterministic regression fixture. Standard SAE diesel/DPF values are used where the vehicle advertises them; manufacturer-specific soot load, regeneration state, ash load, injector correction and other undocumented OM651 DIDs remain deliberately absent until physical evidence exists.
 
 ## Architecture
 
@@ -85,7 +89,7 @@ ctest --test-dir build-sanitized --output-on-failure
 
 The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations. The project links Common's authoritative `InfiltratrCommonPortable` Xcode product rather than duplicating Common's internal source list.
 
-For a physical 0.7.9 test, connect to the C207/OM651 vehicle, let the connection sequence complete, then open Log and export the diagnostic evidence. The transcript should include the channel configuration, `3E00`, `22F190`, the six bounded standardized identity requests, and the subsequent adapter reset before ordinary live OBD-II polling.
+For a physical 0.7.10 test, connect to the C207/OM651 vehicle and let the connection sequence complete. MBLINK enumerates all advertised standard OBD-II PID blocks, probes the candidate Mercedes engine endpoint, reads the standard UDS VIN/ECU identity set, restores normal OBD-II, scans stored/pending/permanent faults, then begins standard live and diesel/aftertreatment polling. Open Vehicle, Modules, Faults and Diesel to inspect the results, then open Log and export the diagnostic evidence. The transcript is the evidence needed before any undocumented OM651 definition can be promoted.
 
 ## Linux target
 
