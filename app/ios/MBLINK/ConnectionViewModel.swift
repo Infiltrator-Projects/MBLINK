@@ -27,6 +27,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var mercedesProbeEndpointText = "Candidate not selected"
     @Published private(set) var mercedesVINText = "Not captured"
     @Published private(set) var mercedesIdentitySummaryText = "Not attempted"
+    @Published private(set) var mercedesIdentityResults = [String]()
+    @Published private(set) var faultScanStatusText = "Not scanned"
+    @Published private(set) var storedDTCs = [String]()
+    @Published private(set) var pendingDTCs = [String]()
+    @Published private(set) var permanentDTCs = [String]()
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
 
@@ -49,6 +54,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func disconnect() {
         controller.disconnect()
+    }
+
+    func parameter(stableKey: String) -> DiagnosticParameter? {
+        diagnosticParameters.first { $0.id == stableKey }
     }
 
     func toggleFavourite(stableKey: String) {
@@ -177,6 +186,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Candidate not selected"
         mercedesVINText = controller.mercedesVINText ?? "Not captured"
         mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
+        mercedesIdentityResults = controller.mercedesIdentityResults
+        faultScanStatusText = controller.faultScanStatusText
+        storedDTCs = controller.storedDTCs
+        pendingDTCs = controller.pendingDTCs
+        permanentDTCs = controller.permanentDTCs
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
