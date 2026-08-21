@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest test release: 0.7.6 — visible iPhone project identity/About correction plus C207 / OM651 probe testing. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest test release: 0.7.9 — read-only C207 / OM651 UDS endpoint evidence, standardized VIN and ECU-identity sweep. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -25,14 +25,17 @@ Implemented today:
 - Infiltratr Common 1.10-backed portable primitives and periodic deadline advancement, with Common owning portable target membership for both CMake and Xcode consumers;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
-- iPhone connection-flow integration that performs the read-only Mercedes TesterPresent probe after generic OBD-II capability discovery, records the exchange, exposes the result in Vehicle/Modules, then reinitialises the ELM adapter before live OBD-II polling;
-- visible iPhone project identity with `Copyright © 2026 Shannon Smith`, an About sheet, author/version/licence information and matching iOS copyright metadata;
+- automatic iPhone probe flow after generic OBD-II capability discovery;
+- standardized UDS VIN DID `F190` evidence capture after a positive TesterPresent response;
+- bounded standardized ECU-identity reads for `F18C`, `F187`, `F188`, `F189`, `F191` and `F197`, recording positive, negative, silent and malformed outcomes without inventing manufacturer-specific interpretations;
+- complete raw diagnostic-evidence export from the iPhone Log workspace even when no live-data samples were recorded;
+- visible iPhone project identity with `Copyright © 2026 Shannon Smith`, About, author/version/licence information and matching iOS copyright metadata;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
-- Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds, unsigned physical-iPhone IPA builds and trusted self-hosted Linux smoke validation.
+- Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds and unsigned physical-iPhone IPA builds.
 
-Physical iPhone installation has been validated. The 0.7.6 test build retains the 0.7.5 read-only C207/OM651 engine-endpoint probe and restores visible project identity/copyright in the iPhone app; a successful Mercedes-Benz ECU response remains unverified until a physical vehicle capture is obtained and promoted into a deterministic regression fixture.
+Physical iPhone installation has been validated. Release 0.7.9 is the current physical C207/OM651 evidence build. A successful Mercedes-Benz ECU response remains unverified until the real vehicle capture is exported and promoted into a deterministic regression fixture. Manufacturer-specific DPF, boost, rail-pressure, injector and EGR definitions remain deliberately absent until that evidence exists.
 
 ## Architecture
 
@@ -81,6 +84,8 @@ ctest --test-dir build-sanitized --output-on-failure
 ## iPhone target
 
 The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations. The project links Common's authoritative `InfiltratrCommonPortable` Xcode product rather than duplicating Common's internal source list.
+
+For a physical 0.7.9 test, connect to the C207/OM651 vehicle, let the connection sequence complete, then open Log and export the diagnostic evidence. The transcript should include the channel configuration, `3E00`, `22F190`, the six bounded standardized identity requests, and the subsequent adapter reset before ordinary live OBD-II polling.
 
 ## Linux target
 
