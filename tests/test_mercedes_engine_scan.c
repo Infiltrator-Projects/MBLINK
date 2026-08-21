@@ -76,6 +76,15 @@ static int test_full_engine_scan_replay(void)
     }
 
     CHECK(mblink_test_elm_trace_replay_complete(&replay));
+    CHECK(scan.crd3_evidence.session_variant_available);
+    CHECK(scan.crd3_evidence.session_variant.gateway_mode == 0x02U);
+    CHECK(scan.crd3_evidence.session_variant.variant == 0x2131U);
+    CHECK(scan.crd3_evidence.session_variant.session == 0x01U);
+    CHECK(scan.crd3_evidence.supplier_available);
+    CHECK(scan.crd3_evidence.supplier.supplier_identifier == 64U);
+    CHECK(strcmp(scan.crd3_evidence.supplier.supplier_name, "Delphi") == 0);
+    CHECK(scan.crd3_evidence.om651_cdid3_delphi_signature);
+
     CHECK(scan.dtc_result == MBLINK_MERCEDES_ENGINE_DTC_AVAILABLE);
     CHECK(scan.dtcs.count == 2U);
     CHECK(scan.dtcs.records[0].code == UINT32_C(0x123456));
