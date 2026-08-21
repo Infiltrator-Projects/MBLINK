@@ -18,6 +18,7 @@ static bool mercedes_text_valid(const char *text)
 static bool mercedes_status_valid(MblinkMercedesDefinitionStatus status)
 {
     return status == MBLINK_MERCEDES_DEFINITION_CANDIDATE ||
+           status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED ||
            status == MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED;
 }
 
@@ -46,6 +47,8 @@ const char *mblink_mercedes_definition_status_name(
 {
     switch (status) {
     case MBLINK_MERCEDES_DEFINITION_CANDIDATE: return "candidate";
+    case MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED:
+        return "source-corroborated";
     case MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED:
         return "vehicle-verified";
     }
@@ -226,7 +229,7 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
     static const MblinkMercedesEcuEndpointDefinition endpoints[] = {
         {
             .key = "c207-om651-engine-eobd-11bit",
-            .name = "Delphi CRD3.x engine ECU candidate",
+            .name = "Delphi CRD3.x engine ECU",
             .module = MBLINK_MERCEDES_MODULE_ENGINE,
             .address = {
                 .tx_can_id = UINT32_C(0x7e0),
@@ -238,9 +241,9 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
                 .tx_address_extension = 0U,
                 .rx_address_extension = 0U
             },
-            .status = MBLINK_MERCEDES_DEFINITION_CANDIDATE,
+            .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             .provenance =
-                "autodiag2/database W207 E 250 2200 CDI (148/150 kW) -> Delphi CRD3.x fitment; 7E0/7E8 conventional EOBD physical endpoint remains pending C207 vehicle capture"
+                "autodiag2/database maps W207 E 250 2200 CDI (148/150 kW) to Delphi CRD3.x; independent public Foxwell-derived Mercedes CRD3 system data identifies CAN 0x7E0 request / 0x7E8 response and extended-session access 0x1003; exact C207 capture still required for vehicle-verified status"
         }
     };
     static const MblinkMercedesVehicleProfile profile = {
