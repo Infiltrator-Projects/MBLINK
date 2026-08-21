@@ -84,6 +84,8 @@ static int test_full_engine_scan_replay(void)
     CHECK(scan.crd3_evidence.supplier.supplier_identifier == 64U);
     CHECK(strcmp(scan.crd3_evidence.supplier.supplier_name, "Delphi") == 0);
     CHECK(scan.crd3_evidence.om651_cdid3_delphi_signature);
+    CHECK(mblink_mercedes_ecu_probe_matches_om651_cdid3_delphi_signature(
+        &scan.probe));
 
     CHECK(scan.dtc_result == MBLINK_MERCEDES_ENGINE_DTC_AVAILABLE);
     CHECK(scan.dtcs.count == 2U);
@@ -106,7 +108,7 @@ static int test_optional_dtc_negative_response(void)
 
     CHECK(endpoint != NULL);
     CHECK(mblink_mercedes_engine_scan_begin(&scan, endpoint));
-    scan.stage = MBLINK_MERCEDES_ENGINE_SCAN_STAGE_READ_DTCS;
+    scan.probe.stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION;
     response.result = MBLINK_ELM327_RESULT_OK;
     memcpy(response.text, "7F1931", 6U);
     response.text[6] = '\0';
