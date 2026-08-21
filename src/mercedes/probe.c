@@ -230,23 +230,31 @@ const char *mblink_mercedes_ecu_probe_vin_result_name(
 
 size_t mblink_mercedes_ecu_probe_identity_did_count(void)
 {
-    return MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT;
+    return MBLINK_MERCEDES_PROBE_EVIDENCE_DID_COUNT;
 }
 
 uint16_t mblink_mercedes_ecu_probe_identity_did_at(size_t index)
 {
-    if (index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
-        return 0U;
+    if (index < MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return mercedes_probe_identity_dids[index];
     }
-    return mercedes_probe_identity_dids[index];
+    index -= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT;
+    if (index < MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT) {
+        return mercedes_probe_crd3_dids[index];
+    }
+    return 0U;
 }
 
 const char *mblink_mercedes_ecu_probe_identity_did_name(size_t index)
 {
-    if (index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
-        return NULL;
+    if (index < MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return mercedes_probe_identity_names[index];
     }
-    return mercedes_probe_identity_names[index];
+    index -= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT;
+    if (index < MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT) {
+        return mercedes_probe_crd3_names[index];
+    }
+    return NULL;
 }
 
 size_t mblink_mercedes_ecu_probe_crd3_did_count(void)
@@ -524,6 +532,7 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
     MblinkUdsResult uds_result;
     uint16_t did;
     uint32_t bit;
+    uint32_t evidence_bit;
 
     if (probe->crd3_index >= MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT) {
         return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
@@ -531,14 +540,18 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
 
     did = mercedes_probe_crd3_dids[probe->crd3_index];
     bit = (uint32_t)1U << probe->crd3_index;
+    evidence_bit = (uint32_t)1U <<
+        (MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + probe->crd3_index);
     elm_result = mblink_elm327_can_decode_pdu(
         response, pdu, sizeof(pdu), &pdu_length);
 
     if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
         if (response->result == MBLINK_ELM327_RESULT_NO_DATA) {
             probe->crd3_no_response_mask |= bit;
+            probe->identity_no_response_mask |= evidence_bit;
         } else {
             probe->crd3_invalid_mask |= bit;
+            probe->identity_invalid_mask |= evidence_bit;
         }
         return mercedes_probe_advance_crd3(probe);
     }
@@ -547,10 +560,13 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_crd3(
         pdu, pdu_length, did, &record);
     if (uds_result == MBLINK_UDS_RESULT_OK) {
         probe->crd3_positive_mask |= bit;
+        probe->identity_positive_mask |= evidence_bit;
     } else if (uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
         probe->crd3_negative_mask |= bit;
+        probe->identity_negative_mask |= evidence_bit;
     } else {
         probe->crd3_invalid_mask |= bit;
+        probe->identity_invalid_mask |= evidence_bit;
     }
     return mercedes_probe_advance_crd3(probe);
 }
