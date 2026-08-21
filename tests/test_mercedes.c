@@ -44,7 +44,12 @@ static int test_development_profile(void)
     CHECK(strcmp(profile->endpoints[0].key,
                  "c207-om651-engine-eobd-11bit") == 0);
     CHECK(strcmp(profile->endpoints[0].name,
-                 "Delphi CRD3.x engine ECU candidate") == 0);
+                 "Delphi CRD3.x engine ECU") == 0);
+    CHECK(profile->endpoints[0].status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    CHECK(strcmp(mblink_mercedes_definition_status_name(
+                     profile->endpoints[0].status),
+                 "source-corroborated") == 0);
     CHECK(strstr(profile->endpoints[0].provenance,
                  "W207 E 250 2200 CDI") != NULL);
     CHECK(strstr(profile->endpoints[0].provenance,
@@ -144,6 +149,13 @@ static int test_definition_validation(void)
                  "candidate") == 0);
     CHECK(strcmp(mblink_mercedes_module_kind_name(candidate.module),
                  "engine") == 0);
+
+    candidate.status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+    candidate.provenance = "fixture-source";
+    CHECK(mblink_mercedes_did_definition_is_valid(&candidate));
+    CHECK(!mblink_mercedes_did_definition_is_verified(&candidate));
+    CHECK(strcmp(mblink_mercedes_definition_status_name(candidate.status),
+                 "source-corroborated") == 0);
 
     verified.status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED;
     verified.provenance = "vehicle-capture-test";
