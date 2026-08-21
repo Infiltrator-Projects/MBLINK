@@ -27,7 +27,9 @@ static const MblinkTestElmTraceEntry c207_crd3_fixture[] = {
     { "22F154", MBLINK_ELM327_RESULT_OK, "62F15440", false },
     { "22F196", MBLINK_ELM327_RESULT_OK, "62F196010203040506", false },
     { "221001", MBLINK_ELM327_RESULT_OK, "621001000000001000", false },
-    { "221002", MBLINK_ELM327_RESULT_OK, "621002000010", false }
+    { "221002", MBLINK_ELM327_RESULT_OK, "621002000010", false },
+    { "1902FF", MBLINK_ELM327_RESULT_OK,
+      "5902FF0112345609ABCDEF28", false }
 };
 
 static int replay_probe_fixture(void)
@@ -76,6 +78,16 @@ static int replay_probe_fixture(void)
     CHECK(probe.identity_negative_mask == 0U);
     CHECK(probe.identity_no_response_mask == 0U);
     CHECK(probe.identity_invalid_mask == 0U);
+    CHECK(probe.crd3_session_variant_available);
+    CHECK(probe.crd3_session_variant.variant == 0x2131U);
+    CHECK(probe.crd3_supplier_available);
+    CHECK(probe.crd3_supplier.supplier_identifier == 64U);
+    CHECK(mblink_mercedes_ecu_probe_matches_om651_cdid3_delphi_signature(
+        &probe));
+    CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE);
+    CHECK(probe.dtcs.count == 2U);
+    CHECK(probe.dtcs.records[0].code == UINT32_C(0x123456));
+    CHECK(probe.dtcs.records[1].code == UINT32_C(0xabcdef));
     return 0;
 }
 
