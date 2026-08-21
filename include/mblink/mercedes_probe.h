@@ -8,15 +8,18 @@
  * request, attempts the ISO 14229 standard VIN DID 0xF190, performs a bounded
  * standardized ECU-identification sweep, then performs a second bounded
  * evidence-only CRD3 fingerprint sweep using identifiers published by the
- * open-source CaesarSuite CRD3 simulator. Completion proves only that the
- * endpoint answered UDS and records which fingerprint identifiers responded;
- * it does not claim a proprietary live-data interpretation.
+ * open-source CaesarSuite CRD3 simulator. Before restoring the adapter channel
+ * it also issues one read-only UDS ReadDTCInformation request. Completion proves
+ * only that the endpoint answered UDS and records the evidence returned; it does
+ * not claim a proprietary live-data interpretation.
  */
 #ifndef MBLINK_MERCEDES_PROBE_H
 #define MBLINK_MERCEDES_PROBE_H
 
 #include "mblink/elm327_can.h"
 #include "mblink/mercedes.h"
+#include "mblink/mercedes_crd3.h"
+#include "mblink/uds_dtc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,6 +39,7 @@ typedef enum {
     MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN,
     MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY,
     MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT,
+    MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION,
     MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE,
     MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED
 } MblinkMercedesEcuProbeStage;
@@ -59,6 +63,14 @@ typedef enum {
     MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE,
     MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE
 } MblinkMercedesEcuProbeVinResult;
+
+typedef enum {
+    MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED = 0,
+    MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE,
+    MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE,
+    MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE,
+    MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE
+} MblinkMercedesEcuProbeDtcResult;
 
 typedef struct {
     const MblinkMercedesEcuEndpointDefinition *endpoint;
@@ -94,6 +106,17 @@ typedef struct {
     uint32_t crd3_negative_mask;
     uint32_t crd3_no_response_mask;
     uint32_t crd3_invalid_mask;
+    bool crd3_session_variant_available;
+    MblinkMercedesCrd3SessionVariant crd3_session_variant;
+    bool crd3_supplier_available;
+    MblinkMercedesCrd3Supplier crd3_supplier;
+
+    MblinkMercedesEcuProbeDtcResult dtc_result;
+    MblinkElm327CanResult dtc_elm_can_result;
+    MblinkElm327Result dtc_elm_result;
+    MblinkUdsResult dtc_uds_result;
+    uint8_t dtc_negative_response_code;
+    MblinkUdsDtcList dtcs;
 } MblinkMercedesEcuProbe;
 
 const char *mblink_mercedes_ecu_probe_result_name(
@@ -104,6 +127,9 @@ const char *mblink_mercedes_ecu_probe_stage_name(
 
 const char *mblink_mercedes_ecu_probe_vin_result_name(
     MblinkMercedesEcuProbeVinResult result);
+
+const char *mblink_mercedes_ecu_probe_dtc_result_name(
+    MblinkMercedesEcuProbeDtcResult result);
 
 /**
  * Enumerate all read-only identity/fingerprint evidence DIDs in display order.
@@ -145,10 +171,10 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_command(
  * Accept one already-parsed ELM response for the current probe stage.
  *
  * TesterPresent/channel failures remain terminal and preserve the failing
- * layer. Standard VIN, standardized identity and CRD3 fingerprint reads are
- * optional evidence gathering after a confirmed positive TesterPresent;
- * unsupported, silent or malformed replies are recorded in masks and the probe
- * continues through the bounded read-only sweep.
+ * layer. Standard VIN, standardized identity, CRD3 fingerprint and DTC reads
+ * are optional evidence gathering after a confirmed positive TesterPresent;
+ * unsupported, silent or malformed replies are recorded and the probe
+ * continues through the bounded read-only sequence.
  */
 MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
     MblinkMercedesEcuProbe *probe,
