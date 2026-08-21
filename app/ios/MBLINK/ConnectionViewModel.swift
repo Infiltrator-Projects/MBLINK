@@ -36,6 +36,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var mercedesVINText = "Not captured"
     @Published private(set) var mercedesIdentitySummaryText = "Not attempted"
     @Published private(set) var mercedesIdentityResults = [String]()
+    @Published private(set) var mercedesCrd3SummaryText = "Not attempted"
+    @Published private(set) var mercedesUDSFaultStatusText = "Not scanned"
+    @Published private(set) var mercedesUDSFaults = [String]()
     @Published private(set) var faultScanStatusText = "Not scanned"
     @Published private(set) var storedDTCs = [String]()
     @Published private(set) var pendingDTCs = [String]()
@@ -231,6 +234,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesVINText = controller.mercedesVINText ?? "Not captured"
         mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
         mercedesIdentityResults = controller.mercedesIdentityResults
+        mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText
+        mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
+        mercedesUDSFaults = controller.mercedesUDSFaults
         faultScanStatusText = controller.faultScanStatusText
         storedDTCs = controller.storedDTCs
         pendingDTCs = controller.pendingDTCs
