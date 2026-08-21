@@ -145,6 +145,10 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-isotp-functional-response
         tests/test_isotp_functional_response.c)
     mblink_add_test(mblink-test-uds tests/test_uds.c)
+    mblink_add_test(mblink-test-uds-dtc tests/test_uds_dtc.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
+    mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)
+    mblink_add_test(mblink-test-mercedes-trace-replay
+        tests/test_mercedes_trace_replay.c)
 endif()
