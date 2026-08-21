@@ -11,6 +11,7 @@
 #ifndef MBLINK_MERCEDES_ENGINE_SCAN_H
 #define MBLINK_MERCEDES_ENGINE_SCAN_H
 
+#include "mblink/mercedes_crd3_evidence.h"
 #include "mblink/mercedes_probe.h"
 #include "mblink/uds_dtc.h"
 
@@ -40,6 +41,7 @@ typedef enum {
 
 typedef struct {
     MblinkMercedesEcuProbe probe;
+    MblinkMercedesCrd3Evidence crd3_evidence;
     MblinkMercedesEngineScanStage stage;
     MblinkMercedesEcuProbeResult probe_result;
     MblinkMercedesEngineDtcResult dtc_result;
@@ -84,6 +86,7 @@ static inline bool mblink_mercedes_engine_scan_begin(
         return false;
     }
     memset(scan, 0, sizeof(*scan));
+    mblink_mercedes_crd3_evidence_init(&scan->crd3_evidence);
     scan->probe_result = mblink_mercedes_ecu_probe_begin(&scan->probe, endpoint);
     if (scan->probe_result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
         scan->stage = MBLINK_MERCEDES_ENGINE_SCAN_STAGE_FAILED;
@@ -144,6 +147,33 @@ static inline MblinkMercedesEcuProbeResult mblink_mercedes_engine_scan_command(
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
 }
 
+static inline void mblink_mercedes_engine_scan_capture_crd3_identity(
+    MblinkMercedesEngineScan *scan,
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MBLINK_ELM327_MAX_RESPONSE / 2U];
+    size_t pdu_length = 0U;
+    uint16_t did;
+
+    if (scan == NULL || response == NULL ||
+        scan->probe.stage !=
+            MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT ||
+        scan->probe.crd3_index >= mblink_mercedes_ecu_probe_crd3_did_count()) {
+        return;
+    }
+
+    did = mblink_mercedes_ecu_probe_crd3_did_at(scan->probe.crd3_index);
+    if (did == 0U ||
+        mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &pdu_length) !=
+            MBLINK_ELM327_CAN_RESULT_OK) {
+        return;
+    }
+
+    (void)mblink_mercedes_crd3_evidence_accept(
+        &scan->crd3_evidence, did, pdu, pdu_length);
+}
+
 static inline MblinkMercedesEcuProbeResult mblink_mercedes_engine_scan_accept(
     MblinkMercedesEngineScan *scan,
     const MblinkElm327Response *response)
@@ -153,8 +183,10 @@ static inline MblinkMercedesEcuProbeResult mblink_mercedes_engine_scan_accept(
     }
 
     if (scan->stage == MBLINK_MERCEDES_ENGINE_SCAN_STAGE_PROBE) {
-        MblinkMercedesEcuProbeResult result =
-            mblink_mercedes_ecu_probe_accept(&scan->probe, response);
+        MblinkMercedesEcuProbeResult result;
+
+        mblink_mercedes_engine_scan_capture_crd3_identity(scan, response);
+        result = mblink_mercedes_ecu_probe_accept(&scan->probe, response);
         scan->probe_result = result;
         if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
             scan->stage = MBLINK_MERCEDES_ENGINE_SCAN_STAGE_READ_DTCS;
