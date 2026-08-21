@@ -151,4 +151,6 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)
     mblink_add_test(mblink-test-mercedes-trace-replay
         tests/test_mercedes_trace_replay.c)
+    mblink_add_test(mblink-test-mercedes-engine-scan
+        tests/test_mercedes_engine_scan.c)
 endif()
