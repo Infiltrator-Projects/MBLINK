@@ -49,6 +49,30 @@ static int test_supplier(void)
     return 0;
 }
 
+static int test_corroborated_om651_signature(void)
+{
+    const uint8_t variant_payload[] = { 0x02U, 0x21U, 0x31U, 0x01U };
+    const uint8_t supplier_payload[] = { 64U };
+    const uint8_t wrong_supplier_payload[] = { 3U };
+    MblinkMercedesCrd3SessionVariant variant;
+    MblinkMercedesCrd3Supplier supplier;
+
+    CHECK(mblink_mercedes_crd3_decode_session_variant(
+        variant_payload, sizeof(variant_payload), &variant));
+    CHECK(mblink_mercedes_crd3_decode_supplier(
+        supplier_payload, sizeof(supplier_payload), &supplier));
+    CHECK(mblink_mercedes_crd3_matches_om651_cdid3_delphi_signature(
+        &variant, &supplier));
+
+    CHECK(mblink_mercedes_crd3_decode_supplier(
+        wrong_supplier_payload, sizeof(wrong_supplier_payload), &supplier));
+    CHECK(!mblink_mercedes_crd3_matches_om651_cdid3_delphi_signature(
+        &variant, &supplier));
+    CHECK(!mblink_mercedes_crd3_matches_om651_cdid3_delphi_signature(
+        NULL, &supplier));
+    return 0;
+}
+
 static int test_identifiers(void)
 {
     CHECK(MBLINK_MERCEDES_CRD3_DID_SESSION_VARIANT == 0xf100U);
@@ -56,6 +80,9 @@ static int test_identifiers(void)
     CHECK(MBLINK_MERCEDES_CRD3_DID_EROTAN == 0xf196U);
     CHECK(MBLINK_MERCEDES_CRD3_DID_VARIANT_CODING_FULL == 0x1001U);
     CHECK(MBLINK_MERCEDES_CRD3_DID_VARIANT_CODING_PARTIAL == 0x1002U);
+    CHECK(MBLINK_MERCEDES_CRD3_OM651_CDID3_GATEWAY_MODE == 0x02U);
+    CHECK(MBLINK_MERCEDES_CRD3_OM651_CDID3_VARIANT == 0x2131U);
+    CHECK(MBLINK_MERCEDES_CRD3_OM651_CDID3_SUPPLIER == 64U);
     return 0;
 }
 
@@ -63,6 +90,7 @@ int main(void)
 {
     if (test_session_variant() != 0) return 1;
     if (test_supplier() != 0) return 1;
+    if (test_corroborated_om651_signature() != 0) return 1;
     if (test_identifiers() != 0) return 1;
     puts("Mercedes CRD3 identity tests passed");
     return 0;
