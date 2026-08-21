@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest test release: 0.7.5 — iPhone C207 / OM651 engine ECU probe integration. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest test release: 0.7.6 — visible iPhone project identity/About correction plus C207 / OM651 probe testing. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -26,12 +26,13 @@ Implemented today:
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
 - iPhone connection-flow integration that performs the read-only Mercedes TesterPresent probe after generic OBD-II capability discovery, records the exchange, exposes the result in Vehicle/Modules, then reinitialises the ELM adapter before live OBD-II polling;
+- visible iPhone project identity with `Copyright © 2026 Shannon Smith`, an About sheet, author/version/licence information and matching iOS copyright metadata;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
 - Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds, unsigned physical-iPhone IPA builds and trusted self-hosted Linux smoke validation.
 
-Physical iPhone installation has been validated. The 0.7.5 test build now exercises the read-only C207/OM651 engine-endpoint candidate on real hardware, but a successful Mercedes-Benz ECU response remains unverified until a physical vehicle capture is obtained and promoted into a deterministic regression fixture.
+Physical iPhone installation has been validated. The 0.7.6 test build retains the 0.7.5 read-only C207/OM651 engine-endpoint probe and restores visible project identity/copyright in the iPhone app; a successful Mercedes-Benz ECU response remains unverified until a physical vehicle capture is obtained and promoted into a deterministic regression fixture.
 
 ## Architecture
 

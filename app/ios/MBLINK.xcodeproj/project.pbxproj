@@ -391,7 +391,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -422,7 +422,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -456,13 +456,14 @@
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -489,13 +490,14 @@
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
