@@ -1,4 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #import "MBLinkDiagnosticsController.h"
 #include "mblink/parameter.h"
-#include "mblink/mercedes_om651.h"
+#include "mblink/mercedes_om651_api.h"
