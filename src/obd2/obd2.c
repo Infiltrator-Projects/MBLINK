@@ -270,7 +270,6 @@ static MblinkObd2Result obd2_collect_indexed_message(
                 declared_length_seen = true;
             }
         } else {
-            /* Do not combine a completed indexed block with unrelated output. */
             break;
         }
 
@@ -383,62 +382,121 @@ static MblinkObd2Result obd2_decode_sample_data(
 
     switch (pid) {
     case 0x04U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0] * 100.0 / 255.0;
         decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
         break;
     case 0x05U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0] - 40.0;
         decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
         break;
     case 0x0bU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0];
         decoded.unit = MBLINK_OBD2_UNIT_KPA;
         break;
     case 0x0cU:
-        if (length < 2U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 4.0;
         decoded.unit = MBLINK_OBD2_UNIT_RPM;
         break;
     case 0x0dU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0];
         decoded.unit = MBLINK_OBD2_UNIT_KMH;
         break;
     case 0x0fU:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0] - 40.0;
         decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
         break;
     case 0x10U:
-        if (length < 2U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value =
             (double)(((unsigned int)data[0] << 8U) | data[1]) / 100.0;
         decoded.unit = MBLINK_OBD2_UNIT_GRAMS_PER_SECOND;
         break;
     case 0x11U:
-        if (length < 1U) {
-            return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
-        }
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
         decoded.value = (double)data[0] * 100.0 / 255.0;
         decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
+        break;
+    case 0x23U:
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value =
+            (double)(((unsigned int)data[0] << 8U) | data[1]) * 10.0;
+        decoded.unit = MBLINK_OBD2_UNIT_KPA;
+        break;
+    case 0x2cU:
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value = (double)data[0] * 100.0 / 255.0;
+        decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
+        break;
+    case 0x2dU:
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value = ((double)(int)data[0] - 128.0) * 100.0 / 128.0;
+        decoded.unit = MBLINK_OBD2_UNIT_PERCENT;
+        break;
+    case 0x33U:
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value = (double)data[0];
+        decoded.unit = MBLINK_OBD2_UNIT_KPA;
+        break;
+    case 0x3cU:
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value =
+            (double)(((unsigned int)data[0] << 8U) | data[1]) / 10.0 - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
+    case 0x42U:
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value =
+            (double)(((unsigned int)data[0] << 8U) | data[1]) / 1000.0;
+        decoded.unit = MBLINK_OBD2_UNIT_VOLTS;
+        break;
+    case 0x46U:
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value = (double)data[0] - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
+    case 0x5cU:
+        if (length < 1U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value = (double)data[0] - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
+    case 0x5eU:
+        if (length < 2U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        decoded.value =
+            (double)(((unsigned int)data[0] << 8U) | data[1]) / 20.0;
+        decoded.unit = MBLINK_OBD2_UNIT_LITRES_PER_HOUR;
+        break;
+    case 0x78U:
+        if (length < 3U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        if ((data[0] & 0x01U) == 0U) return MBLINK_OBD2_RESULT_UNSUPPORTED_PID;
+        decoded.value =
+            (double)(((unsigned int)data[1] << 8U) | data[2]) / 10.0 - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
+        break;
+    case 0x7aU:
+        if (length < 3U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        if ((data[0] & 0x01U) == 0U) return MBLINK_OBD2_RESULT_UNSUPPORTED_PID;
+        {
+            uint16_t raw = (uint16_t)(((uint16_t)data[1] << 8U) | data[2]);
+            int32_t signed_raw = raw >= 0x8000U
+                ? (int32_t)raw - 0x10000
+                : (int32_t)raw;
+            decoded.value = (double)signed_raw / 100.0;
+        }
+        decoded.unit = MBLINK_OBD2_UNIT_KPA;
+        break;
+    case 0x7cU:
+        if (length < 3U) return MBLINK_OBD2_RESULT_MALFORMED_RESPONSE;
+        if ((data[0] & 0x01U) == 0U) return MBLINK_OBD2_RESULT_UNSUPPORTED_PID;
+        decoded.value =
+            (double)(((unsigned int)data[1] << 8U) | data[2]) / 10.0 - 40.0;
+        decoded.unit = MBLINK_OBD2_UNIT_CELSIUS;
         break;
     default:
         return MBLINK_OBD2_RESULT_UNSUPPORTED_PID;
@@ -549,6 +607,8 @@ const char *mblink_obd2_unit_name(MblinkObd2Unit unit)
     case MBLINK_OBD2_UNIT_RPM: return "rpm";
     case MBLINK_OBD2_UNIT_KMH: return "km/h";
     case MBLINK_OBD2_UNIT_GRAMS_PER_SECOND: return "g/s";
+    case MBLINK_OBD2_UNIT_VOLTS: return "V";
+    case MBLINK_OBD2_UNIT_LITRES_PER_HOUR: return "L/h";
     }
     return "";
 }
@@ -564,6 +624,18 @@ const char *mblink_obd2_pid_name(uint8_t pid)
     case 0x0fU: return "Intake air temperature";
     case 0x10U: return "Mass air flow rate";
     case 0x11U: return "Throttle position";
+    case 0x23U: return "Fuel rail gauge pressure";
+    case 0x2cU: return "Commanded EGR";
+    case 0x2dU: return "EGR error";
+    case 0x33U: return "Barometric pressure";
+    case 0x3cU: return "Catalyst temperature bank 1 sensor 1";
+    case 0x42U: return "Control module voltage";
+    case 0x46U: return "Ambient air temperature";
+    case 0x5cU: return "Engine oil temperature";
+    case 0x5eU: return "Engine fuel rate";
+    case 0x78U: return "Exhaust gas temperature bank 1 sensor 1";
+    case 0x7aU: return "DPF bank 1 differential pressure";
+    case 0x7cU: return "DPF bank 1 inlet temperature";
     default: return "Unknown PID";
     }
 }
