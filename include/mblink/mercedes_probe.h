@@ -17,7 +17,6 @@
 
 #include "mblink/elm327_can.h"
 #include "mblink/mercedes.h"
-#include "mblink/mercedes_crd3.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,13 +94,6 @@ typedef struct {
     uint32_t crd3_negative_mask;
     uint32_t crd3_no_response_mask;
     uint32_t crd3_invalid_mask;
-
-    /* Decoded only where the published CRD3 identity layout is known. */
-    bool crd3_session_variant_available;
-    MblinkMercedesCrd3SessionVariant crd3_session_variant;
-    bool crd3_supplier_available;
-    MblinkMercedesCrd3Supplier crd3_supplier;
-    bool crd3_om651_cdid3_delphi_signature;
 } MblinkMercedesEcuProbe;
 
 const char *mblink_mercedes_ecu_probe_result_name(
