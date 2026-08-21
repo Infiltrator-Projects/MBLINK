@@ -34,6 +34,40 @@ static bool mercedes_probe_channel_config(
     return true;
 }
 
+static bool mercedes_probe_vin_character_is_valid(uint8_t value)
+{
+    if (value >= (uint8_t)'0' && value <= (uint8_t)'9') {
+        return true;
+    }
+    if (value < (uint8_t)'A' || value > (uint8_t)'Z') {
+        return false;
+    }
+    return value != (uint8_t)'I' &&
+           value != (uint8_t)'O' &&
+           value != (uint8_t)'Q';
+}
+
+static bool mercedes_probe_copy_vin(
+    MblinkMercedesEcuProbe *probe,
+    const uint8_t *data,
+    size_t data_length)
+{
+    size_t index;
+
+    if (probe == NULL || data == NULL ||
+        data_length != MBLINK_MERCEDES_PROBE_VIN_LENGTH) {
+        return false;
+    }
+    for (index = 0U; index < data_length; ++index) {
+        if (!mercedes_probe_vin_character_is_valid(data[index])) {
+            return false;
+        }
+    }
+    memcpy(probe->vin, data, data_length);
+    probe->vin[data_length] = '\0';
+    return true;
+}
+
 static MblinkMercedesEcuProbeResult mercedes_probe_fail(
     MblinkMercedesEcuProbe *probe,
     MblinkMercedesEcuProbeResult failure)
@@ -43,6 +77,15 @@ static MblinkMercedesEcuProbeResult mercedes_probe_fail(
         probe->failure = failure;
     }
     return failure;
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_complete(
+    MblinkMercedesEcuProbe *probe)
+{
+    if (probe != NULL) {
+        probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE;
+    }
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE;
 }
 
 const char *mblink_mercedes_ecu_probe_result_name(
@@ -75,8 +118,28 @@ const char *mblink_mercedes_ecu_probe_stage_name(
         return "configure-channel";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_TESTER_PRESENT:
         return "tester-present";
+    case MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN:
+        return "read-standard-vin";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED: return "failed";
+    }
+    return "unknown";
+}
+
+const char *mblink_mercedes_ecu_probe_vin_result_name(
+    MblinkMercedesEcuProbeVinResult result)
+{
+    switch (result) {
+    case MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED:
+        return "not-attempted";
+    case MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE:
+        return "available";
+    case MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE:
+        return "no-response";
+    case MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE:
+        return "negative-response";
+    case MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE:
+        return "invalid-response";
     }
     return "unknown";
 }
@@ -111,6 +174,12 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_begin(
     probe->elm_failure = MBLINK_ELM327_RESULT_OK;
     probe->uds_failure = MBLINK_UDS_RESULT_OK;
     probe->uds_negative_response_code = 0U;
+    probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED;
+    probe->vin_elm_can_result = MBLINK_ELM327_CAN_RESULT_OK;
+    probe->vin_elm_result = MBLINK_ELM327_RESULT_OK;
+    probe->vin_uds_result = MBLINK_UDS_RESULT_OK;
+    probe->vin_negative_response_code = 0U;
+    probe->vin[0] = '\0';
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }
 
@@ -162,7 +231,77 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_command(
         return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
     }
 
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
+        uint8_t pdu[3];
+        size_t pdu_length = 0U;
+        MblinkUdsResult uds_result = mblink_uds_build_read_did_request(
+            MBLINK_MERCEDES_PROBE_VIN_DID,
+            pdu, sizeof(pdu), &pdu_length);
+        MblinkElm327CanResult elm_result;
+
+        if (uds_result != MBLINK_UDS_RESULT_OK) {
+            return MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR;
+        }
+        elm_result = mblink_elm327_can_build_pdu_command(
+            pdu, pdu_length, buffer, buffer_size, written);
+        if (elm_result == MBLINK_ELM327_CAN_RESULT_BUFFER_TOO_SMALL) {
+            return MBLINK_MERCEDES_ECU_PROBE_RESULT_BUFFER_TOO_SMALL;
+        }
+        if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+            return MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR;
+        }
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+    }
+
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_accept_vin(
+    MblinkMercedesEcuProbe *probe,
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MERCEDES_PROBE_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    MblinkElm327CanResult elm_result;
+    MblinkUdsDidRecord record;
+    MblinkUdsResult uds_result;
+
+    elm_result = mblink_elm327_can_decode_pdu(
+        response, pdu, sizeof(pdu), &pdu_length);
+    probe->vin_elm_can_result = elm_result;
+    probe->vin_elm_result = response->result;
+
+    if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+        probe->vin_result = response->result == MBLINK_ELM327_RESULT_NO_DATA
+            ? MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE
+            : MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE;
+        return mercedes_probe_complete(probe);
+    }
+
+    uds_result = mblink_uds_decode_read_did_response(
+        pdu, pdu_length, MBLINK_MERCEDES_PROBE_VIN_DID, &record);
+    probe->vin_uds_result = uds_result;
+
+    if (uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+        MblinkUdsResponse decoded;
+        if (mblink_uds_decode_response(
+                MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
+                pdu, pdu_length, &decoded) ==
+            MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+            probe->vin_negative_response_code = decoded.negative_response_code;
+        }
+        probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE;
+        return mercedes_probe_complete(probe);
+    }
+
+    if (uds_result != MBLINK_UDS_RESULT_OK ||
+        !mercedes_probe_copy_vin(probe, record.data, record.data_length)) {
+        probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE;
+        return mercedes_probe_complete(probe);
+    }
+
+    probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE;
+    return mercedes_probe_complete(probe);
 }
 
 MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
@@ -191,6 +330,10 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
             probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_TESTER_PRESENT;
         }
         return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+    }
+
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
+        return mercedes_probe_accept_vin(probe, response);
     }
 
     if (probe->stage != MBLINK_MERCEDES_ECU_PROBE_STAGE_TESTER_PRESENT) {
@@ -229,6 +372,6 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
         }
     }
 
-    probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE;
-    return MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE;
+    probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN;
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }

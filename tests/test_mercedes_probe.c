@@ -26,6 +26,14 @@ static MblinkElm327Response make_response(
     return response;
 }
 
+static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
+{
+    const MblinkMercedesVehicleProfile *profile =
+        mblink_mercedes_c207_om651_profile();
+    return mblink_mercedes_profile_find_endpoint(
+        profile, "c207-om651-engine-eobd-11bit");
+}
+
 static int advance_configuration(MblinkMercedesEcuProbe *probe)
 {
     static const char *commands[] = {
@@ -50,16 +58,34 @@ static int advance_configuration(MblinkMercedesEcuProbe *probe)
     return 0;
 }
 
-static int test_successful_read_only_probe(void)
+static int advance_tester_present(MblinkMercedesEcuProbe *probe)
 {
-    const MblinkMercedesVehicleProfile *profile =
-        mblink_mercedes_c207_om651_profile();
-    const MblinkMercedesEcuEndpointDefinition *endpoint =
-        mblink_mercedes_profile_find_endpoint(
-            profile, "c207-om651-engine-eobd-11bit");
-    MblinkMercedesEcuProbe probe;
     MblinkElm327Response reply = make_response(
         MBLINK_ELM327_RESULT_OK, "7E00", false);
+    char command[16];
+    size_t written = 0U;
+
+    CHECK(advance_configuration(probe) == 0);
+    CHECK(mblink_mercedes_ecu_probe_command(
+              probe, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(strcmp(command, "3E00") == 0);
+    CHECK(written == 4U);
+    CHECK(mblink_mercedes_ecu_probe_accept(probe, &reply) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe->stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN);
+    return 0;
+}
+
+static int test_successful_read_only_probe_with_standard_vin(void)
+{
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    MblinkMercedesEcuProbe probe;
+    MblinkElm327Response vin_reply = make_response(
+        MBLINK_ELM327_RESULT_OK,
+        "62F1905744443230373330323246313233343536",
+        false);
     char command[16];
     size_t written = 0U;
 
@@ -68,27 +94,77 @@ static int test_successful_read_only_probe(void)
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
     CHECK(strcmp(mblink_mercedes_ecu_probe_stage_name(probe.stage),
                  "configure-channel") == 0);
-    CHECK(advance_configuration(&probe) == 0);
+    CHECK(advance_tester_present(&probe) == 0);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_stage_name(probe.stage),
+                 "read-standard-vin") == 0);
+
     CHECK(mblink_mercedes_ecu_probe_command(
               &probe, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-    CHECK(strcmp(command, "3E00") == 0);
-    CHECK(written == 4U);
-    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &reply) ==
+    CHECK(strcmp(command, "22F190") == 0);
+    CHECK(written == 6U);
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &vin_reply) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
     CHECK(probe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE);
+    CHECK(probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE);
+    CHECK(strcmp(probe.vin, "WDD2073022F123456") == 0);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_vin_result_name(probe.vin_result),
+                 "available") == 0);
     CHECK(strcmp(mblink_mercedes_ecu_probe_result_name(
                      MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE),
                  "complete") == 0);
-    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &reply) ==
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &vin_reply) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE);
+    return 0;
+}
+
+static int test_optional_vin_does_not_invalidate_confirmed_endpoint(void)
+{
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    MblinkMercedesEcuProbe probe;
+    MblinkElm327Response negative = make_response(
+        MBLINK_ELM327_RESULT_OK, "7F2231", false);
+    MblinkElm327Response no_data = make_response(
+        MBLINK_ELM327_RESULT_NO_DATA, "", false);
+    MblinkElm327Response short_vin = make_response(
+        MBLINK_ELM327_RESULT_OK, "62F190574444323037", false);
+
+    CHECK(endpoint != NULL);
+
+    CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(advance_tester_present(&probe) == 0);
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
+    CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe.vin_result ==
+          MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE);
+    CHECK(probe.vin_uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);
+    CHECK(probe.vin_negative_response_code == 0x31U);
+
+    CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(advance_tester_present(&probe) == 0);
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &no_data) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
+    CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE);
+    CHECK(probe.vin_elm_result == MBLINK_ELM327_RESULT_NO_DATA);
+
+    CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(advance_tester_present(&probe) == 0);
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &short_vin) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
+    CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE);
+    CHECK(probe.vin[0] == '\0');
     return 0;
 }
 
 static int test_failure_provenance(void)
 {
-    const MblinkMercedesEcuEndpointDefinition *endpoint =
-        &mblink_mercedes_c207_om651_profile()->endpoints[0];
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
     MblinkMercedesEcuProbe probe;
     MblinkElm327Response elm_error = make_response(
         MBLINK_ELM327_RESULT_NO_DATA, "", false);
@@ -97,6 +173,7 @@ static int test_failure_provenance(void)
     MblinkElm327Response negative = make_response(
         MBLINK_ELM327_RESULT_OK, "7F3E11", false);
 
+    CHECK(endpoint != NULL);
     CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
     CHECK(mblink_mercedes_ecu_probe_accept(&probe, &elm_error) ==
@@ -121,18 +198,20 @@ static int test_failure_provenance(void)
           MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR);
     CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);
     CHECK(probe.uds_negative_response_code == 0x11U);
+    CHECK(probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED);
     return 0;
 }
 
 static int test_argument_and_buffer_failures(void)
 {
-    const MblinkMercedesEcuEndpointDefinition *endpoint =
-        &mblink_mercedes_c207_om651_profile()->endpoints[0];
-    MblinkMercedesEcuEndpointDefinition invalid = *endpoint;
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    MblinkMercedesEcuEndpointDefinition invalid;
     MblinkMercedesEcuProbe probe;
     char buffer[4] = "bad";
     size_t written = 99U;
 
+    CHECK(endpoint != NULL);
+    invalid = *endpoint;
     invalid.provenance = "";
     CHECK(mblink_mercedes_ecu_probe_begin(&probe, &invalid) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_INVALID_ARGUMENT);
@@ -166,7 +245,8 @@ static int test_argument_and_buffer_failures(void)
 
 int main(void)
 {
-    if (test_successful_read_only_probe() != 0) return 1;
+    if (test_successful_read_only_probe_with_standard_vin() != 0) return 1;
+    if (test_optional_vin_does_not_invalidate_confirmed_endpoint() != 0) return 1;
     if (test_failure_provenance() != 0) return 1;
     if (test_argument_and_buffer_failures() != 0) return 1;
     puts("Mercedes ECU probe tests passed");
