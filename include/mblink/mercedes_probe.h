@@ -26,6 +26,9 @@ extern "C" {
 #define MBLINK_MERCEDES_PROBE_VIN_DID 0xF190U
 #define MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT 6U
 #define MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT 5U
+#define MBLINK_MERCEDES_PROBE_EVIDENCE_DID_COUNT \
+    (MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + \
+     MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT)
 
 typedef enum {
     MBLINK_MERCEDES_ECU_PROBE_STAGE_CONFIGURE_CHANNEL = 0,
@@ -75,6 +78,12 @@ typedef struct {
     char vin[MBLINK_MERCEDES_PROBE_VIN_LENGTH + 1U];
 
     size_t identity_index;
+    /*
+     * These masks use the public evidence enumeration: bits 0..5 are standard
+     * identity DIDs and bits 6..10 are CRD3 fingerprint DIDs. This preserves
+     * the existing Apple evidence UI while the CRD3-specific masks below keep
+     * the two provenance classes separately inspectable.
+     */
     uint32_t identity_positive_mask;
     uint32_t identity_negative_mask;
     uint32_t identity_no_response_mask;
@@ -96,6 +105,11 @@ const char *mblink_mercedes_ecu_probe_stage_name(
 const char *mblink_mercedes_ecu_probe_vin_result_name(
     MblinkMercedesEcuProbeVinResult result);
 
+/**
+ * Enumerate all read-only identity/fingerprint evidence DIDs in display order.
+ * The first six are standardized identity; the final five are CRD3 evidence.
+ * The historical function name is retained for API compatibility.
+ */
 size_t mblink_mercedes_ecu_probe_identity_did_count(void);
 uint16_t mblink_mercedes_ecu_probe_identity_did_at(size_t index);
 const char *mblink_mercedes_ecu_probe_identity_did_name(size_t index);
