@@ -8,6 +8,90 @@ private struct HistoryPoint: Identifiable {
     let value: Double
 }
 
+private enum DiagnosticParameterGroup: String, CaseIterable, Identifiable {
+    case engine = "Engine"
+    case air = "Air / turbo"
+    case fuel = "Fuel / injection"
+    case egr = "EGR"
+    case aftertreatment = "DPF / exhaust"
+    case electrical = "Electrical"
+
+    var id: String { rawValue }
+}
+
+private enum LiveDataScope: String, CaseIterable, Identifiable {
+    case available = "Available"
+    case favourites = "Favourites"
+    case all = "All"
+
+    var id: String { rawValue }
+}
+
+private extension DiagnosticParameter {
+    var group: DiagnosticParameterGroup {
+        if id.contains(".dpf.") || id.contains(".aftertreatment.") {
+            return .aftertreatment
+        }
+        if id.contains(".diesel.egr") {
+            return .egr
+        }
+        if id.contains(".diesel.rail_pressure") || id.contains(".fuel_rate") {
+            return .fuel
+        }
+        if id.contains(".electrical.") {
+            return .electrical
+        }
+        if id.contains(".engine.map") ||
+            id.contains(".barometric_pressure") ||
+            id.contains(".engine.maf") ||
+            id.contains(".intake_air") ||
+            id.contains(".environment.") {
+            return .air
+        }
+        return .engine
+    }
+
+    var pidText: String {
+        let value = String(parameterIdentifier, radix: 16, uppercase: true)
+        return "0x" + (value.count < 2 ? "0\(value)" : value)
+    }
+}
+
+private struct MercedesUdsFault: Identifiable {
+    let raw: String
+
+    var id: String { raw }
+
+    var code: String {
+        raw.components(separatedBy: " · ").first ?? raw
+    }
+
+    var status: UInt8? {
+        guard let marker = raw.range(of: "status 0x") else { return nil }
+        let suffix = raw[marker.upperBound...]
+        return UInt8(String(suffix.prefix(2)), radix: 16)
+    }
+
+    var statusHex: String {
+        guard let status else { return "Unknown status" }
+        return String(format: "Status 0x%02X", status)
+    }
+
+    var badges: [String] {
+        guard let status else { return [] }
+        var result = [String]()
+        if status & 0x01 != 0 { result.append("Test failed") }
+        if status & 0x02 != 0 { result.append("Failed this cycle") }
+        if status & 0x04 != 0 { result.append("Pending") }
+        if status & 0x08 != 0 { result.append("Confirmed") }
+        if status & 0x10 != 0 { result.append("Not completed since clear") }
+        if status & 0x20 != 0 { result.append("Failed since clear") }
+        if status & 0x40 != 0 { result.append("Not completed this cycle") }
+        if status & 0x80 != 0 { result.append("Warning requested") }
+        return result
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
@@ -22,25 +106,25 @@ struct ContentView: View {
                     workspaceLink("Vehicle", "Vehicle identity and connection information", "car.fill") {
                         VehicleView()
                     }
-                    workspaceLink("Modules", "Control units and ECU identification", "square.stack.3d.up.fill") {
+                    workspaceLink("Modules", "Mercedes ECU identification and technical evidence", "square.stack.3d.up.fill") {
                         ModulesView()
                     }
                     workspaceLink("Faults", "Mercedes UDS and standard OBD-II fault memory", "exclamationmark.triangle.fill") {
                         FaultsView()
                     }
-                    workspaceLink("Diesel", "OM651 targets, DPF, turbo, rail pressure and EGR", "engine.combustion.fill") {
+                    workspaceLink("Diesel", "OM651 engine, DPF, rail pressure, EGR and temperatures", "engine.combustion.fill") {
                         DieselDiagnosticsView()
                     }
-                    workspaceLink("Live Data", "Select and favourite diagnostic parameters", "waveform.path.ecg") {
+                    workspaceLink("Live Data", "Browse, filter and favourite diagnostic parameters", "waveform.path.ecg") {
                         LiveDataView()
                     }
-                    workspaceLink("Table", "Dense live parameter values", "tablecells") {
+                    workspaceLink("Table", "Dense PID, parameter and value view", "tablecells") {
                         TableDataView()
                     }
-                    workspaceLink("Dashboard", "At-a-glance live measurements", "gauge.with.dots.needle.67percent") {
+                    workspaceLink("Dashboard", "Focused at-a-glance vehicle measurements", "gauge.with.dots.needle.67percent") {
                         DashboardView()
                     }
-                    workspaceLink("Graphs", "Live parameter history", "chart.xyaxis.line") {
+                    workspaceLink("Graphs", "Choose up to four live signal histories", "chart.xyaxis.line") {
                         GraphsView()
                     }
                 }
@@ -130,35 +214,45 @@ struct ContentView: View {
 private struct VehicleView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private var totalFaultCount: Int {
+        connection.mercedesUDSFaults.count +
+        connection.storedDTCs.count +
+        connection.pendingDTCs.count +
+        connection.permanentDTCs.count
+    }
+
     var body: some View {
         List {
-            Section("Connection") {
-                LabeledContent("Status", value: connection.statusText)
-                LabeledContent("Adapter", value: connection.peripheralName)
-                LabeledContent("Adapter identity", value: connection.adapterIdentifier)
-            }
             Section("Vehicle") {
-                LabeledContent("Target platform", value: "Mercedes-Benz C207 E 250 CDI")
-                LabeledContent("Engine family", value: "OM651")
-                LabeledContent("ECU family", value: "Delphi CRD3.x")
-                LabeledContent("Generic diagnostics", value: "OBD-II")
-                LabeledContent("Advanced diagnostics", value: "UDS + CRD3 evidence")
-                LabeledContent("Identity reads", value: "VIN + 6 standard + 5 CRD3")
-                LabeledContent("Captured VIN", value: connection.mercedesVINText)
-                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
-                LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
-                LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
+                LabeledContent("Model", value: "C207 E 250 CDI")
+                LabeledContent("VIN", value: connection.mercedesVINText)
+                LabeledContent("Engine", value: "OM651")
+                LabeledContent("Engine ECU", value: "Delphi CRD3.x")
+                LabeledContent("Connection", value: connection.statusText)
+                LabeledContent("Fault records", value: "\(totalFaultCount)")
             }
-            if !connection.mercedesIdentityResults.isEmpty {
-                Section("ECU identity evidence") {
+
+            Section("Adapter") {
+                LabeledContent("Name", value: connection.peripheralName)
+                LabeledContent("Identity", value: connection.adapterIdentifier)
+            }
+
+            Section("Mercedes diagnostics") {
+                LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
+                LabeledContent("UDS fault memory", value: connection.mercedesUDSFaultStatusText)
+                DisclosureGroup("Diagnostic evidence") {
+                    LabeledContent("Engine endpoint", value: connection.mercedesProbeEndpointText)
+                    LabeledContent("Identity sweep", value: connection.mercedesIdentitySummaryText)
+                    LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
                     ForEach(connection.mercedesIdentityResults, id: \.self) { result in
                         Text(result)
-                            .font(.subheadline.monospaced())
+                            .font(.caption.monospaced())
                     }
                 }
             }
+
             Section {
-                Text("The W207 E 250 CDI is independently catalogued with a Delphi CRD3.x engine ECU. MBLINK keeps the physical 7E0→7E8 endpoint candidate until it is vehicle-verified, but development of the CRD3 protocol, UDS faults and OM651 data model continues offline.")
+                Text("The W207 E 250 CDI / OM651 / Delphi CRD3.x combination and its 0x7E0 → 0x7E8 engine diagnostic endpoint are source-corroborated. Vehicle capture remains the final verification step.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -172,20 +266,27 @@ private struct ModulesView: View {
 
     var body: some View {
         List {
-            Section("Available now") {
-                Label("Generic OBD-II engine diagnostics", systemImage: "engine.combustion.fill")
-                Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
-                Label("Standard UDS + CRD3 read-only identity evidence", systemImage: "magnifyingglass.circle.fill")
-                Label("Read-only UDS 0x19 Mercedes fault scan", systemImage: "exclamationmark.triangle.fill")
-            }
-            Section("Mercedes-Benz engine") {
-                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+            Section("Engine control unit") {
+                Label("Delphi CRD3.x · OM651", systemImage: "engine.combustion.fill")
+                LabeledContent("Endpoint", value: "0x7E0 → 0x7E8")
+                LabeledContent("Evidence", value: "Source-corroborated")
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
-                LabeledContent("Identity summary", value: connection.mercedesIdentitySummaryText)
-                LabeledContent("CRD3 summary", value: connection.mercedesCrd3SummaryText)
-                LabeledContent("UDS faults", value: connection.mercedesUDSFaultStatusText)
-                LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
-                if !connection.mercedesIdentityResults.isEmpty {
+                LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
+                LabeledContent("Mercedes faults", value: connection.mercedesUDSFaultStatusText)
+            }
+
+            Section("Capabilities") {
+                Label("Standard OBD-II engine diagnostics", systemImage: "waveform.path.ecg")
+                Label("UDS / ISO-TP diagnostic engine", systemImage: "point.3.connected.trianglepath.dotted")
+                Label("CRD3 ECU identity and fingerprinting", systemImage: "checkmark.seal.fill")
+                Label("Read-only UDS 0x19 fault memory", systemImage: "exclamationmark.triangle.fill")
+            }
+
+            Section("Technical evidence") {
+                DisclosureGroup("Show identity and probe details") {
+                    LabeledContent("Selected endpoint", value: connection.mercedesProbeEndpointText)
+                    LabeledContent("Identity summary", value: connection.mercedesIdentitySummaryText)
+                    LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
                     ForEach(connection.mercedesIdentityResults, id: \.self) { result in
                         Text(result)
                             .font(.caption.monospaced())
@@ -213,19 +314,18 @@ private struct FaultsView: View {
                     Text("No Mercedes UDS fault records captured")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(connection.mercedesUDSFaults, id: \.self) { code in
-                        Label(code, systemImage: "exclamationmark.triangle.fill")
-                            .font(.body.monospaced().weight(.semibold))
+                    ForEach(connection.mercedesUDSFaults.map(MercedesUdsFault.init(raw:))) { fault in
+                        mercedesFaultRow(fault)
                     }
                 }
-                Text("MBLINK reads the CRD3 engine fault memory with ISO 14229 ReadDTCInformation 19 02 FF while the Mercedes ECU channel is selected. This is a read-only request; the raw response is retained in the evidence transcript.")
+                Text("Read-only ISO 14229 ReadDTCInformation 19 02 FF. Raw responses remain in the diagnostic evidence log.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
             Section("Standard OBD-II") {
                 LabeledContent("Status", value: connection.faultScanStatusText)
-                Text("Stored, pending and permanent emissions-related faults are also read using OBD-II services 03, 07 and 0A after the adapter is restored to its normal OBD channel.")
+                Text("Emissions-related stored, pending and permanent faults are read separately with services 03, 07 and 0A.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -234,6 +334,25 @@ private struct FaultsView: View {
             dtcSection("Permanent", codes: connection.permanentDTCs)
         }
         .navigationTitle("Faults")
+    }
+
+    private func mercedesFaultRow(_ fault: MercedesUdsFault) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(fault.code, systemImage: "exclamationmark.triangle.fill")
+                    .font(.body.monospaced().weight(.semibold))
+                Spacer()
+                Text(fault.statusHex)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            if !fault.badges.isEmpty {
+                Text(fault.badges.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -255,9 +374,13 @@ private struct FaultsView: View {
 private struct DieselDiagnosticsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private let groups: [DiagnosticParameterGroup] = [
+        .engine, .aftertreatment, .air, .fuel, .egr, .electrical
+    ]
+
     var body: some View {
         List {
-            Section("OM651 / CDID3") {
+            Section("OM651 / CRD3") {
                 NavigationLink {
                     MercedesOm651TargetsView()
                 } label: {
@@ -269,71 +392,40 @@ private struct DieselDiagnosticsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text("These targets come from OM651/CDID3 diagnostic evidence. They are visible before an adapter is available, but MBLINK will not attach a guessed DID, scaling rule or live value to them.")
+                Text("Manufacturer-specific soot, ash, regeneration and injector values remain evidence-gated. Standard OBD-II values below populate when the vehicle advertises them.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
-            Section("DPF") {
-                parameterRow("obd2.dpf.bank1_delta_pressure", fallback: "DPF differential pressure")
-                parameterRow("obd2.dpf.bank1_inlet_temperature", fallback: "DPF inlet temperature")
-                parameterRow("obd2.aftertreatment.egt_b1s1", fallback: "Exhaust gas temperature")
-                parameterRow("obd2.aftertreatment.catalyst_temp_b1s1", fallback: "Catalyst temperature")
-                Text("These are standard SAE OBD-II aftertreatment values and only populate when the vehicle advertises the corresponding PID and sub-field. Mercedes soot load, regeneration state and ash-load DIDs remain evidence-gated rather than guessed.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Turbo / air") {
-                parameterRow("obd2.engine.map", fallback: "Manifold absolute pressure")
-                parameterRow("obd2.engine.barometric_pressure", fallback: "Barometric pressure")
-                parameterRow("obd2.engine.maf", fallback: "Mass air flow")
-                parameterRow("obd2.engine.intake_air", fallback: "Intake air temperature")
-            }
-
-            Section("Fuel / injection") {
-                parameterRow("obd2.diesel.rail_pressure", fallback: "Fuel rail pressure")
-                parameterRow("obd2.engine.fuel_rate", fallback: "Fuel rate")
-                LabeledContent("Injector corrections", value: "OM651 mapping in progress")
-            }
-
-            Section("EGR") {
-                parameterRow("obd2.diesel.egr_command", fallback: "Commanded EGR")
-                parameterRow("obd2.diesel.egr_error", fallback: "EGR error")
-            }
-
-            Section("Temperatures / electrical") {
-                parameterRow("obd2.engine.coolant", fallback: "Coolant temperature")
-                parameterRow("obd2.engine.oil_temperature", fallback: "Oil temperature")
-                parameterRow("obd2.environment.ambient_air", fallback: "Ambient temperature")
-                parameterRow("obd2.electrical.control_module_voltage", fallback: "Control module voltage")
+            ForEach(groups) { group in
+                Section(group.rawValue) {
+                    let parameters = connection.diagnosticParameters.filter { $0.group == group }
+                    if parameters.isEmpty {
+                        Text("No parameters in this group")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(parameters) { parameter in
+                            parameterRow(parameter)
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Diesel")
     }
 
-    private func pidHex(_ identifier: UInt32) -> String {
-        let text = String(identifier, radix: 16, uppercase: true)
-        return text.count < 2 ? "0\(text)" : text
-    }
-
-    @ViewBuilder
-    private func parameterRow(_ stableKey: String, fallback: String) -> some View {
-        if let parameter = connection.parameter(stableKey: stableKey) {
-            LabeledContent {
-                Text(parameter.formattedValue)
-                    .monospacedDigit()
-                    .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
-            } label: {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(parameter.title)
-                    Text("PID 0x\(pidHex(parameter.parameterIdentifier))")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
+    private func parameterRow(_ parameter: DiagnosticParameter) -> some View {
+        LabeledContent {
+            Text(parameter.formattedValue)
+                .monospacedDigit()
+                .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
+        } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(parameter.title)
+                Text("PID \(parameter.pidText)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
             }
-        } else {
-            LabeledContent(fallback, value: "Unavailable")
         }
     }
 }
@@ -346,7 +438,7 @@ private struct MercedesOm651TargetsView: View {
     var body: some View {
         List {
             Section {
-                Text("This is the manufacturer-level feature map MBLINK is implementing for OM651/CDID3. ‘Corroborated · mapping pending’ means the diagnostic value is independently evidenced, but its raw request/encoding has not yet met MBLINK's provenance threshold.")
+                Text("This is the manufacturer-level OM651 / CRD3 feature map. ‘Corroborated · mapping pending’ means the value is independently evidenced, but its raw request or scaling has not yet met MBLINK's provenance threshold.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -373,60 +465,138 @@ private struct MercedesOm651TargetsView: View {
 
 private struct LiveDataView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @State private var scope: LiveDataScope = .available
+    @State private var searchText = ""
+
+    private var filteredParameters: [DiagnosticParameter] {
+        connection.diagnosticParameters.filter { parameter in
+            let scopeMatches: Bool
+            switch scope {
+            case .available:
+                scopeMatches = parameter.isAvailable
+            case .favourites:
+                scopeMatches = parameter.favourite
+            case .all:
+                scopeMatches = true
+            }
+            guard scopeMatches else { return false }
+            guard !searchText.isEmpty else { return true }
+            return parameter.title.localizedCaseInsensitiveContains(searchText) ||
+                parameter.shortName.localizedCaseInsensitiveContains(searchText) ||
+                parameter.pidText.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
-        List(connection.diagnosticParameters) { parameter in
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(parameter.shortName)
-                            .font(.caption.monospaced().weight(.semibold))
-                        Text(parameter.protocolName.uppercased())
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
+        List {
+            Section {
+                Picker("Show", selection: $scope) {
+                    ForEach(LiveDataScope.allCases) { item in
+                        Text(item.rawValue).tag(item)
                     }
-                    Text(parameter.title)
                 }
-                Spacer()
-                Text(parameter.formattedValue)
-                    .monospacedDigit()
-                    .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
-                Button {
-                    connection.toggleFavourite(stableKey: parameter.id)
-                } label: {
-                    Image(systemName: parameter.favourite ? "star.fill" : "star")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(parameter.favourite ? "Remove favourite" : "Add favourite")
+                .pickerStyle(.segmented)
             }
-            .padding(.vertical, 3)
+
+            ForEach(DiagnosticParameterGroup.allCases) { group in
+                let parameters = filteredParameters.filter { $0.group == group }
+                if !parameters.isEmpty {
+                    Section(group.rawValue) {
+                        ForEach(parameters) { parameter in
+                            parameterRow(parameter)
+                        }
+                    }
+                }
+            }
+
+            if filteredParameters.isEmpty {
+                Section {
+                    ContentUnavailableView(
+                        scope == .available ? "No live values yet" : "No matching parameters",
+                        systemImage: "waveform.path.ecg",
+                        description: Text(scope == .available
+                            ? "Connect to the vehicle to populate parameters the ECU actually reports."
+                            : "Change the filter or search text to see more parameters.")
+                    )
+                }
+            }
         }
         .navigationTitle("Live Data")
+        .searchable(text: $searchText, prompt: "Parameter, PID or name")
+    }
+
+    private func parameterRow(_ parameter: DiagnosticParameter) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(parameter.shortName)
+                        .font(.caption.monospaced().weight(.semibold))
+                    Text(parameter.pidText)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                Text(parameter.title)
+            }
+            Spacer()
+            Text(parameter.formattedValue)
+                .monospacedDigit()
+                .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
+            Button {
+                connection.toggleFavourite(stableKey: parameter.id)
+            } label: {
+                Image(systemName: parameter.favourite ? "star.fill" : "star")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(parameter.favourite ? "Remove favourite" : "Add favourite")
+        }
+        .padding(.vertical, 3)
     }
 }
 
 private struct TableDataView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private var sortedParameters: [DiagnosticParameter] {
+        connection.diagnosticParameters.sorted { left, right in
+            if left.isAvailable != right.isAvailable {
+                return left.isAvailable && !right.isAvailable
+            }
+            if left.group != right.group {
+                return DiagnosticParameterGroup.allCases.firstIndex(of: left.group)! <
+                    DiagnosticParameterGroup.allCases.firstIndex(of: right.group)!
+            }
+            return left.parameterIdentifier < right.parameterIdentifier
+        }
+    }
+
     var body: some View {
         List {
             Section {
-                ForEach(connection.diagnosticParameters) { parameter in
-                    LabeledContent {
-                        Text(parameter.formattedValue)
-                            .monospacedDigit()
-                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
-                    } label: {
+                ForEach(sortedParameters) { parameter in
+                    HStack(spacing: 10) {
+                        Text(parameter.pidText)
+                            .font(.caption.monospaced().weight(.semibold))
+                            .frame(width: 48, alignment: .leading)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(parameter.title)
-                            Text("\(parameter.protocolName.uppercased()) · \(parameter.shortName)")
-                                .font(.caption.monospaced())
+                                .font(.subheadline)
+                            Text(parameter.group.rawValue)
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        Spacer(minLength: 8)
+                        Text(parameter.formattedValue)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
+                            .multilineTextAlignment(.trailing)
+                        Image(systemName: parameter.isAvailable ? "checkmark.circle.fill" : "minus.circle")
+                            .font(.caption)
+                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
                     }
+                    .padding(.vertical, 2)
                 }
             } header: {
-                Text("Current values")
+                Text("PID · Parameter · Value")
             }
         }
         .navigationTitle("Table")
@@ -436,38 +606,62 @@ private struct TableDataView: View {
 private struct DashboardView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private let defaultKeys = [
+        "obd2.engine.rpm",
+        "obd2.vehicle.speed",
+        "obd2.engine.coolant",
+        "obd2.diesel.rail_pressure",
+        "obd2.dpf.bank1_delta_pressure",
+        "obd2.aftertreatment.egt_b1s1"
+    ]
+
     private var displayedParameters: [DiagnosticParameter] {
-        let favourites = connection.diagnosticParameters.filter(\.favourite)
-        return favourites.isEmpty ? connection.diagnosticParameters : favourites
+        let available = connection.diagnosticParameters.filter(\.isAvailable)
+        let favourites = available.filter(\.favourite)
+        if !favourites.isEmpty {
+            return Array(favourites.prefix(8))
+        }
+        let preferred = defaultKeys.compactMap { key in
+            available.first { $0.id == key }
+        }
+        return preferred.isEmpty ? Array(available.prefix(6)) : preferred
     }
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
-                ForEach(displayedParameters) { parameter in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(parameter.shortName)
-                                .font(.caption.monospaced().weight(.bold))
-                            Spacer()
-                            Text(parameter.protocolName.uppercased())
-                                .font(.caption2.monospaced())
+            if displayedParameters.isEmpty {
+                ContentUnavailableView(
+                    "Waiting for vehicle data",
+                    systemImage: "gauge.with.dots.needle.67percent",
+                    description: Text("The dashboard only shows values the connected vehicle actually reports. Favourite live-data parameters become the dashboard automatically.")
+                )
+                .padding(.top, 60)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
+                    ForEach(displayedParameters) { parameter in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(parameter.shortName)
+                                    .font(.caption.monospaced().weight(.bold))
+                                Spacer()
+                                Text(parameter.pidText)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(parameter.formattedValue)
+                                .font(.title2.monospacedDigit().weight(.semibold))
+                                .minimumScaleFactor(0.7)
+                            Text(parameter.title)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(parameter.formattedValue)
-                            .font(.title2.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
-                            .minimumScaleFactor(0.7)
-                        Text(parameter.title)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 105, alignment: .leading)
+                        .padding()
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .frame(maxWidth: .infinity, minHeight: 105, alignment: .leading)
-                    .padding()
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
+                .padding()
             }
-            .padding()
         }
         .navigationTitle("Dashboard")
     }
@@ -475,12 +669,32 @@ private struct DashboardView: View {
 
 private struct GraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @State private var selectedKeys = Set<String>()
+    @State private var showingSignalPicker = false
+
+    private let defaultKeys = [
+        "obd2.engine.rpm",
+        "obd2.diesel.rail_pressure",
+        "obd2.dpf.bank1_delta_pressure",
+        "obd2.aftertreatment.egt_b1s1"
+    ]
+
+    private var parametersWithHistory: [DiagnosticParameter] {
+        connection.diagnosticParameters.filter { !$0.history.isEmpty }
+    }
 
     private var graphedParameters: [DiagnosticParameter] {
-        let withHistory = connection.diagnosticParameters.filter { !$0.history.isEmpty }
-        let favourites = withHistory.filter(\.favourite)
-        let selected = favourites.isEmpty ? withHistory : favourites
-        return Array(selected.prefix(4))
+        if !selectedKeys.isEmpty {
+            return Array(parametersWithHistory.filter { selectedKeys.contains($0.id) }.prefix(4))
+        }
+        let favourites = parametersWithHistory.filter(\.favourite)
+        if !favourites.isEmpty {
+            return Array(favourites.prefix(4))
+        }
+        let preferred = defaultKeys.compactMap { key in
+            parametersWithHistory.first { $0.id == key }
+        }
+        return preferred.isEmpty ? Array(parametersWithHistory.prefix(4)) : preferred
     }
 
     var body: some View {
@@ -489,7 +703,7 @@ private struct GraphsView: View {
                 ContentUnavailableView(
                     "Waiting for live samples",
                     systemImage: "chart.xyaxis.line",
-                    description: Text("Connect to the vehicle and MBLINK will graph recent history for available parameters. Favourite parameters are prioritised automatically.")
+                    description: Text("Connect to the vehicle and choose up to four live signals to graph. Favourites are selected automatically when no custom selection is set.")
                 )
                 .padding(.top, 60)
             } else {
@@ -502,6 +716,19 @@ private struct GraphsView: View {
             }
         }
         .navigationTitle("Graphs")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Choose") {
+                    showingSignalPicker = true
+                }
+            }
+        }
+        .sheet(isPresented: $showingSignalPicker) {
+            GraphSignalPicker(
+                parameters: connection.diagnosticParameters,
+                selectedKeys: $selectedKeys
+            )
+        }
     }
 
     private func graphCard(_ parameter: DiagnosticParameter) -> some View {
@@ -511,7 +738,7 @@ private struct GraphsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(parameter.title).font(.headline)
-                    Text("\(parameter.protocolName.uppercased()) · \(parameter.shortName)")
+                    Text("\(parameter.pidText) · \(parameter.shortName)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
@@ -543,20 +770,85 @@ private struct GraphsView: View {
     }
 }
 
+private struct GraphSignalPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let parameters: [DiagnosticParameter]
+    @Binding var selectedKeys: Set<String>
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Choose up to four signals. Clear the selection to return to automatic favourites/default selection.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(DiagnosticParameterGroup.allCases) { group in
+                    let groupParameters = parameters.filter { $0.group == group }
+                    if !groupParameters.isEmpty {
+                        Section(group.rawValue) {
+                            ForEach(groupParameters) { parameter in
+                                let selected = selectedKeys.contains(parameter.id)
+                                Button {
+                                    if selected {
+                                        selectedKeys.remove(parameter.id)
+                                    } else if selectedKeys.count < 4 {
+                                        selectedKeys.insert(parameter.id)
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(parameter.title)
+                                                .foregroundStyle(.primary)
+                                            Text("\(parameter.pidText) · \(parameter.formattedValue)")
+                                                .font(.caption.monospaced())
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if selected {
+                                            Image(systemName: "checkmark.circle.fill")
+                                        }
+                                    }
+                                }
+                                .disabled(!selected && selectedKeys.count >= 4)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Graph Signals")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Clear") {
+                        selectedKeys.removeAll()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct LogView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     var body: some View {
         List {
             Section("Diagnostic evidence") {
-                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Engine endpoint", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Identity results", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
                 LabeledContent("Mercedes UDS faults", value: connection.mercedesUDSFaultStatusText)
                 LabeledContent("OBD-II fault scan", value: connection.faultScanStatusText)
-                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS/CRD3 identity evidence, the 19 02 FF manufacturer fault-memory request, all three OBD-II fault services and every live diesel/DPF request.")
+                Text("The session recorder contains the raw ELM327 command/response transcript, including Mercedes UDS/CRD3 identity evidence, manufacturer fault-memory reads, standard OBD-II faults and live diesel/DPF requests.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -596,7 +888,7 @@ private struct SettingsView: View {
                 LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "Unknown")
             }
             Section("Architecture") {
-                Text("SwiftUI renders the shared C diagnostic parameter catalog and the evidence-backed OM651 target catalogue. Portable diagnostics, parameter metadata/formatting, scheduling, telemetry and protocol behaviour remain owned by libmblink and Infiltratr Common rather than being duplicated in the iPhone UI.")
+                Text("SwiftUI renders the shared C diagnostic parameter catalogue and the evidence-backed OM651 target catalogue. Portable diagnostics, parameter metadata, scheduling, telemetry and protocol behaviour remain owned by libmblink and Infiltratr Common rather than being duplicated in the iPhone UI.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
