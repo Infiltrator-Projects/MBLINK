@@ -140,12 +140,14 @@ jobs:
           test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
 
-          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.9.0"
-          grep -q 'set(MBLINK_COMMON_COMMIT "a65b279b40682791f2cfefb4d9bdc274790b0c77")' CMakeLists.txt
-          test "$(grep -c 'arithmetic.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/infiltratr-common/src/arithmetic.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-          test "$(grep -c 'timing.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/infiltratr-common/src/timing.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.10.0"
+          grep -q 'set(MBLINK_COMMON_COMMIT "182e64cb8b8992879e443b941565058166fe0161")' CMakeLists.txt
+          grep -Fq 'add_subdirectory(' CMakeLists.txt
+          grep -q 'InfiltratrCommon::Portable' CMakeLists.txt
+          ! grep -Eq 'MBLINK_COMMON_DIR.*/src/(core|arithmetic|config|timing|format)\.c' CMakeLists.txt
+          grep -q 'InfiltratrCommon.xcodeproj' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -q 'InfiltratrCommonPortable' app/ios/MBLINK.xcodeproj/project.pbxproj
+          ! grep -Eq 'src/infiltratr-common/src/(core|arithmetic|config|timing|format)\.c' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -q 'infiltratr_periodic_deadline_advance' src/core/scheduler.c
 
           test "$(grep -c 'elm327_can.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2

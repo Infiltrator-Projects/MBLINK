@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7.3. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through 0.7.4. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -23,6 +23,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.7.1 | Common 1.7.0 adoption, iPhone Mercedes-source wiring and permanent IPA release assets |
 | 0.7.2 | Shared C live-data catalog, full-key parameter store and UDS-capable 64-item scheduler |
 | 0.7.3 | ELM-managed ISO 15765 CAN channel, Common 1.8 timing reuse and cross-build recovery hardening |
+| 0.7.4 | Common 1.10 authoritative CMake/Xcode target integration and release-state synchronization |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -71,11 +72,23 @@ No ECU endpoint, Mercedes DID or successful Vgate/vehicle exchange is claimed by
 
 **Exit condition:** all portable tests retain their ELM CAN PDU coverage, CMake and iPhone compile the same new C sources, and all portable, sanitizer, Linux, iOS and unsigned-device gates pass on one exact 0.7.3 commit.
 
+## 0.7.4 — Common 1.10 build-package integration (complete)
+
+- pin released Infiltratr Common 1.10.0 at exact commit `182e64cb8b8992879e443b941565058166fe0161`;
+- consume Common's authoritative `InfiltratrCommon::Portable` CMake target instead of enumerating Common implementation files in MBLINK;
+- link Common's authoritative `InfiltratrCommonPortable` Apple subproject product instead of duplicating Common implementation files in the MBLINK Xcode target;
+- make CI reject regression to consumer-owned Common source lists while retaining exact version/gitlink verification;
+- synchronize VERSION and all iPhone marketing-version metadata at 0.7.4 so the validated main commit can publish a matching GitHub Release and unsigned IPA.
+
+The existing read-only Mercedes endpoint probe remains explicitly in-progress 0.8 work. This maintenance milestone does not claim live vehicle communication, a verified Mercedes endpoint or completion of the 0.8 exit condition.
+
+**Exit condition:** the seven portable, sanitizer, Linux, iOS Debug/Release and unsigned-device gates pass on one exact 0.7.4 commit using Common-owned build targets, and that exact commit publishes the 0.7.4 release with its IPA.
+
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 
 Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters.
 
-In progress after 0.7.3:
+In progress after 0.7.4:
 
 - the C207/OM651 profile now carries a conventional 11-bit physical engine-endpoint candidate with explicit source provenance and unverified status;
 - a portable read-only ECU probe configures the ELM-managed CAN channel and validates a positive UDS TesterPresent response without entering a session or writing vehicle data;

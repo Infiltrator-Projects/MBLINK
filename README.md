@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed maintenance milestone: 0.7.3 — ELM-managed CAN and shared-timing recovery hardening. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest completed maintenance milestone: 0.7.4 — Infiltratr Common 1.10 build-package integration. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -22,7 +22,7 @@ Implemented today:
 - protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting for OBD-II and future manufacturer UDS live values;
 - bounded protocol-neutral parameter state/history keyed by protocol, module and identifier;
 - 64-item live-data scheduler with full parameter keys plus compatibility wrappers for the current OBD-II session loop;
-- Infiltratr Common 1.9-backed portable primitives and periodic deadline advancement with identical CMake and iPhone source wiring;
+- Infiltratr Common 1.10-backed portable primitives and periodic deadline advancement, with Common owning portable target membership for both CMake and Xcode consumers;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
@@ -66,7 +66,7 @@ If the repository was cloned without submodules:
 git submodule update --init --recursive
 ```
 
-CMake validates the required Common version and, when Git metadata is available, its exact pinned commit. Configuration never modifies the checkout to fetch a missing dependency for you.
+CMake validates the required Common version and, when Git metadata is available, its exact pinned commit. Common 1.10 owns its portable target membership; MBLINK links the exported Common target rather than enumerating Common implementation files.
 
 For an AddressSanitizer + UndefinedBehaviorSanitizer development build:
 
@@ -78,7 +78,7 @@ ctest --test-dir build-sanitized --output-on-failure
 
 ## iPhone target
 
-The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations.
+The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations. The project links Common's authoritative `InfiltratrCommonPortable` Xcode product rather than duplicating Common's internal source list.
 
 ## Linux target
 

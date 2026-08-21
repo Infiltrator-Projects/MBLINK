@@ -28,8 +28,8 @@ endif()
 include(CTest)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
-set(MBLINK_COMMON_VERSION "1.9.0")
-set(MBLINK_COMMON_COMMIT "a65b279b40682791f2cfefb4d9bdc274790b0c77")
+set(MBLINK_COMMON_VERSION "1.10.0")
+set(MBLINK_COMMON_COMMIT "182e64cb8b8992879e443b941565058166fe0161")
 
 if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
     message(FATAL_ERROR
@@ -58,14 +58,14 @@ if(MBLINK_GIT_EXECUTABLE)
     endif()
 endif()
 
-add_library(infiltratr-common STATIC
-    "${MBLINK_COMMON_DIR}/src/core.c"
-    "${MBLINK_COMMON_DIR}/src/arithmetic.c"
-    "${MBLINK_COMMON_DIR}/src/timing.c"
-    "${MBLINK_COMMON_DIR}/src/format.c")
-target_include_directories(infiltratr-common PUBLIC
-    "${MBLINK_COMMON_DIR}/include")
-target_compile_features(infiltratr-common PUBLIC c_std_11)
+set(INFILTRATR_COMMON_BUILD_TESTS OFF CACHE BOOL
+    "Build Infiltratr Common contract and smoke tests" FORCE)
+set(INFILTRATR_COMMON_WARNINGS_AS_ERRORS ON CACHE BOOL
+    "Treat Infiltratr Common compiler warnings as errors" FORCE)
+add_subdirectory(
+    "${MBLINK_COMMON_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/infiltratr-common"
+    EXCLUDE_FROM_ALL)
 
 add_library(mblink STATIC
     src/core/mblink.c
@@ -86,7 +86,7 @@ target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
     MBLINK_VERSION="${PROJECT_VERSION}")
-target_link_libraries(mblink PUBLIC infiltratr-common)
+target_link_libraries(mblink PUBLIC InfiltratrCommon::Portable)
 
 set(MBLINK_WARNING_FLAGS
     -Wall
@@ -98,12 +98,7 @@ set(MBLINK_WARNING_FLAGS
     -Wmissing-prototypes)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    target_compile_options(infiltratr-common PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     target_compile_options(mblink PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
-endif()
-
-if(UNIX AND NOT APPLE)
-    target_link_libraries(infiltratr-common PUBLIC m)
 endif()
 
 if(MBLINK_BUILD_LINUX_APP)

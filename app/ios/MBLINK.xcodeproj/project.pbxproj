@@ -20,18 +20,15 @@
 		E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };
 		E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A06 /* mercedes.c */; };
 		E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };
-		E0A1B2C3D4E5F60718293B08 /* timing.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A08 /* timing.c */; };
 		E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A09 /* elm327_can.c */; };
-		E0A1B2C3D4E5F60718293B0A /* arithmetic.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0A /* arithmetic.c */; };
 		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
 		B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */ = {isa = PBXBuildFile; fileRef = DCDEF808C26455A6B72E4784 /* obd2.c */; };
-		E282A55680BFE4F2A03F50A1 /* common_core.c in Sources */ = {isa = PBXBuildFile; fileRef = D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */; };
-		DAE47DE128E3ADDAB54DFCF6 /* common_format.c in Sources */ = {isa = PBXBuildFile; fileRef = FB46CB06CB0FE9B8B23168B3 /* common_format.c */; };
 		74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C1F571CC485203162805ADE /* CoreBluetooth.framework */; };
 		B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */; };
+		C0A110000000000000000001 /* libInfiltratrCommonPortable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C0A110000000000000000005 /* libInfiltratrCommonPortable.a */; };
 		A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -42,6 +39,20 @@
 			proxyType = 1;
 			remoteGlobalIDString = 744DBEE4E0A69DC936004899;
 			remoteInfo = MBLINKCore;
+		};
+		C0A110000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = A10000000000000000000026;
+			remoteInfo = InfiltratrCommonPortable;
+		};
+		C0A110000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000001;
+			remoteInfo = InfiltratrCommonPortable;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -63,16 +74,13 @@
 		F0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
-		F0A1B2C3D4E5F60718293A08 /* timing.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "timing.c"; path = "../../src/infiltratr-common/src/timing.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A09 /* elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327_can.c"; path = "../../src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
-		F0A1B2C3D4E5F60718293A0A /* arithmetic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "arithmetic.c"; path = "../../src/infiltratr-common/src/arithmetic.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
 		DCDEF808C26455A6B72E4784 /* obd2.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "obd2.c"; path = "../../src/obd2/obd2.c"; sourceTree = SOURCE_ROOT; };
-		D5AEE7D0F9C3D6A65D0D9E38 /* common_core.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "core.c"; path = "../../src/infiltratr-common/src/core.c"; sourceTree = SOURCE_ROOT; };
-		FB46CB06CB0FE9B8B23168B3 /* common_format.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "format.c"; path = "../../src/infiltratr-common/src/format.c"; sourceTree = SOURCE_ROOT; };
+		C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = InfiltratrCommon.xcodeproj; path = "../../src/infiltratr-common/apple/InfiltratrCommon.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		8BCD5BC4CDFDF0918087C782 /* MBLINK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MBLINK.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
@@ -93,6 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0A110000000000000000001 /* libInfiltratrCommonPortable.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,12 +168,17 @@
 		BEDB112081DBA7F70010E771 /* Infiltratr Common */ = {
 			isa = PBXGroup;
 			children = (
-				D5AEE7D0F9C3D6A65D0D9E38 /* core.c */,
-				F0A1B2C3D4E5F60718293A0A /* arithmetic.c */,
-				F0A1B2C3D4E5F60718293A08 /* timing.c */,
-				FB46CB06CB0FE9B8B23168B3 /* format.c */,
+				C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */,
 			);
 			name = "Infiltratr Common";
+			sourceTree = "<group>";
+		};
+		C0A110000000000000000006 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C0A110000000000000000005 /* libInfiltratrCommonPortable.a */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		AB5D76948E8B8022B6DC48C4 /* Frameworks */ = {
@@ -215,6 +229,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				C0A110000000000000000007 /* PBXTargetDependency */,
 			);
 			name = MBLINKCore;
 			productName = MBLINKCore;
@@ -250,6 +265,12 @@
 			mainGroup = E50290A24C49A459B43487C5;
 			productRefGroup = 328EC33DF3954DC9B83FA285 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = C0A110000000000000000006 /* Products */;
+					ProjectRef = C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				C13732C8E715C9BEE4FA51C9 /* MBLINK */,
@@ -257,6 +278,16 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		C0A110000000000000000005 /* libInfiltratrCommonPortable.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libInfiltratrCommonPortable.a;
+			remoteRef = C0A110000000000000000002 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		364863F9F2E558B0F50473FC /* Resources */ = {
@@ -300,10 +331,6 @@
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
 				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
-				E282A55680BFE4F2A03F50A1 /* core.c in Sources */,
-				E0A1B2C3D4E5F60718293B0A /* arithmetic.c in Sources */,
-				E0A1B2C3D4E5F60718293B08 /* timing.c in Sources */,
-				DAE47DE128E3ADDAB54DFCF6 /* format.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -314,6 +341,11 @@
 			isa = PBXTargetDependency;
 			target = 744DBEE4E0A69DC936004899 /* MBLINKCore */;
 			targetProxy = D799BAE6088A90139B415FCC /* PBXContainerItemProxy */;
+		};
+		C0A110000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = InfiltratrCommonPortable;
+			targetProxy = C0A110000000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -359,7 +391,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.3;
+				MARKETING_VERSION = 0.7.4;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -390,7 +422,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.3;
+				MARKETING_VERSION = 0.7.4;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -430,7 +462,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.3;
+				MARKETING_VERSION = 0.7.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -463,7 +495,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.3;
+				MARKETING_VERSION = 0.7.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
