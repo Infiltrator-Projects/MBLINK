@@ -14,6 +14,8 @@ The profile contains one initial engine endpoint candidate:
 
 This pair comes from the conventional 11-bit physical-address example in the ELM327 documentation, which points to ISO 15765-4. It is useful as a first read-only probe target, but it is not by itself evidence that a C207/OM651 responds at that endpoint. The definition therefore remains candidate status until a reproducible physical vehicle capture is committed as a regression fixture.
 
+Physical hardware is a validation gate, not a development gate. MBLINK continues to build the Mercedes protocol model, fixture replay, ECU-family decoding and safe read-only requests offline. When the development adapter becomes available, the real C207 capture replaces assumptions rather than beginning the implementation from scratch.
+
 ## Read-only ECU evidence probe
 
 `MblinkMercedesEcuProbe` coordinates the existing layers in this order:
@@ -42,34 +44,61 @@ The CRD3 fingerprint sweep requests these evidence-only identifiers:
 
 | DID | CaesarSuite CRD3 label | MBLINK treatment |
 | --- | --- | --- |
-| `F100` | Session / variant | raw ECU-family evidence only |
-| `F154` | Supplier identifier | raw ECU-family evidence only |
-| `F196` | EROTAN | raw ECU-family evidence only |
-| `1001` | Full variant coding | raw ECU-family evidence only |
-| `1002` | Partial variant coding | raw ECU-family evidence only |
+| `F100` | Session / variant | ECU-family evidence |
+| `F154` | Supplier identifier | ECU-family evidence |
+| `F196` | EROTAN | raw ECU-family evidence |
+| `1001` | Full variant coding | raw ECU-family evidence |
+| `1002` | Partial variant coding | raw ECU-family evidence |
 
-The CRD3 identifiers are not being treated as DPF, rail-pressure, injector, EGR or turbo parameters. Their purpose is to establish that the responding engine ECU behaves like the CRD3/CDID3 family used with OM651, and to preserve exact raw responses for the vehicle fixture. MBLINK does not infer a live-data formula from a positive fingerprint response.
+The CRD3 identifiers are not treated as DPF, rail-pressure, injector, EGR or turbo parameters. Their purpose is to identify the responding engine-control family and preserve exact raw responses for later fixture promotion. MBLINK does not infer a live-data formula from a positive fingerprint response.
 
-Negative responses, `NO DATA`, malformed responses and positive responses are classified separately and the sweep continues so one unsupported identifier does not discard evidence from the rest.
+## OM651 / CDID3 family signature
 
-The probe does not enter an extended diagnostic session, perform security access, clear faults, write data or invoke an ECU routine. TesterPresent may refresh a responding ECU's diagnostic inactivity timer. Optional identification/fingerprint reads occur only after a valid positive TesterPresent response has established that the selected endpoint is answering UDS.
+The portable CRD3 decoder understands the payload shape published by the CaesarSuite CRD3 simulator for `F100` and `F154`. `F100` carries gateway mode, a big-endian 16-bit ECU variant and the active session; `F154` carries a one-byte supplier identifier.
 
-The current ELM-managed probe supports normal physical ISO-TP addresses with matching 11-bit or matching 29-bit request/response identifier formats. Other valid ISO-TP addressing modes remain valid profile data but are rejected as unsupported by this particular adapter path.
+Independent OM651/CDID3 diagnostic catalogues for E 250 CDI and S 250 CDI systems corroborate the signature `02 21 31` with Delphi as the supplier. MBLINK therefore recognises gateway mode `02`, variant `2131`, supplier `64`/Delphi as an **OM651/CDID3-family signature**. That is useful offline corroboration, but it does not promote the C207 endpoint or any proprietary live-data definition to vehicle-verified status.
 
-## Why the CRD3 fingerprint comes before proprietary DPF formulas
+## Mercedes UDS fault reading
 
-Public Mercedes engine live-data mappings for OM651 are substantially weaker than the standardized UDS identity material. Open-source Mercedes tooling confirms that `CDID3` on OM651 maps to the `CRD3` diagnostic family, and CaesarSuite includes a CRD3 simulator with the five identifiers above, but it does not publish trustworthy DPF soot-load, regeneration-state, injector-correction or equivalent CRD3 live-data formulas.
+`uds_dtc.h` adds a portable read-only ISO 14229 `ReadDTCInformation` codec. The initial request is `19 02 FF`: report DTCs by status mask with every status bit requested. Positive `59 02` responses are decoded into 24-bit UDS DTC values plus their ISO 14229 status byte; negative responses remain visible with their NRC.
 
-MBLINK therefore uses those five requests only to fingerprint the real ECU. This is deliberately different from guessing a Mercedes DID and showing a plausible-looking number. The next physical C207 capture should tell us which CRD3 fingerprint requests really respond and gives us the exact ECU/software identity needed to bind later DPF definitions to the correct variant.
+`MblinkMercedesEngineScan` composes the existing endpoint/identity probe with this UDS fault read while the engine ECU channel is still selected. It does not clear faults, alter DTC settings, enter an extended session, perform security access, write data or invoke routines. No response, negative response and malformed data are classified as evidence rather than being disguised as an empty fault list.
+
+## Offline trace replay
+
+The test suite contains a deterministic ELM trace-replay harness. A fixture is an ordered list of expected adapter commands and responses. The replay fails if command order changes, an unexpected request appears or a response no longer decodes through the portable layers.
+
+The current synthetic Mercedes fixture drives the entire read-only sequence through channel configuration, TesterPresent, VIN, six standardized identity DIDs, five CRD3 fingerprint DIDs and UDS `19 02 FF`. This lets development and regression testing continue before the physical adapter arrives. Synthetic fixtures prove deterministic software behaviour only; they never count as vehicle verification.
+
+When real evidence is available, the same harness is the promotion path: sanitize the captured exchange, commit it as a deterministic fixture, then promote only the endpoint/definitions that the capture actually proves.
+
+## OM651 manufacturer signal catalogue
+
+`mercedes_om651.h` defines stable identities for manufacturer-level values independently shown by OM651/CDID3 diagnostic material. Current priority groups are:
+
+- DPF differential pressure, fill level, ash, multiple soot estimates, regeneration state and distance since regeneration;
+- exhaust temperatures before the turbocharger, before the catalyst and at the DPF inlet;
+- fuel rail pressure;
+- boost pressure;
+- EGR command/rate;
+- cylinder 1–4 smooth-running corrections and injector correction factors.
+
+Every entry is currently `corroborated-unmapped`: the capability is known to exist on OM651/CDID3 diagnostic systems, but MBLINK deliberately leaves its DID, byte layout, scaling and units unbound until defensible protocol evidence exists. This gives the program a concrete Mercedes feature model now without inventing attractive-looking numbers.
+
+## Why proprietary DPF formulas are still unbound
+
+Public Mercedes engine live-data mappings for OM651 are substantially weaker than the standardized UDS identity material. Open-source and independent diagnostic material strongly corroborates that OM651/CDID3 exposes the DPF, injector, rail, EGR and boost values MBLINK wants, but the material currently available to the project does not provide trustworthy raw request identifiers and scaling for those values.
+
+MBLINK therefore separates **capability evidence** from **protocol mapping evidence**. The capability catalogue can advance immediately; a DID/formula is only bound when its request, raw response layout and scaling are supportable. That is deliberately different from guessing a Mercedes DID and showing a plausible-looking value.
 
 ## iPhone evidence path
 
-The native iPhone workflow invokes this probe automatically after the standard OBD-II capability exchange. The Vehicle and Modules workspaces identify the candidate and current probe result. The Log workspace exports the complete diagnostic-evidence transcript even when no live telemetry samples were recorded.
+The native iPhone workflow currently invokes the Mercedes identity/fingerprint probe automatically after the standard OBD-II capability exchange. Vehicle and Modules identify the candidate and current evidence result; Log exports the complete diagnostic-evidence transcript even when no live telemetry samples were recorded.
 
-For physical validation, connect to the development vehicle, allow the connection sequence to finish, then export the diagnostic evidence from Log. The capture should show the channel setup, `3E00`, `22F190`, the six standardized identity requests, and then `22F100`, `22F154`, `22F196`, `221001` and `221002` before the ELM adapter is reset for ordinary OBD-II polling.
+The newer composite Mercedes engine scan and manufacturer-level OM651 catalogue are portable C foundations first. They are intended to replace the remaining generic-only portions of the iPhone workflow as they are wired upward, rather than duplicating protocol logic in Swift or Objective-C.
 
 ## Evidence and promotion
 
-An endpoint or DID may move from candidate to vehicle-verified only when its provenance identifies the vehicle, ECU, adapter/transport conditions and a complete reproducible request/response capture. The raw capture must become a deterministic regression fixture before the profile status changes.
+An endpoint, DID or scaling rule may move from candidate to vehicle-verified only when its provenance identifies the vehicle, ECU, adapter/transport conditions and a complete reproducible request/response capture. The raw capture must become a deterministic regression fixture before the profile status changes.
 
-No unverified Mercedes manufacturer live-data formula is currently promoted into the C207/OM651 profile. DPF soot/ash/regeneration state, boost, rail pressure, injector corrections and EGR manufacturer definitions remain pending physical vehicle evidence. The CRD3 fingerprint is the bridge from generic OBD-II to that actual ECU-specific work: it tells us which engine-control family and variant we are really talking to before we attach proprietary interpretations.
+No unverified Mercedes manufacturer live-data formula is currently promoted into the C207/OM651 profile. The work can continue without hardware; hardware is required only for the final promotion from corroborated/candidate definitions to the exact C207/OM651 vehicle-verified mappings.
