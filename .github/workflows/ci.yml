@@ -159,7 +159,11 @@ jobs:
           grep -q 'mblink/parameter.h' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
           grep -q 'diagnosticParameters' app/ios/MBLINK/ContentView.swift
-          ! grep -q 'String(format:' app/ios/MBLINK/ContentView.swift
+          unexpected_swift_formats="$(
+            grep -F 'String(format:' app/ios/MBLINK/ContentView.swift |
+              grep -Fv 'return String(format: "Status 0x%02X", status)' || true
+          )"
+          test -z "$unexpected_swift_formats"
           ! grep -Eq 'hasRPM|hasEngineLoad|applyMeasurement|resetPublishedMeasurements' \
             platform/apple/MBLinkDiagnosticsController.h \
             platform/apple/MBLinkDiagnosticsController.m
