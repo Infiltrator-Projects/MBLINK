@@ -249,6 +249,22 @@ mblink_mercedes_om651_signal_definitions(size_t *count)
     return definitions;
 }
 
+static inline size_t mblink_mercedes_om651_signal_count(void)
+{
+    size_t count = 0U;
+    (void)mblink_mercedes_om651_signal_definitions(&count);
+    return count;
+}
+
+static inline const MblinkMercedesOm651SignalDefinition *
+mblink_mercedes_om651_signal_at(size_t index)
+{
+    size_t count = 0U;
+    const MblinkMercedesOm651SignalDefinition *definitions =
+        mblink_mercedes_om651_signal_definitions(&count);
+    return index < count ? &definitions[index] : NULL;
+}
+
 static inline const MblinkMercedesOm651SignalDefinition *
 mblink_mercedes_om651_find_signal(const char *key)
 {
