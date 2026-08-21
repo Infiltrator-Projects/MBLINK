@@ -139,10 +139,11 @@ private struct VehicleView: View {
                 LabeledContent("Engine family", value: "OM651")
                 LabeledContent("Generic diagnostics", value: "OBD-II")
                 LabeledContent("Advanced diagnostics", value: "UDS foundation ready")
-                LabeledContent("Mercedes ECU discovery", value: "Hardware validation pending")
+                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
             Section {
-                Text("The portable UDS and Mercedes definition layers are present, but MBLINK does not invent control units or manufacturer data. ECU discovery and Mercedes live values will appear here only after they are observed and verified against the vehicle.")
+                Text("After the standard OBD-II capability check, MBLINK now performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate, records the exchange in the session transcript, then resets the adapter before live OBD-II polling. A response does not automatically promote the candidate to vehicle-verified; the capture still has to become a reproducible regression fixture.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -152,6 +153,8 @@ private struct VehicleView: View {
 }
 
 private struct ModulesView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
     var body: some View {
         List {
             Section("Available now") {
@@ -159,11 +162,11 @@ private struct ModulesView: View {
                 Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
             }
             Section("Mercedes-Benz discovery") {
-                ContentUnavailableView(
-                    "ECU discovery awaiting vehicle validation",
-                    systemImage: "square.stack.3d.up.slash",
-                    description: Text("The Mercedes layer carries explicit candidate and vehicle-verified provenance. Control units will populate this workspace only after real C207 / OM651 responses are captured and validated.")
-                )
+                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
+                Text("The probe is intentionally read-only and uses the portable Mercedes/ELM/UDS state machines. Positive or negative UDS evidence is retained in the session transcript, while unsupported or silent endpoints remain candidates rather than being invented as verified modules.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Modules")

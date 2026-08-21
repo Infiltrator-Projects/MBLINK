@@ -25,6 +25,8 @@ NS_SWIFT_UI_ACTOR
 @property(nonatomic, copy, readonly) NSString *statusText;
 @property(nonatomic, copy, readonly, nullable) NSString *peripheralName;
 @property(nonatomic, copy, readonly, nullable) NSString *adapterIdentifier;
+@property(nonatomic, copy, readonly) NSString *mercedesProbeStatusText;
+@property(nonatomic, copy, readonly, nullable) NSString *mercedesProbeEndpointText;
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 

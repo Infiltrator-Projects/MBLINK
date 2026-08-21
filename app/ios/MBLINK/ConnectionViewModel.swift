@@ -23,6 +23,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var statusText = "Idle"
     @Published private(set) var peripheralName = "No adapter"
     @Published private(set) var adapterIdentifier = "Unknown"
+    @Published private(set) var mercedesProbeStatusText = "Not attempted"
+    @Published private(set) var mercedesProbeEndpointText = "Candidate not selected"
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
 
@@ -169,6 +171,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         statusText = controller.statusText
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
+        mercedesProbeStatusText = controller.mercedesProbeStatusText
+        mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Candidate not selected"
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()

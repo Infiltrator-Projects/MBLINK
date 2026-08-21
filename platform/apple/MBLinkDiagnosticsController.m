@@ -4,6 +4,8 @@
 #import "MBLinkBLETransport+MBLINK.h"
 #import "mblink/elm327.h"
 #import "mblink/elm327_session.h"
+#import "mblink/mercedes.h"
+#import "mblink/mercedes_probe.h"
 #import "mblink/obd2.h"
 #import "mblink/scheduler.h"
 #import "mblink/telemetry.h"
@@ -12,6 +14,8 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     MBLinkDiagnosticsPhaseIdle = 0,
     MBLinkDiagnosticsPhaseInitializing,
     MBLinkDiagnosticsPhaseCheckingPids,
+    MBLinkDiagnosticsPhaseProbingMercedes,
+    MBLinkDiagnosticsPhaseRestoringOBD,
     MBLinkDiagnosticsPhaseReadingLive,
     MBLinkDiagnosticsPhaseLive,
     MBLinkDiagnosticsPhaseFailed
@@ -21,6 +25,8 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, copy, readwrite) NSString *statusText;
 @property(nonatomic, copy, readwrite, nullable) NSString *peripheralName;
 @property(nonatomic, copy, readwrite, nullable) NSString *adapterIdentifier;
+@property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
+@property(nonatomic, copy, readwrite, nullable) NSString *mercedesProbeEndpointText;
 @property(nonatomic, readwrite, getter=isActive) BOOL active;
 @property(nonatomic, readwrite, getter=isReady) BOOL ready;
 
@@ -33,6 +39,12 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)stopTickTimer;
 - (void)processInitializationResponse:(const MblinkElm327Response *)response;
 - (void)processSupportedPidResponse:(const MblinkElm327Response *)response;
+- (void)beginMercedesProbe;
+- (void)beginCurrentMercedesProbeCommand;
+- (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
+- (NSString *)mercedesProbeFailureText;
+- (void)beginPostMercedesRestore;
+- (void)completeLiveSetup;
 - (void)processLiveResponse:(const MblinkElm327Response *)response;
 - (void)scheduleNextLiveRequest;
 @end
@@ -42,6 +54,7 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     MblinkElm327Session _session;
     BOOL _sessionInitialized;
     MblinkElm327InitState _initialization;
+    MblinkMercedesEcuProbe _mercedesProbe;
     MblinkObd2PidSet _supportedPids;
     MblinkScheduler _scheduler;
     MblinkTelemetryStore _telemetry;
@@ -109,6 +122,35 @@ static void MBLinkSessionEvent(void *context,
     [controller handleSessionEvent:session];
 }
 
+static NSString *MBLinkStringFromCString(const char *value)
+{
+    if (value == NULL) {
+        return @"unknown";
+    }
+    NSString *string = [NSString stringWithUTF8String:value];
+    return string != nil ? string : @"unknown";
+}
+
+static NSString *MBLinkMercedesEndpointText(
+    const MblinkMercedesEcuEndpointDefinition *endpoint)
+{
+    if (endpoint == NULL) {
+        return nil;
+    }
+
+    NSString *name = MBLinkStringFromCString(endpoint->name);
+    if (endpoint->address.tx_extended_id) {
+        return [NSString stringWithFormat:@"%@ · 0x%08X → 0x%08X",
+                                          name,
+                                          (unsigned int)endpoint->address.tx_can_id,
+                                          (unsigned int)endpoint->address.rx_can_id];
+    }
+    return [NSString stringWithFormat:@"%@ · 0x%03X → 0x%03X",
+                                      name,
+                                      (unsigned int)endpoint->address.tx_can_id,
+                                      (unsigned int)endpoint->address.rx_can_id];
+}
+
 - (instancetype)init
 {
     self = [super init];
@@ -116,6 +158,7 @@ static void MBLinkSessionEvent(void *context,
         _provider = [[MBLinkBLETransport alloc] init];
         _provider.delegate = self;
         _statusText = @"Idle";
+        _mercedesProbeStatusText = @"Not attempted";
         _phase = MBLinkDiagnosticsPhaseIdle;
         mblink_obd2_pid_set_clear(&_supportedPids);
         mblink_scheduler_init(&_scheduler);
@@ -178,6 +221,9 @@ static void MBLinkSessionEvent(void *context,
     _pollGeneration++;
     self.active = YES;
     self.ready = NO;
+    self.mercedesProbeStatusText = @"Not attempted";
+    self.mercedesProbeEndpointText = nil;
+    _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _phase = MBLinkDiagnosticsPhaseIdle;
     _activePid = 0U;
     _activeScheduleIndex = 0U;
@@ -244,7 +290,7 @@ static void MBLinkSessionEvent(void *context,
         _sessionInitialized = NO;
         mblink_elm327_session_deinit(&_session);
         self.ready = NO;
-        }
+    }
 
     if (!_sessionInitialized) {
         self.statusText = transport.statusText;
@@ -330,8 +376,7 @@ static void MBLinkSessionEvent(void *context,
                                     timeoutMs);
     if (result != MBLINK_ELM327_SESSION_OP_OK) {
         NSString *reason =
-            [NSString stringWithUTF8String:
-                mblink_elm327_session_op_result_name(result)];
+            MBLinkStringFromCString(mblink_elm327_session_op_result_name(result));
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:[NSString stringWithFormat:
             @"Diagnostic command failed: %@", reason]];
@@ -361,15 +406,22 @@ static void MBLinkSessionEvent(void *context,
     }
 
     if (session->status == MBLINK_ELM327_SESSION_TIMED_OUT) {
+        if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
+            self.mercedesProbeStatusText =
+                @"Probe timed out; reconnect required to resynchronise the adapter";
+        }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
         return;
     }
 
     if (session->status == MBLINK_ELM327_SESSION_FAILED) {
-        NSString *reason =
-            [NSString stringWithUTF8String:
-                mblink_elm327_result_name(session->elm_result)];
+        NSString *reason = MBLinkStringFromCString(
+            mblink_elm327_result_name(session->elm_result));
+        if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
+            self.mercedesProbeStatusText = [NSString stringWithFormat:
+                @"Adapter response failed during probe: %@", reason];
+        }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:[NSString stringWithFormat:
             @"Adapter response failed: %@", reason]];
@@ -409,10 +461,14 @@ static void MBLinkSessionEvent(void *context,
 
     switch (_phase) {
     case MBLinkDiagnosticsPhaseInitializing:
+    case MBLinkDiagnosticsPhaseRestoringOBD:
         [self processInitializationResponse:response];
         break;
     case MBLinkDiagnosticsPhaseCheckingPids:
         [self processSupportedPidResponse:response];
+        break;
+    case MBLinkDiagnosticsPhaseProbingMercedes:
+        [self processMercedesProbeResponse:response];
         break;
     case MBLinkDiagnosticsPhaseReadingLive:
         [self processLiveResponse:response];
@@ -426,12 +482,15 @@ static void MBLinkSessionEvent(void *context,
 
 - (void)processInitializationResponse:(const MblinkElm327Response *)response
 {
+    const BOOL restoringOBD = _phase == MBLinkDiagnosticsPhaseRestoringOBD;
     MblinkElm327Result result =
         mblink_elm327_init_accept(&_initialization, response);
     if (result != MBLINK_ELM327_RESULT_OK ||
         _initialization.stage == MBLINK_ELM327_INIT_FAILED) {
         _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"ELM327 initialisation failed"];
+        [self setStatus:restoringOBD
+            ? @"Could not restore the standard OBD-II adapter channel"
+            : @"ELM327 initialisation failed"];
         return;
     }
 
@@ -443,6 +502,11 @@ static void MBLinkSessionEvent(void *context,
     }
 
     if (_initialization.stage == MBLINK_ELM327_INIT_COMPLETE) {
+        if (restoringOBD) {
+            [self completeLiveSetup];
+            return;
+        }
+
         char command[8];
         MblinkObd2Result build =
             mblink_obd2_build_supported_pid_request(
@@ -475,6 +539,134 @@ static void MBLinkSessionEvent(void *context,
     }
     (void)hasMore;
 
+    [self beginMercedesProbe];
+}
+
+- (void)beginMercedesProbe
+{
+    const MblinkMercedesVehicleProfile *profile =
+        mblink_mercedes_c207_om651_profile();
+    if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
+        self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
+        [self completeLiveSetup];
+        return;
+    }
+
+    const MblinkMercedesEcuEndpointDefinition *endpoint =
+        mblink_mercedes_profile_find_endpoint(
+            profile, "c207-om651-engine-eobd-11bit");
+    if (endpoint == NULL) {
+        self.mercedesProbeStatusText = @"No engine endpoint candidate is defined";
+        [self completeLiveSetup];
+        return;
+    }
+
+    self.mercedesProbeEndpointText = MBLinkMercedesEndpointText(endpoint);
+    MblinkMercedesEcuProbeResult result =
+        mblink_mercedes_ecu_probe_begin(&_mercedesProbe, endpoint);
+    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Probe could not start: %@",
+            MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
+        [self completeLiveSetup];
+        return;
+    }
+
+    self.mercedesProbeStatusText =
+        @"Probing candidate with read-only UDS TesterPresent";
+    _phase = MBLinkDiagnosticsPhaseProbingMercedes;
+    [self setStatus:@"Probing Mercedes-Benz engine ECU (read-only)"];
+    [self beginCurrentMercedesProbeCommand];
+}
+
+- (void)beginCurrentMercedesProbeCommand
+{
+    char command[MBLINK_ELM327_MAX_COMMAND];
+    size_t written = 0U;
+    MblinkMercedesEcuProbeResult result =
+        mblink_mercedes_ecu_probe_command(
+            &_mercedesProbe, command, sizeof(command), &written);
+    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK || written == 0U) {
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Probe command failed: %@",
+            MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
+        [self beginPostMercedesRestore];
+        return;
+    }
+
+    (void)[self beginCommand:command timeout:4000U];
+}
+
+- (void)processMercedesProbeResponse:(const MblinkElm327Response *)response
+{
+    MblinkMercedesEcuProbeResult result =
+        mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
+
+    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
+        self.mercedesProbeStatusText =
+            @"Positive UDS TesterPresent response captured; endpoint remains a candidate pending fixture verification";
+        [self beginPostMercedesRestore];
+        return;
+    }
+
+    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
+        _mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED) {
+        self.mercedesProbeStatusText = [self mercedesProbeFailureText];
+        [self beginPostMercedesRestore];
+        return;
+    }
+
+    [self beginCurrentMercedesProbeCommand];
+}
+
+- (NSString *)mercedesProbeFailureText
+{
+    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR) {
+        if (_mercedesProbe.uds_negative_response_code != 0U) {
+            return [NSString stringWithFormat:
+                @"UDS endpoint replied with negative response NRC 0x%02X; candidate not promoted",
+                (unsigned int)_mercedesProbe.uds_negative_response_code];
+        }
+        return [NSString stringWithFormat:
+            @"UDS response validation failed: %@",
+            MBLinkStringFromCString(
+                mblink_uds_result_name(_mercedesProbe.uds_failure))];
+    }
+
+    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR) {
+        return [NSString stringWithFormat:
+            @"No valid UDS PDU from candidate: %@ (%@)",
+            MBLinkStringFromCString(
+                mblink_elm327_can_result_name(_mercedesProbe.elm_can_failure)),
+            MBLinkStringFromCString(
+                mblink_elm327_result_name(_mercedesProbe.elm_failure))];
+    }
+
+    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_CHANNEL_ERROR) {
+        return [NSString stringWithFormat:
+            @"Could not configure candidate CAN channel: %@ (%@)",
+            MBLinkStringFromCString(
+                mblink_elm327_can_result_name(_mercedesProbe.elm_can_failure)),
+            MBLinkStringFromCString(
+                mblink_elm327_result_name(_mercedesProbe.elm_failure))];
+    }
+
+    return [NSString stringWithFormat:
+        @"Mercedes probe failed: %@",
+        MBLinkStringFromCString(
+            mblink_mercedes_ecu_probe_result_name(_mercedesProbe.failure))];
+}
+
+- (void)beginPostMercedesRestore
+{
+    mblink_elm327_init_begin(&_initialization);
+    _phase = MBLinkDiagnosticsPhaseRestoringOBD;
+    [self setStatus:@"Restoring standard OBD-II adapter channel"];
+    [self beginCurrentInitializationCommand];
+}
+
+- (void)completeLiveSetup
+{
     MblinkSchedulerResult scheduleResult =
         mblink_scheduler_configure_standard_obd2(
             &_scheduler, &_supportedPids, MBLinkMonotonicMilliseconds());
@@ -569,9 +761,8 @@ static void MBLinkSessionEvent(void *context,
         mblink_obd2_decode_live_pid(response, _activePid, &sample);
     if (result != MBLINK_OBD2_RESULT_OK) {
         _phase = MBLinkDiagnosticsPhaseFailed;
-        NSString *reason =
-            [NSString stringWithUTF8String:
-                mblink_obd2_result_name(result)];
+        NSString *reason = MBLinkStringFromCString(
+            mblink_obd2_result_name(result));
         [self setStatus:[NSString stringWithFormat:
             @"Live OBD-II decode failed: %@", reason]];
         return;
