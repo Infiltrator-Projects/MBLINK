@@ -29,6 +29,11 @@ NS_SWIFT_UI_ACTOR
 @property(nonatomic, copy, readonly, nullable) NSString *mercedesProbeEndpointText;
 @property(nonatomic, copy, readonly, nullable) NSString *mercedesVINText;
 @property(nonatomic, copy, readonly) NSString *mercedesIdentitySummaryText;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *mercedesIdentityResults;
+@property(nonatomic, copy, readonly) NSString *faultScanStatusText;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *pendingDTCs;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *permanentDTCs;
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 
