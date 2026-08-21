@@ -43,7 +43,7 @@ struct ContentView: View {
                 }
 
                 Section("Session") {
-                    workspaceLink("Log", "Recorded telemetry and CSV export", "doc.text.magnifyingglass") {
+                    workspaceLink("Log", "Diagnostic evidence, telemetry and CSV export", "doc.text.magnifyingglass") {
                         LogView()
                     }
                     workspaceLink("Settings", "Adapter and application information", "gearshape.fill") {
@@ -143,7 +143,7 @@ private struct VehicleView: View {
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
             Section {
-                Text("After the standard OBD-II capability check, MBLINK now performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate, records the exchange in the session transcript, then resets the adapter before live OBD-II polling. A response does not automatically promote the candidate to vehicle-verified; the capture still has to become a reproducible regression fixture.")
+                Text("After the standard OBD-II capability check, MBLINK performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate, records the complete exchange, then resets the adapter before live OBD-II polling. A response does not automatically promote the candidate to vehicle-verified; export the diagnostic evidence from Log so the real capture can become a reproducible regression fixture.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -167,6 +167,11 @@ private struct ModulesView: View {
                 Text("The probe is intentionally read-only and uses the portable Mercedes/ELM/UDS state machines. Positive or negative UDS evidence is retained in the session transcript, while unsupported or silent endpoints remain candidates rather than being invented as verified modules.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                NavigationLink {
+                    LogView()
+                } label: {
+                    Label("Export diagnostic evidence", systemImage: "square.and.arrow.up")
+                }
             }
         }
         .navigationTitle("Modules")
@@ -361,19 +366,27 @@ private struct LogView: View {
 
     var body: some View {
         List {
+            Section("Diagnostic evidence") {
+                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
+                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS probe. Export it after a vehicle test even if no live-data samples were recorded; that capture is the evidence used to verify the endpoint and build regression fixtures before manufacturer DIDs are added.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Session") {
                 LabeledContent("Recorded samples", value: "\(connection.recordedSampleCount)")
                 LabeledContent("Status", value: connection.statusText)
             }
+
             Section("Export") {
-                Button("Prepare CSV export") {
+                Button("Prepare diagnostic evidence CSV") {
                     connection.prepareCSVExport()
                 }
-                .disabled(connection.recordedSampleCount == 0)
 
                 if let exportURL = connection.csvExportURL {
                     ShareLink(item: exportURL) {
-                        Label("Share CSV", systemImage: "square.and.arrow.up")
+                        Label("Share diagnostic evidence", systemImage: "square.and.arrow.up")
                     }
                 }
             }
