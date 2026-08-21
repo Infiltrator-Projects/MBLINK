@@ -16,6 +16,9 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     MBLinkDiagnosticsPhaseCheckingPids,
     MBLinkDiagnosticsPhaseProbingMercedes,
     MBLinkDiagnosticsPhaseRestoringOBD,
+    MBLinkDiagnosticsPhaseScanningStoredDTCs,
+    MBLinkDiagnosticsPhaseScanningPendingDTCs,
+    MBLinkDiagnosticsPhaseScanningPermanentDTCs,
     MBLinkDiagnosticsPhaseReadingLive,
     MBLinkDiagnosticsPhaseLive,
     MBLinkDiagnosticsPhaseFailed
@@ -29,6 +32,11 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesProbeEndpointText;
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesVINText;
 @property(nonatomic, copy, readwrite) NSString *mercedesIdentitySummaryText;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *mercedesIdentityResults;
+@property(nonatomic, copy, readwrite) NSString *faultScanStatusText;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *storedDTCs;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *pendingDTCs;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *permanentDTCs;
 @property(nonatomic, readwrite, getter=isActive) BOOL active;
 @property(nonatomic, readwrite, getter=isReady) BOOL ready;
 
@@ -47,6 +55,9 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
 - (void)beginPostMercedesRestore;
+- (void)beginFaultScan;
+- (void)beginFaultScanKind:(MblinkObd2DtcKind)kind;
+- (void)processFaultScanResponse:(const MblinkElm327Response *)response;
 - (void)completeLiveSetup;
 - (void)processLiveResponse:(const MblinkElm327Response *)response;
 - (void)scheduleNextLiveRequest;
@@ -68,6 +79,7 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
     dispatch_source_t _tickTimer;
     size_t _activeScheduleIndex;
     uint8_t _activePid;
+    uint8_t _supportedPidBase;
     NSUInteger _pollGeneration;
     uint64_t _sessionMonotonicStartMs;
 }
@@ -164,6 +176,23 @@ static NSString *MBLinkMercedesEndpointText(
                                       (unsigned int)endpoint->address.rx_can_id];
 }
 
+static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
+{
+    if (list == NULL || list->count == 0U) {
+        return @[];
+    }
+
+    NSMutableArray<NSString *> *values =
+        [[NSMutableArray alloc] initWithCapacity:list->count];
+    for (size_t index = 0U; index < list->count; ++index) {
+        NSString *code = MBLinkStringFromCString(list->entries[index].code);
+        if (code.length != 0U) {
+            [values addObject:code];
+        }
+    }
+    return [values copy];
+}
+
 - (instancetype)init
 {
     self = [super init];
@@ -173,6 +202,11 @@ static NSString *MBLinkMercedesEndpointText(
         _statusText = @"Idle";
         _mercedesProbeStatusText = @"Not attempted";
         _mercedesIdentitySummaryText = @"Not attempted";
+        _mercedesIdentityResults = @[];
+        _faultScanStatusText = @"Not scanned";
+        _storedDTCs = @[];
+        _pendingDTCs = @[];
+        _permanentDTCs = @[];
         _phase = MBLinkDiagnosticsPhaseIdle;
         mblink_obd2_pid_set_clear(&_supportedPids);
         mblink_scheduler_init(&_scheduler);
@@ -239,10 +273,16 @@ static NSString *MBLinkMercedesEndpointText(
     self.mercedesProbeEndpointText = nil;
     self.mercedesVINText = nil;
     self.mercedesIdentitySummaryText = @"Not attempted";
+    self.mercedesIdentityResults = @[];
+    self.faultScanStatusText = @"Waiting for vehicle connection";
+    self.storedDTCs = @[];
+    self.pendingDTCs = @[];
+    self.permanentDTCs = @[];
     _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _phase = MBLinkDiagnosticsPhaseIdle;
     _activePid = 0U;
     _activeScheduleIndex = 0U;
+    _supportedPidBase = 0U;
     mblink_obd2_pid_set_clear(&_supportedPids);
     mblink_scheduler_init(&_scheduler);
     mblink_telemetry_store_clear_samples(&_telemetry);
@@ -427,6 +467,11 @@ static NSString *MBLinkMercedesEndpointText(
                 @"Probe timed out; reconnect required to resynchronise the adapter";
             self.mercedesIdentitySummaryText = @"Probe did not complete";
         }
+        if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
+            _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
+            _phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
+            self.faultScanStatusText = @"Fault scan timed out; reconnect required";
+        }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
         return;
@@ -439,6 +484,12 @@ static NSString *MBLinkMercedesEndpointText(
             self.mercedesProbeStatusText = [NSString stringWithFormat:
                 @"Adapter response failed during probe: %@", reason];
             self.mercedesIdentitySummaryText = @"Probe did not complete";
+        }
+        if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
+            _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
+            _phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
+            self.faultScanStatusText = [NSString stringWithFormat:
+                @"Fault scan adapter error: %@", reason];
         }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:[NSString stringWithFormat:
@@ -488,6 +539,11 @@ static NSString *MBLinkMercedesEndpointText(
     case MBLinkDiagnosticsPhaseProbingMercedes:
         [self processMercedesProbeResponse:response];
         break;
+    case MBLinkDiagnosticsPhaseScanningStoredDTCs:
+    case MBLinkDiagnosticsPhaseScanningPendingDTCs:
+    case MBLinkDiagnosticsPhaseScanningPermanentDTCs:
+        [self processFaultScanResponse:response];
+        break;
     case MBLinkDiagnosticsPhaseReadingLive:
         [self processLiveResponse:response];
         break;
@@ -521,14 +577,15 @@ static NSString *MBLinkMercedesEndpointText(
 
     if (_initialization.stage == MBLINK_ELM327_INIT_COMPLETE) {
         if (restoringOBD) {
-            [self completeLiveSetup];
+            [self beginFaultScan];
             return;
         }
 
         char command[8];
+        _supportedPidBase = 0x00U;
         MblinkObd2Result build =
             mblink_obd2_build_supported_pid_request(
-                0x00U, command, sizeof(command));
+                _supportedPidBase, command, sizeof(command));
         if (build != MBLINK_OBD2_RESULT_OK) {
             _phase = MBLinkDiagnosticsPhaseFailed;
             [self setStatus:@"Could not build OBD-II capability request"];
@@ -549,13 +606,28 @@ static NSString *MBLinkMercedesEndpointText(
     bool hasMore = false;
     MblinkObd2Result result =
         mblink_obd2_accept_supported_pids(
-            response, 0x00U, &_supportedPids, &hasMore);
+            response, _supportedPidBase, &_supportedPids, &hasMore);
     if (result != MBLINK_OBD2_RESULT_OK) {
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Vehicle did not provide a valid OBD-II PID map"];
         return;
     }
-    (void)hasMore;
+
+    if (hasMore && _supportedPidBase <= 0xc0U) {
+        char command[8];
+        _supportedPidBase = (uint8_t)(_supportedPidBase + 0x20U);
+        result = mblink_obd2_build_supported_pid_request(
+            _supportedPidBase, command, sizeof(command));
+        if (result != MBLINK_OBD2_RESULT_OK) {
+            _phase = MBLinkDiagnosticsPhaseFailed;
+            [self setStatus:@"Could not continue OBD-II capability discovery"];
+            return;
+        }
+        [self setStatus:[NSString stringWithFormat:
+            @"Checking OBD-II PID block 0x%02X", (unsigned int)_supportedPidBase]];
+        (void)[self beginCommand:command timeout:3000U];
+        return;
+    }
 
     [self beginMercedesProbe];
 }
@@ -567,7 +639,7 @@ static NSString *MBLinkMercedesEndpointText(
     if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
         self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
         self.mercedesIdentitySummaryText = @"Not attempted";
-        [self completeLiveSetup];
+        [self beginFaultScan];
         return;
     }
 
@@ -577,7 +649,7 @@ static NSString *MBLinkMercedesEndpointText(
     if (endpoint == NULL) {
         self.mercedesProbeStatusText = @"No engine endpoint candidate is defined";
         self.mercedesIdentitySummaryText = @"Not attempted";
-        [self completeLiveSetup];
+        [self beginFaultScan];
         return;
     }
 
@@ -589,7 +661,7 @@ static NSString *MBLinkMercedesEndpointText(
             @"Probe could not start: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
         self.mercedesIdentitySummaryText = @"Not attempted";
-        [self completeLiveSetup];
+        [self beginFaultScan];
         return;
     }
 
@@ -628,7 +700,7 @@ static NSString *MBLinkMercedesEndpointText(
         const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
         const char *name = mblink_mercedes_ecu_probe_identity_did_name(index);
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Reading standardized ECU identity %zu/%zu · F%03X · %@",
+            @"Reading standardized ECU identity %zu/%zu · %04X · %@",
             index + 1U,
             mblink_mercedes_ecu_probe_identity_did_count(),
             (unsigned int)did,
@@ -680,6 +752,28 @@ static NSString *MBLinkMercedesEndpointText(
     self.mercedesIdentitySummaryText = [NSString stringWithFormat:
         @"%u/%zu positive · %u negative · %u no response · %u invalid",
         positive, total, negative, noResponse, invalid];
+
+    NSMutableArray<NSString *> *identityResults =
+        [[NSMutableArray alloc] initWithCapacity:total];
+    for (size_t index = 0U; index < total; ++index) {
+        const uint32_t bit = (uint32_t)1U << index;
+        const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
+        NSString *name = MBLinkStringFromCString(
+            mblink_mercedes_ecu_probe_identity_did_name(index));
+        NSString *state = @"not classified";
+        if ((_mercedesProbe.identity_positive_mask & bit) != 0U) {
+            state = @"response captured";
+        } else if ((_mercedesProbe.identity_negative_mask & bit) != 0U) {
+            state = @"negative response";
+        } else if ((_mercedesProbe.identity_no_response_mask & bit) != 0U) {
+            state = @"no response";
+        } else if ((_mercedesProbe.identity_invalid_mask & bit) != 0U) {
+            state = @"invalid response";
+        }
+        [identityResults addObject:[NSString stringWithFormat:
+            @"%04X · %@ · %@", (unsigned int)did, name, state]];
+    }
+    self.mercedesIdentityResults = [identityResults copy];
 
     NSString *vinSummary = nil;
     if (_mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
@@ -763,6 +857,94 @@ static NSString *MBLinkMercedesEndpointText(
     [self beginCurrentInitializationCommand];
 }
 
+- (void)beginFaultScan
+{
+    self.storedDTCs = @[];
+    self.pendingDTCs = @[];
+    self.permanentDTCs = @[];
+    self.faultScanStatusText = @"Scanning stored, pending and permanent OBD-II faults";
+    [self beginFaultScanKind:MBLINK_OBD2_DTC_STORED];
+}
+
+- (void)beginFaultScanKind:(MblinkObd2DtcKind)kind
+{
+    char command[8];
+    MblinkObd2Result result =
+        mblink_obd2_build_dtc_request(kind, command, sizeof(command));
+    if (result != MBLINK_OBD2_RESULT_OK) {
+        self.faultScanStatusText = @"Could not build OBD-II fault request";
+        [self completeLiveSetup];
+        return;
+    }
+
+    switch (kind) {
+    case MBLINK_OBD2_DTC_STORED:
+        _phase = MBLinkDiagnosticsPhaseScanningStoredDTCs;
+        [self setStatus:@"Scanning stored OBD-II fault codes"];
+        break;
+    case MBLINK_OBD2_DTC_PENDING:
+        _phase = MBLinkDiagnosticsPhaseScanningPendingDTCs;
+        [self setStatus:@"Scanning pending OBD-II fault codes"];
+        break;
+    case MBLINK_OBD2_DTC_PERMANENT:
+        _phase = MBLinkDiagnosticsPhaseScanningPermanentDTCs;
+        [self setStatus:@"Scanning permanent OBD-II fault codes"];
+        break;
+    }
+    (void)[self beginCommand:command timeout:3000U];
+}
+
+- (void)processFaultScanResponse:(const MblinkElm327Response *)response
+{
+    MblinkObd2DtcKind kind;
+    if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs) {
+        kind = MBLINK_OBD2_DTC_STORED;
+    } else if (_phase == MBLinkDiagnosticsPhaseScanningPendingDTCs) {
+        kind = MBLINK_OBD2_DTC_PENDING;
+    } else if (_phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
+        kind = MBLINK_OBD2_DTC_PERMANENT;
+    } else {
+        _phase = MBLinkDiagnosticsPhaseFailed;
+        [self setStatus:@"Fault scan state was invalid"];
+        return;
+    }
+
+    MblinkObd2DtcList list = {0};
+    MblinkObd2Result result = MBLINK_OBD2_RESULT_OK;
+    if (response->result != MBLINK_ELM327_RESULT_NO_DATA) {
+        result = mblink_obd2_decode_dtcs(response, kind, &list);
+    }
+
+    if (result != MBLINK_OBD2_RESULT_OK) {
+        self.faultScanStatusText = [NSString stringWithFormat:
+            @"Fault scan decode stopped: %@",
+            MBLinkStringFromCString(mblink_obd2_result_name(result))];
+        [self completeLiveSetup];
+        return;
+    }
+
+    NSArray<NSString *> *codes = MBLinkDTCStrings(&list);
+    switch (kind) {
+    case MBLINK_OBD2_DTC_STORED:
+        self.storedDTCs = codes;
+        [self beginFaultScanKind:MBLINK_OBD2_DTC_PENDING];
+        return;
+    case MBLINK_OBD2_DTC_PENDING:
+        self.pendingDTCs = codes;
+        [self beginFaultScanKind:MBLINK_OBD2_DTC_PERMANENT];
+        return;
+    case MBLINK_OBD2_DTC_PERMANENT:
+        self.permanentDTCs = codes;
+        self.faultScanStatusText = [NSString stringWithFormat:
+            @"Complete · %lu stored · %lu pending · %lu permanent",
+            (unsigned long)self.storedDTCs.count,
+            (unsigned long)self.pendingDTCs.count,
+            (unsigned long)self.permanentDTCs.count];
+        [self completeLiveSetup];
+        return;
+    }
+}
+
 - (void)completeLiveSetup
 {
     MblinkSchedulerResult scheduleResult =
@@ -783,7 +965,7 @@ static NSString *MBLinkMercedesEndpointText(
         return;
     }
 
-    [self setStatus:@"Live OBD-II scheduler active"];
+    [self setStatus:@"Live OBD-II and diesel scheduler active"];
     [self scheduleNextLiveRequest];
 }
 
@@ -857,6 +1039,13 @@ static NSString *MBLinkMercedesEndpointText(
     MblinkObd2Sample sample;
     MblinkObd2Result result =
         mblink_obd2_decode_live_pid(response, _activePid, &sample);
+    if (result == MBLINK_OBD2_RESULT_UNSUPPORTED_PID) {
+        _phase = MBLinkDiagnosticsPhaseLive;
+        self.statusText = @"Live OBD-II data; one advertised diesel sub-field is unavailable";
+        [self notifyDelegate];
+        [self scheduleNextLiveRequest];
+        return;
+    }
     if (result != MBLINK_OBD2_RESULT_OK) {
         _phase = MBLinkDiagnosticsPhaseFailed;
         NSString *reason = MBLinkStringFromCString(
@@ -887,7 +1076,7 @@ static NSString *MBLinkMercedesEndpointText(
 
     self.ready = YES;
     _phase = MBLinkDiagnosticsPhaseLive;
-    self.statusText = @"Live OBD-II data";
+    self.statusText = @"Live OBD-II and diesel data";
     [self notifyDelegate];
     [self scheduleNextLiveRequest];
 }
