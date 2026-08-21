@@ -37,11 +37,18 @@ static int test_development_profile(void)
     CHECK(profile != NULL);
     CHECK(strcmp(profile->chassis_code, "C207") == 0);
     CHECK(strcmp(profile->engine_family, "OM651") == 0);
-    CHECK(strcmp(profile->display_name, "Mercedes-Benz C207 / OM651") == 0);
+    CHECK(strcmp(profile->display_name,
+                 "Mercedes-Benz C207 E 250 CDI / OM651 / Delphi CRD3.x") == 0);
     CHECK(profile->endpoints != NULL);
     CHECK(profile->endpoint_count == 1U);
     CHECK(strcmp(profile->endpoints[0].key,
                  "c207-om651-engine-eobd-11bit") == 0);
+    CHECK(strcmp(profile->endpoints[0].name,
+                 "Delphi CRD3.x engine ECU candidate") == 0);
+    CHECK(strstr(profile->endpoints[0].provenance,
+                 "W207 E 250 2200 CDI") != NULL);
+    CHECK(strstr(profile->endpoints[0].provenance,
+                 "Delphi CRD3.x") != NULL);
     CHECK(profile->endpoints[0].module == MBLINK_MERCEDES_MODULE_ENGINE);
     CHECK(profile->endpoints[0].address.tx_can_id == 0x7e0U);
     CHECK(profile->endpoints[0].address.rx_can_id == 0x7e8U);
