@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Current development release: 0.7.11 — read-only C207 / OM651 CRD3/CDID3 engine-ECU fingerprint evidence. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Current development release target: 0.7.12 — black-and-silver Mercedes-oriented diagnostic command interface, source-corroborated C207 / OM651 / Delphi CRD3.x engine targeting, CRD3 identity and read-only UDS fault evidence. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -22,22 +22,26 @@ Implemented today:
 - portable polling scheduler, telemetry history and session recording;
 - Classical-CAN ISO-TP transmit/receive state machines;
 - portable UDS positive/negative responses, diagnostic sessions, TesterPresent, P2/P2* timing and caller-supplied DID definitions;
+- portable read-only UDS `ReadDTCInformation` codec plus live CRD3 engine fault-memory collection;
 - protocol-neutral C diagnostic parameter descriptors with Infiltratr Common-backed scalar formatting;
 - bounded protocol-neutral parameter state/history keyed by protocol, module and identifier;
 - 64-item live-data scheduler with full parameter keys;
 - Infiltratr Common 1.10-backed portable primitives and authoritative CMake/Xcode target integration;
-- Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
-- read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
+- Mercedes-Benz definition/profile foundation with candidate, source-corroborated and vehicle-verified provenance states;
+- source-corroborated C207/W207 E 250 CDI / OM651 / Delphi CRD3.x engine target at physical 11-bit CAN `0x7E0 → 0x7E8`, while still withholding vehicle-verified status until the development car confirms it;
+- read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers;
 - automatic iPhone probe flow after generic OBD-II capability discovery;
 - standardized UDS VIN DID `F190` evidence capture;
 - bounded standardized ECU-identity reads for `F18C`, `F187`, `F188`, `F189`, `F191` and `F197`;
 - a second bounded Mercedes CRD3 fingerprint pass using evidence-only reads `F100`, `F154`, `F196`, `1001` and `1002` from the open-source CaesarSuite CRD3 model;
+- decoded CRD3 family evidence for session/variant and supplier identity, including a corroborated OM651/CDID3/Delphi family signature;
 - independent positive/negative/no-response/invalid classification for CRD3 fingerprint reads, also exposed in the combined Mercedes identity evidence list;
-- visible iPhone VIN and per-DID ECU evidence summaries;
-- complete raw diagnostic-evidence export from the iPhone Log workspace even when no live-data samples were recorded;
+- live read-only Mercedes UDS fault-memory display on iPhone plus standard OBD-II faults;
+- complete raw diagnostic-evidence export from the iPhone Evidence workspace even when no live-data samples were recorded;
+- a full black, charcoal and brushed-silver iPhone branding overhaul with a vehicle-command-centre home screen, premium diagnostic panels, instrument-style telemetry tiles, dedicated fault presentation and a custom MBLINK badge;
+- matching black-and-silver GTK4 Linux shell branding with Mercedes-oriented command-centre presentation;
 - visible iPhone project identity with `Copyright © 2026 Shannon Smith`, About, author/version/licence information and matching iOS copyright metadata;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
-- SwiftUI diagnostic workspace plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
 - Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds and unsigned physical-iPhone IPA builds.
 
@@ -91,7 +95,9 @@ ctest --test-dir build-sanitized --output-on-failure
 
 The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations. The project links Common's authoritative `InfiltratrCommonPortable` Xcode product rather than duplicating Common's internal source list.
 
-For a physical 0.7.11 test, connect to the C207/OM651 vehicle and let the connection sequence complete. After ordinary capability discovery MBLINK probes the candidate Mercedes engine endpoint, reads VIN/standard ECU identity, then issues the CRD3 fingerprint reads `22F100`, `22F154`, `22F196`, `221001` and `221002`. It then restores normal OBD-II, scans faults and begins live polling. Export Log → diagnostic evidence; that raw capture is what converts the next OM651 work from research guesses into vehicle-bound definitions.
+The 0.7.12 iPhone shell is intentionally Mercedes-oriented without copying Mercedes-Benz proprietary artwork. Its visual language is deep black/charcoal, brushed silver, restrained status colours, compact technical typography and instrument-style live telemetry. The home screen is now a vehicle command centre rather than a generic SwiftUI list.
+
+For a physical 0.7.12 test, connect to the C207/OM651 vehicle and let the connection sequence complete. After ordinary capability discovery MBLINK probes the source-corroborated Mercedes engine endpoint, reads VIN/standard ECU identity, issues the CRD3 fingerprint reads `22F100`, `22F154`, `22F196`, `221001` and `221002`, then reads Mercedes UDS fault information before restoring normal OBD-II, scanning standard faults and beginning live polling. Export Evidence → diagnostic evidence; that raw capture is what converts the next OM651 work from research evidence into vehicle-bound definitions.
 
 ## Linux target
 
