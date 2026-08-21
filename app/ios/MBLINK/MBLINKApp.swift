@@ -29,53 +29,125 @@ struct MBLINKApp: App {
                     .buttonStyle(.plain)
                 }
                 .sheet(isPresented: $showingAbout) {
-                    NavigationStack {
-                        List {
-                            Section {
-                                VStack(alignment: .center, spacing: 8) {
-                                    Image(systemName: "car.side.fill")
-                                        .font(.system(size: 48, weight: .semibold))
-                                    Text("MBLINK")
-                                        .font(.title.bold())
-                                    Text("Open-source vehicle diagnostics platform")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                            }
+                    MBLINKAboutView {
+                        showingAbout = false
+                    }
+                }
+        }
+    }
+}
 
-                            Section("Application") {
-                                LabeledContent(
-                                    "Version",
-                                    value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
-                                )
-                                LabeledContent("Author", value: "Shannon Smith")
-                                LabeledContent("Copyright", value: "Copyright © 2026 Shannon Smith")
-                                LabeledContent("Licence", value: "GPL-3.0-or-later")
-                            }
+private enum MBLINKAboutDetail: String, Identifiable {
+    case credits
+    case license
 
-                            Section("Project") {
-                                Link(destination: URL(string: "https://github.com/The-First-Infiltrator/MBLINK")!) {
-                                    Label("MBLINK on GitHub", systemImage: "link")
-                                }
-                                Text("Portable diagnostics are owned by libmblink and Infiltratr Common, with the native iPhone interface remaining a thin presentation and transport layer.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
+    var id: String { rawValue }
+}
+
+private struct MBLINKAboutView: View {
+    let onClose: () -> Void
+    @State private var detail: MBLINKAboutDetail?
+
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 14) {
+                    Image(systemName: "car.side.fill")
+                        .font(.system(size: 62, weight: .semibold))
+                        .padding(.top, 28)
+
+                    Text("MBLINK")
+                        .font(.title.bold())
+
+                    Text("Version \(version)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Text("A C-first, open-source vehicle diagnostics platform authored by Shannon Smith.")
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 4)
+
+                    Text("Copyright © 2026 Shannon Smith")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+
+                    Link("Website", destination: URL(string: "https://github.com/The-First-Infiltrator/MBLINK")!)
+                        .font(.body)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            Divider()
+
+            HStack(spacing: 10) {
+                Button("Credits") {
+                    detail = .credits
+                }
+                .buttonStyle(.bordered)
+
+                Button("License") {
+                    detail = .license
+                }
+                .buttonStyle(.bordered)
+
+                Button("Close") {
+                    onClose()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.bar)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .sheet(item: $detail) { item in
+            switch item {
+            case .credits:
+                NavigationStack {
+                    List {
+                        Section("Credits") {
+                            Text("Shannon Smith — Author and project maintainer")
                         }
-                        .navigationTitle("About MBLINK")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") {
-                                    showingAbout = false
-                                }
+                    }
+                    .navigationTitle("Credits")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Close") {
+                                detail = nil
                             }
                         }
                     }
                 }
+            case .license:
+                NavigationStack {
+                    ScrollView {
+                        Text(
+                            "MBLINK is free software licensed under the GNU General Public License version 3 or, at your option, any later version (GPL-3.0-or-later).\n\nSee LICENSE in the source package for the complete licence text."
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                    }
+                    .navigationTitle("License")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Close") {
+                                detail = nil
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
