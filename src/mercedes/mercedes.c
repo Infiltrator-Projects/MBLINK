@@ -4,6 +4,7 @@
  * @brief Mercedes-Benz manufacturer-definition validation and lookup.
  */
 #include "mblink/mercedes.h"
+#include "mblink/mercedes_om651_api.h"
 
 #include "infiltratr/core.h"
 
@@ -207,6 +208,17 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
     }
     return mblink_uds_decode_defined_did_response(
         pdu, pdu_length, &definition->uds, value);
+}
+
+size_t mblink_mercedes_om651_catalog_count(void)
+{
+    return mblink_mercedes_om651_signal_count();
+}
+
+const MblinkMercedesOm651SignalDefinition *
+mblink_mercedes_om651_catalog_at(size_t index)
+{
+    return mblink_mercedes_om651_signal_at(index);
 }
 
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
