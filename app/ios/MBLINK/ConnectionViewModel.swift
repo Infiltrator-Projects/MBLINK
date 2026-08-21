@@ -193,13 +193,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func loadMercedesTargetSignals() -> [MercedesTargetSignal] {
-        let count = Int(mblink_mercedes_om651_signal_count())
+        let count = Int(mblink_mercedes_om651_catalog_count())
         guard count > 0 else { return [] }
 
         var result = [MercedesTargetSignal]()
         result.reserveCapacity(count)
         for index in 0..<count {
-            guard let definition = mblink_mercedes_om651_signal_at(index) else {
+            guard let definition = mblink_mercedes_om651_catalog_at(index) else {
                 continue
             }
             let metadata = definition.pointee
