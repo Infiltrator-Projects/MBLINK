@@ -138,12 +138,13 @@ private struct VehicleView: View {
                 LabeledContent("Target platform", value: "Mercedes-Benz C207")
                 LabeledContent("Engine family", value: "OM651")
                 LabeledContent("Generic diagnostics", value: "OBD-II")
-                LabeledContent("Advanced diagnostics", value: "UDS foundation ready")
+                LabeledContent("Advanced diagnostics", value: "UDS identity sweep active")
+                LabeledContent("Standard identity reads", value: "VIN + 6 ECU IDs")
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
             Section {
-                Text("After the standard OBD-II capability check, MBLINK performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate, records the complete exchange, then resets the adapter before live OBD-II polling. A response does not automatically promote the candidate to vehicle-verified; export the diagnostic evidence from Log so the real capture can become a reproducible regression fixture.")
+                Text("After the standard OBD-II capability check, MBLINK performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate. A responding endpoint is then queried for the standardized VIN DID F190 plus ECU serial, spare-part, software, hardware and system/engine identity DIDs F18C, F187, F188, F189, F191 and F197. Every raw response is retained as diagnostic evidence before the adapter is reset for normal live OBD-II polling. Unsupported identity reads remain evidence only and never cause MBLINK to invent a Mercedes definition.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -160,11 +161,12 @@ private struct ModulesView: View {
             Section("Available now") {
                 Label("Generic OBD-II engine diagnostics", systemImage: "engine.combustion.fill")
                 Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
+                Label("Read-only standardized ECU identity sweep", systemImage: "magnifyingglass.circle.fill")
             }
             Section("Mercedes-Benz discovery") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
-                Text("The probe is intentionally read-only and uses the portable Mercedes/ELM/UDS state machines. Positive or negative UDS evidence is retained in the session transcript, while unsupported or silent endpoints remain candidates rather than being invented as verified modules.")
+                Text("The portable probe now continues beyond TesterPresent into standardized UDS identity reads. Positive, negative, silent and malformed results are classified separately while the complete raw ELM327 transcript is retained. Manufacturer-specific DPF, rail-pressure, injector and EGR DIDs are still deliberately excluded until real C207/OM651 captures justify them.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 NavigationLink {
@@ -369,7 +371,7 @@ private struct LogView: View {
             Section("Diagnostic evidence") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
-                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS probe. Export it after a vehicle test even if no live-data samples were recorded; that capture is the evidence used to verify the endpoint and build regression fixtures before manufacturer DIDs are added.")
+                Text("The session recorder contains the raw ELM327 command/response transcript, including TesterPresent, standard VIN F190 and the bounded ECU identity sweep. Export it after a vehicle test even if no live-data samples were recorded; those responses are the evidence used to verify the endpoint and determine which manufacturer-specific definitions can be added safely.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
