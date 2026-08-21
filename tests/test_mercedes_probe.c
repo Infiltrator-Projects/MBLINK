@@ -102,14 +102,48 @@ static int advance_standard_vin(MblinkMercedesEcuProbe *probe)
     return 0;
 }
 
-static int test_successful_read_only_identity_probe(void)
+static int advance_standard_identity(MblinkMercedesEcuProbe *probe)
 {
-    static const char *commands[] = {
-        "22F18C", "22F187", "22F188", "22F189", "22F191", "22F197"
-    };
     static const char *responses[] = {
         "62F18CAA", "62F187AA", "62F188AA",
         "62F189AA", "62F191AA", "62F197AA"
+    };
+
+    for (size_t index = 0U; index < 6U; ++index) {
+        MblinkElm327Response response = make_response(
+            MBLINK_ELM327_RESULT_OK, responses[index], false);
+        char command[16];
+        size_t written = 0U;
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(mblink_mercedes_ecu_probe_accept(probe, &response) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+    CHECK(probe->stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
+    CHECK(probe->identity_positive_mask == 0x3FU);
+    return 0;
+}
+
+static int test_successful_read_only_identity_probe(void)
+{
+    static const char *identity_commands[] = {
+        "22F18C", "22F187", "22F188", "22F189", "22F191", "22F197"
+    };
+    static const char *identity_responses[] = {
+        "62F18CAA", "62F187AA", "62F188AA",
+        "62F189AA", "62F191AA", "62F197AA"
+    };
+    static const char *crd3_commands[] = {
+        "22F100", "22F154", "22F196", "221001", "221002"
+    };
+    static const char *crd3_responses[] = {
+        "62F10002100001",
+        "62F15440",
+        "62F196010203040506",
+        "621001AABBCCDD",
+        "6210021122"
     };
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
     MblinkMercedesEcuProbe probe;
@@ -123,6 +157,14 @@ static int test_successful_read_only_identity_probe(void)
                  "ECU serial number") == 0);
     CHECK(mblink_mercedes_ecu_probe_identity_did_name(6U) == NULL);
 
+    CHECK(mblink_mercedes_ecu_probe_crd3_did_count() == 5U);
+    CHECK(mblink_mercedes_ecu_probe_crd3_did_at(0U) == 0xF100U);
+    CHECK(mblink_mercedes_ecu_probe_crd3_did_at(4U) == 0x1002U);
+    CHECK(mblink_mercedes_ecu_probe_crd3_did_at(5U) == 0U);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_crd3_did_name(1U),
+                 "CRD3 supplier identifier") == 0);
+    CHECK(mblink_mercedes_ecu_probe_crd3_did_name(5U) == NULL);
+
     CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
     CHECK(advance_standard_vin(&probe) == 0);
@@ -133,16 +175,37 @@ static int test_successful_read_only_identity_probe(void)
         char command[16];
         size_t written = 0U;
         MblinkElm327Response response = make_response(
-            MBLINK_ELM327_RESULT_OK, responses[index], false);
-        MblinkMercedesEcuProbeResult expected = index == 5U
-            ? MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE
-            : MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+            MBLINK_ELM327_RESULT_OK, identity_responses[index], false);
 
         CHECK(probe.identity_index == index);
         CHECK(mblink_mercedes_ecu_probe_command(
                   &probe, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-        CHECK(strcmp(command, commands[index]) == 0);
+        CHECK(strcmp(command, identity_commands[index]) == 0);
+        CHECK(written == 6U);
+        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+
+    CHECK(probe.stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_stage_name(probe.stage),
+                 "read-crd3-fingerprint") == 0);
+
+    for (size_t index = 0U; index < 5U; ++index) {
+        char command[16];
+        size_t written = 0U;
+        MblinkElm327Response response = make_response(
+            MBLINK_ELM327_RESULT_OK, crd3_responses[index], false);
+        MblinkMercedesEcuProbeResult expected = index == 4U
+            ? MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE
+            : MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+
+        CHECK(probe.crd3_index == index);
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  &probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(strcmp(command, crd3_commands[index]) == 0);
         CHECK(written == 6U);
         CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) == expected);
     }
@@ -152,6 +215,10 @@ static int test_successful_read_only_identity_probe(void)
     CHECK(probe.identity_negative_mask == 0U);
     CHECK(probe.identity_no_response_mask == 0U);
     CHECK(probe.identity_invalid_mask == 0U);
+    CHECK(probe.crd3_positive_mask == 0x1FU);
+    CHECK(probe.crd3_negative_mask == 0U);
+    CHECK(probe.crd3_no_response_mask == 0U);
+    CHECK(probe.crd3_invalid_mask == 0U);
     CHECK(strcmp(mblink_mercedes_ecu_probe_vin_result_name(probe.vin_result),
                  "available") == 0);
     return 0;
@@ -163,13 +230,20 @@ static int test_optional_identification_failures_continue(void)
     MblinkMercedesEcuProbe probe;
     MblinkElm327Response vin_negative = make_response(
         MBLINK_ELM327_RESULT_OK, "7F2231", false);
-    MblinkElm327Response outcomes[6] = {
+    MblinkElm327Response identity_outcomes[6] = {
         make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false),
         make_response(MBLINK_ELM327_RESULT_OK, "7F2231", false),
         make_response(MBLINK_ELM327_RESULT_OK, "GG", false),
         make_response(MBLINK_ELM327_RESULT_OK, "62F18901", false),
         make_response(MBLINK_ELM327_RESULT_OK, "62F19102", false),
         make_response(MBLINK_ELM327_RESULT_OK, "7F2211", false)
+    };
+    MblinkElm327Response crd3_outcomes[5] = {
+        make_response(MBLINK_ELM327_RESULT_OK, "62F10002100001", false),
+        make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false),
+        make_response(MBLINK_ELM327_RESULT_OK, "7F2231", false),
+        make_response(MBLINK_ELM327_RESULT_OK, "GG", false),
+        make_response(MBLINK_ELM327_RESULT_OK, "6210021122", false)
     };
     char command[16];
     size_t written = 0U;
@@ -189,14 +263,25 @@ static int test_optional_identification_failures_continue(void)
     CHECK(probe.vin_negative_response_code == 0x31U);
 
     for (size_t index = 0U; index < 6U; ++index) {
-        MblinkMercedesEcuProbeResult expected = index == 5U
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  &probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(mblink_mercedes_ecu_probe_accept(
+                  &probe, &identity_outcomes[index]) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+
+    CHECK(probe.stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
+    for (size_t index = 0U; index < 5U; ++index) {
+        MblinkMercedesEcuProbeResult expected = index == 4U
             ? MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE
             : MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
         CHECK(mblink_mercedes_ecu_probe_command(
                   &probe, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &outcomes[index]) ==
-              expected);
+        CHECK(mblink_mercedes_ecu_probe_accept(
+                  &probe, &crd3_outcomes[index]) == expected);
     }
 
     CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
@@ -204,6 +289,10 @@ static int test_optional_identification_failures_continue(void)
     CHECK(probe.identity_negative_mask == 0x22U);
     CHECK(probe.identity_invalid_mask == 0x04U);
     CHECK(probe.identity_positive_mask == 0x18U);
+    CHECK(probe.crd3_positive_mask == 0x11U);
+    CHECK(probe.crd3_no_response_mask == 0x02U);
+    CHECK(probe.crd3_negative_mask == 0x04U);
+    CHECK(probe.crd3_invalid_mask == 0x08U);
     return 0;
 }
 
