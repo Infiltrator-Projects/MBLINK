@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through 0.7.4. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through test release 0.7.5. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -24,6 +24,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.7.2 | Shared C live-data catalog, full-key parameter store and UDS-capable 64-item scheduler |
 | 0.7.3 | ELM-managed ISO 15765 CAN channel, Common 1.8 timing reuse and cross-build recovery hardening |
 | 0.7.4 | Common 1.10 authoritative CMake/Xcode target integration and release-state synchronization |
+| 0.7.5 | iPhone C207/OM651 read-only engine ECU probe integration for physical vehicle testing |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -84,16 +85,29 @@ The existing read-only Mercedes endpoint probe remains explicitly in-progress 0.
 
 **Exit condition:** the seven portable, sanitizer, Linux, iOS Debug/Release and unsigned-device gates pass on one exact 0.7.4 commit using Common-owned build targets, and that exact commit publishes the 0.7.4 release with its IPA.
 
+## 0.7.5 — physical Mercedes probe test release
+
+- keep the C207/OM651 endpoint at candidate provenance status rather than pretending it is vehicle-verified;
+- invoke the portable Mercedes endpoint probe from the real iPhone connection workflow after the generic OBD-II capability exchange;
+- configure the ELM-managed CAN channel, issue read-only UDS TesterPresent, decode the response and retain the raw command/response transcript;
+- expose the selected candidate and probe result in the Vehicle and Modules workspaces so a physical test has visible evidence;
+- reinitialise the ELM adapter after the Mercedes probe before resuming normal live OBD-II polling;
+- publish an unsigned iPhone IPA specifically so the development vehicle can provide the first physical Mercedes response capture.
+
+This release is a testable 0.8 slice, not completion of the 0.8 milestone. It does not add guessed Mercedes DIDs and does not promote the candidate endpoint without a reproducible physical capture.
+
+**Exit condition:** all seven required gates pass for one exact 0.7.5 commit and the matching unsigned IPA is attached to the GitHub Release for physical vehicle testing.
+
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics
 
 Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters.
 
-In progress after 0.7.4:
+In progress after 0.7.5:
 
-- the C207/OM651 profile now carries a conventional 11-bit physical engine-endpoint candidate with explicit source provenance and unverified status;
+- the C207/OM651 profile carries a conventional 11-bit physical engine-endpoint candidate with explicit source provenance and unverified status;
 - a portable read-only ECU probe configures the ELM-managed CAN channel and validates a positive UDS TesterPresent response without entering a session or writing vehicle data;
 - probe failures preserve whether configuration, ELM PDU decoding or UDS validation failed, including the underlying ELM result and UDS negative-response code;
-- the portable probe is not yet invoked by the iPhone connection workflow, and successful vehicle communication remains unclaimed;
+- the iPhone connection workflow now invokes that probe, displays its candidate/result and records the exchange before restoring standard OBD-II operation;
 - no successful vehicle exchange or manufacturer DID is claimed until physical captures exist.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.

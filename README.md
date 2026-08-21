@@ -8,7 +8,7 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Latest completed maintenance milestone: 0.7.4 — Infiltratr Common 1.10 build-package integration. Next feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Latest test release: 0.7.5 — iPhone C207 / OM651 engine ECU probe integration. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
@@ -25,12 +25,13 @@ Implemented today:
 - Infiltratr Common 1.10-backed portable primitives and periodic deadline advancement, with Common owning portable target membership for both CMake and Xcode consumers;
 - Mercedes-Benz definition/profile foundation with explicit candidate versus vehicle-verified provenance states;
 - read-only Mercedes ECU endpoint probing over the ELM-managed CAN and UDS layers, with a provenance-labelled C207/OM651 engine-address candidate;
+- iPhone connection-flow integration that performs the read-only Mercedes TesterPresent probe after generic OBD-II capability discovery, records the exchange, exposes the result in Vehicle/Modules, then reinitialises the ELM adapter before live OBD-II polling;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - SwiftUI diagnostic workspace whose live data, table, dashboard and graphs consume the shared C parameter catalog, plus CSV export;
 - native GTK4 Linux workspace shell consuming the same C model;
 - Ubuntu/macOS C CI, GTK4 Linux build CI, Debug/Release iOS Simulator builds, unsigned physical-iPhone IPA builds and trusted self-hosted Linux smoke validation.
 
-Physical iPhone installation has been validated. Live Vgate/vehicle communication and Mercedes-Benz ECU discovery remain pending; simulator/device build success and deterministic UDS fixtures do not prove Mercedes vehicle behaviour.
+Physical iPhone installation has been validated. The 0.7.5 test build now exercises the read-only C207/OM651 engine-endpoint candidate on real hardware, but a successful Mercedes-Benz ECU response remains unverified until a physical vehicle capture is obtained and promoted into a deterministic regression fixture.
 
 ## Architecture
 
