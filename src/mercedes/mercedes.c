@@ -226,7 +226,7 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
     static const MblinkMercedesEcuEndpointDefinition endpoints[] = {
         {
             .key = "c207-om651-engine-eobd-11bit",
-            .name = "Engine ECU (conventional EOBD physical endpoint)",
+            .name = "Delphi CRD3.x engine ECU candidate",
             .module = MBLINK_MERCEDES_MODULE_ENGINE,
             .address = {
                 .tx_can_id = UINT32_C(0x7e0),
@@ -240,13 +240,13 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
             },
             .status = MBLINK_MERCEDES_DEFINITION_CANDIDATE,
             .provenance =
-                "ELM327DSH physical-address example; C207/OM651 validation pending"
+                "autodiag2/database W207 E 250 2200 CDI (148/150 kW) -> Delphi CRD3.x fitment; 7E0/7E8 conventional EOBD physical endpoint remains pending C207 vehicle capture"
         }
     };
     static const MblinkMercedesVehicleProfile profile = {
         .chassis_code = "C207",
         .engine_family = "OM651",
-        .display_name = "Mercedes-Benz C207 / OM651",
+        .display_name = "Mercedes-Benz C207 E 250 CDI / OM651 / Delphi CRD3.x",
         .endpoints = endpoints,
         .endpoint_count = INFILTRATR_ARRAY_LENGTH(endpoints),
         .definitions = NULL,
