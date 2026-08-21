@@ -274,6 +274,11 @@ private struct DieselDiagnosticsView: View {
         .navigationTitle("Diesel")
     }
 
+    private func pidHex(_ identifier: UInt32) -> String {
+        let text = String(identifier, radix: 16, uppercase: true)
+        return text.count < 2 ? "0\(text)" : text
+    }
+
     @ViewBuilder
     private func parameterRow(_ stableKey: String, fallback: String) -> some View {
         if let parameter = connection.parameter(stableKey: stableKey) {
@@ -284,7 +289,7 @@ private struct DieselDiagnosticsView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(parameter.title)
-                    Text("PID 0x\(String(format: "%02X", parameter.parameterIdentifier))")
+                    Text("PID 0x\(pidHex(parameter.parameterIdentifier))")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
