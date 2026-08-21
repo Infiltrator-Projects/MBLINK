@@ -115,12 +115,38 @@ static void test_supported_pid_discovery(void)
           "continuation PID marked supported");
     check(has_more, "continuation block requested");
 
-    response = parse_response("0120", "412080000000\r>");
+    response = parse_response("0120", "412080000001\r>");
     check(mblink_obd2_accept_supported_pids(
               &response, 0x20U, &set, &has_more) == MBLINK_OBD2_RESULT_OK,
           "second supported PID block decodes");
     check(mblink_obd2_pid_set_contains(&set, 0x21U),
           "PID 21 marked supported");
+    check(mblink_obd2_pid_set_contains(&set, 0x40U),
+          "PID 40 continuation marked supported");
+    check(has_more, "third PID block requested");
+
+    response = parse_response("0140", "414000000001\r>");
+    check(mblink_obd2_accept_supported_pids(
+              &response, 0x40U, &set, &has_more) == MBLINK_OBD2_RESULT_OK,
+          "third supported PID block decodes");
+    check(mblink_obd2_pid_set_contains(&set, 0x60U),
+          "PID 60 continuation marked supported");
+    check(has_more, "fourth PID block requested");
+
+    response = parse_response("0160", "416000000001\r>");
+    check(mblink_obd2_accept_supported_pids(
+              &response, 0x60U, &set, &has_more) == MBLINK_OBD2_RESULT_OK,
+          "fourth supported PID block decodes");
+    check(mblink_obd2_pid_set_contains(&set, 0x80U),
+          "PID 80 continuation marked supported");
+    check(has_more, "fifth PID block requested");
+
+    response = parse_response("0180", "418080000000\r>");
+    check(mblink_obd2_accept_supported_pids(
+              &response, 0x80U, &set, &has_more) == MBLINK_OBD2_RESULT_OK,
+          "fifth supported PID block decodes");
+    check(mblink_obd2_pid_set_contains(&set, 0x81U),
+          "PID 81 marked supported");
     check(!has_more, "enumeration stops without continuation bit");
 
     {
@@ -159,7 +185,19 @@ static void test_live_pid_decoding(void)
         {0x0fU, "010F", "410F50\r>", 40.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
         {0x10U, "0110", "41101388\r>", 50.0, 0.001,
          MBLINK_OBD2_UNIT_GRAMS_PER_SECOND},
-        {0x11U, "0111", "411180\r>", 50.196, 0.01, MBLINK_OBD2_UNIT_PERCENT}
+        {0x11U, "0111", "411180\r>", 50.196, 0.01, MBLINK_OBD2_UNIT_PERCENT},
+        {0x23U, "0123", "41230064\r>", 1000.0, 0.001, MBLINK_OBD2_UNIT_KPA},
+        {0x2cU, "012C", "412C80\r>", 50.196, 0.01, MBLINK_OBD2_UNIT_PERCENT},
+        {0x2dU, "012D", "412D80\r>", 0.0, 0.001, MBLINK_OBD2_UNIT_PERCENT},
+        {0x33U, "0133", "413364\r>", 100.0, 0.001, MBLINK_OBD2_UNIT_KPA},
+        {0x3cU, "013C", "413C0FA0\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
+        {0x42U, "0142", "414236B0\r>", 14.0, 0.001, MBLINK_OBD2_UNIT_VOLTS},
+        {0x46U, "0146", "414650\r>", 40.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
+        {0x5cU, "015C", "415C50\r>", 40.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
+        {0x5eU, "015E", "415E03E8\r>", 50.0, 0.001, MBLINK_OBD2_UNIT_LITRES_PER_HOUR},
+        {0x78U, "0178", "4178010FA00000000000\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
+        {0x7aU, "017A", "417A0103E800000000\r>", 10.0, 0.001, MBLINK_OBD2_UNIT_KPA},
+        {0x7cU, "017C", "417C010FA0000000000000\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS}
     };
     size_t index;
 
@@ -176,6 +214,23 @@ static void test_live_pid_decoding(void)
         check(near_value(sample.value, cases[index].expected,
                          cases[index].tolerance),
               "sample formula matches");
+    }
+
+    {
+        MblinkElm327Response response =
+            parse_response("017A", "417A0003E800000000\r>");
+        MblinkObd2Sample sample = {
+            .pid = 0xa5U,
+            .value = 12345.5,
+            .unit = MBLINK_OBD2_UNIT_KMH
+        };
+        MblinkObd2Sample snapshot = sample;
+        check(mblink_obd2_decode_live_pid(
+                  &response, 0x7aU, &sample) ==
+                  MBLINK_OBD2_RESULT_UNSUPPORTED_PID,
+              "unadvertised DPF sub-field is not decoded");
+        check(memcmp(&sample, &snapshot, sizeof(sample)) == 0,
+              "unsupported DPF sub-field leaves output unchanged");
     }
 
     {
