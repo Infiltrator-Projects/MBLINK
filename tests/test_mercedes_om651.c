@@ -16,7 +16,11 @@ static int test_catalogue(void)
 
     CHECK(definitions != NULL);
     CHECK(count == 23U);
+    CHECK(mblink_mercedes_om651_signal_count() == count);
     for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesOm651SignalDefinition *at =
+            mblink_mercedes_om651_signal_at(index);
+        CHECK(at == &definitions[index]);
         CHECK(definitions[index].key != NULL);
         CHECK(definitions[index].key[0] != '\0');
         CHECK(definitions[index].name != NULL);
@@ -29,6 +33,7 @@ static int test_catalogue(void)
             CHECK(strcmp(definitions[earlier].key, definitions[index].key) != 0);
         }
     }
+    CHECK(mblink_mercedes_om651_signal_at(count) == NULL);
     return 0;
 }
 
