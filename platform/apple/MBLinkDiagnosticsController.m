@@ -27,6 +27,8 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, copy, readwrite, nullable) NSString *adapterIdentifier;
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesProbeEndpointText;
+@property(nonatomic, copy, readwrite, nullable) NSString *mercedesVINText;
+@property(nonatomic, copy, readwrite) NSString *mercedesIdentitySummaryText;
 @property(nonatomic, readwrite, getter=isActive) BOOL active;
 @property(nonatomic, readwrite, getter=isReady) BOOL ready;
 
@@ -42,6 +44,7 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)beginMercedesProbe;
 - (void)beginCurrentMercedesProbeCommand;
 - (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
+- (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
 - (void)beginPostMercedesRestore;
 - (void)completeLiveSetup;
@@ -99,6 +102,16 @@ static uint64_t MBLinkEpochMilliseconds(void)
         return UINT64_MAX;
     }
     return (uint64_t)milliseconds;
+}
+
+static unsigned int MBLinkBitCount32(uint32_t value)
+{
+    unsigned int count = 0U;
+    while (value != 0U) {
+        count += value & 1U;
+        value >>= 1U;
+    }
+    return count;
 }
 
 static bool MBLinkAppendCSV(void *context, const char *bytes, size_t length)
@@ -159,6 +172,7 @@ static NSString *MBLinkMercedesEndpointText(
         _provider.delegate = self;
         _statusText = @"Idle";
         _mercedesProbeStatusText = @"Not attempted";
+        _mercedesIdentitySummaryText = @"Not attempted";
         _phase = MBLinkDiagnosticsPhaseIdle;
         mblink_obd2_pid_set_clear(&_supportedPids);
         mblink_scheduler_init(&_scheduler);
@@ -223,6 +237,8 @@ static NSString *MBLinkMercedesEndpointText(
     self.ready = NO;
     self.mercedesProbeStatusText = @"Not attempted";
     self.mercedesProbeEndpointText = nil;
+    self.mercedesVINText = nil;
+    self.mercedesIdentitySummaryText = @"Not attempted";
     _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _phase = MBLinkDiagnosticsPhaseIdle;
     _activePid = 0U;
@@ -409,6 +425,7 @@ static NSString *MBLinkMercedesEndpointText(
         if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
             self.mercedesProbeStatusText =
                 @"Probe timed out; reconnect required to resynchronise the adapter";
+            self.mercedesIdentitySummaryText = @"Probe did not complete";
         }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
@@ -421,6 +438,7 @@ static NSString *MBLinkMercedesEndpointText(
         if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
             self.mercedesProbeStatusText = [NSString stringWithFormat:
                 @"Adapter response failed during probe: %@", reason];
+            self.mercedesIdentitySummaryText = @"Probe did not complete";
         }
         _phase = MBLinkDiagnosticsPhaseFailed;
         [self setStatus:[NSString stringWithFormat:
@@ -548,6 +566,7 @@ static NSString *MBLinkMercedesEndpointText(
         mblink_mercedes_c207_om651_profile();
     if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
         self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
+        self.mercedesIdentitySummaryText = @"Not attempted";
         [self completeLiveSetup];
         return;
     }
@@ -557,6 +576,7 @@ static NSString *MBLinkMercedesEndpointText(
             profile, "c207-om651-engine-eobd-11bit");
     if (endpoint == NULL) {
         self.mercedesProbeStatusText = @"No engine endpoint candidate is defined";
+        self.mercedesIdentitySummaryText = @"Not attempted";
         [self completeLiveSetup];
         return;
     }
@@ -568,12 +588,14 @@ static NSString *MBLinkMercedesEndpointText(
         self.mercedesProbeStatusText = [NSString stringWithFormat:
             @"Probe could not start: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
+        self.mercedesIdentitySummaryText = @"Not attempted";
         [self completeLiveSetup];
         return;
     }
 
     self.mercedesProbeStatusText =
         @"Probing candidate with read-only UDS TesterPresent";
+    self.mercedesIdentitySummaryText = @"Waiting for UDS endpoint response";
     _phase = MBLinkDiagnosticsPhaseProbingMercedes;
     [self setStatus:@"Probing Mercedes-Benz engine ECU (read-only)"];
     [self beginCurrentMercedesProbeCommand];
@@ -590,8 +612,32 @@ static NSString *MBLinkMercedesEndpointText(
         self.mercedesProbeStatusText = [NSString stringWithFormat:
             @"Probe command failed: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
+        self.mercedesIdentitySummaryText = @"Probe did not complete";
         [self beginPostMercedesRestore];
         return;
+    }
+
+    if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
+        self.mercedesProbeStatusText =
+            @"UDS endpoint confirmed; reading standardized VIN (F190)";
+        self.mercedesIdentitySummaryText = @"Reading standardized vehicle identity";
+        [self notifyDelegate];
+    } else if (_mercedesProbe.stage ==
+               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
+        const size_t index = _mercedesProbe.identity_index;
+        const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
+        const char *name = mblink_mercedes_ecu_probe_identity_did_name(index);
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Reading standardized ECU identity %zu/%zu · F%03X · %@",
+            index + 1U,
+            mblink_mercedes_ecu_probe_identity_did_count(),
+            (unsigned int)did,
+            MBLinkStringFromCString(name)];
+        self.mercedesIdentitySummaryText = [NSString stringWithFormat:
+            @"Identity sweep in progress · %zu/%zu",
+            index + 1U,
+            mblink_mercedes_ecu_probe_identity_did_count()];
+        [self notifyDelegate];
     }
 
     (void)[self beginCommand:command timeout:4000U];
@@ -603,8 +649,7 @@ static NSString *MBLinkMercedesEndpointText(
         mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
 
     if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
-        self.mercedesProbeStatusText =
-            @"Positive UDS TesterPresent response captured; endpoint remains a candidate pending fixture verification";
+        [self updateMercedesProbeEvidenceSummary];
         [self beginPostMercedesRestore];
         return;
     }
@@ -612,11 +657,64 @@ static NSString *MBLinkMercedesEndpointText(
     if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
         _mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED) {
         self.mercedesProbeStatusText = [self mercedesProbeFailureText];
+        self.mercedesIdentitySummaryText = @"Probe did not complete";
         [self beginPostMercedesRestore];
         return;
     }
 
     [self beginCurrentMercedesProbeCommand];
+}
+
+- (void)updateMercedesProbeEvidenceSummary
+{
+    const unsigned int positive =
+        MBLinkBitCount32(_mercedesProbe.identity_positive_mask);
+    const unsigned int negative =
+        MBLinkBitCount32(_mercedesProbe.identity_negative_mask);
+    const unsigned int noResponse =
+        MBLinkBitCount32(_mercedesProbe.identity_no_response_mask);
+    const unsigned int invalid =
+        MBLinkBitCount32(_mercedesProbe.identity_invalid_mask);
+    const size_t total = mblink_mercedes_ecu_probe_identity_did_count();
+
+    self.mercedesIdentitySummaryText = [NSString stringWithFormat:
+        @"%u/%zu positive · %u negative · %u no response · %u invalid",
+        positive, total, negative, noResponse, invalid];
+
+    NSString *vinSummary = nil;
+    if (_mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
+        _mercedesProbe.vin[0] != '\0') {
+        self.mercedesVINText = MBLinkStringFromCString(_mercedesProbe.vin);
+        mblink_telemetry_session_metadata_set_vehicle(
+            &_sessionMetadata, _mercedesProbe.vin);
+        vinSummary = [NSString stringWithFormat:@"VIN %@", self.mercedesVINText];
+    } else {
+        self.mercedesVINText = nil;
+        switch (_mercedesProbe.vin_result) {
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE:
+            vinSummary = @"standard VIN not returned";
+            break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE:
+            vinSummary = [NSString stringWithFormat:
+                @"standard VIN negative response NRC 0x%02X",
+                (unsigned int)_mercedesProbe.vin_negative_response_code];
+            break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE:
+            vinSummary = @"standard VIN response was not a valid 17-character VIN";
+            break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED:
+            vinSummary = @"standard VIN was not attempted";
+            break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE:
+            vinSummary = @"standard VIN response was empty";
+            break;
+        }
+    }
+
+    self.mercedesProbeStatusText = [NSString stringWithFormat:
+        @"Positive UDS endpoint response captured; %@; standardized identity %@; endpoint remains a candidate pending fixture verification",
+        vinSummary,
+        self.mercedesIdentitySummaryText];
 }
 
 - (NSString *)mercedesProbeFailureText
