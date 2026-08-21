@@ -25,8 +25,11 @@ struct ContentView: View {
                     workspaceLink("Modules", "Control units and ECU identification", "square.stack.3d.up.fill") {
                         ModulesView()
                     }
-                    workspaceLink("Faults", "Diagnostic trouble codes by module", "exclamationmark.triangle.fill") {
+                    workspaceLink("Faults", "Stored, pending and permanent OBD-II trouble codes", "exclamationmark.triangle.fill") {
                         FaultsView()
+                    }
+                    workspaceLink("Diesel", "DPF, turbo, rail pressure, EGR and temperatures", "engine.combustion.fill") {
+                        DieselDiagnosticsView()
                     }
                     workspaceLink("Live Data", "Select and favourite diagnostic parameters", "waveform.path.ecg") {
                         LiveDataView()
@@ -140,13 +143,20 @@ private struct VehicleView: View {
                 LabeledContent("Generic diagnostics", value: "OBD-II")
                 LabeledContent("Advanced diagnostics", value: "UDS identity sweep active")
                 LabeledContent("Standard identity reads", value: "VIN + 6 ECU IDs")
-                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
-                LabeledContent("ECU identity evidence", value: connection.mercedesIdentitySummaryText)
+                LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
+            if !connection.mercedesIdentityResults.isEmpty {
+                Section("ECU identity evidence") {
+                    ForEach(connection.mercedesIdentityResults, id: \.self) { result in
+                        Text(result)
+                            .font(.subheadline.monospaced())
+                    }
+                }
+            }
             Section {
-                Text("After the standard OBD-II capability check, MBLINK performs a read-only UDS TesterPresent probe against the provenance-labelled C207 / OM651 engine endpoint candidate. A responding endpoint is then queried for the standardized VIN DID F190 plus ECU serial, spare-part, software, hardware and system/engine identity DIDs F18C, F187, F188, F189, F191 and F197. Every raw response is retained as diagnostic evidence before the adapter is reset for normal live OBD-II polling. Unsupported identity reads remain evidence only and never cause MBLINK to invent a Mercedes definition.")
+                Text("MBLINK now walks every advertised OBD-II capability block instead of stopping at PID 20, then performs the read-only Mercedes UDS identity sweep. Standard VIN and ECU identity responses remain evidence until the physical capture is promoted into a regression fixture.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -168,11 +178,14 @@ private struct ModulesView: View {
             Section("Mercedes-Benz discovery") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
-                LabeledContent("Identity sweep", value: connection.mercedesIdentitySummaryText)
+                LabeledContent("Identity summary", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
-                Text("The portable probe now continues beyond TesterPresent into standardized UDS identity reads. Positive, negative, silent and malformed results are classified separately while the complete raw ELM327 transcript is retained. Manufacturer-specific DPF, rail-pressure, injector and EGR DIDs are still deliberately excluded until real C207/OM651 captures justify them.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                if !connection.mercedesIdentityResults.isEmpty {
+                    ForEach(connection.mercedesIdentityResults, id: \.self) { result in
+                        Text(result)
+                            .font(.caption.monospaced())
+                    }
+                }
                 NavigationLink {
                     LogView()
                 } label: {
@@ -185,13 +198,100 @@ private struct ModulesView: View {
 }
 
 private struct FaultsView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
     var body: some View {
-        ContentUnavailableView(
-            "No module fault scan yet",
-            systemImage: "exclamationmark.triangle",
-            description: Text("The portable core already decodes standard OBD-II DTC payloads. The app-wide module scan and Mercedes-specific fault catalogue will be connected after ECU discovery is implemented.")
-        )
+        List {
+            Section("Scan") {
+                LabeledContent("Status", value: connection.faultScanStatusText)
+                Text("Fault codes are read automatically after connection using standard OBD-II services 03, 07 and 0A. The requests are read-only and every response is retained in the diagnostic evidence log.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            dtcSection("Stored", codes: connection.storedDTCs)
+            dtcSection("Pending", codes: connection.pendingDTCs)
+            dtcSection("Permanent", codes: connection.permanentDTCs)
+        }
         .navigationTitle("Faults")
+    }
+
+    @ViewBuilder
+    private func dtcSection(_ title: String, codes: [String]) -> some View {
+        Section(title) {
+            if codes.isEmpty {
+                Text("None reported")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(codes, id: \.self) { code in
+                    Label(code, systemImage: "exclamationmark.triangle")
+                        .font(.body.monospaced().weight(.semibold))
+                }
+            }
+        }
+    }
+}
+
+private struct DieselDiagnosticsView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        List {
+            Section("DPF") {
+                parameterRow("obd2.dpf.bank1_delta_pressure", fallback: "DPF differential pressure")
+                parameterRow("obd2.dpf.bank1_inlet_temperature", fallback: "DPF inlet temperature")
+                parameterRow("obd2.aftertreatment.egt_b1s1", fallback: "Exhaust gas temperature")
+                parameterRow("obd2.aftertreatment.catalyst_temp_b1s1", fallback: "Catalyst temperature")
+                Text("These are standard SAE OBD-II aftertreatment values and only populate when the vehicle advertises the corresponding PID and sub-field. Mercedes soot load, regeneration state and ash-load DIDs remain evidence-gated rather than guessed.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Turbo / air") {
+                parameterRow("obd2.engine.map", fallback: "Manifold absolute pressure")
+                parameterRow("obd2.engine.barometric_pressure", fallback: "Barometric pressure")
+                parameterRow("obd2.engine.maf", fallback: "Mass air flow")
+                parameterRow("obd2.engine.intake_air", fallback: "Intake air temperature")
+            }
+
+            Section("Fuel / injection") {
+                parameterRow("obd2.diesel.rail_pressure", fallback: "Fuel rail pressure")
+                parameterRow("obd2.engine.fuel_rate", fallback: "Fuel rate")
+                LabeledContent("Injector corrections", value: "Awaiting verified OM651 DID")
+            }
+
+            Section("EGR") {
+                parameterRow("obd2.diesel.egr_command", fallback: "Commanded EGR")
+                parameterRow("obd2.diesel.egr_error", fallback: "EGR error")
+            }
+
+            Section("Temperatures / electrical") {
+                parameterRow("obd2.engine.coolant", fallback: "Coolant temperature")
+                parameterRow("obd2.engine.oil_temperature", fallback: "Oil temperature")
+                parameterRow("obd2.environment.ambient_air", fallback: "Ambient temperature")
+                parameterRow("obd2.electrical.control_module_voltage", fallback: "Control module voltage")
+            }
+        }
+        .navigationTitle("Diesel")
+    }
+
+    @ViewBuilder
+    private func parameterRow(_ stableKey: String, fallback: String) -> some View {
+        if let parameter = connection.parameter(stableKey: stableKey) {
+            LabeledContent {
+                Text(parameter.formattedValue)
+                    .monospacedDigit()
+                    .foregroundStyle(parameter.isAvailable ? .primary : .secondary)
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(parameter.title)
+                    Text("PID 0x\(String(format: "%02X", parameter.parameterIdentifier))")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            LabeledContent(fallback, value: "Unavailable")
+        }
     }
 }
 
@@ -374,10 +474,11 @@ private struct LogView: View {
         List {
             Section("Diagnostic evidence") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
-                LabeledContent("Captured VIN", value: connection.mercedesVINText)
-                LabeledContent("Identity sweep", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
-                Text("The session recorder contains the raw ELM327 command/response transcript, including TesterPresent, standard VIN F190 and the bounded ECU identity sweep. Export it after a vehicle test even if no live-data samples were recorded; those responses are the evidence used to verify the endpoint and determine which manufacturer-specific definitions can be added safely.")
+                LabeledContent("Captured VIN", value: connection.mercedesVINText)
+                LabeledContent("Identity results", value: connection.mercedesIdentitySummaryText)
+                LabeledContent("Fault scan", value: connection.faultScanStatusText)
+                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS identity sweep, all three OBD-II fault services and every live diesel/DPF request. Export it after a vehicle test even if some values remain unavailable; that capture is the evidence used to promote vehicle-specific definitions safely.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
