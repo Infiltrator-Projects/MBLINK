@@ -18,6 +18,14 @@ struct DiagnosticParameter: Identifiable {
     var isAvailable: Bool { value != nil }
 }
 
+struct MercedesTargetSignal: Identifiable {
+    let id: String
+    let title: String
+    let category: String
+    let status: String
+    let provenance: String
+}
+
 @MainActor
 final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsControllerDelegate {
     @Published private(set) var statusText = "Idle"
@@ -36,6 +44,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var isReady = false
 
     @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
+    @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var recordedSampleCount = 0
     @Published private(set) var csvExportURL: URL?
 
@@ -44,6 +53,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     override init() {
         super.init()
         controller.delegate = self
+        mercedesTargetSignals = loadMercedesTargetSignals()
         refresh()
     }
 
@@ -58,6 +68,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func parameter(stableKey: String) -> DiagnosticParameter? {
         diagnosticParameters.first { $0.id == stableKey }
+    }
+
+    func mercedesSignals(category: String) -> [MercedesTargetSignal] {
+        mercedesTargetSignals.filter { $0.category == category }
     }
 
     func toggleFavourite(stableKey: String) {
@@ -175,6 +189,36 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             )
         }
 
+        return result
+    }
+
+    private func loadMercedesTargetSignals() -> [MercedesTargetSignal] {
+        let count = Int(mblink_mercedes_om651_signal_count())
+        guard count > 0 else { return [] }
+
+        var result = [MercedesTargetSignal]()
+        result.reserveCapacity(count)
+        for index in 0..<count {
+            guard let definition = mblink_mercedes_om651_signal_at(index) else {
+                continue
+            }
+            let metadata = definition.pointee
+            let key = string(from: metadata.key)
+            guard !key.isEmpty else { continue }
+            result.append(
+                MercedesTargetSignal(
+                    id: key,
+                    title: string(from: metadata.name),
+                    category: string(
+                        from: mblink_mercedes_om651_signal_category_name(metadata.category)
+                    ),
+                    status: string(
+                        from: mblink_mercedes_om651_signal_status_name(metadata.status)
+                    ),
+                    provenance: string(from: metadata.provenance)
+                )
+            )
+        }
         return result
     }
 
