@@ -149,13 +149,17 @@ static int test_successful_read_only_identity_probe(void)
     MblinkMercedesEcuProbe probe;
 
     CHECK(endpoint != NULL);
-    CHECK(mblink_mercedes_ecu_probe_identity_did_count() == 6U);
+    CHECK(mblink_mercedes_ecu_probe_identity_did_count() == 11U);
     CHECK(mblink_mercedes_ecu_probe_identity_did_at(0U) == 0xF18CU);
     CHECK(mblink_mercedes_ecu_probe_identity_did_at(5U) == 0xF197U);
-    CHECK(mblink_mercedes_ecu_probe_identity_did_at(6U) == 0U);
+    CHECK(mblink_mercedes_ecu_probe_identity_did_at(6U) == 0xF100U);
+    CHECK(mblink_mercedes_ecu_probe_identity_did_at(10U) == 0x1002U);
+    CHECK(mblink_mercedes_ecu_probe_identity_did_at(11U) == 0U);
     CHECK(strcmp(mblink_mercedes_ecu_probe_identity_did_name(0U),
                  "ECU serial number") == 0);
-    CHECK(mblink_mercedes_ecu_probe_identity_did_name(6U) == NULL);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_identity_did_name(6U),
+                 "CRD3 session / variant") == 0);
+    CHECK(mblink_mercedes_ecu_probe_identity_did_name(11U) == NULL);
 
     CHECK(mblink_mercedes_ecu_probe_crd3_did_count() == 5U);
     CHECK(mblink_mercedes_ecu_probe_crd3_did_at(0U) == 0xF100U);
@@ -211,7 +215,7 @@ static int test_successful_read_only_identity_probe(void)
     }
 
     CHECK(probe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE);
-    CHECK(probe.identity_positive_mask == 0x3FU);
+    CHECK(probe.identity_positive_mask == 0x7FFU);
     CHECK(probe.identity_negative_mask == 0U);
     CHECK(probe.identity_no_response_mask == 0U);
     CHECK(probe.identity_invalid_mask == 0U);
@@ -285,10 +289,10 @@ static int test_optional_identification_failures_continue(void)
     }
 
     CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-    CHECK(probe.identity_no_response_mask == 0x01U);
-    CHECK(probe.identity_negative_mask == 0x22U);
-    CHECK(probe.identity_invalid_mask == 0x04U);
-    CHECK(probe.identity_positive_mask == 0x18U);
+    CHECK(probe.identity_no_response_mask == 0x081U);
+    CHECK(probe.identity_negative_mask == 0x122U);
+    CHECK(probe.identity_invalid_mask == 0x204U);
+    CHECK(probe.identity_positive_mask == 0x458U);
     CHECK(probe.crd3_positive_mask == 0x11U);
     CHECK(probe.crd3_no_response_mask == 0x02U);
     CHECK(probe.crd3_negative_mask == 0x04U);
