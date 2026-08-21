@@ -177,9 +177,6 @@ static int test_successful_read_only_identity_probe(void)
         size_t written = 0U;
         MblinkElm327Response response = make_response(
             MBLINK_ELM327_RESULT_OK, crd3_responses[index], false);
-        MblinkMercedesEcuProbeResult expected = index == 4U
-            ? MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE
-            : MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 
         CHECK(probe.crd3_index == index);
         CHECK(mblink_mercedes_ecu_probe_command(
@@ -187,7 +184,36 @@ static int test_successful_read_only_identity_probe(void)
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
         CHECK(strcmp(command, crd3_commands[index]) == 0);
         CHECK(written == 6U);
-        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) == expected);
+        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+
+    CHECK(probe.stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_stage_name(probe.stage),
+                 "read-dtc-information") == 0);
+    CHECK(probe.crd3_session_variant_available);
+    CHECK(probe.crd3_session_variant.gateway_mode == 0x02U);
+    CHECK(probe.crd3_session_variant.variant == 0x1000U);
+    CHECK(probe.crd3_session_variant.session == 0x01U);
+    CHECK(probe.crd3_supplier_available);
+    CHECK(probe.crd3_supplier.supplier_identifier == 64U);
+    CHECK(strcmp(probe.crd3_supplier.supplier_name, "Delphi") == 0);
+
+    {
+        char command[16];
+        size_t written = 0U;
+        MblinkElm327Response response = make_response(
+            MBLINK_ELM327_RESULT_OK,
+            "5902FF0112345609ABCDEF28",
+            false);
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  &probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(written == 6U);
+        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
     }
 
     CHECK(probe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE);
@@ -199,6 +225,14 @@ static int test_successful_read_only_identity_probe(void)
     CHECK(probe.crd3_negative_mask == 0U);
     CHECK(probe.crd3_no_response_mask == 0U);
     CHECK(probe.crd3_invalid_mask == 0U);
+    CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE);
+    CHECK(probe.dtcs.count == 2U);
+    CHECK(probe.dtcs.records[0].code == UINT32_C(0x123456));
+    CHECK(probe.dtcs.records[0].status == 0x09U);
+    CHECK(probe.dtcs.records[1].code == UINT32_C(0xabcdef));
+    CHECK(probe.dtcs.records[1].status == 0x28U);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_dtc_result_name(probe.dtc_result),
+                 "available") == 0);
     CHECK(strcmp(mblink_mercedes_ecu_probe_vin_result_name(probe.vin_result),
                  "available") == 0);
     return 0;
@@ -254,14 +288,25 @@ static int test_optional_identification_failures_continue(void)
     CHECK(probe.stage ==
           MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
     for (size_t index = 0U; index < 5U; ++index) {
-        MblinkMercedesEcuProbeResult expected = index == 4U
-            ? MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE
-            : MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
         CHECK(mblink_mercedes_ecu_probe_command(
                   &probe, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
         CHECK(mblink_mercedes_ecu_probe_accept(
-                  &probe, &crd3_outcomes[index]) == expected);
+                  &probe, &crd3_outcomes[index]) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+
+    CHECK(probe.stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION);
+    {
+        MblinkElm327Response noData = make_response(
+            MBLINK_ELM327_RESULT_NO_DATA, "", false);
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  &probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &noData) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
     }
 
     CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
@@ -273,6 +318,9 @@ static int test_optional_identification_failures_continue(void)
     CHECK(probe.crd3_no_response_mask == 0x02U);
     CHECK(probe.crd3_negative_mask == 0x04U);
     CHECK(probe.crd3_invalid_mask == 0x08U);
+    CHECK(probe.crd3_session_variant_available);
+    CHECK(!probe.crd3_supplier_available);
+    CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE);
     return 0;
 }
 
@@ -351,6 +399,9 @@ static int test_argument_and_buffer_failures(void)
     CHECK(mblink_mercedes_ecu_probe_accept(
               &probe, &(MblinkElm327Response){0}) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE);
+    CHECK(strcmp(mblink_mercedes_ecu_probe_dtc_result_name(
+                     MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE),
+                 "negative-response") == 0);
     return 0;
 }
 
