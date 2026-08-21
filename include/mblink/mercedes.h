@@ -18,7 +18,11 @@ extern "C" {
 #endif
 
 typedef enum {
+    /** Plausible definition with insufficient independent protocol evidence. */
     MBLINK_MERCEDES_DEFINITION_CANDIDATE = 0,
+    /** Independent sources corroborate the definition; vehicle capture pending. */
+    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+    /** Exact request/response behaviour is backed by a vehicle regression fixture. */
     MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED
 } MblinkMercedesDefinitionStatus;
 
@@ -96,11 +100,12 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
     MblinkUdsDidValue *value);
 
 /**
- * Return the C207 / OM651 development profile.
+ * Return the C207 E 250 CDI / OM651 / Delphi CRD3.x development profile.
  *
- * The profile contains a conventional read-only EOBD engine-address candidate
- * for physical probing. It remains a candidate until confirmed on the vehicle.
- * Manufacturer DIDs remain empty until responses become regression fixtures.
+ * Independent W207 fitment data and a separate Mercedes diagnostic database
+ * corroborate the CRD3.x family and 7E0/7E8 physical CAN endpoint. The endpoint
+ * remains below vehicle-verified until a reproducible C207 capture is committed.
+ * Manufacturer live-data DIDs remain unbound until their encodings are proven.
  */
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void);
 
