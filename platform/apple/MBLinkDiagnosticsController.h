@@ -27,6 +27,8 @@ NS_SWIFT_UI_ACTOR
 @property(nonatomic, copy, readonly, nullable) NSString *adapterIdentifier;
 @property(nonatomic, copy, readonly) NSString *mercedesProbeStatusText;
 @property(nonatomic, copy, readonly, nullable) NSString *mercedesProbeEndpointText;
+@property(nonatomic, copy, readonly, nullable) NSString *mercedesVINText;
+@property(nonatomic, copy, readonly) NSString *mercedesIdentitySummaryText;
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 
