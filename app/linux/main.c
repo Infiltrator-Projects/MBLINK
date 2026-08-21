@@ -282,7 +282,11 @@ static void install_css(void)
     GtkCssProvider *provider = gtk_css_provider_new();
     GdkDisplay *display = gdk_display_get_default();
 
+#if GTK_CHECK_VERSION(4, 12, 0)
+    gtk_css_provider_load_from_string(provider, mblink_css);
+#else
     gtk_css_provider_load_from_data(provider, mblink_css, -1);
+#endif
     if (display != NULL) {
         gtk_style_context_add_provider_for_display(
             display,
