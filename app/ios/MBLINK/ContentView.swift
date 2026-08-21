@@ -25,7 +25,7 @@ struct ContentView: View {
                     workspaceLink("Modules", "Control units and ECU identification", "square.stack.3d.up.fill") {
                         ModulesView()
                     }
-                    workspaceLink("Faults", "Stored, pending and permanent OBD-II trouble codes", "exclamationmark.triangle.fill") {
+                    workspaceLink("Faults", "Mercedes UDS and standard OBD-II fault memory", "exclamationmark.triangle.fill") {
                         FaultsView()
                     }
                     workspaceLink("Diesel", "OM651 targets, DPF, turbo, rail pressure and EGR", "engine.combustion.fill") {
@@ -138,13 +138,15 @@ private struct VehicleView: View {
                 LabeledContent("Adapter identity", value: connection.adapterIdentifier)
             }
             Section("Vehicle") {
-                LabeledContent("Target platform", value: "Mercedes-Benz C207")
+                LabeledContent("Target platform", value: "Mercedes-Benz C207 E 250 CDI")
                 LabeledContent("Engine family", value: "OM651")
+                LabeledContent("ECU family", value: "Delphi CRD3.x")
                 LabeledContent("Generic diagnostics", value: "OBD-II")
                 LabeledContent("Advanced diagnostics", value: "UDS + CRD3 evidence")
                 LabeledContent("Identity reads", value: "VIN + 6 standard + 5 CRD3")
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
             if !connection.mercedesIdentityResults.isEmpty {
@@ -156,7 +158,7 @@ private struct VehicleView: View {
                 }
             }
             Section {
-                Text("MBLINK performs the read-only Mercedes UDS identity sweep and then a bounded CRD3 fingerprint pass. The OM651 manufacturer capability catalogue can be developed offline; physical evidence is required only before endpoint, DID and scaling mappings are promoted as vehicle-verified.")
+                Text("The W207 E 250 CDI is independently catalogued with a Delphi CRD3.x engine ECU. MBLINK keeps the physical 7E0→7E8 endpoint candidate until it is vehicle-verified, but development of the CRD3 protocol, UDS faults and OM651 data model continues offline.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -174,11 +176,14 @@ private struct ModulesView: View {
                 Label("Generic OBD-II engine diagnostics", systemImage: "engine.combustion.fill")
                 Label("Portable UDS protocol engine", systemImage: "point.3.connected.trianglepath.dotted")
                 Label("Standard UDS + CRD3 read-only identity evidence", systemImage: "magnifyingglass.circle.fill")
+                Label("Read-only UDS 0x19 Mercedes fault scan", systemImage: "exclamationmark.triangle.fill")
             }
-            Section("Mercedes-Benz discovery") {
+            Section("Mercedes-Benz engine") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Identity summary", value: connection.mercedesIdentitySummaryText)
+                LabeledContent("CRD3 summary", value: connection.mercedesCrd3SummaryText)
+                LabeledContent("UDS faults", value: connection.mercedesUDSFaultStatusText)
                 LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
                 if !connection.mercedesIdentityResults.isEmpty {
                     ForEach(connection.mercedesIdentityResults, id: \.self) { result in
@@ -202,9 +207,25 @@ private struct FaultsView: View {
 
     var body: some View {
         List {
-            Section("Scan") {
+            Section("Mercedes engine · UDS 0x19") {
+                LabeledContent("Status", value: connection.mercedesUDSFaultStatusText)
+                if connection.mercedesUDSFaults.isEmpty {
+                    Text("No Mercedes UDS fault records captured")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(connection.mercedesUDSFaults, id: \.self) { code in
+                        Label(code, systemImage: "exclamationmark.triangle.fill")
+                            .font(.body.monospaced().weight(.semibold))
+                    }
+                }
+                Text("MBLINK reads the CRD3 engine fault memory with ISO 14229 ReadDTCInformation 19 02 FF while the Mercedes ECU channel is selected. This is a read-only request; the raw response is retained in the evidence transcript.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Standard OBD-II") {
                 LabeledContent("Status", value: connection.faultScanStatusText)
-                Text("Fault codes are read automatically after connection using standard OBD-II services 03, 07 and 0A. The portable Mercedes engine layer now also has a read-only UDS 0x19 decoder and offline replay coverage; that path is being wired into the phone connection sequence rather than faked as generic OBD.")
+                Text("Stored, pending and permanent emissions-related faults are also read using OBD-II services 03, 07 and 0A after the adapter is restored to its normal OBD channel.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -532,8 +553,10 @@ private struct LogView: View {
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
                 LabeledContent("Captured VIN", value: connection.mercedesVINText)
                 LabeledContent("Identity results", value: connection.mercedesIdentitySummaryText)
-                LabeledContent("Fault scan", value: connection.faultScanStatusText)
-                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS/CRD3 identity evidence, all three OBD-II fault services and every live diesel/DPF request. The portable engine scanner also has offline UDS 0x19 replay coverage while hardware validation is pending.")
+                LabeledContent("CRD3 identity", value: connection.mercedesCrd3SummaryText)
+                LabeledContent("Mercedes UDS faults", value: connection.mercedesUDSFaultStatusText)
+                LabeledContent("OBD-II fault scan", value: connection.faultScanStatusText)
+                Text("The session recorder contains the raw ELM327 command/response transcript, including the Mercedes UDS/CRD3 identity evidence, the 19 02 FF manufacturer fault-memory request, all three OBD-II fault services and every live diesel/DPF request.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
