@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "mblink/mercedes_om651.h"
+#include "mblink/mercedes_om651_api.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -17,10 +17,16 @@ static int test_catalogue(void)
     CHECK(definitions != NULL);
     CHECK(count == 23U);
     CHECK(mblink_mercedes_om651_signal_count() == count);
+    CHECK(mblink_mercedes_om651_catalog_count() == count);
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesOm651SignalDefinition *at =
             mblink_mercedes_om651_signal_at(index);
+        const MblinkMercedesOm651SignalDefinition *external =
+            mblink_mercedes_om651_catalog_at(index);
         CHECK(at == &definitions[index]);
+        CHECK(external != NULL);
+        CHECK(strcmp(external->key, definitions[index].key) == 0);
+        CHECK(strcmp(external->name, definitions[index].name) == 0);
         CHECK(definitions[index].key != NULL);
         CHECK(definitions[index].key[0] != '\0');
         CHECK(definitions[index].name != NULL);
@@ -34,6 +40,7 @@ static int test_catalogue(void)
         }
     }
     CHECK(mblink_mercedes_om651_signal_at(count) == NULL);
+    CHECK(mblink_mercedes_om651_catalog_at(count) == NULL);
     return 0;
 }
 
