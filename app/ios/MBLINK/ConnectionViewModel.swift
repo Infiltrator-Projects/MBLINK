@@ -25,6 +25,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var adapterIdentifier = "Unknown"
     @Published private(set) var mercedesProbeStatusText = "Not attempted"
     @Published private(set) var mercedesProbeEndpointText = "Candidate not selected"
+    @Published private(set) var mercedesVINText = "Not captured"
+    @Published private(set) var mercedesIdentitySummaryText = "Not attempted"
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
 
@@ -173,6 +175,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
         mercedesProbeStatusText = controller.mercedesProbeStatusText
         mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Candidate not selected"
+        mercedesVINText = controller.mercedesVINText ?? "Not captured"
+        mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
