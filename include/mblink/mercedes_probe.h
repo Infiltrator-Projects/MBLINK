@@ -104,7 +104,6 @@ typedef struct {
     MblinkMercedesCrd3SessionVariant crd3_session_variant;
     bool crd3_supplier_available;
     MblinkMercedesCrd3Supplier crd3_supplier;
-    bool crd3_om651_cdid3_delphi_signature;
 
     MblinkMercedesEcuProbeDtcResult dtc_result;
     MblinkElm327CanResult dtc_elm_can_result;
@@ -113,6 +112,16 @@ typedef struct {
     uint8_t dtc_negative_response_code;
     MblinkUdsDtcList dtcs;
 } MblinkMercedesEcuProbe;
+
+static inline bool mblink_mercedes_ecu_probe_matches_om651_cdid3_delphi_signature(
+    const MblinkMercedesEcuProbe *probe)
+{
+    return probe != NULL &&
+           probe->crd3_session_variant_available &&
+           probe->crd3_supplier_available &&
+           mblink_mercedes_crd3_matches_om651_cdid3_delphi_signature(
+               &probe->crd3_session_variant, &probe->crd3_supplier);
+}
 
 const char *mblink_mercedes_ecu_probe_result_name(
     MblinkMercedesEcuProbeResult result);
