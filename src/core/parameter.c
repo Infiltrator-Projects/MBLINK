@@ -38,7 +38,31 @@ static const MblinkObd2ParameterEntry mblink_obd2_parameters[] = {
     { { OBD_KEY(0x05U), "obd2.engine.coolant", "ECT", "Coolant temperature", " °C",
         0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
     { { OBD_KEY(0x0fU), "obd2.engine.intake_air", "IAT", "Intake air temperature", " °C",
-        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS }
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x23U), "obd2.diesel.rail_pressure", "RAIL", "Fuel rail gauge pressure", " kPa",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KPA },
+    { { OBD_KEY(0x2cU), "obd2.diesel.egr_command", "EGR CMD", "Commanded EGR", "%",
+        1U, true, 0.0, 100.0 }, MBLINK_OBD2_UNIT_PERCENT },
+    { { OBD_KEY(0x2dU), "obd2.diesel.egr_error", "EGR ERR", "EGR error", "%",
+        1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_PERCENT },
+    { { OBD_KEY(0x33U), "obd2.engine.barometric_pressure", "BARO", "Barometric pressure", " kPa",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KPA },
+    { { OBD_KEY(0x3cU), "obd2.aftertreatment.catalyst_temp_b1s1", "CAT T", "Catalyst temperature B1S1", " °C",
+        1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x42U), "obd2.electrical.control_module_voltage", "VOLT", "Control module voltage", " V",
+        2U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_VOLTS },
+    { { OBD_KEY(0x46U), "obd2.environment.ambient_air", "AMBIENT", "Ambient air temperature", " °C",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x5cU), "obd2.engine.oil_temperature", "OIL T", "Engine oil temperature", " °C",
+        0U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x5eU), "obd2.engine.fuel_rate", "FUEL", "Engine fuel rate", " L/h",
+        2U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_LITRES_PER_HOUR },
+    { { OBD_KEY(0x78U), "obd2.aftertreatment.egt_b1s1", "EGT1", "Exhaust gas temperature B1S1", " °C",
+        1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS },
+    { { OBD_KEY(0x7aU), "obd2.dpf.bank1_delta_pressure", "DPF ΔP", "DPF bank 1 differential pressure", " kPa",
+        2U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_KPA },
+    { { OBD_KEY(0x7cU), "obd2.dpf.bank1_inlet_temperature", "DPF IN", "DPF bank 1 inlet temperature", " °C",
+        1U, false, 0.0, 0.0 }, MBLINK_OBD2_UNIT_CELSIUS }
 };
 
 const char *mblink_parameter_protocol_name(MblinkParameterProtocol protocol)
