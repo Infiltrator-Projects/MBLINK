@@ -9,6 +9,26 @@
 
 #define MERCEDES_PROBE_PDU_CAPACITY (MBLINK_ELM327_MAX_RESPONSE / 2U)
 
+static const uint16_t mercedes_probe_identity_dids[
+    MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT] = {
+    0xF18CU, /* ECU Serial Number */
+    0xF187U, /* Vehicle Manufacturer Spare Part Number */
+    0xF188U, /* Vehicle Manufacturer ECU Software Number */
+    0xF189U, /* Vehicle Manufacturer ECU Software Version */
+    0xF191U, /* Vehicle Manufacturer ECU Hardware Number */
+    0xF197U  /* System Name / Engine Type */
+};
+
+static const char *const mercedes_probe_identity_names[
+    MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT] = {
+    "ECU serial number",
+    "vehicle manufacturer spare part number",
+    "vehicle manufacturer ECU software number",
+    "vehicle manufacturer ECU software version",
+    "vehicle manufacturer ECU hardware number",
+    "system name / engine type"
+};
+
 static bool mercedes_probe_channel_config(
     const MblinkMercedesEcuEndpointDefinition *endpoint,
     MblinkElm327CanChannelConfig *config)
@@ -88,6 +108,19 @@ static MblinkMercedesEcuProbeResult mercedes_probe_complete(
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE;
 }
 
+static MblinkMercedesEcuProbeResult mercedes_probe_advance_identity(
+    MblinkMercedesEcuProbe *probe)
+{
+    if (probe == NULL) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_INVALID_ARGUMENT;
+    }
+    probe->identity_index++;
+    if (probe->identity_index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return mercedes_probe_complete(probe);
+    }
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+}
+
 const char *mblink_mercedes_ecu_probe_result_name(
     MblinkMercedesEcuProbeResult result)
 {
@@ -120,6 +153,8 @@ const char *mblink_mercedes_ecu_probe_stage_name(
         return "tester-present";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN:
         return "read-standard-vin";
+    case MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY:
+        return "read-standard-identity";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED: return "failed";
     }
@@ -142,6 +177,27 @@ const char *mblink_mercedes_ecu_probe_vin_result_name(
         return "invalid-response";
     }
     return "unknown";
+}
+
+size_t mblink_mercedes_ecu_probe_identity_did_count(void)
+{
+    return MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT;
+}
+
+uint16_t mblink_mercedes_ecu_probe_identity_did_at(size_t index)
+{
+    if (index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return 0U;
+    }
+    return mercedes_probe_identity_dids[index];
+}
+
+const char *mblink_mercedes_ecu_probe_identity_did_name(size_t index)
+{
+    if (index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return NULL;
+    }
+    return mercedes_probe_identity_names[index];
 }
 
 MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_begin(
@@ -180,6 +236,33 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_begin(
     probe->vin_uds_result = MBLINK_UDS_RESULT_OK;
     probe->vin_negative_response_code = 0U;
     probe->vin[0] = '\0';
+    probe->identity_index = 0U;
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_build_read_did_command(
+    uint16_t did,
+    char *buffer,
+    size_t buffer_size,
+    size_t *written)
+{
+    uint8_t pdu[3];
+    size_t pdu_length = 0U;
+    MblinkUdsResult uds_result = mblink_uds_build_read_did_request(
+        did, pdu, sizeof(pdu), &pdu_length);
+    MblinkElm327CanResult elm_result;
+
+    if (uds_result != MBLINK_UDS_RESULT_OK) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR;
+    }
+    elm_result = mblink_elm327_can_build_pdu_command(
+        pdu, pdu_length, buffer, buffer_size, written);
+    if (elm_result == MBLINK_ELM327_CAN_RESULT_BUFFER_TOO_SMALL) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_BUFFER_TOO_SMALL;
+    }
+    if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR;
+    }
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }
 
@@ -232,28 +315,32 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_command(
     }
 
     if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
-        uint8_t pdu[3];
-        size_t pdu_length = 0U;
-        MblinkUdsResult uds_result = mblink_uds_build_read_did_request(
+        return mercedes_probe_build_read_did_command(
             MBLINK_MERCEDES_PROBE_VIN_DID,
-            pdu, sizeof(pdu), &pdu_length);
-        MblinkElm327CanResult elm_result;
+            buffer, buffer_size, written);
+    }
 
-        if (uds_result != MBLINK_UDS_RESULT_OK) {
-            return MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR;
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
+        if (probe->identity_index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+            return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
         }
-        elm_result = mblink_elm327_can_build_pdu_command(
-            pdu, pdu_length, buffer, buffer_size, written);
-        if (elm_result == MBLINK_ELM327_CAN_RESULT_BUFFER_TOO_SMALL) {
-            return MBLINK_MERCEDES_ECU_PROBE_RESULT_BUFFER_TOO_SMALL;
-        }
-        if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
-            return MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR;
-        }
-        return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
+        return mercedes_probe_build_read_did_command(
+            mercedes_probe_identity_dids[probe->identity_index],
+            buffer, buffer_size, written);
     }
 
     return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_begin_identity(
+    MblinkMercedesEcuProbe *probe)
+{
+    if (probe == NULL) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_INVALID_ARGUMENT;
+    }
+    probe->identity_index = 0U;
+    probe->stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY;
+    return MBLINK_MERCEDES_ECU_PROBE_RESULT_OK;
 }
 
 static MblinkMercedesEcuProbeResult mercedes_probe_accept_vin(
@@ -275,7 +362,7 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_vin(
         probe->vin_result = response->result == MBLINK_ELM327_RESULT_NO_DATA
             ? MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE
             : MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE;
-        return mercedes_probe_complete(probe);
+        return mercedes_probe_begin_identity(probe);
     }
 
     uds_result = mblink_uds_decode_read_did_response(
@@ -291,17 +378,59 @@ static MblinkMercedesEcuProbeResult mercedes_probe_accept_vin(
             probe->vin_negative_response_code = decoded.negative_response_code;
         }
         probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE;
-        return mercedes_probe_complete(probe);
+        return mercedes_probe_begin_identity(probe);
     }
 
     if (uds_result != MBLINK_UDS_RESULT_OK ||
         !mercedes_probe_copy_vin(probe, record.data, record.data_length)) {
         probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE;
-        return mercedes_probe_complete(probe);
+        return mercedes_probe_begin_identity(probe);
     }
 
     probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE;
-    return mercedes_probe_complete(probe);
+    return mercedes_probe_begin_identity(probe);
+}
+
+static MblinkMercedesEcuProbeResult mercedes_probe_accept_identity(
+    MblinkMercedesEcuProbe *probe,
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MERCEDES_PROBE_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    MblinkElm327CanResult elm_result;
+    MblinkUdsDidRecord record;
+    MblinkUdsResult uds_result;
+    uint16_t did;
+    uint32_t bit;
+
+    if (probe->identity_index >= MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT) {
+        return MBLINK_MERCEDES_ECU_PROBE_RESULT_FAILED_STATE;
+    }
+
+    did = mercedes_probe_identity_dids[probe->identity_index];
+    bit = (uint32_t)1U << probe->identity_index;
+    elm_result = mblink_elm327_can_decode_pdu(
+        response, pdu, sizeof(pdu), &pdu_length);
+
+    if (elm_result != MBLINK_ELM327_CAN_RESULT_OK) {
+        if (response->result == MBLINK_ELM327_RESULT_NO_DATA) {
+            probe->identity_no_response_mask |= bit;
+        } else {
+            probe->identity_invalid_mask |= bit;
+        }
+        return mercedes_probe_advance_identity(probe);
+    }
+
+    uds_result = mblink_uds_decode_read_did_response(
+        pdu, pdu_length, did, &record);
+    if (uds_result == MBLINK_UDS_RESULT_OK) {
+        probe->identity_positive_mask |= bit;
+    } else if (uds_result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+        probe->identity_negative_mask |= bit;
+    } else {
+        probe->identity_invalid_mask |= bit;
+    }
+    return mercedes_probe_advance_identity(probe);
 }
 
 MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
@@ -334,6 +463,10 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
 
     if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
         return mercedes_probe_accept_vin(probe, response);
+    }
+
+    if (probe->stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
+        return mercedes_probe_accept_identity(probe, response);
     }
 
     if (probe->stage != MBLINK_MERCEDES_ECU_PROBE_STAGE_TESTER_PRESENT) {
