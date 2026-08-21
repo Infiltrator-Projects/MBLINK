@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through test release 0.7.9. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through test release 0.7.10. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -29,6 +29,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.7.7 | Standardised About layout and physical test packaging |
 | 0.7.8 | Exportable raw diagnostic evidence independent of live telemetry samples |
 | 0.7.9 | Standard VIN plus bounded standardized ECU-identity evidence sweep after positive UDS endpoint response |
+| 0.7.10 | Automatic OBD fault scan, chained PID discovery and standard diesel/DPF live diagnostics |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -78,7 +79,7 @@ This was the first installable 0.8 validation slice. It did not add guessed Merc
 
 ## 0.7.9 — standardized ECU identity evidence sweep (complete test release)
 
-After a positive read-only TesterPresent response, the portable Mercedes probe now continues with standardized UDS identification requests before restoring generic OBD-II operation.
+After a positive read-only TesterPresent response, the portable Mercedes probe continues with standardized UDS identification requests before restoring generic OBD-II operation.
 
 - request standardized VIN DID `F190`;
 - validate and retain a 17-character VIN when returned;
@@ -90,20 +91,37 @@ After a positive read-only TesterPresent response, the portable Mercedes probe n
 
 **Exit condition met:** all seven required build gates completed and `v0.7.9` was published from the exact release commit with its unsigned iPhone IPA.
 
+## 0.7.10 — faults and standard diesel diagnostics (test release)
+
+This slice moves all four immediately useful feature areas forward without inventing undocumented OM651 DIDs.
+
+- enumerate chained SAE OBD-II supported-PID blocks instead of stopping after the first `0100` response, allowing advertised diesel/aftertreatment PIDs above `0x20` to participate;
+- automatically read stored, pending and permanent OBD-II trouble codes using read-only services `03`, `07` and `0A`, retain the raw replies and expose the code groups in the Faults workspace;
+- surface the captured standard UDS VIN and each standardized ECU-identity sweep result directly in Vehicle and Modules;
+- expand the shared C parameter catalog and scheduler with standardized diesel/aftertreatment values where advertised, including fuel-rail pressure, EGR command/error, barometric pressure, catalyst/EGT temperature, DPF bank-1 differential pressure and inlet temperature, control-module voltage, engine-oil/ambient temperature and fuel rate;
+- add a dedicated Diesel workspace grouping DPF, turbo/air, fuel/injection, EGR and temperature/electrical information;
+- keep injector corrections, soot load, regeneration state, ash load and other Mercedes-specific values explicitly unavailable until a reproducible OM651 capture identifies their real DIDs and encoding.
+
+The DPF and diesel values in this release are standard SAE OBD-II values only. Their appearance still depends on the vehicle advertising the corresponding PID and, for multi-sensor aftertreatment PIDs, the relevant support bit. A standard response is useful immediately but is not a substitute for the manufacturer-specific information that the 0.8 milestone ultimately targets.
+
+**Exit condition:** all seven required build gates pass for one exact 0.7.10 commit and the matching unsigned iPhone IPA is published for physical C207/OM651 validation.
+
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics (active)
 
 Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters.
 
-Current state after 0.7.9:
+Current state after 0.7.10:
 
 - the C207/OM651 profile carries one conventional 11-bit physical engine-endpoint candidate with explicit source provenance and unverified status;
-- the iPhone automatically performs generic OBD capability discovery, read-only UDS TesterPresent, standardized VIN/identity evidence collection, raw evidence recording, then ELM reset and normal OBD-II live polling;
+- the iPhone performs complete standard OBD capability-chain discovery, read-only UDS TesterPresent, standard VIN/ECU identity evidence collection, ELM reset, automatic stored/pending/permanent fault scanning and live standard diesel polling;
+- captured VIN and per-DID identity outcomes are visible as well as preserved in the evidence transcript;
+- standard DPF differential pressure/temperature, rail pressure, EGR, turbo/air and related engine values are available when the vehicle advertises them;
 - endpoint configuration, PDU-decoding and UDS validation failures preserve their layer-specific result and negative-response information;
 - optional standardized identity reads are bounded and non-destructive;
 - no successful physical Mercedes exchange is claimed until the development vehicle actually provides the capture;
-- no manufacturer-specific DPF, boost, rail-pressure, injector or EGR DID is present without vehicle evidence.
+- no manufacturer-specific soot-load, regeneration, injector-correction or other undocumented OM651 DID is claimed without vehicle evidence.
 
-The next evidence step is physical: install 0.7.9, connect to the development C207/OM651, export the diagnostic evidence CSV, and promote only reproducible responses into regression fixtures. Once the endpoint/ECU identity is established from that capture, manufacturer-specific live-data work can continue from observed vehicle behaviour instead of guesses.
+The next evidence step is physical: install 0.7.10, connect to the development C207/OM651, inspect Vehicle / Modules / Faults / Diesel, then export the diagnostic evidence CSV. Promote only reproducible responses into regression fixtures. That capture determines which standardized values the car exposes and provides the basis for the first genuine OM651-specific DPF/injector definitions.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
