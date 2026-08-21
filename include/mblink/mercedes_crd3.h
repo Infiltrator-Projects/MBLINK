@@ -25,6 +25,17 @@ extern "C" {
 #define MBLINK_MERCEDES_CRD3_DID_VARIANT_CODING_FULL 0x1001U
 #define MBLINK_MERCEDES_CRD3_DID_VARIANT_CODING_PARTIAL 0x1002U
 
+/*
+ * Cross-corroborated OM651/CDID3 signature. CaesarSuite's CRD3 simulator maps
+ * F100 bytes 0..2 to gateway-mode + 16-bit ECU variant and F154 to a supplier
+ * byte. Independent ScanDoc OM651/CDID3 records for E 250 CDI/S 250 CDI report
+ * diagnostic version 02 21 31 and Delphi as supplier. This makes the pair a
+ * useful offline family signature, but not a substitute for a C207 trace.
+ */
+#define MBLINK_MERCEDES_CRD3_OM651_CDID3_GATEWAY_MODE 0x02U
+#define MBLINK_MERCEDES_CRD3_OM651_CDID3_VARIANT 0x2131U
+#define MBLINK_MERCEDES_CRD3_OM651_CDID3_SUPPLIER 64U
+
 typedef struct {
     uint8_t gateway_mode;
     uint16_t variant;
@@ -111,6 +122,18 @@ static inline bool mblink_mercedes_crd3_decode_supplier(
     decoded.supplier_name = mblink_mercedes_crd3_supplier_name(data[0]);
     *value = decoded;
     return true;
+}
+
+static inline bool mblink_mercedes_crd3_matches_om651_cdid3_delphi_signature(
+    const MblinkMercedesCrd3SessionVariant *variant,
+    const MblinkMercedesCrd3Supplier *supplier)
+{
+    return variant != NULL && supplier != NULL &&
+           variant->gateway_mode ==
+               MBLINK_MERCEDES_CRD3_OM651_CDID3_GATEWAY_MODE &&
+           variant->variant == MBLINK_MERCEDES_CRD3_OM651_CDID3_VARIANT &&
+           supplier->supplier_identifier ==
+               MBLINK_MERCEDES_CRD3_OM651_CDID3_SUPPLIER;
 }
 
 #ifdef __cplusplus
