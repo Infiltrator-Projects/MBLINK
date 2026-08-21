@@ -33,6 +33,9 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesVINText;
 @property(nonatomic, copy, readwrite) NSString *mercedesIdentitySummaryText;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *mercedesIdentityResults;
+@property(nonatomic, copy, readwrite) NSString *mercedesCrd3SummaryText;
+@property(nonatomic, copy, readwrite) NSString *mercedesUDSFaultStatusText;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *mercedesUDSFaults;
 @property(nonatomic, copy, readwrite) NSString *faultScanStatusText;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *storedDTCs;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *pendingDTCs;
@@ -193,6 +196,29 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
     return [values copy];
 }
 
+static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
+    const MblinkUdsDtcList *list)
+{
+    if (list == NULL || list->count == 0U) {
+        return @[];
+    }
+
+    NSMutableArray<NSString *> *values =
+        [[NSMutableArray alloc] initWithCapacity:list->count];
+    for (size_t index = 0U; index < list->count; ++index) {
+        char code[7];
+        if (!mblink_uds_dtc_format_hex(list->records[index].code,
+                                       code, sizeof(code))) {
+            continue;
+        }
+        [values addObject:[NSString stringWithFormat:
+            @"%@ · status 0x%02X",
+            MBLinkStringFromCString(code),
+            (unsigned int)list->records[index].status]];
+    }
+    return [values copy];
+}
+
 - (instancetype)init
 {
     self = [super init];
@@ -203,6 +229,9 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
         _mercedesProbeStatusText = @"Not attempted";
         _mercedesIdentitySummaryText = @"Not attempted";
         _mercedesIdentityResults = @[];
+        _mercedesCrd3SummaryText = @"Not attempted";
+        _mercedesUDSFaultStatusText = @"Not scanned";
+        _mercedesUDSFaults = @[];
         _faultScanStatusText = @"Not scanned";
         _storedDTCs = @[];
         _pendingDTCs = @[];
@@ -274,6 +303,9 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
     self.mercedesVINText = nil;
     self.mercedesIdentitySummaryText = @"Not attempted";
     self.mercedesIdentityResults = @[];
+    self.mercedesCrd3SummaryText = @"Not attempted";
+    self.mercedesUDSFaultStatusText = @"Waiting for Mercedes ECU probe";
+    self.mercedesUDSFaults = @[];
     self.faultScanStatusText = @"Waiting for vehicle connection";
     self.storedDTCs = @[];
     self.pendingDTCs = @[];
@@ -466,6 +498,10 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
             self.mercedesProbeStatusText =
                 @"Probe timed out; reconnect required to resynchronise the adapter";
             self.mercedesIdentitySummaryText = @"Probe did not complete";
+            if (_mercedesProbe.stage ==
+                MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+                self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read timed out";
+            }
         }
         if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
             _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
@@ -484,6 +520,11 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
             self.mercedesProbeStatusText = [NSString stringWithFormat:
                 @"Adapter response failed during probe: %@", reason];
             self.mercedesIdentitySummaryText = @"Probe did not complete";
+            if (_mercedesProbe.stage ==
+                MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+                self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+                    @"Mercedes UDS fault read adapter error: %@", reason];
+            }
         }
         if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
             _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
@@ -639,6 +680,8 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
     if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
         self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
         self.mercedesIdentitySummaryText = @"Not attempted";
+        self.mercedesCrd3SummaryText = @"Not attempted";
+        self.mercedesUDSFaultStatusText = @"Not attempted";
         [self beginFaultScan];
         return;
     }
@@ -649,6 +692,8 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
     if (endpoint == NULL) {
         self.mercedesProbeStatusText = @"No engine endpoint candidate is defined";
         self.mercedesIdentitySummaryText = @"Not attempted";
+        self.mercedesCrd3SummaryText = @"Not attempted";
+        self.mercedesUDSFaultStatusText = @"Not attempted";
         [self beginFaultScan];
         return;
     }
@@ -661,15 +706,19 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
             @"Probe could not start: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
         self.mercedesIdentitySummaryText = @"Not attempted";
+        self.mercedesCrd3SummaryText = @"Not attempted";
+        self.mercedesUDSFaultStatusText = @"Not attempted";
         [self beginFaultScan];
         return;
     }
 
     self.mercedesProbeStatusText =
-        @"Probing candidate with read-only UDS TesterPresent";
+        @"Probing Delphi CRD3.x candidate with read-only UDS TesterPresent";
     self.mercedesIdentitySummaryText = @"Waiting for UDS endpoint response";
+    self.mercedesCrd3SummaryText = @"Waiting for CRD3 fingerprint";
+    self.mercedesUDSFaultStatusText = @"Waiting for Mercedes UDS fault read";
     _phase = MBLinkDiagnosticsPhaseProbingMercedes;
-    [self setStatus:@"Probing Mercedes-Benz engine ECU (read-only)"];
+    [self setStatus:@"Probing Mercedes-Benz CRD3.x engine ECU (read-only)"];
     [self beginCurrentMercedesProbeCommand];
 }
 
@@ -700,15 +749,36 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
         const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
         const char *name = mblink_mercedes_ecu_probe_identity_did_name(index);
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Reading standardized ECU identity %zu/%zu · %04X · %@",
+            @"Reading standardized ECU identity %zu/%u · %04X · %@",
             index + 1U,
-            mblink_mercedes_ecu_probe_identity_did_count(),
+            (unsigned int)MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT,
             (unsigned int)did,
             MBLinkStringFromCString(name)];
         self.mercedesIdentitySummaryText = [NSString stringWithFormat:
-            @"Identity sweep in progress · %zu/%zu",
+            @"Standard identity sweep in progress · %zu/%u",
             index + 1U,
-            mblink_mercedes_ecu_probe_identity_did_count()];
+            (unsigned int)MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT];
+        [self notifyDelegate];
+    } else if (_mercedesProbe.stage ==
+               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT) {
+        const size_t index = _mercedesProbe.crd3_index;
+        const uint16_t did = mblink_mercedes_ecu_probe_crd3_did_at(index);
+        const char *name = mblink_mercedes_ecu_probe_crd3_did_name(index);
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Reading CRD3 fingerprint %zu/%u · %04X · %@",
+            index + 1U,
+            (unsigned int)MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT,
+            (unsigned int)did,
+            MBLinkStringFromCString(name)];
+        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+            @"CRD3 fingerprint in progress · %zu/%u",
+            index + 1U,
+            (unsigned int)MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT];
+        [self notifyDelegate];
+    } else if (_mercedesProbe.stage ==
+               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+        self.mercedesProbeStatusText = @"Reading Mercedes UDS fault memory (19 02 FF)";
+        self.mercedesUDSFaultStatusText = @"Reading Mercedes UDS fault memory";
         [self notifyDelegate];
     }
 
@@ -805,10 +875,74 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
         }
     }
 
+    if (_mercedesProbe.crd3_session_variant_available &&
+        _mercedesProbe.crd3_supplier_available) {
+        NSString *supplier = MBLinkStringFromCString(
+            _mercedesProbe.crd3_supplier.supplier_name);
+        if (mblink_mercedes_ecu_probe_matches_om651_cdid3_delphi_signature(
+                &_mercedesProbe)) {
+            self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+                @"OM651/CDID3 signature matched · %@ · diagnostic version %02X %02X %02X",
+                supplier,
+                (unsigned int)_mercedesProbe.crd3_session_variant.gateway_mode,
+                (unsigned int)(_mercedesProbe.crd3_session_variant.variant >> 8U),
+                (unsigned int)(_mercedesProbe.crd3_session_variant.variant & 0xffU)];
+        } else {
+            self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+                @"CRD3 fingerprint · %@ · gateway 0x%02X · variant 0x%04X · session 0x%02X",
+                supplier,
+                (unsigned int)_mercedesProbe.crd3_session_variant.gateway_mode,
+                (unsigned int)_mercedesProbe.crd3_session_variant.variant,
+                (unsigned int)_mercedesProbe.crd3_session_variant.session];
+        }
+    } else if (_mercedesProbe.crd3_session_variant_available) {
+        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+            @"CRD3 variant 0x%04X captured; supplier unavailable",
+            (unsigned int)_mercedesProbe.crd3_session_variant.variant];
+    } else if (_mercedesProbe.crd3_supplier_available) {
+        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+            @"CRD3 supplier %@ captured; variant unavailable",
+            MBLinkStringFromCString(_mercedesProbe.crd3_supplier.supplier_name)];
+    } else {
+        self.mercedesCrd3SummaryText = @"No decodable F100/F154 CRD3 identity returned";
+    }
+
+    self.mercedesUDSFaults = MBLinkMercedesUDSDTCStrings(&_mercedesProbe.dtcs);
+    switch (_mercedesProbe.dtc_result) {
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE:
+        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+            @"Complete · %lu Mercedes UDS fault record%@ · availability 0x%02X · format 0x%02X%@",
+            (unsigned long)self.mercedesUDSFaults.count,
+            self.mercedesUDSFaults.count == 1U ? @"" : @"s",
+            (unsigned int)_mercedesProbe.dtcs.availability_mask,
+            (unsigned int)_mercedesProbe.dtcs.format_identifier,
+            _mercedesProbe.dtcs.truncated ? @" · truncated" : @""];
+        break;
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE:
+        self.mercedesUDSFaultStatusText = @"No response to Mercedes UDS fault read";
+        break;
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE:
+        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+            @"Mercedes UDS fault read negative response · NRC 0x%02X",
+            (unsigned int)_mercedesProbe.dtc_negative_response_code];
+        break;
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE:
+        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+            @"Mercedes UDS fault response invalid · %@",
+            MBLinkStringFromCString(
+                mblink_uds_result_name(_mercedesProbe.dtc_uds_result))];
+        break;
+    case MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED:
+        self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read not attempted";
+        break;
+    }
+
     self.mercedesProbeStatusText = [NSString stringWithFormat:
-        @"Positive UDS endpoint response captured; %@; standardized identity %@; endpoint remains a candidate pending fixture verification",
+        @"Positive UDS endpoint response captured; %@; %@; Mercedes UDS fault read %@; endpoint remains a candidate pending fixture verification",
         vinSummary,
-        self.mercedesIdentitySummaryText];
+        self.mercedesCrd3SummaryText,
+        MBLinkStringFromCString(
+            mblink_mercedes_ecu_probe_dtc_result_name(_mercedesProbe.dtc_result))];
 }
 
 - (NSString *)mercedesProbeFailureText
