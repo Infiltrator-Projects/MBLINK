@@ -102,30 +102,6 @@ static int advance_standard_vin(MblinkMercedesEcuProbe *probe)
     return 0;
 }
 
-static int advance_standard_identity(MblinkMercedesEcuProbe *probe)
-{
-    static const char *responses[] = {
-        "62F18CAA", "62F187AA", "62F188AA",
-        "62F189AA", "62F191AA", "62F197AA"
-    };
-
-    for (size_t index = 0U; index < 6U; ++index) {
-        MblinkElm327Response response = make_response(
-            MBLINK_ELM327_RESULT_OK, responses[index], false);
-        char command[16];
-        size_t written = 0U;
-        CHECK(mblink_mercedes_ecu_probe_command(
-                  probe, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-        CHECK(mblink_mercedes_ecu_probe_accept(probe, &response) ==
-              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-    }
-    CHECK(probe->stage ==
-          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
-    CHECK(probe->identity_positive_mask == 0x3FU);
-    return 0;
-}
-
 static int test_successful_read_only_identity_probe(void)
 {
     static const char *identity_commands[] = {
