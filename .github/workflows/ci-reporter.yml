@@ -1,0 +1,129 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK CI Reporter
+
+on:
+  workflow_run:
+    workflows: ["MBLINK CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Collect failed job logs
+        if: github.event.workflow_run.conclusion != 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/mblink-failed.log"
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > "$log" 2>&1 || true
+          python3 - "$log" "$RUNNER_TEMP/mblink-failed-truncated.log" <<'PY'
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1])
+          target = pathlib.Path(sys.argv[2])
+          text = source.read_text(errors="replace") if source.exists() else "No failed-job log output was returned."
+          if len(text) > 45000:
+              text = text[-45000:]
+              text = "[truncated to final 45,000 characters]\n" + text
+          target.write_text(text)
+          PY
+
+      - name: Update CI diagnostics issue after failure
+        if: github.event.workflow_run.conclusion != 'success'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          REPORT_ISSUE: "24"
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = Number(process.env.REPORT_ISSUE);
+            const logPath = path.join(process.env.RUNNER_TEMP, 'mblink-failed-truncated.log');
+            const failedLog = fs.existsSync(logPath)
+              ? fs.readFileSync(logPath, 'utf8')
+              : 'No failed-job log output was returned.';
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.RUN_ID}`;
+            const body = [
+              '# Automated MBLINK CI failure report',
+              '',
+              `**Workflow run:** #${process.env.RUN_NUMBER}`,
+              `**Conclusion:** ${process.env.RUN_CONCLUSION}`,
+              `**Commit:** \`${process.env.HEAD_SHA}\``,
+              `**Message:** ${process.env.HEAD_COMMIT_MESSAGE || '(none)'}`,
+              `**Run:** ${runUrl}`,
+              '',
+              '## Failed job log excerpt',
+              '',
+              '```text',
+              failedLog.replace(/```/g, '`` `'),
+              '```',
+              '',
+              '_This issue is maintained automatically by `.github/workflows/ci-reporter.yml`._'
+            ].join('\n');
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number,
+              title: 'CI diagnostics infrastructure',
+              body,
+              state: 'open'
+            });
+
+      - name: Close CI diagnostics issue after success
+        if: github.event.workflow_run.conclusion == 'success'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          REPORT_ISSUE: "24"
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = Number(process.env.REPORT_ISSUE);
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.RUN_ID}`;
+            const body = [
+              '# MBLINK CI diagnostics',
+              '',
+              `Latest main workflow run #${process.env.RUN_NUMBER} completed successfully.`,
+              `Commit: \`${process.env.HEAD_SHA}\``,
+              `Run: ${runUrl}`,
+              '',
+              'No active CI failure remains.'
+            ].join('\n');
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number,
+              title: 'CI diagnostics infrastructure',
+              body,
+              state: 'closed',
+              state_reason: 'completed'
+            });
