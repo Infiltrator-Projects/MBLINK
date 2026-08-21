@@ -141,6 +141,8 @@ private struct VehicleView: View {
                 LabeledContent("Advanced diagnostics", value: "UDS identity sweep active")
                 LabeledContent("Standard identity reads", value: "VIN + 6 ECU IDs")
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Captured VIN", value: connection.mercedesVINText)
+                LabeledContent("ECU identity evidence", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
             }
             Section {
@@ -165,6 +167,8 @@ private struct ModulesView: View {
             }
             Section("Mercedes-Benz discovery") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Captured VIN", value: connection.mercedesVINText)
+                LabeledContent("Identity sweep", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Probe result", value: connection.mercedesProbeStatusText)
                 Text("The portable probe now continues beyond TesterPresent into standardized UDS identity reads. Positive, negative, silent and malformed results are classified separately while the complete raw ELM327 transcript is retained. Manufacturer-specific DPF, rail-pressure, injector and EGR DIDs are still deliberately excluded until real C207/OM651 captures justify them.")
                     .font(.footnote)
@@ -370,6 +374,8 @@ private struct LogView: View {
         List {
             Section("Diagnostic evidence") {
                 LabeledContent("Engine candidate", value: connection.mercedesProbeEndpointText)
+                LabeledContent("Captured VIN", value: connection.mercedesVINText)
+                LabeledContent("Identity sweep", value: connection.mercedesIdentitySummaryText)
                 LabeledContent("Mercedes probe", value: connection.mercedesProbeStatusText)
                 Text("The session recorder contains the raw ELM327 command/response transcript, including TesterPresent, standard VIN F190 and the bounded ECU identity sweep. Export it after a vehicle test even if no live-data samples were recorded; those responses are the evidence used to verify the endpoint and determine which manufacturer-specific definitions can be added safely.")
                     .font(.footnote)
