@@ -4,7 +4,7 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development vehicle is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current release: 0.7.19.**
+**Current release: 0.7.20.**
 
 ## Dependency hierarchy
 
