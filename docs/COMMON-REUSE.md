@@ -2,16 +2,16 @@
 
 # Infiltratr Common reuse in MBLINK
 
-MBLINK consumes the released Infiltratr Common submodule as its generic portable C foundation. Shared code is reused when the existing contract genuinely matches; vehicle-diagnostics behaviour remains owned by MBLINK.
+The dependency hierarchy is `Infiltratr Common -> LINK -> MBLINK`. MBLINK does not carry a second top-level Common submodule or independently choose a Common revision. It pins LINK, and LINK owns the exact Common revision used by the whole product build.
 
-MBLINK 0.7.4 pins Infiltratr Common 1.10.0 at exact release commit `182e64cb8b8992879e443b941565058166fe0161`. MBLINK validates both the release version and gitlink commit so a mismatched Common checkout fails configuration rather than silently changing the shared contract.
+MBLINK 0.7.25 pins LINK 0.9.1 at commit `08ba2b4148836df1c9d584456f280ec131ae6778`. LINK 0.9.1 in turn pins Infiltratr Common 1.11.0 at exact release/main commit `6c1a6c239e51dcf7946b6303a9bad639e8455a17`. MBLINK CI validates the LINK version and gitlink and also validates the nested Common version, so dependency drift fails explicitly.
 
-Common 1.10 owns the membership and dependency graph of its consumer build targets. CMake therefore adds the Common subdirectory and links `InfiltratrCommon::Portable`; it no longer copies Common's internal `.c` source list into MBLINK. The iPhone project likewise references Common's `apple/InfiltratrCommon.xcodeproj` and links the `InfiltratrCommonPortable` product instead of compiling Common implementation files directly. This removes the integration failure mode exposed when Common 1.9 timing acquired an arithmetic dependency while MBLINK still enumerated Common sources itself.
+Common owns broadly reusable portable facilities that make sense outside vehicle diagnostics. LINK owns shared automotive behaviour: transport/session machinery, ELM327, ISO-TP, standard OBD-II, UDS, parameter/store/scheduler/telemetry runtime, diagnostic-flow orchestration, safety/evidence and the shared Windows Discover scanner. MBLINK owns only its Mercedes identity, presentation assets, definitions and genuinely Mercedes-specific diagnostic behaviour.
 
-Current direct reuse includes project metadata, bounded string helpers, deterministic string comparison, strict parsing, checked/saturating arithmetic, array sizing, periodic-deadline advancement and presentation-safe scalar formatting. The protocol-neutral diagnostic parameter layer uses Common's scalar formatter so precision, clamping and unavailable-value rendering are not reimplemented in Swift, Objective-C or MBLINK C. The scheduler uses Common's integer deadline helper to skip missed occurrences without cadence drift or overflow.
+CMake adds LINK as MBLINK's single implementation dependency and links `LINK::Core`; LINK links `InfiltratrCommon::Portable`. The native iPhone project reaches Common through LINK's nested checkout and links the `InfiltratrCommonPortable` product rather than maintaining another Common source copy or pin.
 
-Common's configuration parser is the preferred implementation when MBLINK adds portable `key=value` settings. Generic arithmetic belongs in Common; exact ELM327, scheduler selection, ISO-TP and UDS timing/state semantics remain in MBLINK because those contracts are protocol-specific.
+Current Common reuse includes project metadata, bounded string helpers, deterministic string comparison, strict parsing, checked/saturating arithmetic, array sizing, periodic-deadline advancement and presentation-safe scalar formatting. Generic functionality should move downward only when its contract is useful beyond vehicle diagnostics; shared automotive functionality belongs in LINK rather than being duplicated in either product repository.
 
-The POSIX provider is not part of the MBLINK portable/iPhone footprint. Linux may consume it only when a real Linux provider requirement matches its existing contract.
+The POSIX provider is not part of the portable/iPhone footprint. Linux may consume it only when a real provider requirement matches its existing contract.
 
-MBLINK does not modify the submodule. Common changes are made and released in the Common repository, then MBLINK deliberately advances its exact release pin.
+MBLINK does not modify the nested Common checkout. Common changes are made and released in the Common repository, LINK deliberately advances its exact Common gitlink, and MBLINK then deliberately advances its exact LINK gitlink.
