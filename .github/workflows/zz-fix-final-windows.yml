@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Final Windows verification fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fix verifier and align checked-in iOS version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 - <<'PY'
+          from pathlib import Path
+          old = """          $deps = (& dumpbin /DEPENDENTS build-win32/Release/mblink-discover.exe | Out-String)\n          foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {\n            if ($deps -match [regex]::Escape($dll)) { throw \"Unexpected dynamic runtime dependency: $dll\" }\n          }"""
+          new = """          $vswhere = \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\"\n          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe is unavailable' }\n          $dumpbin = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\\Tools\\MSVC\\**\\bin\\Hostx64\\x86\\dumpbin.exe' | Select-Object -First 1)\n          if (-not $dumpbin -or -not (Test-Path $dumpbin)) { throw 'Unable to locate dumpbin.exe' }\n          $deps = (& $dumpbin /DEPENDENTS build-win32/Release/mblink-discover.exe | Out-String)\n          Write-Host $deps\n          foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {\n            if ($deps -match [regex]::Escape($dll)) { throw \"Unexpected dynamic runtime dependency: $dll\" }\n          }"""
+          p=Path('.github/workflows/ci.yml'); s=p.read_text()
+          if old not in s: raise SystemExit('Expected MBLINK runtime-check block not found')
+          p.write_text(s.replace(old,new))
+          p=Path('app/ios/MBLINK.xcodeproj/project.pbxproj'); s=p.read_text(); s=s.replace('MARKETING_VERSION = 0.7.20;', 'MARKETING_VERSION = 0.7.24;'); p.write_text(s)
+          PY
+          rm .github/workflows/zz-fix-final-windows.yml
+          git add -A
+          git diff --cached --check
+          test "$(grep -c 'MARKETING_VERSION = 0.7.24;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          grep -q 'Unable to locate dumpbin.exe' .github/workflows/ci.yml
+          git commit -m 'Fix Windows dependency verification and align MBLINK 0.7.24'
+          git push origin HEAD:main
