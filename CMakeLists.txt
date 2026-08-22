@@ -47,8 +47,8 @@ include(GNUInstallDirs)
 # LINK is MBLINK's only top-level implementation dependency. LINK owns and
 # validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.8.0")
-set(MBLINK_LINK_COMMIT "bca25eaabe6600b596726fb5c4567f86e59631bb")
+set(MBLINK_LINK_VERSION "0.8.1")
+set(MBLINK_LINK_COMMIT "8d75e0599320e16ff44109be4cb20fa6146cabd3")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -169,9 +169,6 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
 
-    # The iPhone AppIcon PNG is the canonical MBLINK identity image. LINK wraps
-    # those exact bytes into the Windows ICO/PE resource at build time so the
-    # EXE, taskbar, title bar and About dialog cannot drift to another emblem.
     link_add_windows_discover(mblink-discover
         PRODUCT_NAME "MBLINK"
         PRODUCT_SLUG "mblink"
