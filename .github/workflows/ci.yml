@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  LINK_VERSION: 0.7.4
-  LINK_COMMIT: 7af290d71b38859202ccc90c060ee29b56d2296c
+  LINK_VERSION: 0.7.5
+  LINK_COMMIT: 9b707e121ad5dcf45403b06c8ca8dda5ef2b9e35
 
 jobs:
   portable-core:
@@ -145,6 +145,13 @@ jobs:
       - name: Build MBLINK Discover
         shell: pwsh
         run: cmake --build build-win32 --config Release --target mblink-discover --parallel
+      - name: Reject dynamic Visual C++ runtime dependencies
+        shell: pwsh
+        run: |
+          $deps = (& dumpbin /DEPENDENTS build-win32/Release/mblink-discover.exe | Out-String)
+          foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {
+            if ($deps -match [regex]::Escape($dll)) { throw "Unexpected dynamic runtime dependency: $dll" }
+          }
       - name: Prove the EXE launches
         shell: pwsh
         run: |
@@ -314,7 +321,7 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
               --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.7.4 with the shared modern Windows Discover shell and canonical MBLINK AppIcon branding."
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.7.5 with the shared modern Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
           fi
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
