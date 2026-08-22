@@ -119,9 +119,10 @@ jobs:
           test "$(dpkg-deb -f "$deb" Package)" = 'mblink'
           test "$(dpkg-deb -f "$deb" Version)" = "$MBLINK_VERSION"
           test "$(dpkg-deb -f "$deb" Architecture)" = "$architecture"
-          dpkg-deb -c "$deb" | grep -q './usr/bin/mblink-linux'
-          dpkg-deb -c "$deb" | grep -q './usr/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop'
-          dpkg-deb -c "$deb" | grep -q './usr/share/icons/hicolor/180x180/apps/mblink.png'
+          dpkg-deb -c "$deb" > "$RUNNER_TEMP/mblink-deb-contents.txt"
+          grep -q './usr/bin/mblink-linux' "$RUNNER_TEMP/mblink-deb-contents.txt"
+          grep -q './usr/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop' "$RUNNER_TEMP/mblink-deb-contents.txt"
+          grep -q './usr/share/icons/hicolor/180x180/apps/mblink.png' "$RUNNER_TEMP/mblink-deb-contents.txt"
 
       - name: Build and exercise native Linux builder
         shell: bash
