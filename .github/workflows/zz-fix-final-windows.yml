@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   repair:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,12 +43,10 @@ jobs:
 
           replace('CMakeLists.txt', 'set(MBLINK_LINK_VERSION "0.9.0")', 'set(MBLINK_LINK_VERSION "0.9.1")', 1)
           replace('CMakeLists.txt', 'set(MBLINK_LINK_COMMIT "669f030d58f7bb0f1fdd2d50ebea77fdf8ca1be2")', 'set(MBLINK_LINK_COMMIT "08ba2b4148836df1c9d584456f280ec131ae6778")', 1)
-
           replace('.github/workflows/ci.yml', 'LINK_VERSION: 0.9.0', 'LINK_VERSION: 0.9.1', 1)
           replace('.github/workflows/ci.yml', 'LINK_COMMIT: 669f030d58f7bb0f1fdd2d50ebea77fdf8ca1be2', 'LINK_COMMIT: 08ba2b4148836df1c9d584456f280ec131ae6778', 1)
           replace('.github/workflows/ci.yml', 'src/link/src/infiltratr-common/VERSION)" = "1.10.0"', 'src/link/src/infiltratr-common/VERSION)" = "1.11.0"', 1)
           replace('.github/workflows/ci.yml', 'release on LINK 0.9.0 with', 'release on LINK 0.9.1 with', 1)
-
           replace('app/ios/MBLINK.xcodeproj/project.pbxproj', 'MARKETING_VERSION = 0.7.20;', 'MARKETING_VERSION = 0.7.25;', 4)
 
           p = Path('README.md')
@@ -63,12 +60,10 @@ jobs:
 
           p = Path('docs/COMMON-REUSE.md')
           if p.exists():
-              s = p.read_text().replace('1.10.0', '1.11.0')
-              p.write_text(s)
+              p.write_text(p.read_text().replace('1.10.0', '1.11.0'))
           PY
 
           rm .github/workflows/zz-fix-final-windows.yml
-
           git add -A
           git diff --cached --check
           test "$(tr -d '[:space:]' < VERSION)" = '0.7.25'
@@ -77,6 +72,5 @@ jobs:
           test "$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)" = '1.11.0'
           test "$(grep -c 'MARKETING_VERSION = 0.7.25;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
           test ! -e .github/workflows/zz-fix-final-windows.yml
-
           git commit -m 'Repair MBLINK 0.7.25 on LINK 0.9.1'
           git push origin HEAD:main
