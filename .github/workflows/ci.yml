@@ -31,8 +31,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t gitlinks < <(git ls-files --stage | awk '$1 == "160000" { print $4 }' | sort)
-          test "${gitlinks[*]}" = "src/link"
+          # Keep this check POSIX/Bash-3 compatible: macOS runners do not ship
+          # Bash 4's mapfile builtin.
+          gitlinks="$(git ls-files --stage | awk '$1 == "160000" { print $4 }' | sort)"
+          test "$gitlinks" = "src/link"
           test ! -e src/infiltratr-common
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "$LINK_VERSION"
           test "$(git -C src/link rev-parse HEAD)" = "$LINK_COMMIT"
@@ -101,10 +103,44 @@ jobs:
           install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
           scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
           "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
+          test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
+          test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MBLINK-${{ steps.version.outputs.version }}-linux-packages
           path: ${{ runner.temp }}/release/*
+          if-no-files-found: error
+          compression-level: 0
+
+  windows-discover:
+    name: Windows / mblink-discover Win32
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: recursive
+      - id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Configure Win32 OpenPort build
+        shell: pwsh
+        run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
+      - name: Build shared discover app
+        shell: pwsh
+        run: cmake --build build-win32 --config Release --target mblink-discover --parallel
+      - name: Stage Windows executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MBLINK-${{ steps.version.outputs.version }}-windows-discover
+          path: release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe
           if-no-files-found: error
           compression-level: 0
 
@@ -182,8 +218,8 @@ jobs:
           compression-level: 0
 
   release:
-    name: Publish version release
-    needs: [portable-core, sanitizers, linux-app, apple-ios, iphone-device-ipa]
+    name: Publish complete version release
+    needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios, iphone-device-ipa]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -207,6 +243,31 @@ jobs:
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
           path: release-assets
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
+          path: release-assets
+      - name: Prepare and verify complete release set
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          required=(
+            "MBLINK-${VERSION}-unsigned.ipa"
+            "MBLINK-${VERSION}-linux-amd64.deb"
+            "MBLINK-${VERSION}-linux-native.run"
+            "MBLINK-${VERSION}-windows-discover.exe"
+          )
+          for file in "${required[@]}"; do
+            test -s "release-assets/$file"
+          done
+          git archive --format=zip --prefix="MBLINK-${VERSION}/" \
+            -o "release-assets/MBLINK-${VERSION}-source.zip" "$GITHUB_SHA"
+          (
+            cd release-assets
+            sha256sum MBLINK-* > SHA256SUMS.txt
+          )
       - name: Create exact tag and publish assets
         shell: bash
         env:
@@ -230,3 +291,14 @@ jobs:
               --title "MBLINK $VERSION" \
               --notes "MBLINK $VERSION: shared automotive runtime through LINK 0.7.1."
           fi
+
+          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for expected in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip" \
+            "SHA256SUMS.txt"; do
+            grep -Fxq "$expected" <<<"$assets"
+          done
