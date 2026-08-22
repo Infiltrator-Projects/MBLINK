@@ -4,7 +4,7 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development vehicle is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current release: 0.7.18.**
+**Current release: 0.7.19.**
 
 ## Dependency hierarchy
 
@@ -17,11 +17,11 @@ Infiltratr Common
  Mercedes face
 ```
 
-MBLINK pins LINK 0.6.0 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK no longer carries a second top-level Common submodule.
+MBLINK pins LINK 0.7.1 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK carries no second top-level Common submodule.
 
-LINK is the source of truth for the shared workspace, ISO-TP, parameter/store/scheduler/telemetry runtime, Discover safety/evidence and the Windows OpenPort 2.0/J2534 scanner. MBLINK retains small compatibility adaptors for those APIs plus Mercedes identity, Mercedes definitions and manufacturer-specific diagnostic behaviour.
+LINK is the source of truth for the shared workspace, ISO-TP, byte-stream transport ABI, ELM327 framing/parser/initialisation, ELM-managed CAN, ELM session/probe, parameter/store/scheduler/telemetry runtime, Discover safety/evidence and the Windows OpenPort 2.0/J2534 scanner. MBLINK retains small compatibility façades for those APIs plus Mercedes identity, Mercedes definitions and manufacturer-specific diagnostic behaviour.
 
-The next shared migrations are ELM327, standard OBD-II and UDS.
+The next shared migrations are standard OBD-II and UDS.
 
 ## C-first architecture
 
@@ -59,13 +59,7 @@ The native project is `app/ios/MBLINK.xcodeproj`. It uses the official MBLINK em
 
 ## Release assets
 
-A successful release publishes:
-
-- `MBLINK-X.Y.Z-unsigned.ipa`;
-- `MBLINK-X.Y.Z-linux-amd64.deb`;
-- `MBLINK-X.Y.Z-linux-native.run`.
-
-The native `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
+A successful release publishes `MBLINK-X.Y.Z-unsigned.ipa`, `MBLINK-X.Y.Z-linux-amd64.deb` and `MBLINK-X.Y.Z-linux-native.run`. The native `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
 
 ## Engineering rules
 
