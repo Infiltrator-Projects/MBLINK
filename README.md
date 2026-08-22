@@ -4,7 +4,7 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development vehicle is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current release: 0.7.23.**
+**Current release: 0.7.24.**
 
 ## Dependency hierarchy
 
@@ -17,7 +17,7 @@ Infiltratr Common
  Mercedes face
 ```
 
-MBLINK pins LINK 0.7.4 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK carries no second top-level Common submodule.
+MBLINK pins LINK 0.7.5 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK carries no second top-level Common submodule.
 
 LINK is the source of truth for the shared workspace, ISO-TP, byte-stream transport ABI, ELM327 framing/parser/initialisation, ELM-managed CAN, ELM session/probe, parameter/store/scheduler/telemetry runtime, Discover safety/evidence, and the native Windows OpenPort 2.0/J2534 scanner shell. MBLINK retains small compatibility façades for those APIs plus Mercedes identity, Mercedes definitions and manufacturer-specific diagnostic behaviour.
 
@@ -55,11 +55,11 @@ The native project is `app/ios/MBLINK.xcodeproj`. It uses the MBLINK emblem thro
 
 ### Windows Discover
 
-`mblink-discover` is the Mercedes face of LINK's shared read-only OpenPort/J2534 scanner. LINK 0.7.4 supplies a modern native Windows shell with Common Controls v6 styling, a File/Help menu, a native Task Dialog About screen, DPI-aware layout, responsive evidence controls and UTF-8-safe status rendering. The executable is linked with the static MSVC runtime so it can start on a clean Windows machine without a matching Visual C++ redistributable.
+`mblink-discover` is the Mercedes face of LINK's shared read-only OpenPort/J2534 scanner. LINK 0.7.5 supplies a modern native Windows shell with Common Controls v6 styling, a File/Help menu, a native Task Dialog About screen, DPI-aware layout, responsive evidence controls and UTF-8-safe status rendering. The executable is linked with the static MSVC runtime so it can start on a clean Windows machine without a matching Visual C++ redistributable.
 
 The Windows executable uses the exact `AppIcon-60@3x.png` from the iPhone asset catalogue as its canonical product image. LINK wraps those PNG bytes into the Windows icon resource and embeds product/version metadata at build time; no independent MBLINK `.ico` is maintained.
 
-Windows CI does not stop at compilation: it starts the built EXE, waits for the `MBLINK Discover` main window, verifies that it remains alive, closes it cleanly, and fails the release if that smoke test does not pass.
+Windows CI does not stop at compilation: it starts the built EXE, waits for the `MBLINK Discover` main window, verifies that it remains alive, checks that no dynamic Visual C++ runtime DLL is required, closes it cleanly, and fails the release if that smoke test does not pass.
 
 ## Release assets
 
