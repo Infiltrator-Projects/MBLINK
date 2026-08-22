@@ -119,11 +119,11 @@ if(MBLINK_BUILD_LINUX_APP)
         COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
             --generate-source
             --target="${MBLINK_LINUX_RESOURCE_SOURCE}"
-            --sourcedir="${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
-            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml"
+            mblink.gresource.xml
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
         DEPENDS
-            app/linux/mblink.gresource.xml
-            app/linux/assets/mblink-emblem.png
+            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/assets/mblink-emblem.png"
         VERBATIM)
 
     add_executable(mblink-linux
