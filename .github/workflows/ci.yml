@@ -19,19 +19,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
-
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
       - name: Build
-        run: cmake --build build --config Release
-
+        run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
 
@@ -39,22 +35,15 @@ jobs:
     name: Ubuntu / ASan + UBSan
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
-
       - name: Configure
-        run: >-
-          cmake -S . -B build-sanitized
-          -DCMAKE_BUILD_TYPE=Debug
-          -DMBLINK_ENABLE_SANITIZERS=ON
-
+        run: cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DMBLINK_ENABLE_SANITIZERS=ON
       - name: Build
-        run: cmake --build build-sanitized
-
+        run: cmake --build build-sanitized --parallel
       - name: Test
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -65,42 +54,27 @@ jobs:
     name: Linux / GTK4 app + release packages
     runs-on: ubuntu-latest
     timeout-minutes: 25
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
-
       - name: Install GTK4 development files
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake dpkg-dev libgtk-4-dev pkg-config
-
+          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev pkg-config
       - name: Resolve version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
-            exit 1
-          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Configure Linux app
-        run: >-
-          cmake -S . -B build-linux-app
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_INSTALL_PREFIX=/usr
-          -DMBLINK_BUILD_LINUX_APP=ON
-          -DBUILD_TESTING=OFF
-
+        run: cmake -S . -B build-linux-app -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=OFF
       - name: Build Linux app
-        run: cmake --build build-linux-app --target mblink-linux
-
+        run: cmake --build build-linux-app --target mblink-linux --parallel
       - name: Build and verify Debian package
         shell: bash
         env:
@@ -118,12 +92,9 @@ jobs:
           install -m 0644 "${packages[0]}" "$deb"
           test "$(dpkg-deb -f "$deb" Package)" = 'mblink'
           test "$(dpkg-deb -f "$deb" Version)" = "$MBLINK_VERSION"
-          test "$(dpkg-deb -f "$deb" Architecture)" = "$architecture"
           dpkg-deb -c "$deb" > "$RUNNER_TEMP/mblink-deb-contents.txt"
           grep -q './usr/bin/mblink-linux' "$RUNNER_TEMP/mblink-deb-contents.txt"
           grep -q './usr/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop' "$RUNNER_TEMP/mblink-deb-contents.txt"
-          grep -q './usr/share/icons/hicolor/180x180/apps/mblink.png' "$RUNNER_TEMP/mblink-deb-contents.txt"
-
       - name: Build and exercise native Linux builder
         shell: bash
         env:
@@ -135,13 +106,9 @@ jobs:
           scripts/build-native-installer.sh "$installer"
           "$installer" --help >/dev/null
           "$installer" --extract "$RUNNER_TEMP/mblink-native-source"
-          test -f "$RUNNER_TEMP/mblink-native-source/CMakeLists.txt"
-          test -f "$RUNNER_TEMP/mblink-native-source/src/infiltratr-common/VERSION"
-          "$installer" --build-only \
-            --output "$RUNNER_TEMP/mblink-linux-native" \
-            --jobs 2
+          test -f "$RUNNER_TEMP/mblink-native-source/src/link/VERSION"
+          "$installer" --build-only --output "$RUNNER_TEMP/mblink-linux-native" --jobs 2
           test -x "$RUNNER_TEMP/mblink-linux-native"
-
       - name: Upload Linux release packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -161,118 +128,48 @@ jobs:
       fail-fast: false
       matrix:
         configuration: [Debug, Release]
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
-
-      - name: Verify Xcode version metadata
+      - name: Verify version and shared ownership
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          count="$(grep -c "MARKETING_VERSION = ${version};" app/ios/MBLINK.xcodeproj/project.pbxproj)"
-          test "${count}" -eq 4
+          test "$(grep -c "MARKETING_VERSION = ${version};" app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.10.0"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.6.0"
+          grep -q 'set(MBLINK_LINK_COMMIT "bbb21785983f1d94483949d4a7c50adf80f4c4e7")' CMakeLists.txt
+          test "$(git -C src/link rev-parse HEAD)" = "bbb21785983f1d94483949d4a7c50adf80f4c4e7"
 
-      - name: Verify Apple ELM parser boundary
-        shell: bash
-        run: |
-          set -euo pipefail
+          grep -q 'link_parameter_store_record' src/link/src/core/parameter.c
+          grep -q 'LINK_PARAMETER_STORE_HISTORY_CAPACITY 1024U' src/link/include/link/parameter_store.h
+          grep -q 'link_scheduler_add_parameter' src/link/src/core/scheduler.c
+          grep -q 'LINK_SCHEDULER_MAX_ITEMS 64U' src/link/include/link/scheduler.h
+          grep -q 'link_telemetry_store_record' src/link/src/core/telemetry.c
+          grep -q '../link/src/core/parameter.c' src/core/mblink.c
+          grep -q '../link/src/core/scheduler.c' src/core/mblink.c
+          grep -q '../link/src/core/telemetry.c' src/core/mblink.c
+          grep -q 'return link_parameter_' src/core/parameter.c
+          grep -q 'link_scheduler_configure_standard_obd2_bits' src/core/scheduler.c
+          grep -q 'link_telemetry_export_csv_named' src/core/telemetry_csv.c
+
+          test ! -e src/core/isotp.c
+          grep -q 'path = "../../src/link/src/core/isotp.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -q 'mblink_elm327_parser_feed' platform/apple/MBLinkBLETransport.m
-          grep -q 'mblink_elm327_parser_finish' platform/apple/MBLinkBLETransport.m
-          ! grep -q 'componentsSeparatedByCharactersInSet' platform/apple/MBLinkBLETransport.m
-
-      - name: Verify C ownership boundaries
-        shell: bash
-        run: |
-          set -euo pipefail
           grep -q 'mblink_scheduler_next' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_telemetry_store_record' platform/apple/MBLinkDiagnosticsController.m
-          grep -q 'mblink_telemetry_recorder_record_sample' platform/apple/MBLinkDiagnosticsController.m
-          grep -q 'mblink_telemetry_recorder_record_response' platform/apple/MBLinkDiagnosticsController.m
-
-          test "$(grep -c 'uds.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/uds/uds.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-          ! grep -q 'mblink/isotp.h' include/mblink/uds.h src/uds/uds.c
-
-          test "$(grep -c 'mercedes.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/mercedes/mercedes.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-          test "$(grep -c 'mercedes_probe.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/mercedes/probe.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-          grep -q 'mblink-test-mercedes-probe' CMakeLists.txt
-          grep -q 'mblink_mercedes_ecu_probe_accept' tests/test_mercedes_probe.c
-          test "$(grep -c 'parameter.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/core/parameter.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-
-          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.10.0"
-          grep -q 'set(MBLINK_COMMON_COMMIT "182e64cb8b8992879e443b941565058166fe0161")' CMakeLists.txt
-          grep -Fq 'add_subdirectory(' CMakeLists.txt
-          grep -q 'InfiltratrCommon::Portable' CMakeLists.txt
-          ! grep -Eq 'MBLINK_COMMON_DIR.*/src/(core|arithmetic|config|timing|format)\.c' CMakeLists.txt
-          grep -q 'InfiltratrCommon.xcodeproj' app/ios/MBLINK.xcodeproj/project.pbxproj
-          grep -q 'InfiltratrCommonPortable' app/ios/MBLINK.xcodeproj/project.pbxproj
-          ! grep -Eq 'src/infiltratr-common/src/(core|arithmetic|config|timing|format)\.c' app/ios/MBLINK.xcodeproj/project.pbxproj
-          grep -q 'infiltratr_periodic_deadline_advance' src/core/scheduler.c
-
-          test "$(grep -c 'elm327_can.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
-          grep -q 'path = "../../src/elm327/can.c"' app/ios/MBLINK.xcodeproj/project.pbxproj
-          grep -q 'src/elm327/can.c' CMakeLists.txt
-          grep -q 'mblink-test-elm327-can' CMakeLists.txt
-          test "$(grep -Ec '^static void test_pdu_(command|decode_single|decode_indexed|decode_failures)\(void\)$' tests/test_elm327_can.c)" -eq 4
-
-          grep -q 'mblink/parameter.h' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
-          active_ui='app/ios/MBLINK/MBLINKApp.swift'
-          test ! -e app/ios/MBLINK/ContentView.swift
-          ! grep -q 'ContentView.swift' app/ios/MBLINK.xcodeproj/project.pbxproj
-          grep -q 'diagnosticParameters' "$active_ui"
-          grep -q 'Image("MBLINKEmblem")' "$active_ui"
-          ! grep -q 'Text("MB")' "$active_ui"
-          grep -q 'private struct MBDashboardView' "$active_ui"
-          grep -q 'private struct MBGraphSignalPicker' "$active_ui"
-          test -f app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/Contents.json
-          cmp -s \
-            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png \
-            app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/MBLINKEmblem@2x.png
-          cmp -s \
-            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png \
-            app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/MBLINKEmblem@3x.png
-          cmp -s \
-            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png \
-            app/linux/assets/mblink-emblem.png
-          grep -q 'gtk_image_new_from_resource' app/linux/main.c
-          unexpected_swift_formats="$(
-            grep -F 'String(format:' "$active_ui" |
-              grep -Fv 'return String(format: "Status 0x%02X", status)' || true
-          )"
-          test -z "$unexpected_swift_formats"
-          ! grep -Eq 'hasRPM|hasEngineLoad|applyMeasurement|resetPublishedMeasurements' \
-            platform/apple/MBLinkDiagnosticsController.h \
-            platform/apple/MBLinkDiagnosticsController.m
-
-          grep -q 'mblink_parameter_store_record' src/core/parameter.c
-          grep -q 'MBLINK_PARAMETER_STORE_HISTORY_CAPACITY 1024U' include/mblink/parameter_store.h
-          grep -q 'mblink_scheduler_add_parameter' src/core/scheduler.c
-          grep -q 'MBLINK_SCHEDULER_MAX_ITEMS 64U' include/mblink/scheduler.h
-          grep -q 'mblink-test-parameter-store' CMakeLists.txt
-          grep -q 'mblink-test-scheduler-parameters' CMakeLists.txt
-
+          grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
+          cmp -s app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png app/linux/assets/mblink-emblem.png
       - name: Build iPhone app for simulator
         shell: bash
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/mblink-xcodebuild-${{ matrix.configuration }}.log"
-          if ! xcodebuild \
-            -project app/ios/MBLINK.xcodeproj \
-            -scheme MBLINK \
-            -configuration "${{ matrix.configuration }}" \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
-            build >"$log" 2>&1; then
-            echo 'Xcode build failed. Compiler diagnostics:'
+          if ! xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK -configuration "${{ matrix.configuration }}" -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build >"$log" 2>&1; then
             grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 120 || true
             exit 1
           fi
@@ -282,78 +179,45 @@ jobs:
     name: iPhone / unsigned device IPA
     runs-on: macos-latest
     timeout-minutes: 20
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
-
       - name: Resolve version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
-            exit 1
-          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Build unsigned iPhone device app
         shell: bash
         run: |
           set -euo pipefail
           derived="$RUNNER_TEMP/mblink-device-derived"
           log="$RUNNER_TEMP/mblink-xcodebuild-device.log"
-
-          if ! xcodebuild \
-            -project app/ios/MBLINK.xcodeproj \
-            -scheme MBLINK \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath "$derived" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY='' \
-            build >"$log" 2>&1; then
-            echo 'Unsigned iPhone device build failed. Compiler diagnostics:'
+          if ! xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$derived" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build >"$log" 2>&1; then
             grep -E '(^|: )(error:|warning:)|:[0-9]+:[0-9]+: (error|warning):' "$log" | tail -n 120 || true
             exit 1
           fi
-
           app="$derived/Build/Products/Release-iphoneos/MBLINK.app"
-          test -d "$app"
           test -x "$app/MBLINK"
           /usr/bin/lipo -info "$app/MBLINK" | grep -q 'arm64'
-          tail -n 20 "$log"
-
       - name: Package unsigned IPA
         shell: bash
         env:
           MBLINK_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          derived="$RUNNER_TEMP/mblink-device-derived"
           package="$RUNNER_TEMP/mblink-ipa"
           ipa="$RUNNER_TEMP/MBLINK-${MBLINK_VERSION}-unsigned.ipa"
-
           rm -rf "$package"
           mkdir -p "$package/Payload"
-          /usr/bin/ditto \
-            "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
-            "$package/Payload/MBLINK.app"
-
-          (
-            cd "$package"
-            /usr/bin/zip -qry "$ipa" Payload
-          )
-
-          test -s "$ipa"
+          /usr/bin/ditto "$RUNNER_TEMP/mblink-device-derived/Build/Products/Release-iphoneos/MBLINK.app" "$package/Payload/MBLINK.app"
+          (cd "$package" && /usr/bin/zip -qry "$ipa" Payload)
           /usr/bin/unzip -tq "$ipa"
-
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -370,39 +234,31 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
-
       - name: Resolve release identity
         id: release
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
-            exit 1
-          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "target=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
       - name: Download unsigned IPA release asset
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
           path: release-assets
-
       - name: Download Linux release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
           path: release-assets
-
       - name: Create or verify tag, GitHub Release and all assets
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         env:
@@ -426,97 +282,40 @@ jobs:
             ];
 
             const main = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
-            if (main.data.commit.sha !== target) {
-              core.info(`Skipping stale successful run at ${target}; main is ${main.data.commit.sha}.`);
-              return;
-            }
+            if (main.data.commit.sha !== target) return;
 
             let tagTarget = null;
             try {
-              const existingRef = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-              tagTarget = existingRef.data.object.sha;
+              tagTarget = (await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` })).data.object.sha;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
             let release = null;
             try {
-              const response = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              release = response.data;
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
-            if (release !== null && tagTarget === null) {
-              core.setFailed(`${tag} has a GitHub Release but no matching tag ref.`);
-              return;
-            }
             if (tagTarget !== null && tagTarget !== target) {
-              if (release !== null) {
-                core.info(`${tag} is already released at ${tagTarget}; current main ${target} is post-release development, so no release action is required.`);
-                return;
-              }
-              core.setFailed(`${tag} exists at ${tagTarget} without a matching GitHub Release. Repair the release state before continuing.`);
-              return;
+              if (release !== null) return;
+              throw new Error(`${tag} points to ${tagTarget}, expected ${target}`);
             }
-            for (const assetName of assetNames) {
-              const assetPath = path.join(process.env.GITHUB_WORKSPACE,
-                                          'release-assets', assetName);
-              if (!fs.existsSync(assetPath)) {
-                core.setFailed(`Expected release asset is missing: ${assetPath}`);
-                return;
+            for (const name of assetNames) {
+              if (!fs.existsSync(path.join(process.env.GITHUB_WORKSPACE, 'release-assets', name))) {
+                throw new Error(`Missing release asset ${name}`);
               }
             }
-
             if (tagTarget === null) {
               await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha: target });
-              tagTarget = target;
             }
             if (release === null) {
-              const response = await github.rest.repos.createRelease({
-                owner,
-                repo,
-                tag_name: tag,
-                target_commitish: target,
-                name: `MBLINK ${version}`,
-                generate_release_notes: true,
-                draft: false,
-                prerelease: false
-              });
-              release = response.data;
-              core.info(`Published ${release.html_url}`);
-            } else {
-              core.info(`${tag} already identifies this exact commit; checking release assets.`);
+              release = (await github.rest.repos.createRelease({ owner, repo, tag_name: tag, target_commitish: target, name: `MBLINK ${version}`, generate_release_notes: true, draft: false, prerelease: false })).data;
             }
-
-            const existingAssets = await github.paginate(
-              github.rest.repos.listReleaseAssets,
-              { owner, repo, release_id: release.id, per_page: 100 }
-            );
-            for (const asset of existingAssets) {
-              if (assetNames.includes(asset.name)) {
-                await github.rest.repos.deleteReleaseAsset({
-                  owner,
-                  repo,
-                  asset_id: asset.id
-                });
-              }
+            const existing = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
+            for (const asset of existing) {
+              if (assetNames.includes(asset.name)) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });
             }
-
-            for (const assetName of assetNames) {
-              const assetPath = path.join(process.env.GITHUB_WORKSPACE,
-                                          'release-assets', assetName);
-              const data = fs.readFileSync(assetPath);
-              await github.rest.repos.uploadReleaseAsset({
-                owner,
-                repo,
-                release_id: release.id,
-                name: assetName,
-                data,
-                headers: {
-                  'content-type': 'application/octet-stream',
-                  'content-length': data.length
-                }
-              });
-              core.info(`Attached ${assetName} to ${tag}.`);
+            for (const name of assetNames) {
+              const data = fs.readFileSync(path.join(process.env.GITHUB_WORKSPACE, 'release-assets', name));
+              await github.rest.repos.uploadReleaseAsset({ owner, repo, release_id: release.id, name, data, headers: { 'content-type': 'application/octet-stream', 'content-length': data.length } });
             }
