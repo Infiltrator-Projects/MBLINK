@@ -1,109 +1,45 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/**
- * @file parameter_store.h
- * @brief Bounded protocol-neutral diagnostic parameter state and history.
- *
- * Definitions are borrowed from caller-owned/static catalogs and must outlive
- * the store registration. Samples are copied by value; their definition
- * pointer is canonicalised to the registered definition.
- */
 #ifndef MBLINK_PARAMETER_STORE_H
 #define MBLINK_PARAMETER_STORE_H
 
 #include "mblink/parameter.h"
-
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "link/parameter_store.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MBLINK_PARAMETER_STORE_DEFINITION_CAPACITY 256U
-#define MBLINK_PARAMETER_STORE_HISTORY_CAPACITY 1024U
+typedef LinkParameterStoreResult MblinkParameterStoreResult;
+typedef LinkParameterStoreSlot MblinkParameterStoreSlot;
+typedef LinkParameterStore MblinkParameterStore;
 
-typedef enum {
-    MBLINK_PARAMETER_STORE_OK = 0,
-    MBLINK_PARAMETER_STORE_INVALID_ARGUMENT,
-    MBLINK_PARAMETER_STORE_FULL,
-    MBLINK_PARAMETER_STORE_DUPLICATE_KEY,
-    MBLINK_PARAMETER_STORE_DUPLICATE_STABLE_KEY,
-    MBLINK_PARAMETER_STORE_NOT_FOUND,
-    MBLINK_PARAMETER_STORE_DEFINITION_MISMATCH
-} MblinkParameterStoreResult;
+#define MBLINK_PARAMETER_STORE_DEFINITION_CAPACITY LINK_PARAMETER_STORE_DEFINITION_CAPACITY
+#define MBLINK_PARAMETER_STORE_HISTORY_CAPACITY LINK_PARAMETER_STORE_HISTORY_CAPACITY
+#define MBLINK_PARAMETER_STORE_OK LINK_PARAMETER_STORE_OK
+#define MBLINK_PARAMETER_STORE_INVALID_ARGUMENT LINK_PARAMETER_STORE_INVALID_ARGUMENT
+#define MBLINK_PARAMETER_STORE_FULL LINK_PARAMETER_STORE_FULL
+#define MBLINK_PARAMETER_STORE_DUPLICATE_KEY LINK_PARAMETER_STORE_DUPLICATE_KEY
+#define MBLINK_PARAMETER_STORE_DUPLICATE_STABLE_KEY LINK_PARAMETER_STORE_DUPLICATE_STABLE_KEY
+#define MBLINK_PARAMETER_STORE_NOT_FOUND LINK_PARAMETER_STORE_NOT_FOUND
+#define MBLINK_PARAMETER_STORE_DEFINITION_MISMATCH LINK_PARAMETER_STORE_DEFINITION_MISMATCH
 
-typedef struct {
-    const MblinkParameterDefinition *definition;
-    MblinkParameterSample latest;
-    bool latest_valid;
-    bool favourite;
-} MblinkParameterStoreSlot;
-
-typedef struct {
-    MblinkParameterStoreSlot slots[MBLINK_PARAMETER_STORE_DEFINITION_CAPACITY];
-    MblinkParameterSample history[MBLINK_PARAMETER_STORE_HISTORY_CAPACITY];
-    size_t slot_count;
-    size_t history_head;
-    size_t history_count;
-    uint64_t total_sample_count;
-} MblinkParameterStore;
-
-const char *mblink_parameter_store_result_name(MblinkParameterStoreResult result);
-
-void mblink_parameter_store_init(MblinkParameterStore *store);
-
-/** Clear latest/history state while preserving definitions and favourites. */
-void mblink_parameter_store_clear_samples(MblinkParameterStore *store);
-
-/** Register one borrowed definition; keys and stable keys must both be unique. */
-MblinkParameterStoreResult mblink_parameter_store_register(
-    MblinkParameterStore *store,
-    const MblinkParameterDefinition *definition);
-
-size_t mblink_parameter_store_definition_count(const MblinkParameterStore *store);
-
-const MblinkParameterDefinition *mblink_parameter_store_definition_at(
-    const MblinkParameterStore *store,
-    size_t index);
-
-const MblinkParameterDefinition *mblink_parameter_store_definition(
-    const MblinkParameterStore *store,
-    const MblinkParameterKey *key);
-
-const MblinkParameterDefinition *mblink_parameter_store_definition_for_stable_key(
-    const MblinkParameterStore *store,
-    const char *stable_key);
-
-MblinkParameterStoreResult mblink_parameter_store_set_favourite(
-    MblinkParameterStore *store,
-    const MblinkParameterKey *key,
-    bool favourite);
-
-bool mblink_parameter_store_is_favourite(
-    const MblinkParameterStore *store,
-    const MblinkParameterKey *key);
-
-/** Record one sample transactionally after validating its registered definition. */
-MblinkParameterStoreResult mblink_parameter_store_record(
-    MblinkParameterStore *store,
-    const MblinkParameterSample *sample);
-
-bool mblink_parameter_store_latest(
-    const MblinkParameterStore *store,
-    const MblinkParameterKey *key,
-    MblinkParameterSample *sample);
-
-size_t mblink_parameter_store_history_count(const MblinkParameterStore *store);
-uint64_t mblink_parameter_store_total_sample_count(const MblinkParameterStore *store);
-
-bool mblink_parameter_store_history_at(
-    const MblinkParameterStore *store,
-    size_t chronological_index,
-    MblinkParameterSample *sample);
+#define mblink_parameter_store_result_name link_parameter_store_result_name
+#define mblink_parameter_store_init link_parameter_store_init
+#define mblink_parameter_store_clear_samples link_parameter_store_clear_samples
+#define mblink_parameter_store_register link_parameter_store_register
+#define mblink_parameter_store_definition_count link_parameter_store_definition_count
+#define mblink_parameter_store_definition_at link_parameter_store_definition_at
+#define mblink_parameter_store_definition link_parameter_store_definition
+#define mblink_parameter_store_definition_for_stable_key link_parameter_store_definition_for_stable_key
+#define mblink_parameter_store_set_favourite link_parameter_store_set_favourite
+#define mblink_parameter_store_is_favourite link_parameter_store_is_favourite
+#define mblink_parameter_store_record link_parameter_store_record
+#define mblink_parameter_store_latest link_parameter_store_latest
+#define mblink_parameter_store_history_count link_parameter_store_history_count
+#define mblink_parameter_store_total_sample_count link_parameter_store_total_sample_count
+#define mblink_parameter_store_history_at link_parameter_store_history_at
 
 #ifdef __cplusplus
 }
 #endif
-
 #endif
