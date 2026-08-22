@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  LINK_VERSION: 0.7.5
-  LINK_COMMIT: 9b707e121ad5dcf45403b06c8ca8dda5ef2b9e35
+  LINK_VERSION: 0.8.1
+  LINK_COMMIT: 8d75e0599320e16ff44109be4cb20fa6146cabd3
 
 jobs:
   portable-core:
@@ -41,9 +41,13 @@ jobs:
           grep -q 'link_elm327_parser_feed' src/link/src/elm327/elm327.c
           grep -q 'link_elm327_can_decode_pdu' src/link/src/elm327/can.c
           grep -q 'link_elm327_session_begin' src/link/src/elm327/session.c
+          grep -q 'link_obd2_decode_live_pid' src/link/src/obd2/obd2.c
+          grep -q 'link_uds_decode_response' src/link/src/uds/uds.c
           grep -q 'return link_elm327_parser_feed' src/elm327/elm327.c
           grep -q 'return link_elm327_can_decode_pdu' src/elm327/can.c
           grep -q 'return link_elm327_session_begin' src/elm327/session.c
+          test "$(wc -c < src/obd2/obd2.c)" -lt 1024
+          test "$(wc -c < src/uds/uds.c)" -lt 1024
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --config Release --parallel
       - run: ctest --test-dir build --build-config Release --output-on-failure
@@ -326,7 +330,7 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
               --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.7.5 with the shared modern Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.8.1 with shared C11 OBD-II/UDS, the shared modern Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
           fi
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
