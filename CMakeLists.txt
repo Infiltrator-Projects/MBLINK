@@ -37,8 +37,8 @@ include(GNUInstallDirs)
 # LINK is MBLINK's only top-level implementation dependency. LINK owns and
 # validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.7.1")
-set(MBLINK_LINK_COMMIT "4c75618da2085ecd09e8110f2883decf9b2162f9")
+set(MBLINK_LINK_VERSION "0.7.2")
+set(MBLINK_LINK_COMMIT "8d00d2d24ed514f7bc2f2025054839d4efabb29a")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -161,7 +161,12 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     link_add_windows_discover(mblink-discover
         PRODUCT_NAME "MBLINK"
         PRODUCT_SLUG "mblink"
-        WINDOW_CLASS "MBLINKDiscoverWindow")
+        WINDOW_CLASS "MBLINKDiscoverWindow"
+        PRODUCT_VERSION "${PROJECT_VERSION}"
+        PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
+        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics")
+    target_sources(mblink-discover PRIVATE app/windows/mblink.rc)
+    target_include_directories(mblink-discover PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/app/windows")
 endif()
 
 function(mblink_add_test target source)
