@@ -68,6 +68,41 @@ add_subdirectory(
     "${CMAKE_CURRENT_BINARY_DIR}/infiltratr-common"
     EXCLUDE_FROM_ALL)
 
+set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
+set(MBLINK_LINK_VERSION "0.1.0")
+set(MBLINK_LINK_COMMIT "8df05f3c5a1e7239a3841a4e028e2b6849f7ad31")
+
+if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
+    message(FATAL_ERROR
+        "LINK ${MBLINK_LINK_VERSION} is required. Clone with --recurse-submodules or run git submodule update --init --recursive.")
+endif()
+
+file(READ "${MBLINK_LINK_DIR}/VERSION" MBLINK_LINK_FOUND_VERSION)
+string(STRIP "${MBLINK_LINK_FOUND_VERSION}" MBLINK_LINK_FOUND_VERSION)
+if(NOT MBLINK_LINK_FOUND_VERSION STREQUAL MBLINK_LINK_VERSION)
+    message(FATAL_ERROR
+        "LINK ${MBLINK_LINK_VERSION} is required; found ${MBLINK_LINK_FOUND_VERSION}.")
+endif()
+
+if(MBLINK_GIT_EXECUTABLE)
+    execute_process(
+        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD
+        OUTPUT_VARIABLE MBLINK_LINK_FOUND_COMMIT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE MBLINK_LINK_COMMIT_RESULT)
+    if(MBLINK_LINK_COMMIT_RESULT EQUAL 0 AND
+       NOT MBLINK_LINK_FOUND_COMMIT STREQUAL MBLINK_LINK_COMMIT)
+        message(FATAL_ERROR
+            "LINK must be pinned to ${MBLINK_LINK_COMMIT}; found ${MBLINK_LINK_FOUND_COMMIT}.")
+    endif()
+endif()
+
+add_subdirectory(
+    "${MBLINK_LINK_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/link"
+    EXCLUDE_FROM_ALL)
+
 add_library(mblink STATIC
     src/core/mblink.c
     src/core/parameter.c
@@ -87,7 +122,7 @@ target_include_directories(mblink
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE
     MBLINK_VERSION="${PROJECT_VERSION}")
-target_link_libraries(mblink PUBLIC InfiltratrCommon::Portable)
+target_link_libraries(mblink PUBLIC InfiltratrCommon::Portable LINK::Core)
 
 set(MBLINK_WARNING_FLAGS
     -Wall

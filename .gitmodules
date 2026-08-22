@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# MBLINK pins this submodule to the verified Infiltratr Common release commit.
+# MBLINK pins these submodules to verified shared-engine commits.
 [submodule "src/infiltratr-common"]
 	path = src/infiltratr-common
 	url = https://github.com/The-First-Infiltrator/Infiltrator-Libraries.git
+[submodule "src/link"]
+	path = src/link
+	url = https://github.com/The-First-Infiltrator/LINK.git
