@@ -5,14 +5,15 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  LINK_VERSION: 0.7.2
-  LINK_COMMIT: 8d00d2d24ed514f7bc2f2025054839d4efabb29a
+  LINK_VERSION: 0.7.4
+  LINK_COMMIT: 7af290d71b38859202ccc90c060ee29b56d2296c
 
 jobs:
   portable-core:
@@ -24,7 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Verify dependency ownership
@@ -52,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - run: cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DMBLINK_ENABLE_SANITIZERS=ON
@@ -67,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - run: |
@@ -82,12 +83,13 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=OFF
       - run: cmake --build build-linux --parallel
-      - name: Verify Linux About
+      - name: Verify Linux About and branding
         shell: bash
         run: |
+          set -euo pipefail
           grep -q 'mblink_linux_show_about' app/linux/main.c
-          grep -q 'Copyright © 2026 Shannon Smith' app/linux/about-dialog.c
-          grep -q 'gdk_texture_new_from_resource' app/linux/about-dialog.c
+          grep -Fq 'Copyright © 2026 Shannon Smith' app/linux/about-dialog.c
+          test -s app/linux/assets/mblink-emblem.png
       - name: Package DEB and native RUN
         shell: bash
         env:
@@ -103,19 +105,20 @@ jobs:
           "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
           test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
           test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v4
         with:
           name: MBLINK-${{ steps.version.outputs.version }}-linux-packages
           path: ${{ runner.temp }}/release/*
           if-no-files-found: error
           compression-level: 0
+          retention-days: 30
 
   windows-discover:
-    name: Windows / mblink-discover Win32
+    name: Windows / MBLINK Discover launch-verified
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - id: version
@@ -124,31 +127,50 @@ jobs:
           $version = (Get-Content VERSION -Raw).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
           "version=$version" >> $env:GITHUB_OUTPUT
-      - name: Verify branded shared Windows shell
+      - name: Verify shared modern Windows shell and canonical icon source
         shell: pwsh
         run: |
-          if (-not (Test-Path app/windows/mblink.ico)) { throw 'Missing MBLINK .ico resource' }
-          if (-not (Test-Path app/windows/mblink.rc)) { throw 'Missing MBLINK .rc resource' }
-          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'IDM_HELP_ABOUT' -Quiet)) { throw 'Shared About menu is missing' }
-          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'ShellAboutA' -Quiet)) { throw 'Shared About dialog is missing' }
-          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'create_main_menu' -Quiet)) { throw 'Shared File/Help menu is missing' }
-      - name: Configure Win32 OpenPort build
+          $icon = 'app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png'
+          if (-not (Test-Path $icon)) { throw 'Canonical MBLINK AppIcon PNG is missing' }
+          $ui = 'src/link/platform/windows/link-discover-ui.c'
+          foreach ($needle in @('create_main_menu','IDM_HELP_ABOUT','TaskDialogIndirect','InitCommonControlsEx','LINK_PRODUCT_WEBSITE')) {
+            if (-not (Select-String -Path $ui -SimpleMatch $needle -Quiet)) { throw "Missing shared Windows feature: $needle" }
+          }
+          if (-not (Test-Path 'src/link/platform/windows/smoke-launch.ps1')) { throw 'Missing launch smoke test' }
+          if (Test-Path 'app/windows/mblink.ico') { throw 'Independent MBLINK ICO must not be maintained' }
+          if (Test-Path 'app/windows/mblink.rc') { throw 'Independent MBLINK RC must not be maintained' }
+      - name: Configure Win32 build
         shell: pwsh
         run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
-      - name: Build shared discover app
+      - name: Build MBLINK Discover
         shell: pwsh
         run: cmake --build build-win32 --config Release --target mblink-discover --parallel
+      - name: Prove the EXE launches
+        shell: pwsh
+        run: |
+          & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'build-win32/Release/mblink-discover.exe' -ExpectedTitle 'MBLINK Discover'
+      - name: Verify embedded version metadata and icon
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'build-win32/Release/mblink-discover.exe').Path
+          $info = (Get-Item $exe).VersionInfo
+          if ($info.ProductVersion -notlike '${{ steps.version.outputs.version }}*') { throw "Wrong ProductVersion: $($info.ProductVersion)" }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if ($null -eq $icon) { throw 'Executable has no associated icon' }
+          $icon.Dispose()
       - name: Stage Windows executable
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v4
         with:
           name: MBLINK-${{ steps.version.outputs.version }}-windows-discover
           path: release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe
           if-no-files-found: error
           compression-level: 0
+          retention-days: 30
 
   apple-ios:
     name: iOS / Xcode / ${{ matrix.configuration }}
@@ -159,7 +181,7 @@ jobs:
       matrix:
         configuration: [Debug, Release]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - id: version
@@ -170,13 +192,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "$LINK_VERSION"
           test "$(git -C src/link rev-parse HEAD)" = "$LINK_COMMIT"
-          grep -q '../link/src/core/transport.c' src/core/mblink.c
-          grep -q '../link/src/elm327/elm327.c' src/core/mblink.c
-          grep -q '../link/src/elm327/can.c' src/core/mblink.c
-          grep -q '../link/src/elm327/probe.c' src/core/mblink.c
-          grep -q '../link/src/elm327/session.c' src/core/mblink.c
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
-          grep -q 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -Fq 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
       - name: Build simulator
         shell: bash
         env:
@@ -193,7 +210,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - id: version
@@ -216,24 +233,26 @@ jobs:
           ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" "$RUNNER_TEMP/package/Payload/MBLINK.app"
           (cd "$RUNNER_TEMP/package" && zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
           unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v4
         with:
           name: MBLINK-${{ steps.version.outputs.version }}-unsigned-iphone-ipa
           path: ${{ runner.temp }}/MBLINK-${{ steps.version.outputs.version }}-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
+          retention-days: 30
 
   release:
-    name: Publish complete version release
+    name: Publish complete atomic release
     needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios, iphone-device-ipa]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
       - id: release
         shell: bash
         run: |
@@ -241,40 +260,40 @@ jobs:
           version="$(tr -d '[:space:]' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@v4
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
           path: release-assets
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@v4
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
           path: release-assets
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@v4
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
           path: release-assets
-      - name: Prepare and verify complete release set
+      - name: Build complete source archive and checksums
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          required=(
-            "MBLINK-${VERSION}-unsigned.ipa"
-            "MBLINK-${VERSION}-linux-amd64.deb"
-            "MBLINK-${VERSION}-linux-native.run"
-            "MBLINK-${VERSION}-windows-discover.exe"
-          )
-          for file in "${required[@]}"; do
+          for file in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe"; do
             test -s "release-assets/$file"
           done
-          git archive --format=zip --prefix="MBLINK-${VERSION}/" \
-            -o "release-assets/MBLINK-${VERSION}-source.zip" "$GITHUB_SHA"
+          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
+          mkdir -p "$staging"
+          rsync -a --exclude='.git' --exclude='release-assets' ./ "$staging/"
+          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
           (
             cd release-assets
             sha256sum MBLINK-* > SHA256SUMS.txt
           )
-      - name: Create exact tag and publish assets
+      - name: Create exact tag and publish all assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -295,9 +314,8 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
               --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete cross-platform release on LINK 0.7.2 with the shared native Windows menu/About shell and MBLINK icon branding."
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.7.4 with the shared modern Windows Discover shell and canonical MBLINK AppIcon branding."
           fi
-
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
             "MBLINK-${VERSION}-unsigned.ipa" \

@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
 
+# Discover is shipped as a standalone Windows executable. Select the static
+# MSVC runtime before C is enabled so MBLINK, LINK and Common use one coherent
+# runtime model and the EXE starts on clean Windows installations.
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
+if(MSVC OR WIN32)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MBLINK_PROJECT_VERSION)
 string(STRIP "${MBLINK_PROJECT_VERSION}" MBLINK_PROJECT_VERSION)
 if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -37,8 +47,8 @@ include(GNUInstallDirs)
 # LINK is MBLINK's only top-level implementation dependency. LINK owns and
 # validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.7.2")
-set(MBLINK_LINK_COMMIT "8d00d2d24ed514f7bc2f2025054839d4efabb29a")
+set(MBLINK_LINK_VERSION "0.7.4")
+set(MBLINK_LINK_COMMIT "7af290d71b38859202ccc90c060ee29b56d2296c")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -158,15 +168,19 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     if(NOT WIN32)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
+
+    # The iPhone AppIcon PNG is the canonical MBLINK identity image. LINK wraps
+    # those exact bytes into the Windows ICO/PE resource at build time so the
+    # EXE, taskbar, title bar and About dialog cannot drift to another emblem.
     link_add_windows_discover(mblink-discover
         PRODUCT_NAME "MBLINK"
         PRODUCT_SLUG "mblink"
         WINDOW_CLASS "MBLINKDiscoverWindow"
         PRODUCT_VERSION "${PROJECT_VERSION}"
         PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
-        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics")
-    target_sources(mblink-discover PRIVATE app/windows/mblink.rc)
-    target_include_directories(mblink-discover PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/app/windows")
+        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics"
+        PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
+        PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png")
 endif()
 
 function(mblink_add_test target source)
