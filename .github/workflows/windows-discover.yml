@@ -15,6 +15,8 @@ jobs:
     name: Windows / mblink-discover Win32
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -52,3 +54,78 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+      - name: Publish Windows executable to version release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TARGET: ${{ github.sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const version = process.env.RELEASE_VERSION;
+            const target = process.env.RELEASE_TARGET;
+            const tag = `v${version}`;
+            const assetName = `MBLINK-${version}-windows-discover.exe`;
+            const assetPath = path.join(process.env.GITHUB_WORKSPACE, 'release-assets', assetName);
+
+            const main = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
+            if (main.data.commit.sha !== target) {
+              core.info(`Skipping stale Windows release run at ${target}; main is ${main.data.commit.sha}.`);
+              return;
+            }
+
+            let tagTarget = null;
+            try {
+              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+              tagTarget = ref.data.object.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            if (tagTarget !== null && tagTarget !== target) {
+              core.setFailed(`${tag} already points to ${tagTarget}, not ${target}.`);
+              return;
+            }
+            if (tagTarget === null) {
+              await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha: target });
+            }
+
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = (await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: tag,
+                target_commitish: target,
+                name: `MBLINK ${version}`,
+                generate_release_notes: true,
+                draft: false,
+                prerelease: false
+              })).data;
+            }
+
+            const existing = await github.paginate(
+              github.rest.repos.listReleaseAssets,
+              { owner, repo, release_id: release.id, per_page: 100 }
+            );
+            for (const asset of existing) {
+              if (asset.name === assetName) {
+                await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });
+              }
+            }
+            const data = fs.readFileSync(assetPath);
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
+              release_id: release.id,
+              name: assetName,
+              data
+            });
