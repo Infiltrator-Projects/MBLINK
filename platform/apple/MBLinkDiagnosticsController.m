@@ -6,23 +6,8 @@
 #import "mblink/elm327_session.h"
 #import "mblink/mercedes.h"
 #import "mblink/mercedes_probe.h"
-#import "mblink/obd2.h"
-#import "mblink/scheduler.h"
 #import "mblink/telemetry.h"
-
-typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
-    MBLinkDiagnosticsPhaseIdle = 0,
-    MBLinkDiagnosticsPhaseInitializing,
-    MBLinkDiagnosticsPhaseCheckingPids,
-    MBLinkDiagnosticsPhaseProbingMercedes,
-    MBLinkDiagnosticsPhaseRestoringOBD,
-    MBLinkDiagnosticsPhaseScanningStoredDTCs,
-    MBLinkDiagnosticsPhaseScanningPendingDTCs,
-    MBLinkDiagnosticsPhaseScanningPermanentDTCs,
-    MBLinkDiagnosticsPhaseReadingLive,
-    MBLinkDiagnosticsPhaseLive,
-    MBLinkDiagnosticsPhaseFailed
-};
+#import "link/diagnostic_flow.h"
 
 @interface MBLinkDiagnosticsController () <MBLinkBLETransportDelegate>
 @property(nonatomic, copy, readwrite) NSString *statusText;
@@ -46,43 +31,32 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 - (void)handleSessionEvent:(const MblinkElm327Session *)session;
 - (void)processCompletedResponse;
 - (void)beginPortableSession;
-- (void)beginCurrentInitializationCommand;
 - (BOOL)beginCommand:(const char *)command timeout:(uint64_t)timeoutMs;
 - (void)startTickTimer;
 - (void)stopTickTimer;
-- (void)processInitializationResponse:(const MblinkElm327Response *)response;
-- (void)processSupportedPidResponse:(const MblinkElm327Response *)response;
+- (void)driveDiagnosticFlow;
+- (BOOL)applyFlowEvent:(const LinkDiagnosticFlowEvent *)event;
+- (void)markFlowFailure:(NSString *)status;
 - (void)beginMercedesProbe;
 - (void)beginCurrentMercedesProbeCommand;
 - (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
+- (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
-- (void)beginPostMercedesRestore;
-- (void)beginFaultScan;
-- (void)beginFaultScanKind:(MblinkObd2DtcKind)kind;
-- (void)processFaultScanResponse:(const MblinkElm327Response *)response;
-- (void)completeLiveSetup;
-- (void)processLiveResponse:(const MblinkElm327Response *)response;
-- (void)scheduleNextLiveRequest;
 @end
 
 @implementation MBLinkDiagnosticsController {
     MBLinkBLETransport *_provider;
     MblinkElm327Session _session;
     BOOL _sessionInitialized;
-    MblinkElm327InitState _initialization;
+    LinkDiagnosticFlow _flow;
     MblinkMercedesEcuProbe _mercedesProbe;
-    MblinkObd2PidSet _supportedPids;
-    MblinkScheduler _scheduler;
+    BOOL _manufacturerProbeActive;
     MblinkTelemetryStore _telemetry;
     MblinkTelemetryRecorder _recorder;
     MblinkTelemetrySessionMetadata _sessionMetadata;
     NSMutableData *_sessionCSV;
-    MBLinkDiagnosticsPhase _phase;
     dispatch_source_t _tickTimer;
-    size_t _activeScheduleIndex;
-    uint8_t _activePid;
-    uint8_t _supportedPidBase;
     NSUInteger _pollGeneration;
     uint64_t _sessionMonotonicStartMs;
 }
@@ -90,14 +64,9 @@ typedef NS_ENUM(NSInteger, MBLinkDiagnosticsPhase) {
 static uint64_t MBLinkMonotonicMilliseconds(void)
 {
     NSTimeInterval uptime = NSProcessInfo.processInfo.systemUptime;
-    if (uptime <= 0.0) {
-        return 0U;
-    }
-    double milliseconds = uptime * 1000.0;
-    if (milliseconds >= (double)UINT64_MAX) {
-        return UINT64_MAX;
-    }
-    return (uint64_t)milliseconds;
+    if (uptime <= 0.0) return 0U;
+    const double milliseconds = uptime * 1000.0;
+    return milliseconds >= (double)UINT64_MAX ? UINT64_MAX : (uint64_t)milliseconds;
 }
 
 static uint64_t MBLinkElapsedMilliseconds(uint64_t startedMs)
@@ -109,14 +78,9 @@ static uint64_t MBLinkElapsedMilliseconds(uint64_t startedMs)
 static uint64_t MBLinkEpochMilliseconds(void)
 {
     NSTimeInterval seconds = [NSDate date].timeIntervalSince1970;
-    if (seconds <= 0.0) {
-        return 0U;
-    }
-    double milliseconds = seconds * 1000.0;
-    if (milliseconds >= (double)UINT64_MAX) {
-        return UINT64_MAX;
-    }
-    return (uint64_t)milliseconds;
+    if (seconds <= 0.0) return 0U;
+    const double milliseconds = seconds * 1000.0;
+    return milliseconds >= (double)UINT64_MAX ? UINT64_MAX : (uint64_t)milliseconds;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -131,30 +95,22 @@ static unsigned int MBLinkBitCount32(uint32_t value)
 
 static bool MBLinkAppendCSV(void *context, const char *bytes, size_t length)
 {
-    if (context == NULL || bytes == NULL) {
-        return false;
-    }
+    if (context == NULL || bytes == NULL) return false;
     NSMutableData *data = (__bridge NSMutableData *)context;
     [data appendBytes:bytes length:length];
     return true;
 }
 
-static void MBLinkSessionEvent(void *context,
-                               const MblinkElm327Session *session)
+static void MBLinkSessionEvent(void *context, const MblinkElm327Session *session)
 {
     MBLinkDiagnosticsController *controller =
         (__bridge MBLinkDiagnosticsController *)context;
-    if (controller == nil || session == NULL) {
-        return;
-    }
-    [controller handleSessionEvent:session];
+    if (controller != nil && session != NULL) [controller handleSessionEvent:session];
 }
 
 static NSString *MBLinkStringFromCString(const char *value)
 {
-    if (value == NULL) {
-        return @"unknown";
-    }
+    if (value == NULL) return @"unknown";
     NSString *string = [NSString stringWithUTF8String:value];
     return string != nil ? string : @"unknown";
 }
@@ -162,36 +118,28 @@ static NSString *MBLinkStringFromCString(const char *value)
 static NSString *MBLinkMercedesEndpointText(
     const MblinkMercedesEcuEndpointDefinition *endpoint)
 {
-    if (endpoint == NULL) {
-        return nil;
-    }
-
+    if (endpoint == NULL) return nil;
     NSString *name = MBLinkStringFromCString(endpoint->name);
     if (endpoint->address.tx_extended_id) {
         return [NSString stringWithFormat:@"%@ · 0x%08X → 0x%08X",
-                                          name,
-                                          (unsigned int)endpoint->address.tx_can_id,
-                                          (unsigned int)endpoint->address.rx_can_id];
+            name,
+            (unsigned int)endpoint->address.tx_can_id,
+            (unsigned int)endpoint->address.rx_can_id];
     }
     return [NSString stringWithFormat:@"%@ · 0x%03X → 0x%03X",
-                                      name,
-                                      (unsigned int)endpoint->address.tx_can_id,
-                                      (unsigned int)endpoint->address.rx_can_id];
+        name,
+        (unsigned int)endpoint->address.tx_can_id,
+        (unsigned int)endpoint->address.rx_can_id];
 }
 
-static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
+static NSArray<NSString *> *MBLinkDTCStrings(const LinkObd2DtcList *list)
 {
-    if (list == NULL || list->count == 0U) {
-        return @[];
-    }
-
+    if (list == NULL || list->count == 0U) return @[];
     NSMutableArray<NSString *> *values =
         [[NSMutableArray alloc] initWithCapacity:list->count];
     for (size_t index = 0U; index < list->count; ++index) {
         NSString *code = MBLinkStringFromCString(list->entries[index].code);
-        if (code.length != 0U) {
-            [values addObject:code];
-        }
+        if (code.length != 0U) [values addObject:code];
     }
     return [values copy];
 }
@@ -199,10 +147,7 @@ static NSArray<NSString *> *MBLinkDTCStrings(const MblinkObd2DtcList *list)
 static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     const MblinkUdsDtcList *list)
 {
-    if (list == NULL || list->count == 0U) {
-        return @[];
-    }
-
+    if (list == NULL || list->count == 0U) return @[];
     NSMutableArray<NSString *> *values =
         [[NSMutableArray alloc] initWithCapacity:list->count];
     for (size_t index = 0U; index < list->count; ++index) {
@@ -217,6 +162,14 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             (unsigned int)list->records[index].status]];
     }
     return [values copy];
+}
+
+static BOOL MBLinkFlowIsFaultScan(const LinkDiagnosticFlow *flow)
+{
+    if (flow == NULL) return NO;
+    return flow->stage == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS ||
+           flow->stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS ||
+           flow->stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS;
 }
 
 - (instancetype)init
@@ -236,9 +189,10 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         _storedDTCs = @[];
         _pendingDTCs = @[];
         _permanentDTCs = @[];
-        _phase = MBLinkDiagnosticsPhaseIdle;
-        mblink_obd2_pid_set_clear(&_supportedPids);
-        mblink_scheduler_init(&_scheduler);
+        LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+        flowConfig.manufacturer_extension_after_pid_discovery = true;
+        flowConfig.restore_adapter_after_manufacturer_extension = true;
+        (void)link_diagnostic_flow_init(&_flow, &flowConfig);
         mblink_telemetry_store_init(&_telemetry);
         mblink_telemetry_recorder_init(&_recorder);
         _sessionCSV = [[NSMutableData alloc] init];
@@ -246,8 +200,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         mblink_telemetry_store_set_favourite(&_telemetry, 0x0dU, true);
         mblink_telemetry_store_set_favourite(&_telemetry, 0x05U, true);
         mblink_telemetry_store_set_favourite(&_telemetry, 0x0bU, true);
-        mblink_telemetry_session_metadata_init(
-            &_sessionMetadata, 0U, NULL, NULL);
+        mblink_telemetry_session_metadata_init(&_sessionMetadata, 0U, NULL, NULL);
     }
     return self;
 }
@@ -257,8 +210,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     _provider.delegate = nil;
     [self stopTickTimer];
     if (_recorder.started && !_recorder.finished) {
-        (void)mblink_telemetry_recorder_finish(
-            &_recorder, MBLinkEpochMilliseconds());
+        (void)mblink_telemetry_recorder_finish(&_recorder, MBLinkEpochMilliseconds());
     }
     if (_sessionInitialized) {
         _sessionInitialized = NO;
@@ -272,9 +224,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 - (void)notifyDelegate
 {
     id<MBLinkDiagnosticsControllerDelegate> delegate = self.delegate;
-    if (delegate != nil) {
-        [delegate diagnosticsControllerDidUpdate:self];
-    }
+    if (delegate != nil) [delegate diagnosticsControllerDidUpdate:self];
 }
 
 - (void)setStatus:(NSString *)status
@@ -286,14 +236,10 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 - (void)start
 {
     if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self start];
-        });
+        dispatch_async(dispatch_get_main_queue(), ^{ [self start]; });
         return;
     }
-    if (self.active) {
-        return;
-    }
+    if (self.active) return;
 
     _pollGeneration++;
     self.active = YES;
@@ -311,12 +257,11 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     self.pendingDTCs = @[];
     self.permanentDTCs = @[];
     _mercedesProbe = (MblinkMercedesEcuProbe){0};
-    _phase = MBLinkDiagnosticsPhaseIdle;
-    _activePid = 0U;
-    _activeScheduleIndex = 0U;
-    _supportedPidBase = 0U;
-    mblink_obd2_pid_set_clear(&_supportedPids);
-    mblink_scheduler_init(&_scheduler);
+    _manufacturerProbeActive = NO;
+    LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+    flowConfig.manufacturer_extension_after_pid_discovery = true;
+    flowConfig.restore_adapter_after_manufacturer_extension = true;
+    (void)link_diagnostic_flow_init(&_flow, &flowConfig);
     mblink_telemetry_store_clear_samples(&_telemetry);
     mblink_telemetry_recorder_init(&_recorder);
     _sessionCSV = [[NSMutableData alloc] init];
@@ -330,9 +275,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 - (void)disconnect
 {
     if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self disconnect];
-        });
+        dispatch_async(dispatch_get_main_queue(), ^{ [self disconnect]; });
         return;
     }
 
@@ -346,12 +289,15 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         [_provider disconnect];
     }
     const uint64_t endedEpochMs = MBLinkEpochMilliseconds();
-    mblink_telemetry_session_metadata_finish(
-        &_sessionMetadata, endedEpochMs);
+    mblink_telemetry_session_metadata_finish(&_sessionMetadata, endedEpochMs);
     if (_recorder.started && !_recorder.finished) {
         (void)mblink_telemetry_recorder_finish(&_recorder, endedEpochMs);
     }
-    _phase = MBLinkDiagnosticsPhaseIdle;
+    LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+    flowConfig.manufacturer_extension_after_pid_discovery = true;
+    flowConfig.restore_adapter_after_manufacturer_extension = true;
+    (void)link_diagnostic_flow_init(&_flow, &flowConfig);
+    _manufacturerProbeActive = NO;
     self.active = NO;
     self.ready = NO;
     [self setStatus:@"Disconnected"];
@@ -370,19 +316,17 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         [self beginPortableSession];
         return;
     }
-
     if (!transport.isReady && _sessionInitialized &&
         transport.state != MBLinkBLETransportStateProbing) {
         _pollGeneration++;
         [self stopTickTimer];
         _sessionInitialized = NO;
         mblink_elm327_session_deinit(&_session);
+        link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
+        _manufacturerProbeActive = NO;
         self.ready = NO;
     }
-
-    if (!_sessionInitialized) {
-        self.statusText = transport.statusText;
-    }
+    if (!_sessionInitialized) self.statusText = transport.statusText;
     [self notifyDelegate];
 }
 
@@ -390,12 +334,9 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 {
     MblinkTransport transport = MBLinkBLETransportMakeCTransport(_provider);
     if (!mblink_transport_is_valid(&transport) ||
-        !mblink_elm327_session_init(&_session,
-                                    &transport,
-                                    MBLinkSessionEvent,
-                                    (__bridge void *)self)) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Failed to initialise portable diagnostic session"];
+        !mblink_elm327_session_init(&_session, &transport,
+                                    MBLinkSessionEvent, (__bridge void *)self)) {
+        [self markFlowFailure:@"Failed to initialise portable diagnostic session"];
         return;
     }
 
@@ -407,36 +348,36 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         _sessionInitialized = NO;
         mblink_elm327_session_disconnect(&_session);
         mblink_elm327_session_deinit(&_session);
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not start portable session recorder"];
+        [self markFlowFailure:@"Could not start portable session recorder"];
         return;
     }
-    mblink_elm327_init_begin(&_initialization);
-    _phase = MBLinkDiagnosticsPhaseInitializing;
+
+    LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+    flowConfig.manufacturer_extension_after_pid_discovery = true;
+    flowConfig.restore_adapter_after_manufacturer_extension = true;
+    (void)link_diagnostic_flow_init(&_flow, &flowConfig);
+    if (link_diagnostic_flow_start(&_flow) != LINK_DIAGNOSTIC_FLOW_RESULT_OK) {
+        [self markFlowFailure:@"Could not start shared diagnostic flow"];
+        return;
+    }
     [self startTickTimer];
     [self setStatus:@"Initialising ELM327 adapter"];
-    [self beginCurrentInitializationCommand];
+    [self driveDiagnosticFlow];
 }
 
 - (void)startTickTimer
 {
     [self stopTickTimer];
-
     _tickTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
-                                        0U,
-                                        0U,
-                                        dispatch_get_main_queue());
+                                        0U, 0U, dispatch_get_main_queue());
     dispatch_source_set_timer(_tickTimer,
-                              dispatch_time(DISPATCH_TIME_NOW,
-                                            100 * NSEC_PER_MSEC),
+                              dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC),
                               100 * NSEC_PER_MSEC,
                               20 * NSEC_PER_MSEC);
     __weak MBLinkDiagnosticsController *weakSelf = self;
     dispatch_source_set_event_handler(_tickTimer, ^{
         MBLinkDiagnosticsController *strongSelf = weakSelf;
-        if (strongSelf == nil || !strongSelf->_sessionInitialized) {
-            return;
-        }
+        if (strongSelf == nil || !strongSelf->_sessionInitialized) return;
         (void)mblink_elm327_session_tick(&strongSelf->_session,
                                          MBLinkMonotonicMilliseconds());
     });
@@ -453,19 +394,14 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 
 - (BOOL)beginCommand:(const char *)command timeout:(uint64_t)timeoutMs
 {
-    if (!_sessionInitialized || command == NULL) {
-        return NO;
-    }
-
+    if (!_sessionInitialized || command == NULL) return NO;
     MblinkElm327SessionOpResult result =
-        mblink_elm327_session_begin(&_session,
-                                    command,
-                                    MBLinkMonotonicMilliseconds(),
-                                    timeoutMs);
+        mblink_elm327_session_begin(&_session, command,
+                                    MBLinkMonotonicMilliseconds(), timeoutMs);
     if (result != MBLINK_ELM327_SESSION_OP_OK) {
-        NSString *reason =
-            MBLinkStringFromCString(mblink_elm327_session_op_result_name(result));
-        _phase = MBLinkDiagnosticsPhaseFailed;
+        NSString *reason = MBLinkStringFromCString(
+            mblink_elm327_session_op_result_name(result));
+        link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
         [self setStatus:[NSString stringWithFormat:
             @"Diagnostic command failed: %@", reason]];
         return NO;
@@ -473,42 +409,28 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     return YES;
 }
 
-- (void)beginCurrentInitializationCommand
-{
-    const char *command = mblink_elm327_init_command(&_initialization);
-    if (command == NULL) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"ELM327 initialisation state is invalid"];
-        return;
-    }
-    (void)[self beginCommand:command timeout:4000U];
-}
-
 - (void)handleSessionEvent:(const MblinkElm327Session *)session
 {
     if (session->status == MBLINK_ELM327_SESSION_COMPLETE) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self processCompletedResponse];
-        });
+        dispatch_async(dispatch_get_main_queue(), ^{ [self processCompletedResponse]; });
         return;
     }
 
     if (session->status == MBLINK_ELM327_SESSION_TIMED_OUT) {
-        if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
+        if (_manufacturerProbeActive) {
             self.mercedesProbeStatusText =
                 @"Probe timed out; reconnect required to resynchronise the adapter";
             self.mercedesIdentitySummaryText = @"Probe did not complete";
-            if (_mercedesProbe.stage ==
-                MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+            if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
                 self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read timed out";
             }
         }
-        if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
-            _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
-            _phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
+        if (MBLinkFlowIsFaultScan(&_flow)) {
             self.faultScanStatusText = @"Fault scan timed out; reconnect required";
         }
-        _phase = MBLinkDiagnosticsPhaseFailed;
+        _flow.elm_failure = session->elm_result;
+        link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
+        _manufacturerProbeActive = NO;
         [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
         return;
     }
@@ -516,41 +438,41 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     if (session->status == MBLINK_ELM327_SESSION_FAILED) {
         NSString *reason = MBLinkStringFromCString(
             mblink_elm327_result_name(session->elm_result));
-        if (_phase == MBLinkDiagnosticsPhaseProbingMercedes) {
+        if (_manufacturerProbeActive) {
             self.mercedesProbeStatusText = [NSString stringWithFormat:
                 @"Adapter response failed during probe: %@", reason];
             self.mercedesIdentitySummaryText = @"Probe did not complete";
-            if (_mercedesProbe.stage ==
-                MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+            if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
                 self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
                     @"Mercedes UDS fault read adapter error: %@", reason];
             }
         }
-        if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs ||
-            _phase == MBLinkDiagnosticsPhaseScanningPendingDTCs ||
-            _phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
+        if (MBLinkFlowIsFaultScan(&_flow)) {
             self.faultScanStatusText = [NSString stringWithFormat:
                 @"Fault scan adapter error: %@", reason];
         }
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:[NSString stringWithFormat:
-            @"Adapter response failed: %@", reason]];
+        _flow.elm_failure = session->elm_result;
+        link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
+        _manufacturerProbeActive = NO;
+        [self setStatus:[NSString stringWithFormat:@"Adapter response failed: %@", reason]];
         return;
     }
 
     if (session->status == MBLINK_ELM327_SESSION_CANCELLED) {
-        _phase = MBLinkDiagnosticsPhaseIdle;
+        LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+        flowConfig.manufacturer_extension_after_pid_discovery = true;
+        flowConfig.restore_adapter_after_manufacturer_extension = true;
+        (void)link_diagnostic_flow_init(&_flow, &flowConfig);
+        _manufacturerProbeActive = NO;
         [self setStatus:@"Diagnostic request cancelled"];
     }
 }
 
 - (void)processCompletedResponse
 {
-    const MblinkElm327Response *response =
-        mblink_elm327_session_response(&_session);
+    const MblinkElm327Response *response = mblink_elm327_session_response(&_session);
     if (response == NULL) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Diagnostic response was unavailable"];
+        [self markFlowFailure:@"Diagnostic response was unavailable"];
         return;
     }
 
@@ -563,126 +485,204 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         !mblink_telemetry_recorder_record_response(
             &_recorder,
             MBLinkElapsedMilliseconds(_sessionMonotonicStartMs),
-            _session.parser.command, response)) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not append diagnostic transcript"];
+            _session.parser.command,
+            response)) {
+        [self markFlowFailure:@"Could not append diagnostic transcript"];
         return;
     }
 
-    switch (_phase) {
-    case MBLinkDiagnosticsPhaseInitializing:
-    case MBLinkDiagnosticsPhaseRestoringOBD:
-        [self processInitializationResponse:response];
-        break;
-    case MBLinkDiagnosticsPhaseCheckingPids:
-        [self processSupportedPidResponse:response];
-        break;
-    case MBLinkDiagnosticsPhaseProbingMercedes:
+    if (_manufacturerProbeActive) {
         [self processMercedesProbeResponse:response];
-        break;
-    case MBLinkDiagnosticsPhaseScanningStoredDTCs:
-    case MBLinkDiagnosticsPhaseScanningPendingDTCs:
-    case MBLinkDiagnosticsPhaseScanningPermanentDTCs:
-        [self processFaultScanResponse:response];
-        break;
-    case MBLinkDiagnosticsPhaseReadingLive:
-        [self processLiveResponse:response];
-        break;
-    case MBLinkDiagnosticsPhaseLive:
-    case MBLinkDiagnosticsPhaseIdle:
-    case MBLinkDiagnosticsPhaseFailed:
-        break;
+        return;
+    }
+
+    LinkDiagnosticFlowEvent event;
+    LinkDiagnosticFlowResult result = link_diagnostic_flow_accept_response(
+        &_flow,
+        (const LinkElm327Response *)response,
+        MBLinkMonotonicMilliseconds(),
+        &event);
+    if (result != LINK_DIAGNOSTIC_FLOW_RESULT_OK) {
+        NSString *reason = MBLinkStringFromCString(link_diagnostic_flow_result_name(result));
+        [self setStatus:[NSString stringWithFormat:@"Shared diagnostic flow failed: %@", reason]];
+        return;
+    }
+    if (![self applyFlowEvent:&event]) return;
+    [self driveDiagnosticFlow];
+}
+
+- (void)driveDiagnosticFlow
+{
+    if (!_sessionInitialized || !_provider.isReady ||
+        _flow.stage == LINK_DIAGNOSTIC_FLOW_FAILED || _manufacturerProbeActive) {
+        return;
+    }
+
+    LinkDiagnosticFlowAction action;
+    LinkDiagnosticFlowResult result = link_diagnostic_flow_next_action(
+        &_flow, MBLinkMonotonicMilliseconds(), &action);
+    if (result != LINK_DIAGNOSTIC_FLOW_RESULT_OK) {
+        NSString *reason = MBLinkStringFromCString(link_diagnostic_flow_result_name(result));
+        [self setStatus:[NSString stringWithFormat:@"Shared diagnostic flow failed: %@", reason]];
+        return;
+    }
+
+    switch (action.kind) {
+    case LINK_DIAGNOSTIC_FLOW_ACTION_NONE:
+        return;
+
+    case LINK_DIAGNOSTIC_FLOW_ACTION_SEND_COMMAND:
+        if (_flow.stage == LINK_DIAGNOSTIC_FLOW_INITIALIZING) {
+            self.statusText = @"Initialising ELM327 adapter";
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_RESTORING_AFTER_MANUFACTURER) {
+            self.statusText = @"Restoring standard OBD-II adapter channel";
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_DISCOVERING_PIDS) {
+            self.statusText = _flow.supported_pid_base == 0U
+                ? @"Checking standard OBD-II capabilities"
+                : [NSString stringWithFormat:@"Checking OBD-II PID block 0x%02X",
+                    (unsigned int)_flow.supported_pid_base];
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS) {
+            self.faultScanStatusText = @"Scanning stored, pending and permanent OBD-II faults";
+            self.statusText = @"Scanning stored OBD-II fault codes";
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS) {
+            self.statusText = @"Scanning pending OBD-II fault codes";
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS) {
+            self.statusText = @"Scanning permanent OBD-II fault codes";
+        } else if (_flow.stage == LINK_DIAGNOSTIC_FLOW_READING_LIVE) {
+            self.statusText = @"Live OBD-II and diesel scheduler active";
+        }
+        [self notifyDelegate];
+        (void)[self beginCommand:action.command timeout:action.timeout_ms];
+        return;
+
+    case LINK_DIAGNOSTIC_FLOW_ACTION_WAIT: {
+        uint64_t waitMs = action.wait_ms > 60000U ? 60000U : action.wait_ms;
+        const NSUInteger generation = _pollGeneration;
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)waitMs * NSEC_PER_MSEC),
+            dispatch_get_main_queue(), ^{
+                if (generation == self->_pollGeneration) [self driveDiagnosticFlow];
+            });
+        return;
+    }
+
+    case LINK_DIAGNOSTIC_FLOW_ACTION_MANUFACTURER_EXTENSION:
+        [self beginMercedesProbe];
+        return;
+
+    case LINK_DIAGNOSTIC_FLOW_ACTION_READY:
+        self.ready = YES;
+        if (_flow.scheduler.count == 0U) {
+            [self setStatus:@"Connected; no supported dashboard PIDs were advertised"];
+        } else {
+            [self setStatus:@"Live OBD-II and diesel scheduler active"];
+        }
+        return;
+
+    case LINK_DIAGNOSTIC_FLOW_ACTION_FAILED:
+        [self markFlowFailure:@"Shared diagnostic flow entered the failed state"];
+        return;
     }
 }
 
-- (void)processInitializationResponse:(const MblinkElm327Response *)response
+- (BOOL)applyFlowEvent:(const LinkDiagnosticFlowEvent *)event
 {
-    const BOOL restoringOBD = _phase == MBLinkDiagnosticsPhaseRestoringOBD;
-    MblinkElm327Result result =
-        mblink_elm327_init_accept(&_initialization, response);
-    if (result != MBLINK_ELM327_RESULT_OK ||
-        _initialization.stage == MBLINK_ELM327_INIT_FAILED) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:restoringOBD
-            ? @"Could not restore the standard OBD-II adapter channel"
-            : @"ELM327 initialisation failed"];
-        return;
-    }
+    if (event == NULL) return NO;
 
-    if (_initialization.adapter_id[0] != '\0') {
-        self.adapterIdentifier =
-            [NSString stringWithUTF8String:_initialization.adapter_id];
-        mblink_telemetry_session_metadata_set_adapter(
-            &_sessionMetadata, _initialization.adapter_id);
-    }
+    switch (event->kind) {
+    case LINK_DIAGNOSTIC_FLOW_EVENT_NONE:
+        return YES;
 
-    if (_initialization.stage == MBLINK_ELM327_INIT_COMPLETE) {
-        if (restoringOBD) {
-            [self beginFaultScan];
-            return;
+    case LINK_DIAGNOSTIC_FLOW_EVENT_ADAPTER_IDENTIFIED: {
+        const char *identifier = link_diagnostic_flow_adapter_identifier(&_flow);
+        if (identifier != NULL) {
+            self.adapterIdentifier = MBLinkStringFromCString(identifier);
+            mblink_telemetry_session_metadata_set_adapter(&_sessionMetadata, identifier);
         }
-
-        char command[8];
-        _supportedPidBase = 0x00U;
-        MblinkObd2Result build =
-            mblink_obd2_build_supported_pid_request(
-                _supportedPidBase, command, sizeof(command));
-        if (build != MBLINK_OBD2_RESULT_OK) {
-            _phase = MBLinkDiagnosticsPhaseFailed;
-            [self setStatus:@"Could not build OBD-II capability request"];
-            return;
-        }
-
-        _phase = MBLinkDiagnosticsPhaseCheckingPids;
-        [self setStatus:@"Checking standard OBD-II capabilities"];
-        (void)[self beginCommand:command timeout:3000U];
-        return;
+        return YES;
     }
 
-    [self beginCurrentInitializationCommand];
+    case LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE:
+        return YES;
+
+    case LINK_DIAGNOSTIC_FLOW_EVENT_DTC_LIST: {
+        NSArray<NSString *> *codes = MBLinkDTCStrings(event->dtc_list);
+        switch (event->dtc_kind) {
+        case LINK_OBD2_DTC_STORED:
+            self.storedDTCs = codes;
+            break;
+        case LINK_OBD2_DTC_PENDING:
+            self.pendingDTCs = codes;
+            break;
+        case LINK_OBD2_DTC_PERMANENT:
+            self.permanentDTCs = codes;
+            self.faultScanStatusText = [NSString stringWithFormat:
+                @"Complete · %lu stored · %lu pending · %lu permanent",
+                (unsigned long)self.storedDTCs.count,
+                (unsigned long)self.pendingDTCs.count,
+                (unsigned long)self.permanentDTCs.count];
+            break;
+        }
+        if (event->became_ready) self.ready = YES;
+        [self notifyDelegate];
+        return YES;
+    }
+
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE: {
+        const MblinkObd2Sample *sample =
+            (const MblinkObd2Sample *)&event->sample;
+        if (!mblink_telemetry_store_record(
+                &_telemetry,
+                MBLinkElapsedMilliseconds(_sessionMonotonicStartMs),
+                sample)) {
+            [self markFlowFailure:@"Could not record live telemetry sample"];
+            return NO;
+        }
+        MblinkTelemetrySample recorded;
+        if (_recorder.started && !_recorder.finished &&
+            mblink_telemetry_store_latest(&_telemetry, sample->pid, &recorded) &&
+            !mblink_telemetry_recorder_record_sample(
+                &_recorder, &recorded,
+                mblink_telemetry_store_is_favourite(&_telemetry, sample->pid))) {
+            [self markFlowFailure:@"Could not append session recording"];
+            return NO;
+        }
+        self.ready = YES;
+        self.statusText = @"Live OBD-II and diesel data";
+        [self notifyDelegate];
+        return YES;
+    }
+
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_NO_DATA:
+        self.statusText = @"Live OBD-II data; one PID returned no data";
+        [self notifyDelegate];
+        return YES;
+
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_UNSUPPORTED:
+        self.statusText = @"Live OBD-II data; one advertised diesel sub-field is unavailable";
+        [self notifyDelegate];
+        return YES;
+    }
+    return YES;
 }
 
-- (void)processSupportedPidResponse:(const MblinkElm327Response *)response
+- (void)markFlowFailure:(NSString *)status
 {
-    bool hasMore = false;
-    MblinkObd2Result result =
-        mblink_obd2_accept_supported_pids(
-            response, _supportedPidBase, &_supportedPids, &hasMore);
-    if (result != MBLINK_OBD2_RESULT_OK) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Vehicle did not provide a valid OBD-II PID map"];
-        return;
-    }
-
-    if (hasMore && _supportedPidBase <= 0xc0U) {
-        char command[8];
-        _supportedPidBase = (uint8_t)(_supportedPidBase + 0x20U);
-        result = mblink_obd2_build_supported_pid_request(
-            _supportedPidBase, command, sizeof(command));
-        if (result != MBLINK_OBD2_RESULT_OK) {
-            _phase = MBLinkDiagnosticsPhaseFailed;
-            [self setStatus:@"Could not continue OBD-II capability discovery"];
-            return;
-        }
-        [self setStatus:[NSString stringWithFormat:
-            @"Checking OBD-II PID block 0x%02X", (unsigned int)_supportedPidBase]];
-        (void)[self beginCommand:command timeout:3000U];
-        return;
-    }
-
-    [self beginMercedesProbe];
+    link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_INVALID_STATE);
+    _manufacturerProbeActive = NO;
+    self.ready = NO;
+    [self setStatus:status];
 }
 
 - (void)beginMercedesProbe
 {
-    const MblinkMercedesVehicleProfile *profile =
-        mblink_mercedes_c207_om651_profile();
+    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
     if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
         self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
         self.mercedesIdentitySummaryText = @"Not attempted";
         self.mercedesCrd3SummaryText = @"Not attempted";
         self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self beginFaultScan];
+        [self finishMercedesExtensionRestoringAdapter:NO];
         return;
     }
 
@@ -694,7 +694,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         self.mercedesIdentitySummaryText = @"Not attempted";
         self.mercedesCrd3SummaryText = @"Not attempted";
         self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self beginFaultScan];
+        [self finishMercedesExtensionRestoringAdapter:NO];
         return;
     }
 
@@ -708,16 +708,17 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         self.mercedesIdentitySummaryText = @"Not attempted";
         self.mercedesCrd3SummaryText = @"Not attempted";
         self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self beginFaultScan];
+        [self finishMercedesExtensionRestoringAdapter:NO];
         return;
     }
 
+    _manufacturerProbeActive = YES;
+    _flow.config.restore_adapter_after_manufacturer_extension = true;
     self.mercedesProbeStatusText =
         @"Probing Delphi CRD3.x candidate with read-only UDS TesterPresent";
     self.mercedesIdentitySummaryText = @"Waiting for UDS endpoint response";
     self.mercedesCrd3SummaryText = @"Waiting for CRD3 fingerprint";
     self.mercedesUDSFaultStatusText = @"Waiting for Mercedes UDS fault read";
-    _phase = MBLinkDiagnosticsPhaseProbingMercedes;
     [self setStatus:@"Probing Mercedes-Benz CRD3.x engine ECU (read-only)"];
     [self beginCurrentMercedesProbeCommand];
 }
@@ -734,7 +735,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             @"Probe command failed: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
         self.mercedesIdentitySummaryText = @"Probe did not complete";
-        [self beginPostMercedesRestore];
+        [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
 
@@ -743,8 +744,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             @"UDS endpoint confirmed; reading standardized VIN (F190)";
         self.mercedesIdentitySummaryText = @"Reading standardized vehicle identity";
         [self notifyDelegate];
-    } else if (_mercedesProbe.stage ==
-               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
+    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
         const size_t index = _mercedesProbe.identity_index;
         const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
         const char *name = mblink_mercedes_ecu_probe_identity_did_name(index);
@@ -759,8 +759,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             index + 1U,
             (unsigned int)MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT];
         [self notifyDelegate];
-    } else if (_mercedesProbe.stage ==
-               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT) {
+    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT) {
         const size_t index = _mercedesProbe.crd3_index;
         const uint16_t did = mblink_mercedes_ecu_probe_crd3_did_at(index);
         const char *name = mblink_mercedes_ecu_probe_crd3_did_name(index);
@@ -775,8 +774,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             index + 1U,
             (unsigned int)MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT];
         [self notifyDelegate];
-    } else if (_mercedesProbe.stage ==
-               MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
+    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
         self.mercedesProbeStatusText = @"Reading Mercedes UDS fault memory (19 02 FF)";
         self.mercedesUDSFaultStatusText = @"Reading Mercedes UDS fault memory";
         [self notifyDelegate];
@@ -792,7 +790,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 
     if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
         [self updateMercedesProbeEvidenceSummary];
-        [self beginPostMercedesRestore];
+        [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
 
@@ -800,23 +798,33 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         _mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED) {
         self.mercedesProbeStatusText = [self mercedesProbeFailureText];
         self.mercedesIdentitySummaryText = @"Probe did not complete";
-        [self beginPostMercedesRestore];
+        [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
 
     [self beginCurrentMercedesProbeCommand];
 }
 
+- (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore
+{
+    _manufacturerProbeActive = NO;
+    _flow.config.restore_adapter_after_manufacturer_extension = restore;
+    LinkDiagnosticFlowResult result =
+        link_diagnostic_flow_resume_after_manufacturer(&_flow);
+    if (result != LINK_DIAGNOSTIC_FLOW_RESULT_OK) {
+        [self markFlowFailure:@"Could not resume shared diagnostic flow after Mercedes probe"];
+        return;
+    }
+    if (restore) [self setStatus:@"Restoring standard OBD-II adapter channel"];
+    [self driveDiagnosticFlow];
+}
+
 - (void)updateMercedesProbeEvidenceSummary
 {
-    const unsigned int positive =
-        MBLinkBitCount32(_mercedesProbe.identity_positive_mask);
-    const unsigned int negative =
-        MBLinkBitCount32(_mercedesProbe.identity_negative_mask);
-    const unsigned int noResponse =
-        MBLinkBitCount32(_mercedesProbe.identity_no_response_mask);
-    const unsigned int invalid =
-        MBLinkBitCount32(_mercedesProbe.identity_invalid_mask);
+    const unsigned int positive = MBLinkBitCount32(_mercedesProbe.identity_positive_mask);
+    const unsigned int negative = MBLinkBitCount32(_mercedesProbe.identity_negative_mask);
+    const unsigned int noResponse = MBLinkBitCount32(_mercedesProbe.identity_no_response_mask);
+    const unsigned int invalid = MBLinkBitCount32(_mercedesProbe.identity_invalid_mask);
     const size_t total = mblink_mercedes_ecu_probe_identity_did_count();
 
     self.mercedesIdentitySummaryText = [NSString stringWithFormat:
@@ -929,8 +937,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
     case MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE:
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
             @"Mercedes UDS fault response invalid · %@",
-            MBLinkStringFromCString(
-                mblink_uds_result_name(_mercedesProbe.dtc_uds_result))];
+            MBLinkStringFromCString(mblink_uds_result_name(_mercedesProbe.dtc_uds_result))];
         break;
     case MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED:
         self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read not attempted";
@@ -955,8 +962,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
         }
         return [NSString stringWithFormat:
             @"UDS response validation failed: %@",
-            MBLinkStringFromCString(
-                mblink_uds_result_name(_mercedesProbe.uds_failure))];
+            MBLinkStringFromCString(mblink_uds_result_name(_mercedesProbe.uds_failure))];
     }
 
     if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR) {
@@ -983,268 +989,25 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             mblink_mercedes_ecu_probe_result_name(_mercedesProbe.failure))];
 }
 
-- (void)beginPostMercedesRestore
-{
-    mblink_elm327_init_begin(&_initialization);
-    _phase = MBLinkDiagnosticsPhaseRestoringOBD;
-    [self setStatus:@"Restoring standard OBD-II adapter channel"];
-    [self beginCurrentInitializationCommand];
-}
-
-- (void)beginFaultScan
-{
-    self.storedDTCs = @[];
-    self.pendingDTCs = @[];
-    self.permanentDTCs = @[];
-    self.faultScanStatusText = @"Scanning stored, pending and permanent OBD-II faults";
-    [self beginFaultScanKind:MBLINK_OBD2_DTC_STORED];
-}
-
-- (void)beginFaultScanKind:(MblinkObd2DtcKind)kind
-{
-    char command[8];
-    MblinkObd2Result result =
-        mblink_obd2_build_dtc_request(kind, command, sizeof(command));
-    if (result != MBLINK_OBD2_RESULT_OK) {
-        self.faultScanStatusText = @"Could not build OBD-II fault request";
-        [self completeLiveSetup];
-        return;
-    }
-
-    switch (kind) {
-    case MBLINK_OBD2_DTC_STORED:
-        _phase = MBLinkDiagnosticsPhaseScanningStoredDTCs;
-        [self setStatus:@"Scanning stored OBD-II fault codes"];
-        break;
-    case MBLINK_OBD2_DTC_PENDING:
-        _phase = MBLinkDiagnosticsPhaseScanningPendingDTCs;
-        [self setStatus:@"Scanning pending OBD-II fault codes"];
-        break;
-    case MBLINK_OBD2_DTC_PERMANENT:
-        _phase = MBLinkDiagnosticsPhaseScanningPermanentDTCs;
-        [self setStatus:@"Scanning permanent OBD-II fault codes"];
-        break;
-    }
-    (void)[self beginCommand:command timeout:3000U];
-}
-
-- (void)processFaultScanResponse:(const MblinkElm327Response *)response
-{
-    MblinkObd2DtcKind kind;
-    if (_phase == MBLinkDiagnosticsPhaseScanningStoredDTCs) {
-        kind = MBLINK_OBD2_DTC_STORED;
-    } else if (_phase == MBLinkDiagnosticsPhaseScanningPendingDTCs) {
-        kind = MBLINK_OBD2_DTC_PENDING;
-    } else if (_phase == MBLinkDiagnosticsPhaseScanningPermanentDTCs) {
-        kind = MBLINK_OBD2_DTC_PERMANENT;
-    } else {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Fault scan state was invalid"];
-        return;
-    }
-
-    MblinkObd2DtcList list = {0};
-    MblinkObd2Result result = MBLINK_OBD2_RESULT_OK;
-    if (response->result != MBLINK_ELM327_RESULT_NO_DATA) {
-        result = mblink_obd2_decode_dtcs(response, kind, &list);
-    }
-
-    if (result != MBLINK_OBD2_RESULT_OK) {
-        self.faultScanStatusText = [NSString stringWithFormat:
-            @"Fault scan decode stopped: %@",
-            MBLinkStringFromCString(mblink_obd2_result_name(result))];
-        [self completeLiveSetup];
-        return;
-    }
-
-    NSArray<NSString *> *codes = MBLinkDTCStrings(&list);
-    switch (kind) {
-    case MBLINK_OBD2_DTC_STORED:
-        self.storedDTCs = codes;
-        [self beginFaultScanKind:MBLINK_OBD2_DTC_PENDING];
-        return;
-    case MBLINK_OBD2_DTC_PENDING:
-        self.pendingDTCs = codes;
-        [self beginFaultScanKind:MBLINK_OBD2_DTC_PERMANENT];
-        return;
-    case MBLINK_OBD2_DTC_PERMANENT:
-        self.permanentDTCs = codes;
-        self.faultScanStatusText = [NSString stringWithFormat:
-            @"Complete · %lu stored · %lu pending · %lu permanent",
-            (unsigned long)self.storedDTCs.count,
-            (unsigned long)self.pendingDTCs.count,
-            (unsigned long)self.permanentDTCs.count];
-        [self completeLiveSetup];
-        return;
-    }
-}
-
-- (void)completeLiveSetup
-{
-    MblinkSchedulerResult scheduleResult =
-        mblink_scheduler_configure_standard_obd2(
-            &_scheduler, &_supportedPids, MBLinkMonotonicMilliseconds());
-    if (scheduleResult != MBLINK_SCHEDULER_RESULT_OK) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not configure portable live-data scheduler"];
-        return;
-    }
-
-    self.ready = YES;
-    _phase = MBLinkDiagnosticsPhaseLive;
-    [self notifyDelegate];
-
-    if (_scheduler.count == 0U) {
-        [self setStatus:@"Connected; no supported dashboard PIDs were advertised"];
-        return;
-    }
-
-    [self setStatus:@"Live OBD-II and diesel scheduler active"];
-    [self scheduleNextLiveRequest];
-}
-
-- (void)scheduleNextLiveRequest
-{
-    if (!_sessionInitialized || !_provider.isReady ||
-        _phase == MBLinkDiagnosticsPhaseFailed) {
-        return;
-    }
-
-    MblinkSchedulerDispatch dispatch;
-    MblinkSchedulerNextResult next =
-        mblink_scheduler_next(&_scheduler,
-                              MBLinkMonotonicMilliseconds(),
-                              &dispatch);
-
-    if (next == MBLINK_SCHEDULER_NEXT_EMPTY ||
-        next == MBLINK_SCHEDULER_NEXT_PAUSED) {
-        _phase = MBLinkDiagnosticsPhaseLive;
-        return;
-    }
-
-    if (next == MBLINK_SCHEDULER_NEXT_WAITING) {
-        uint64_t waitMs = dispatch.wait_ms;
-        if (waitMs > 60000U) {
-            waitMs = 60000U;
-        }
-        const NSUInteger generation = _pollGeneration;
-        dispatch_after(
-            dispatch_time(DISPATCH_TIME_NOW,
-                          (int64_t)waitMs * NSEC_PER_MSEC),
-            dispatch_get_main_queue(), ^{
-                if (generation != self->_pollGeneration) {
-                    return;
-                }
-                [self scheduleNextLiveRequest];
-            });
-        return;
-    }
-
-    char command[8];
-    MblinkObd2Result build =
-        mblink_obd2_build_live_pid_request(
-            dispatch.pid, command, sizeof(command));
-    if (build != MBLINK_OBD2_RESULT_OK) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not build scheduled OBD-II request"];
-        return;
-    }
-
-    _activePid = dispatch.pid;
-    _activeScheduleIndex = dispatch.index;
-    _phase = MBLinkDiagnosticsPhaseReadingLive;
-    const uint64_t nowMs = MBLinkMonotonicMilliseconds();
-    if ([self beginCommand:command timeout:2000U]) {
-        (void)mblink_scheduler_mark_dispatched(
-            &_scheduler, _activeScheduleIndex, nowMs);
-    }
-}
-
-- (void)processLiveResponse:(const MblinkElm327Response *)response
-{
-    if (response->result == MBLINK_ELM327_RESULT_NO_DATA) {
-        _phase = MBLinkDiagnosticsPhaseLive;
-        self.statusText = @"Live OBD-II data; one PID returned no data";
-        [self notifyDelegate];
-        [self scheduleNextLiveRequest];
-        return;
-    }
-
-    MblinkObd2Sample sample;
-    MblinkObd2Result result =
-        mblink_obd2_decode_live_pid(response, _activePid, &sample);
-    if (result == MBLINK_OBD2_RESULT_UNSUPPORTED_PID) {
-        _phase = MBLinkDiagnosticsPhaseLive;
-        self.statusText = @"Live OBD-II data; one advertised diesel sub-field is unavailable";
-        [self notifyDelegate];
-        [self scheduleNextLiveRequest];
-        return;
-    }
-    if (result != MBLINK_OBD2_RESULT_OK) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        NSString *reason = MBLinkStringFromCString(
-            mblink_obd2_result_name(result));
-        [self setStatus:[NSString stringWithFormat:
-            @"Live OBD-II decode failed: %@", reason]];
-        return;
-    }
-
-    if (!mblink_telemetry_store_record(
-            &_telemetry,
-            MBLinkElapsedMilliseconds(_sessionMonotonicStartMs), &sample)) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not record live telemetry sample"];
-        return;
-    }
-
-    MblinkTelemetrySample recorded;
-    if (_recorder.started && !_recorder.finished &&
-        mblink_telemetry_store_latest(&_telemetry, sample.pid, &recorded) &&
-        !mblink_telemetry_recorder_record_sample(
-            &_recorder, &recorded,
-            mblink_telemetry_store_is_favourite(&_telemetry, sample.pid))) {
-        _phase = MBLinkDiagnosticsPhaseFailed;
-        [self setStatus:@"Could not append session recording"];
-        return;
-    }
-
-    self.ready = YES;
-    _phase = MBLinkDiagnosticsPhaseLive;
-    self.statusText = @"Live OBD-II and diesel data";
-    [self notifyDelegate];
-    [self scheduleNextLiveRequest];
-}
-
 - (NSUInteger)recordedSampleCount
 {
     uint64_t total = mblink_telemetry_store_total_sample_count(&_telemetry);
-    if (total > (uint64_t)NSUIntegerMax) {
-        return NSUIntegerMax;
-    }
-    return (NSUInteger)total;
+    return total > (uint64_t)NSUIntegerMax ? NSUIntegerMax : (NSUInteger)total;
 }
 
-- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-                                      limit:(NSUInteger)limit
+- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid limit:(NSUInteger)limit
 {
-    if (limit == 0U) {
-        return @[];
-    }
-
+    if (limit == 0U) return @[];
     NSMutableArray<NSNumber *> *values =
         [[NSMutableArray alloc] initWithCapacity:limit];
-    const size_t count =
-        mblink_telemetry_store_history_count(&_telemetry);
-
+    const size_t count = mblink_telemetry_store_history_count(&_telemetry);
     for (size_t reverseIndex = count;
          reverseIndex > 0U && values.count < limit;
          --reverseIndex) {
         MblinkTelemetrySample sample;
         if (!mblink_telemetry_store_history_at(
-                &_telemetry, reverseIndex - 1U, &sample)) {
-            continue;
-        }
-        if (sample.measurement.pid != pid) {
+                &_telemetry, reverseIndex - 1U, &sample) ||
+            sample.measurement.pid != pid) {
             continue;
         }
         [values insertObject:@(sample.measurement.value) atIndex:0U];
@@ -1265,9 +1028,7 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
 
 - (nullable NSString *)csvSnapshot
 {
-    if (_sessionCSV.length == 0U) {
-        return nil;
-    }
+    if (_sessionCSV.length == 0U) return nil;
     return [[NSString alloc] initWithData:[_sessionCSV copy]
                                  encoding:NSUTF8StringEncoding];
 }

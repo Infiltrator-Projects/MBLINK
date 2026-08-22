@@ -23,10 +23,11 @@
  * iPhone target compiles portable C sources directly rather than linking the
  * CMake target, so include the exact sources from the pinned LINK checkout.
  * This preserves one implementation while avoiding a second product-owned
- * copy of workspace, runtime, transport or ELM327 logic.
+ * copy of workspace, runtime, transport, ELM327 or diagnostic-flow logic.
  */
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/core/workspace.c"
+#include "../link/src/core/diagnostic_flow.c"
 #include "../link/src/core/parameter.c"
 #include "../link/src/core/scheduler.c"
 #include "../link/src/core/telemetry.c"
