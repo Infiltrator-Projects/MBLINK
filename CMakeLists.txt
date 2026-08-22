@@ -16,6 +16,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MBLINK_BUILD_LINUX_APP "Build the native GTK4 Linux front end" OFF)
+if(WIN32)
+    set(MBLINK_WINDOWS_DISCOVER_DEFAULT ON)
+else()
+    set(MBLINK_WINDOWS_DISCOVER_DEFAULT OFF)
+endif()
+option(MBLINK_BUILD_WINDOWS_DISCOVER "Build the Win32 OpenPort/J2534 discovery GUI" ${MBLINK_WINDOWS_DISCOVER_DEFAULT})
 
 if(MBLINK_ENABLE_SANITIZERS)
     if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
@@ -69,8 +75,8 @@ add_subdirectory(
     EXCLUDE_FROM_ALL)
 
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.1.0")
-set(MBLINK_LINK_COMMIT "8df05f3c5a1e7239a3841a4e028e2b6849f7ad31")
+set(MBLINK_LINK_VERSION "0.3.0")
+set(MBLINK_LINK_COMMIT "23bc4c98dffc32990df1bf3803c15157244f3305")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -198,6 +204,13 @@ if(MBLINK_BUILD_LINUX_APP)
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
     include(CPack)
+endif()
+
+if(MBLINK_BUILD_WINDOWS_DISCOVER)
+    if(NOT WIN32)
+        message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
+    endif()
+    link_add_windows_discover(mblink-discover "MBLINK" "mblink" "MBLINKDiscoverWindow")
 endif()
 
 function(mblink_add_test target source)
