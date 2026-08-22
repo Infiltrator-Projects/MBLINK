@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK Windows Discover
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-discover:
+    name: Windows / mblink-discover Win32
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: recursive
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure Win32 OpenPort build
+        shell: pwsh
+        run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
+
+      - name: Build shared discover app
+        shell: pwsh
+        run: cmake --build build-win32 --config Release --target mblink-discover --parallel
+
+      - name: Stage Windows artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MBLINK-${{ steps.version.outputs.version }}-windows-discover
+          path: release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
