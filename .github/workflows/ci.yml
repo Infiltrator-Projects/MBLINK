@@ -62,9 +62,9 @@ jobs:
         run: ctest --test-dir build-sanitized --output-on-failure
 
   linux-app:
-    name: Linux / GTK4 app
+    name: Linux / GTK4 app + release packages
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -75,17 +75,82 @@ jobs:
       - name: Install GTK4 development files
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake dpkg-dev libgtk-4-dev pkg-config
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a plain X.Y.Z version; got: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Configure Linux app
         run: >-
           cmake -S . -B build-linux-app
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX=/usr
           -DMBLINK_BUILD_LINUX_APP=ON
           -DBUILD_TESTING=OFF
 
       - name: Build Linux app
         run: cmake --build build-linux-app --target mblink-linux
+
+      - name: Build and verify Debian package
+        shell: bash
+        env:
+          MBLINK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/mblink-linux-release"
+          cpack_dir="$RUNNER_TEMP/mblink-cpack"
+          mkdir -p "$package_dir" "$cpack_dir"
+          cpack --config build-linux-app/CPackConfig.cmake -G DEB -B "$cpack_dir"
+          mapfile -t packages < <(find "$cpack_dir" -maxdepth 1 -type f -name '*.deb' -print)
+          test "${#packages[@]}" -eq 1
+          architecture="$(dpkg --print-architecture)"
+          deb="$package_dir/MBLINK-${MBLINK_VERSION}-linux-${architecture}.deb"
+          install -m 0644 "${packages[0]}" "$deb"
+          test "$(dpkg-deb -f "$deb" Package)" = 'mblink'
+          test "$(dpkg-deb -f "$deb" Version)" = "$MBLINK_VERSION"
+          test "$(dpkg-deb -f "$deb" Architecture)" = "$architecture"
+          dpkg-deb -c "$deb" | grep -q './usr/bin/mblink-linux'
+          dpkg-deb -c "$deb" | grep -q './usr/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop'
+          dpkg-deb -c "$deb" | grep -q './usr/share/icons/hicolor/180x180/apps/mblink.png'
+
+      - name: Build and exercise native Linux builder
+        shell: bash
+        env:
+          MBLINK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/mblink-linux-release"
+          installer="$package_dir/MBLINK-${MBLINK_VERSION}-linux-native.run"
+          scripts/build-native-installer.sh "$installer"
+          "$installer" --help >/dev/null
+          "$installer" --extract "$RUNNER_TEMP/mblink-native-source"
+          test -f "$RUNNER_TEMP/mblink-native-source/CMakeLists.txt"
+          test -f "$RUNNER_TEMP/mblink-native-source/src/infiltratr-common/VERSION"
+          "$installer" --build-only \
+            --output "$RUNNER_TEMP/mblink-linux-native" \
+            --jobs 2
+          test -x "$RUNNER_TEMP/mblink-linux-native"
+
+      - name: Upload Linux release packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MBLINK-${{ steps.version.outputs.version }}-linux-packages
+          path: |
+            ${{ runner.temp }}/mblink-linux-release/MBLINK-${{ steps.version.outputs.version }}-linux-amd64.deb
+            ${{ runner.temp }}/mblink-linux-release/MBLINK-${{ steps.version.outputs.version }}-linux-native.run
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
   apple-ios:
     name: iOS / Xcode / ${{ matrix.configuration }}
@@ -158,9 +223,27 @@ jobs:
 
           grep -q 'mblink/parameter.h' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
-          grep -q 'diagnosticParameters' app/ios/MBLINK/ContentView.swift
+          active_ui='app/ios/MBLINK/MBLINKApp.swift'
+          test ! -e app/ios/MBLINK/ContentView.swift
+          ! grep -q 'ContentView.swift' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -q 'diagnosticParameters' "$active_ui"
+          grep -q 'Image("MBLINKEmblem")' "$active_ui"
+          ! grep -q 'Text("MB")' "$active_ui"
+          grep -q 'private struct MBDashboardView' "$active_ui"
+          grep -q 'private struct MBGraphSignalPicker' "$active_ui"
+          test -f app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/Contents.json
+          cmp -s \
+            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png \
+            app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/MBLINKEmblem@2x.png
+          cmp -s \
+            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png \
+            app/ios/MBLINK/Assets.xcassets/MBLINKEmblem.imageset/MBLINKEmblem@3x.png
+          cmp -s \
+            app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png \
+            app/linux/assets/mblink-emblem.png
+          grep -q 'gtk_image_new_from_resource' app/linux/main.c
           unexpected_swift_formats="$(
-            grep -F 'String(format:' app/ios/MBLINK/ContentView.swift |
+            grep -F 'String(format:' "$active_ui" |
               grep -Fv 'return String(format: "Status 0x%02X", status)' || true
           )"
           test -z "$unexpected_swift_formats"
@@ -313,7 +396,13 @@ jobs:
           name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
           path: release-assets
 
-      - name: Create or verify tag, GitHub Release and IPA asset
+      - name: Download Linux release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
+          path: release-assets
+
+      - name: Create or verify tag, GitHub Release and all assets
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
@@ -329,9 +418,11 @@ jobs:
             const version = process.env.RELEASE_VERSION;
             const tag = process.env.RELEASE_TAG;
             const target = process.env.RELEASE_TARGET;
-            const assetName = `MBLINK-${version}-unsigned.ipa`;
-            const assetPath = path.join(process.env.GITHUB_WORKSPACE,
-                                        'release-assets', assetName);
+            const assetNames = [
+              `MBLINK-${version}-unsigned.ipa`,
+              `MBLINK-${version}-linux-amd64.deb`,
+              `MBLINK-${version}-linux-native.run`
+            ];
 
             const main = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
             if (main.data.commit.sha !== target) {
@@ -367,9 +458,13 @@ jobs:
               core.setFailed(`${tag} exists at ${tagTarget} without a matching GitHub Release. Repair the release state before continuing.`);
               return;
             }
-            if (!fs.existsSync(assetPath)) {
-              core.setFailed(`Expected IPA release asset is missing: ${assetPath}`);
-              return;
+            for (const assetName of assetNames) {
+              const assetPath = path.join(process.env.GITHUB_WORKSPACE,
+                                          'release-assets', assetName);
+              if (!fs.existsSync(assetPath)) {
+                core.setFailed(`Expected release asset is missing: ${assetPath}`);
+                return;
+              }
             }
 
             if (tagTarget === null) {
@@ -393,25 +488,34 @@ jobs:
               core.info(`${tag} already identifies this exact commit; checking release assets.`);
             }
 
-            const assets = await github.paginate(
+            const existingAssets = await github.paginate(
               github.rest.repos.listReleaseAssets,
               { owner, repo, release_id: release.id, per_page: 100 }
             );
-            if (assets.some(asset => asset.name === assetName)) {
-              core.info(`${assetName} is already attached to ${tag}.`);
-              return;
+            for (const asset of existingAssets) {
+              if (assetNames.includes(asset.name)) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner,
+                  repo,
+                  asset_id: asset.id
+                });
+              }
             }
 
-            const data = fs.readFileSync(assetPath);
-            await github.rest.repos.uploadReleaseAsset({
-              owner,
-              repo,
-              release_id: release.id,
-              name: assetName,
-              data,
-              headers: {
-                'content-type': 'application/octet-stream',
-                'content-length': data.length
-              }
-            });
-            core.info(`Attached ${assetName} to ${tag}.`);
+            for (const assetName of assetNames) {
+              const assetPath = path.join(process.env.GITHUB_WORKSPACE,
+                                          'release-assets', assetName);
+              const data = fs.readFileSync(assetPath);
+              await github.rest.repos.uploadReleaseAsset({
+                owner,
+                repo,
+                release_id: release.id,
+                name: assetName,
+                data,
+                headers: {
+                  'content-type': 'application/octet-stream',
+                  'content-length': data.length
+                }
+              });
+              core.info(`Attached ${assetName} to ${tag}.`);
+            }

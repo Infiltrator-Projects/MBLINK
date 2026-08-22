@@ -36,29 +36,12 @@ private struct MBLogoMark: View {
     var size: CGFloat = 54
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [MBBrand.silverBright, MBBrand.silver, MBBrand.panelRaised],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Circle()
-                .stroke(Color.white.opacity(0.34), lineWidth: 1)
-                .padding(2)
-            Circle()
-                .fill(MBBrand.background)
-                .padding(size * 0.12)
-            Text("MB")
-                .font(.system(size: size * 0.28, weight: .black, design: .rounded))
-                .tracking(-1)
-                .foregroundStyle(MBBrand.silverBright)
-        }
-        .frame(width: size, height: size)
-        .shadow(color: .black.opacity(0.7), radius: 10, y: 6)
-        .accessibilityHidden(true)
+        Image("MBLINKEmblem")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.7), radius: 10, y: 6)
+            .accessibilityHidden(true)
     }
 }
 
@@ -458,6 +441,21 @@ private struct MBCommandCentreView: View {
     }
 
     private var hero: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 15) {
+                brandIdentity
+                Spacer(minLength: 8)
+                MBStatusPill(text: connection.statusText, active: connection.isReady)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                brandIdentity
+                MBStatusPill(text: connection.statusText, active: connection.isReady)
+            }
+        }
+    }
+
+    private var brandIdentity: some View {
         HStack(alignment: .center, spacing: 15) {
             MBLogoMark(size: 62)
 
@@ -474,10 +472,6 @@ private struct MBCommandCentreView: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(MBBrand.muted)
             }
-
-            Spacer()
-
-            MBStatusPill(text: connection.statusText, active: connection.isReady)
         }
     }
 
@@ -589,13 +583,16 @@ private struct MBCommandCentreView: View {
                 MBWorkspaceTile("Data Table", "Dense PID and parameter view", "tablecells") {
                     MBTableView()
                 }
+                MBWorkspaceTile("Dashboard", "Focused at-a-glance vehicle measurements", "gauge.with.dots.needle.67percent") {
+                    MBDashboardView()
+                }
                 MBWorkspaceTile("Graphs", "Instrument history and trends", "chart.xyaxis.line") {
                     MBGraphsView()
                 }
                 MBWorkspaceTile("Evidence", "Raw session evidence and CSV export", "doc.text.magnifyingglass") {
                     MBLogView()
                 }
-                MBWorkspaceTile("Settings", "Adapter, build and architecture", "gearshape.fill") {
+                MBWorkspaceTile("Settings", "Display, adapter, build and architecture", "gearshape.fill") {
                     MBSettingsView()
                 }
             }
@@ -1123,17 +1120,20 @@ private struct MBLiveDataView: View {
 
 private struct MBTableView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
 
     private var sorted: [DiagnosticParameter] {
-        connection.diagnosticParameters.sorted { left, right in
-            if left.isAvailable != right.isAvailable {
-                return left.isAvailable && !right.isAvailable
+        connection.diagnosticParameters
+            .filter { showUnavailableParameters || $0.isAvailable }
+            .sorted { left, right in
+                if left.isAvailable != right.isAvailable {
+                    return left.isAvailable && !right.isAvailable
+                }
+                if left.brandGroup.rawValue != right.brandGroup.rawValue {
+                    return left.brandGroup.rawValue < right.brandGroup.rawValue
+                }
+                return left.parameterIdentifier < right.parameterIdentifier
             }
-            if left.brandGroup.rawValue != right.brandGroup.rawValue {
-                return left.brandGroup.rawValue < right.brandGroup.rawValue
-            }
-            return left.parameterIdentifier < right.parameterIdentifier
-        }
     }
 
     var body: some View {
@@ -1143,39 +1143,57 @@ private struct MBTableView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     MBSectionHeader(title: "Parameter table", kicker: "PID · name · value")
 
-                    MBPanel {
-                        VStack(spacing: 0) {
-                            ForEach(sorted) { parameter in
-                                HStack(spacing: 10) {
-                                    Text(parameter.brandPidText)
-                                        .font(.caption.monospaced().weight(.bold))
-                                        .foregroundStyle(MBBrand.silver)
-                                        .frame(width: 48, alignment: .leading)
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(parameter.title)
-                                            .font(.subheadline)
-                                            .foregroundStyle(MBBrand.silverBright)
-                                        Text(parameter.brandGroup.rawValue)
-                                            .font(.caption2)
-                                            .foregroundStyle(MBBrand.muted)
-                                    }
-
-                                    Spacer(minLength: 8)
-
-                                    Text(parameter.formattedValue)
-                                        .font(.subheadline.monospacedDigit().weight(.semibold))
-                                        .foregroundStyle(parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
-                                        .multilineTextAlignment(.trailing)
-
-                                    Circle()
-                                        .fill(parameter.isAvailable ? MBBrand.success : MBBrand.line)
-                                        .frame(width: 7, height: 7)
+                    if sorted.isEmpty {
+                        MBPanel {
+                            HStack(spacing: 12) {
+                                Image(systemName: "tablecells")
+                                    .font(.title2)
+                                    .foregroundStyle(MBBrand.muted)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("No available values yet")
+                                        .font(.headline)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text("Connect to the vehicle, or enable unavailable values in Settings to inspect the full catalogue.")
+                                        .font(.caption)
+                                        .foregroundStyle(MBBrand.muted)
                                 }
-                                .padding(.vertical, 9)
+                            }
+                        }
+                    } else {
+                        MBPanel {
+                            VStack(spacing: 0) {
+                                ForEach(sorted) { parameter in
+                                    HStack(spacing: 10) {
+                                        Text(parameter.brandPidText)
+                                            .font(.caption.monospaced().weight(.bold))
+                                            .foregroundStyle(MBBrand.silver)
+                                            .frame(width: 48, alignment: .leading)
 
-                                if parameter.id != sorted.last?.id {
-                                    Divider().overlay(MBBrand.line)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(parameter.title)
+                                                .font(.subheadline)
+                                                .foregroundStyle(MBBrand.silverBright)
+                                            Text(parameter.brandGroup.rawValue)
+                                                .font(.caption2)
+                                                .foregroundStyle(MBBrand.muted)
+                                        }
+
+                                        Spacer(minLength: 8)
+
+                                        Text(parameter.formattedValue)
+                                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                                            .foregroundStyle(parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                                            .multilineTextAlignment(.trailing)
+
+                                        Circle()
+                                            .fill(parameter.isAvailable ? MBBrand.success : MBBrand.line)
+                                            .frame(width: 7, height: 7)
+                                    }
+                                    .padding(.vertical, 9)
+
+                                    if parameter.id != sorted.last?.id {
+                                        Divider().overlay(MBBrand.line)
+                                    }
                                 }
                             }
                         }
@@ -1188,8 +1206,79 @@ private struct MBTableView: View {
     }
 }
 
+private struct MBDashboardView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+    @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
+
+    private let defaultKeys = [
+        "obd2.engine.rpm",
+        "obd2.vehicle.speed",
+        "obd2.engine.coolant",
+        "obd2.diesel.rail_pressure",
+        "obd2.dpf.bank1_delta_pressure",
+        "obd2.aftertreatment.egt_b1s1"
+    ]
+
+    private var displayed: [DiagnosticParameter] {
+        let available = connection.diagnosticParameters.filter(\.isAvailable)
+        let favourites = available.filter(\.favourite)
+        if preferFavouriteSignals && !favourites.isEmpty {
+            return Array(favourites.prefix(8))
+        }
+        let preferred = defaultKeys.compactMap { key in
+            available.first { $0.id == key }
+        }
+        return preferred.isEmpty ? Array(available.prefix(6)) : preferred
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    MBSectionHeader(title: "Vehicle dashboard", kicker: "At-a-glance live data")
+
+                    if displayed.isEmpty {
+                        MBPanel {
+                            HStack(spacing: 12) {
+                                Image(systemName: "gauge.with.dots.needle.67percent")
+                                    .font(.title2)
+                                    .foregroundStyle(MBBrand.muted)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Waiting for vehicle data")
+                                        .font(.headline)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text(preferFavouriteSignals
+                                         ? "Connect to the vehicle. Favourite live parameters become the dashboard automatically."
+                                         : "Connect to the vehicle. MBLINK will show its default powertrain instruments.")
+                                        .font(.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                            }
+                        }
+                    } else {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 155), spacing: 11)],
+                            spacing: 11
+                        ) {
+                            ForEach(displayed) { parameter in
+                                MBMetricTile(parameter: parameter)
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Dashboard")
+    }
+}
+
 private struct MBGraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
+    @State private var selectedKeys = Set<String>()
+    @State private var showingSignalPicker = false
 
     private let defaultKeys = [
         "obd2.engine.rpm",
@@ -1200,8 +1289,11 @@ private struct MBGraphsView: View {
 
     private var graphed: [DiagnosticParameter] {
         let withHistory = connection.diagnosticParameters.filter { !$0.history.isEmpty }
+        if !selectedKeys.isEmpty {
+            return Array(withHistory.filter { selectedKeys.contains($0.id) }.prefix(4))
+        }
         let favourites = withHistory.filter(\.favourite)
-        if !favourites.isEmpty {
+        if preferFavouriteSignals && !favourites.isEmpty {
             return Array(favourites.prefix(4))
         }
         let preferred = defaultKeys.compactMap { key in
@@ -1227,7 +1319,9 @@ private struct MBGraphsView: View {
                                     Text("Waiting for live samples")
                                         .font(.headline)
                                         .foregroundStyle(MBBrand.silverBright)
-                                    Text("Connect to the vehicle. Favourites are graphed first; otherwise MBLINK uses its powertrain defaults.")
+                                    Text(preferFavouriteSignals
+                                         ? "Connect to the vehicle. Favourites are graphed first; otherwise MBLINK uses its powertrain defaults."
+                                         : "Connect to the vehicle. MBLINK will graph its default powertrain signals.")
                                         .font(.caption)
                                         .foregroundStyle(MBBrand.muted)
                                 }
@@ -1243,6 +1337,21 @@ private struct MBGraphsView: View {
             }
         }
         .mbDiagnosticScreen("Graphs")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Choose") {
+                    showingSignalPicker = true
+                }
+            }
+        }
+        .sheet(isPresented: $showingSignalPicker) {
+            MBGraphSignalPicker(
+                parameters: connection.diagnosticParameters,
+                selectedKeys: $selectedKeys
+            )
+            .preferredColorScheme(.dark)
+            .tint(MBBrand.silverBright)
+        }
     }
 
     private func graphPanel(_ parameter: DiagnosticParameter) -> some View {
@@ -1296,6 +1405,101 @@ private struct MBGraphsView: View {
                 }
             }
         }
+    }
+}
+
+private struct MBGraphSignalPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let parameters: [DiagnosticParameter]
+    @Binding var selectedKeys: Set<String>
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                MBBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 15) {
+                        MBSectionHeader(title: "Graph signals", kicker: "Choose up to four")
+
+                        MBPanel {
+                            Text("Clear the selection to return to automatic favourites and powertrain defaults.")
+                                .font(.footnote)
+                                .foregroundStyle(MBBrand.silver)
+                        }
+
+                        ForEach(MBParameterGroup.allCases) { group in
+                            let groupParameters = parameters.filter { $0.brandGroup == group }
+                            if !groupParameters.isEmpty {
+                                MBPanel {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Label(group.rawValue, systemImage: group.symbol)
+                                            .font(.headline)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                            .padding(.bottom, 4)
+
+                                        ForEach(groupParameters) { parameter in
+                                            signalRow(parameter)
+                                            if parameter.id != groupParameters.last?.id {
+                                                Divider().overlay(MBBrand.line)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle("Graph Signals")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(MBBrand.chrome, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Clear") {
+                        selectedKeys.removeAll()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func signalRow(_ parameter: DiagnosticParameter) -> some View {
+        let selected = selectedKeys.contains(parameter.id)
+        let selectionLimitReached = !selected && selectedKeys.count >= 4
+
+        return Button {
+            if selected {
+                selectedKeys.remove(parameter.id)
+            } else if !selectionLimitReached {
+                selectedKeys.insert(parameter.id)
+            }
+        } label: {
+            HStack(spacing: 11) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(parameter.title)
+                        .font(.subheadline)
+                        .foregroundStyle(selectionLimitReached ? MBBrand.muted : MBBrand.silverBright)
+                    Text("\(parameter.brandPidText) · \(parameter.formattedValue)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                }
+                Spacer()
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? MBBrand.silverBright : MBBrand.muted)
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+        .disabled(selectionLimitReached)
     }
 }
 
@@ -1382,6 +1586,8 @@ private struct MBLogView: View {
 
 private struct MBSettingsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
+    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -1400,6 +1606,22 @@ private struct MBSettingsView: View {
                             MBInfoRow(label: "Identity", value: connection.adapterIdentifier, monospaced: true)
                             MBInfoRow(label: "Version", value: version, monospaced: true)
                             MBInfoRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "Unknown", monospaced: true)
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 14) {
+                            MBSectionHeader(title: "Display", kicker: "Preferences")
+
+                            Toggle("Prefer favourites on Dashboard and Graphs", isOn: $preferFavouriteSignals)
+                                .tint(MBBrand.silverBright)
+                                .foregroundStyle(MBBrand.silverBright)
+
+                            Divider().overlay(MBBrand.line)
+
+                            Toggle("Show unavailable values in Data Table", isOn: $showUnavailableParameters)
+                                .tint(MBBrand.silverBright)
+                                .foregroundStyle(MBBrand.silverBright)
                         }
                     }
 

@@ -84,7 +84,7 @@ static const MblinkWorkspaceSectionDescriptor mblink_workspace_sections[] = {
         .section = MBLINK_WORKSPACE_SETTINGS,
         .key = "settings",
         .title = "Settings",
-        .summary = "Adapter, units, logging and application preferences"
+        .summary = "Display, adapter, build and application preferences"
     }
 };
 

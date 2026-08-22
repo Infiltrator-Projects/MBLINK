@@ -34,7 +34,7 @@ ELM327 uses a byte-stream transport contract. ISO-TP uses a transport-neutral Cl
 
 ### Shared diagnostic workspace
 
-The stable top-level workspace is defined in C as Vehicle, Modules, Faults, Live Data, Table, Dashboard, Graphs, Log and Settings. Platform shells render those sections natively; they do not invent different diagnostic taxonomies or duplicate protocol state.
+The stable top-level workspace is defined in C as Vehicle, Modules, Faults, Live Data, Table, Dashboard, Graphs, Log and Settings. Platform shells render that baseline natively and do not duplicate protocol state. Manufacturer-focused presentation such as the iPhone Diesel workspace is an additive view over shared C parameters and evidence, not an alternate protocol implementation.
 
 The workspace contract is intentionally small. It defines shared navigation and application meaning without forcing SwiftUI and GTK4 to share rendering code.
 
@@ -56,7 +56,7 @@ Swift/SwiftUI owns iPhone presentation, navigation and user interaction. It cons
 
 ### Linux boundary
 
-The native Linux shell uses GTK4 from C. It consumes the same `libmblink` workspace and diagnostic contracts as the iPhone application. Linux-specific BLE, serial and SocketCAN providers belong behind the same transport/provider boundary; they do not own manufacturer decoding or protocol policy.
+The native Linux shell uses GTK4 from C. It consumes the same `libmblink` workspace, Mercedes profile and parameter catalogues as the iPhone application. The current shell exposes that real portable model while explicitly reporting transport-dependent data as unavailable. Linux-specific BLE, serial and SocketCAN providers still belong behind the same transport/provider boundary; they do not own manufacturer decoding or protocol policy.
 
 GTK4 is an optional build dependency. Building the portable core never requires a desktop toolkit.
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=MBLINK
+Comment=Mercedes-Benz diagnostic command interface
+Exec=mblink-linux
+Icon=mblink
+Terminal=false
+Categories=Utility;System;
+Keywords=Mercedes;OBD;OBD-II;Diagnostics;Vehicle;
+StartupNotify=true

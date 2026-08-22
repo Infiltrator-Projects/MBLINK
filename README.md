@@ -8,12 +8,12 @@ The initial vehicle focus is Mercedes-Benz. The first reference BLE adapter is t
 
 ## Status
 
-**Pre-alpha. Current development release target: 0.7.12 — black-and-silver Mercedes-oriented diagnostic command interface, source-corroborated C207 / OM651 / Delphi CRD3.x engine targeting, CRD3 identity and read-only UDS fault evidence. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Pre-alpha. Current development release target: 0.7.13 — official cross-platform MBLINK emblem, consolidated iPhone command interface and functional portable-model GTK4 workspaces. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 Implemented today:
 
 - portable C11 core and transport ABI;
-- shared Vehicle / Modules / Faults / Diesel / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract;
+- shared Vehicle / Modules / Faults / Live Data / Table / Dashboard / Graphs / Log / Settings workspace contract, with a dedicated Mercedes diesel workspace in the iPhone shell;
 - ELM327 command, parser, initialisation and session engines, plus an ELM-managed ISO 15765 CAN-channel contract;
 - standard OBD-II PID, readiness, VIN, freeze-frame and DTC handling;
 - complete chained OBD-II supported-PID discovery;
@@ -38,8 +38,8 @@ Implemented today:
 - independent positive/negative/no-response/invalid classification for CRD3 fingerprint reads, also exposed in the combined Mercedes identity evidence list;
 - live read-only Mercedes UDS fault-memory display on iPhone plus standard OBD-II faults;
 - complete raw diagnostic-evidence export from the iPhone Evidence workspace even when no live-data samples were recorded;
-- a full black, charcoal and brushed-silver iPhone branding overhaul with a vehicle-command-centre home screen, premium diagnostic panels, instrument-style telemetry tiles, dedicated fault presentation and a custom MBLINK badge;
-- matching black-and-silver GTK4 Linux shell branding with Mercedes-oriented command-centre presentation;
+- a full black, charcoal and brushed-silver iPhone branding overhaul with a vehicle-command-centre home screen, premium diagnostic panels, instrument-style telemetry tiles, dedicated fault presentation and the official MBLINK AppIcon emblem;
+- matching black-and-silver GTK4 Linux workspace presentation using the same official emblem and portable C catalogues;
 - visible iPhone project identity with `Copyright © 2026 Shannon Smith`, About, author/version/licence information and matching iOS copyright metadata;
 - Objective-C CoreBluetooth provider and thin Apple application bridge;
 - native GTK4 Linux workspace shell consuming the same C model;
@@ -95,9 +95,9 @@ ctest --test-dir build-sanitized --output-on-failure
 
 The native project is `app/ios/MBLINK.xcodeproj`. It builds the same portable C core used by CMake; Swift and Objective-C do not contain alternate ELM327, OBD-II, ISO-TP, UDS or Mercedes protocol implementations. The project links Common's authoritative `InfiltratrCommonPortable` Xcode product rather than duplicating Common's internal source list.
 
-The 0.7.12 iPhone shell is intentionally Mercedes-oriented without copying Mercedes-Benz proprietary artwork. Its visual language is deep black/charcoal, brushed silver, restrained status colours, compact technical typography and instrument-style live telemetry. The home screen is now a vehicle command centre rather than a generic SwiftUI list.
+The iPhone shell uses the official MBLINK AppIcon artwork as its emblem throughout the command centre, Settings and About. Its visual language is deep black/charcoal, brushed silver, restrained status colours, compact technical typography and instrument-style live telemetry. The home screen is a vehicle command centre rather than a generic SwiftUI list.
 
-For a physical 0.7.12 test, connect to the C207/OM651 vehicle and let the connection sequence complete. After ordinary capability discovery MBLINK probes the source-corroborated Mercedes engine endpoint, reads VIN/standard ECU identity, issues the CRD3 fingerprint reads `22F100`, `22F154`, `22F196`, `221001` and `221002`, then reads Mercedes UDS fault information before restoring normal OBD-II, scanning standard faults and beginning live polling. Export Evidence → diagnostic evidence; that raw capture is what converts the next OM651 work from research evidence into vehicle-bound definitions.
+For a physical 0.7.13 test, connect to the C207/OM651 vehicle and let the connection sequence complete. After ordinary capability discovery MBLINK probes the source-corroborated Mercedes engine endpoint, reads VIN/standard ECU identity, issues the CRD3 fingerprint reads `22F100`, `22F154`, `22F196`, `221001` and `221002`, then reads Mercedes UDS fault information before restoring normal OBD-II, scanning standard faults and beginning live polling. Export Evidence → diagnostic evidence; that raw capture is what converts the next OM651 work from research evidence into vehicle-bound definitions.
 
 ## Linux target
 
@@ -109,7 +109,14 @@ cmake --build build-linux --target mblink-linux
 ./build-linux/mblink-linux
 ```
 
-The desktop toolkit is optional: building only `libmblink` does not require GTK4.
+The Linux shell renders the shared workspace, Mercedes profile and portable parameter catalogues and installs the official MBLINK emblem as its desktop icon. A Linux BLE, serial or SocketCAN provider is not implemented yet, so the interface reports transport-dependent values as unavailable rather than presenting simulated vehicle data. The desktop toolkit is optional: building only `libmblink` does not require GTK4.
+
+Each published release includes two Linux artefacts alongside the unsigned iPhone IPA:
+
+- `MBLINK-X.Y.Z-linux-amd64.deb` is the prebuilt Debian/Ubuntu package.
+- `MBLINK-X.Y.Z-linux-native.run` contains the complete source tree, including the pinned Common library, and compiles and tests MBLINK natively before installation.
+
+Install the Debian package with `sudo apt install ./MBLINK-X.Y.Z-linux-amd64.deb`. To compile natively, make the `.run` executable and launch it; `--help`, `--build-only` and `--extract DIR` are also available.
 
 ## Engineering rules
 

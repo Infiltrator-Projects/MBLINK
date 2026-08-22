@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through test release 0.7.11. Current release target: 0.7.12. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Completed through test release 0.7.12. Current release target: 0.7.13. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
 
 ## Completed foundations
 
@@ -32,6 +32,7 @@ MBLINK grows from the portable C core outward. Every milestone must leave the re
 | 0.7.10 | Automatic OBD fault scan, chained PID discovery and standard diesel/DPF live diagnostics |
 | 0.7.11 | Read-only CRD3/CDID3 engine-ECU fingerprint evidence for OM651 |
 | 0.7.12 | Source-corroborated CRD3 target, read-only Mercedes UDS faults and full black/silver Mercedes-oriented interface overhaul |
+| 0.7.13 | Official AppIcon emblem everywhere, one authoritative iPhone UI and functional portable-model GTK4 workspaces |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate those specifications.
 
@@ -112,7 +113,7 @@ After the positive UDS endpoint test, VIN and six standardized identity reads, M
 
 These identifiers are treated as ECU-family/variant fingerprint evidence only. A response is not interpreted as soot load, regeneration state, injector correction, rail pressure, boost or EGR data. The purpose is to establish whether the physical C207/OM651 behaves like the CRD3/CDID3 family and preserve enough exact evidence to bind later proprietary definitions to the correct ECU/software variant.
 
-## 0.7.12 — Mercedes command interface and deeper CRD3 evidence (current release target)
+## 0.7.12 — Mercedes command interface and deeper CRD3 evidence (completed)
 
 This slice combines the next useful read-only Mercedes capability with the substantial presentation overhaul needed for MBLINK to feel like a purpose-built diagnostic tool rather than a generic SwiftUI sample.
 
@@ -128,14 +129,26 @@ Diagnostic work:
 Branding/interface work:
 
 - replace the generic iPhone list home with a black/charcoal/brushed-silver **MBLINK diagnostic command centre**;
-- use a Mercedes workshop / instrument-cluster / COMAND-era luxury-tech visual language without copying proprietary Mercedes-Benz artwork;
-- add a custom MBLINK badge, strong vehicle/ECU hierarchy, live powertrain instrument tiles, premium diagnostic panels and restrained status colours;
-- make Vehicle, Modules, Faults, Diesel, Live Data, Data Table, Graphs, Evidence, Settings and About share one coherent branded system;
+- use a Mercedes workshop / instrument-cluster / COMAND-era luxury-tech visual language centred on the official MBLINK AppIcon emblem;
+- use that same emblem on every platform alongside strong vehicle/ECU hierarchy, live powertrain instrument tiles, premium diagnostic panels and restrained status colours;
+- make Vehicle, Modules, Faults, Diesel, Live Data, Data Table, Dashboard, Graphs, Evidence, Settings and About share one coherent branded system;
 - give fault memory a distinct authoritative presentation instead of treating it like another generic list;
 - give diesel/DPF/rail/EGR/exhaust data an instrument-oriented presentation;
-- apply the same deep-black and silver identity to the GTK4 Linux shell so the project has one cross-platform visual language.
+- apply the same deep-black and silver identity and official emblem to the GTK4 Linux shell so the project has one cross-platform visual language.
 
 **Exit condition:** all required CI gates pass on the exact 0.7.12 release commit and the matching unsigned iPhone IPA is published for physical C207/OM651 testing.
+
+## 0.7.13 — Official emblem and interface completion (current release target)
+
+- use the existing iPhone AppIcon PNG as the official MBLINK emblem on iPhone, Linux and packaged desktop metadata;
+- remove the placeholder `MB` mark and enforce exact AppIcon/emblem equality in CI;
+- remove the stale duplicate SwiftUI interface and keep one authoritative iPhone command interface;
+- restore Dashboard and explicit graph-signal selection to the active interface;
+- make Settings control real persistent display preferences;
+- replace the Linux label-only façade with workspace views backed by the portable MBLINK, Mercedes and parameter catalogues while reporting unavailable transport data honestly;
+- package the Linux emblem through GResource and desktop installation metadata.
+
+**Exit condition:** all required CI gates pass on the exact 0.7.13 release commit and the matching unsigned iPhone IPA is published.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics (active)
 
@@ -152,7 +165,7 @@ Current state after the 0.7.12 development slice:
 - no successful physical Mercedes exchange is claimed until the development vehicle actually provides the capture;
 - no manufacturer-specific soot-load, regeneration, injector-correction or other undocumented OM651 formula is claimed without vehicle evidence.
 
-The next evidence step remains physical: install the 0.7.12 IPA, connect to the C207/OM651 and export the diagnostic evidence CSV. A reproducible CRD3/ECU fingerprint can then become a fixture and unlock the first genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
+The next evidence step remains physical: install the 0.7.13 IPA, connect to the C207/OM651 and export the diagnostic evidence CSV. A reproducible CRD3/ECU fingerprint can then become a fixture and unlock the first genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 

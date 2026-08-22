@@ -26,6 +26,7 @@ if(MBLINK_ENABLE_SANITIZERS)
 endif()
 
 include(CTest)
+include(GNUInstallDirs)
 
 set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
 set(MBLINK_COMMON_VERSION "1.10.0")
@@ -108,12 +109,60 @@ if(MBLINK_BUILD_LINUX_APP)
 
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
+    find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE
+        NAMES glib-compile-resources REQUIRED)
 
-    add_executable(mblink-linux app/linux/main.c)
+    set(MBLINK_LINUX_RESOURCE_SOURCE
+        "${CMAKE_CURRENT_BINARY_DIR}/mblink-linux-resources.c")
+    add_custom_command(
+        OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
+        COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
+            --generate-source
+            --target="${MBLINK_LINUX_RESOURCE_SOURCE}"
+            --sourcedir="${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
+            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml"
+        DEPENDS
+            app/linux/mblink.gresource.xml
+            app/linux/assets/mblink-emblem.png
+        VERBATIM)
+
+    add_executable(mblink-linux
+        app/linux/main.c
+        "${MBLINK_LINUX_RESOURCE_SOURCE}")
+    set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}"
+        PROPERTIES COMPILE_OPTIONS "-w")
     target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(mblink-linux PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
+
+    install(TARGETS mblink-linux
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES app/linux/assets/mblink-emblem.png
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/180x180/apps"
+        RENAME mblink.png)
+    install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES LICENSE README.md
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
+
+    set(CPACK_GENERATOR "DEB")
+    set(CPACK_PACKAGE_NAME "mblink")
+    set(CPACK_PACKAGE_VENDOR "The First Infiltrator")
+    set(CPACK_PACKAGE_CONTACT "Shannon Smith")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Portable Mercedes-oriented vehicle diagnostics")
+    set(CPACK_PACKAGE_HOMEPAGE_URL
+        "https://github.com/The-First-Infiltrator/MBLINK")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+    set(CPACK_DEBIAN_PACKAGE_NAME "mblink")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+    include(CPack)
 endif()
 
 function(mblink_add_test target source)
