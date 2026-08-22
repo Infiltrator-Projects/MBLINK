@@ -118,7 +118,7 @@ if(MBLINK_BUILD_LINUX_APP)
         OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
         COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
             --generate-source
-            --target="${MBLINK_LINUX_RESOURCE_SOURCE}"
+            "--target=${MBLINK_LINUX_RESOURCE_SOURCE}"
             mblink.gresource.xml
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
         DEPENDS
