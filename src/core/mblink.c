@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file mblink.c
- * @brief Core project metadata and transport ABI validation.
+ * @brief Core project metadata and compatibility boundary for shared LINK code.
  */
 #include "mblink/mblink.h"
 #include "mblink/transport.h"
@@ -19,15 +19,22 @@
 #endif
 
 /*
- * Normal CMake builds consume these engines through LINK::Core. The native
- * iPhone project compiles portable C sources directly, so compile the exact
- * same pinned LINK sources into MBLINKCore rather than carrying product copies.
+ * Normal CMake builds consume shared engines through LINK::Core.  The native
+ * iPhone target compiles portable C sources directly rather than linking the
+ * CMake target, so include the exact sources from the pinned LINK checkout.
+ * This preserves one implementation while avoiding a second product-owned
+ * copy of workspace, runtime, transport or ELM327 logic.
  */
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/core/workspace.c"
 #include "../link/src/core/parameter.c"
 #include "../link/src/core/scheduler.c"
 #include "../link/src/core/telemetry.c"
+#include "../link/src/core/transport.c"
+#include "../link/src/elm327/elm327.c"
+#include "../link/src/elm327/can.c"
+#include "../link/src/elm327/probe.c"
+#include "../link/src/elm327/session.c"
 #endif
 
 static const InfiltratrProjectInfo mblink_project_info = {
@@ -42,7 +49,7 @@ static const InfiltratrProjectInfo mblink_project_info = {
     .author = "Shannon Smith",
     .website = "https://github.com/The-First-Infiltrator/MBLINK",
     .license_id = "GPL-3.0-or-later",
-    .comments = "Portable C vehicle diagnostics core",
+    .comments = "Portable C Mercedes vehicle diagnostics face over LINK",
     .icon_name = "mblink",
     .copyright_text = "Copyright (C) 2026 Shannon Smith"
 };
@@ -59,14 +66,5 @@ bool mblink_self_check(void)
 
 bool mblink_transport_is_valid(const MblinkTransport *transport)
 {
-    if (transport == NULL || transport->struct_size < sizeof(*transport) ||
-        transport->abi_version != MBLINK_TRANSPORT_ABI) {
-        return false;
-    }
-
-    return transport->connect != NULL &&
-           transport->disconnect != NULL &&
-           transport->is_connected != NULL &&
-           transport->write != NULL &&
-           transport->set_receiver != NULL;
+    return link_transport_is_valid(transport);
 }

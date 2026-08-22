@@ -1,74 +1,38 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file transport.h
- * @brief Platform-neutral transport boundary for libmblink.
+ * @brief MBLINK compatibility facade for LINK's byte-stream transport ABI.
  *
- * Platform providers implement this interface without exposing native
- * framework types to the portable diagnostics core.
+ * LINK owns the transport contract.  MBLINK retains its historical public type
+ * and function names so existing Mercedes-specific callers do not need to
+ * change simply because the implementation moved down the dependency pyramid.
  */
 #ifndef MBLINK_TRANSPORT_H
 #define MBLINK_TRANSPORT_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "link/transport.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MBLINK_TRANSPORT_ABI 1U
+#define MBLINK_TRANSPORT_ABI LINK_TRANSPORT_ABI
 
-typedef enum {
-    MBLINK_TRANSPORT_OK = 0,
-    MBLINK_TRANSPORT_NOT_CONNECTED,
-    MBLINK_TRANSPORT_BUSY,
-    MBLINK_TRANSPORT_TIMEOUT,
-    MBLINK_TRANSPORT_IO_ERROR,
-    MBLINK_TRANSPORT_UNSUPPORTED,
-    MBLINK_TRANSPORT_INVALID_ARGUMENT
-} MblinkTransportStatus;
+#define MBLINK_TRANSPORT_OK LINK_TRANSPORT_OK
+#define MBLINK_TRANSPORT_NOT_CONNECTED LINK_TRANSPORT_NOT_CONNECTED
+#define MBLINK_TRANSPORT_BUSY LINK_TRANSPORT_BUSY
+#define MBLINK_TRANSPORT_TIMEOUT LINK_TRANSPORT_TIMEOUT
+#define MBLINK_TRANSPORT_IO_ERROR LINK_TRANSPORT_IO_ERROR
+#define MBLINK_TRANSPORT_UNSUPPORTED LINK_TRANSPORT_UNSUPPORTED
+#define MBLINK_TRANSPORT_INVALID_ARGUMENT LINK_TRANSPORT_INVALID_ARGUMENT
 
-/**
- * Receive callback installed by the protocol layer.
- *
- * Providers must serialize delivery for one transport instance. `data` is
- * borrowed and only valid for the duration of the callback.
- */
-typedef void (*MblinkTransportReceiveFn)(void *context,
-                                         const uint8_t *data,
-                                         size_t size);
+typedef LinkTransportStatus MblinkTransportStatus;
+typedef LinkTransportReceiveFn MblinkTransportReceiveFn;
+typedef LinkTransport MblinkTransport;
 
-/**
- * Platform-neutral byte-stream provider contract.
- *
- * `context` and all provider-owned resources must outlive every transport copy
- * using them. `write()` must consume or copy the supplied bytes before it
- * returns. `set_receiver(context, NULL, NULL)` detaches any previously
- * installed receiver and must be supported by every provider.
- */
-typedef struct {
-    size_t struct_size;
-    uint32_t abi_version;
-    void *context;
-    MblinkTransportStatus (*connect)(void *context);
-    void (*disconnect)(void *context);
-    bool (*is_connected)(void *context);
-    MblinkTransportStatus (*write)(void *context,
-                                   const uint8_t *data,
-                                   size_t size);
-    void (*set_receiver)(void *context,
-                         MblinkTransportReceiveFn receiver,
-                         void *receiver_context);
-} MblinkTransport;
+#define MBLINK_TRANSPORT_INIT LINK_TRANSPORT_INIT
 
-#define MBLINK_TRANSPORT_INIT \
-    { .struct_size = sizeof(MblinkTransport), \
-      .abi_version = MBLINK_TRANSPORT_ABI, \
-      .context = NULL, .connect = NULL, .disconnect = NULL, \
-      .is_connected = NULL, .write = NULL, .set_receiver = NULL }
-
-/** Validate ABI metadata and all mandatory operations. */
+/** Forward ABI validation to the single implementation owned by LINK. */
 bool mblink_transport_is_valid(const MblinkTransport *transport);
 
 #ifdef __cplusplus

@@ -1,132 +1,74 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file elm327.h
- * @brief Portable ELM327 command and response engine.
+ * @brief MBLINK compatibility facade for LINK's shared ELM327 engine.
  *
- * The ELM327 layer owns serial-style command framing, response accumulation,
- * prompt detection, normalisation, adapter-status classification and the
- * deterministic initialisation sequence. It does not know about BLE, Wi-Fi,
- * sockets or any other concrete transport.
+ * The parser, framing and initialisation algorithms live in LINK.  This header
+ * preserves MBLINK's public vocabulary and ABI while ensuring Mercedes-only
+ * code remains above the shared automotive layer.
  */
 #ifndef MBLINK_ELM327_H
 #define MBLINK_ELM327_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "link/elm327.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MBLINK_ELM327_MAX_COMMAND 64U
-#define MBLINK_ELM327_MAX_RESPONSE 4096U
-#define MBLINK_ELM327_MAX_ADAPTER_ID 96U
+#define MBLINK_ELM327_MAX_COMMAND LINK_ELM327_MAX_COMMAND
+#define MBLINK_ELM327_MAX_RESPONSE LINK_ELM327_MAX_RESPONSE
+#define MBLINK_ELM327_MAX_ADAPTER_ID LINK_ELM327_MAX_ADAPTER_ID
 
-typedef enum {
-    MBLINK_ELM327_RESULT_OK = 0,
-    MBLINK_ELM327_RESULT_MORE_DATA,
-    MBLINK_ELM327_RESULT_INVALID_ARGUMENT,
-    MBLINK_ELM327_RESULT_COMMAND_TOO_LONG,
-    MBLINK_ELM327_RESULT_RESPONSE_TOO_LONG,
-    MBLINK_ELM327_RESULT_NO_DATA,
-    MBLINK_ELM327_RESULT_STOPPED,
-    MBLINK_ELM327_RESULT_UNABLE_TO_CONNECT,
-    MBLINK_ELM327_RESULT_BUS_INIT_ERROR,
-    MBLINK_ELM327_RESULT_CAN_ERROR,
-    MBLINK_ELM327_RESULT_BUFFER_FULL,
-    MBLINK_ELM327_RESULT_UNSUPPORTED_COMMAND,
-    MBLINK_ELM327_RESULT_ADAPTER_ERROR,
-    MBLINK_ELM327_RESULT_MALFORMED_RESPONSE
-} MblinkElm327Result;
+#define MBLINK_ELM327_RESULT_OK LINK_ELM327_RESULT_OK
+#define MBLINK_ELM327_RESULT_MORE_DATA LINK_ELM327_RESULT_MORE_DATA
+#define MBLINK_ELM327_RESULT_INVALID_ARGUMENT LINK_ELM327_RESULT_INVALID_ARGUMENT
+#define MBLINK_ELM327_RESULT_COMMAND_TOO_LONG LINK_ELM327_RESULT_COMMAND_TOO_LONG
+#define MBLINK_ELM327_RESULT_RESPONSE_TOO_LONG LINK_ELM327_RESULT_RESPONSE_TOO_LONG
+#define MBLINK_ELM327_RESULT_NO_DATA LINK_ELM327_RESULT_NO_DATA
+#define MBLINK_ELM327_RESULT_STOPPED LINK_ELM327_RESULT_STOPPED
+#define MBLINK_ELM327_RESULT_UNABLE_TO_CONNECT LINK_ELM327_RESULT_UNABLE_TO_CONNECT
+#define MBLINK_ELM327_RESULT_BUS_INIT_ERROR LINK_ELM327_RESULT_BUS_INIT_ERROR
+#define MBLINK_ELM327_RESULT_CAN_ERROR LINK_ELM327_RESULT_CAN_ERROR
+#define MBLINK_ELM327_RESULT_BUFFER_FULL LINK_ELM327_RESULT_BUFFER_FULL
+#define MBLINK_ELM327_RESULT_UNSUPPORTED_COMMAND LINK_ELM327_RESULT_UNSUPPORTED_COMMAND
+#define MBLINK_ELM327_RESULT_ADAPTER_ERROR LINK_ELM327_RESULT_ADAPTER_ERROR
+#define MBLINK_ELM327_RESULT_MALFORMED_RESPONSE LINK_ELM327_RESULT_MALFORMED_RESPONSE
 
-typedef struct {
-    MblinkElm327Result result;
-    bool prompt_seen;
-    bool echo_removed;
-    bool searching_seen;
-    bool ok_seen;
-    size_t line_count;
-    size_t length;
-    char text[MBLINK_ELM327_MAX_RESPONSE];
-} MblinkElm327Response;
+typedef LinkElm327Result MblinkElm327Result;
+typedef LinkElm327Response MblinkElm327Response;
+typedef LinkElm327Parser MblinkElm327Parser;
 
-typedef struct {
-    char command[MBLINK_ELM327_MAX_COMMAND];
-    uint8_t raw[MBLINK_ELM327_MAX_RESPONSE];
-    size_t raw_length;
-    bool prompt_seen;
-    bool overflowed;
-} MblinkElm327Parser;
+#define MBLINK_ELM327_INIT_RESET LINK_ELM327_INIT_RESET
+#define MBLINK_ELM327_INIT_ECHO_OFF LINK_ELM327_INIT_ECHO_OFF
+#define MBLINK_ELM327_INIT_LINEFEEDS_OFF LINK_ELM327_INIT_LINEFEEDS_OFF
+#define MBLINK_ELM327_INIT_SPACES_OFF LINK_ELM327_INIT_SPACES_OFF
+#define MBLINK_ELM327_INIT_HEADERS_OFF LINK_ELM327_INIT_HEADERS_OFF
+#define MBLINK_ELM327_INIT_PROTOCOL_AUTO LINK_ELM327_INIT_PROTOCOL_AUTO
+#define MBLINK_ELM327_INIT_IDENTIFY LINK_ELM327_INIT_IDENTIFY
+#define MBLINK_ELM327_INIT_COMPLETE LINK_ELM327_INIT_COMPLETE
+#define MBLINK_ELM327_INIT_FAILED LINK_ELM327_INIT_FAILED
 
-typedef enum {
-    MBLINK_ELM327_INIT_RESET = 0,
-    MBLINK_ELM327_INIT_ECHO_OFF,
-    MBLINK_ELM327_INIT_LINEFEEDS_OFF,
-    MBLINK_ELM327_INIT_SPACES_OFF,
-    MBLINK_ELM327_INIT_HEADERS_OFF,
-    MBLINK_ELM327_INIT_PROTOCOL_AUTO,
-    MBLINK_ELM327_INIT_IDENTIFY,
-    MBLINK_ELM327_INIT_COMPLETE,
-    MBLINK_ELM327_INIT_FAILED
-} MblinkElm327InitStage;
+typedef LinkElm327InitStage MblinkElm327InitStage;
+typedef LinkElm327InitState MblinkElm327InitState;
 
-typedef struct {
-    MblinkElm327InitStage stage;
-    MblinkElm327Result failure;
-    char adapter_id[MBLINK_ELM327_MAX_ADAPTER_ID];
-} MblinkElm327InitState;
-
-/** Return a stable human-readable name for an ELM327 result. */
 const char *mblink_elm327_result_name(MblinkElm327Result result);
-
-/**
- * Validate and frame an ELM327/OBD command for transmission.
- *
- * Leading/trailing ASCII whitespace is removed and exactly one carriage
- * return is appended. Embedded CR/LF bytes, the ELM prompt character and
- * non-printable bytes are rejected.
- */
 MblinkElm327Result mblink_elm327_build_command(const char *command,
-                                                uint8_t *buffer,
-                                                size_t buffer_size,
-                                                size_t *written);
-
-/** Initialise a response accumulator for one outstanding command. */
+                                               uint8_t *buffer,
+                                               size_t buffer_size,
+                                               size_t *written);
 MblinkElm327Result mblink_elm327_parser_begin(MblinkElm327Parser *parser,
-                                               const char *command);
-
-/**
- * Feed arbitrarily fragmented transport bytes into the parser.
- *
- * Returns MORE_DATA until a '>' prompt is seen, OK when a complete response
- * has been accumulated, or RESPONSE_TOO_LONG if the bounded buffer overflows.
- * `consumed` reports bytes consumed from this fragment; bytes after the prompt
- * remain the caller's responsibility and are never silently discarded.
- */
+                                              const char *command);
 MblinkElm327Result mblink_elm327_parser_feed(MblinkElm327Parser *parser,
-                                              const uint8_t *data,
-                                              size_t size,
-                                              size_t *consumed);
-
-/** Normalise and classify a complete accumulated ELM327 response. */
+                                             const uint8_t *data,
+                                             size_t size,
+                                             size_t *consumed);
 MblinkElm327Result mblink_elm327_parser_finish(const MblinkElm327Parser *parser,
-                                                MblinkElm327Response *response);
-
-/** Initialise the deterministic adapter setup state machine. */
+                                               MblinkElm327Response *response);
 void mblink_elm327_init_begin(MblinkElm327InitState *state);
-
-/** Return the command required by the current initialisation stage. */
 const char *mblink_elm327_init_command(const MblinkElm327InitState *state);
-
-/**
- * Advance initialisation after receiving a parsed response.
- *
- * Reset/identity responses may contain text; configuration steps require OK.
- * Any classified adapter error moves the state to FAILED.
- */
 MblinkElm327Result mblink_elm327_init_accept(MblinkElm327InitState *state,
-                                              const MblinkElm327Response *response);
+                                             const MblinkElm327Response *response);
 
 #ifdef __cplusplus
 }
