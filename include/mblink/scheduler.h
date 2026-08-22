@@ -1,120 +1,55 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-/**
- * @file scheduler.h
- * @brief Portable bounded request scheduler for live diagnostic polling.
- */
 #ifndef MBLINK_SCHEDULER_H
 #define MBLINK_SCHEDULER_H
 
+#include "mblink/obd2.h"
 #include "mblink/parameter.h"
-
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "link/scheduler.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MBLINK_SCHEDULER_MAX_ITEMS 64U
+typedef LinkSchedulerPriority MblinkSchedulerPriority;
+typedef LinkSchedulerResult MblinkSchedulerResult;
+typedef LinkSchedulerNextResult MblinkSchedulerNextResult;
+typedef LinkSchedulerItem MblinkSchedulerItem;
+typedef LinkScheduler MblinkScheduler;
+typedef LinkSchedulerDispatch MblinkSchedulerDispatch;
 
-typedef enum {
-    MBLINK_SCHEDULER_PRIORITY_LOW = 0,
-    MBLINK_SCHEDULER_PRIORITY_NORMAL = 1,
-    MBLINK_SCHEDULER_PRIORITY_HIGH = 2,
-    MBLINK_SCHEDULER_PRIORITY_CRITICAL = 3
-} MblinkSchedulerPriority;
+#define MBLINK_SCHEDULER_MAX_ITEMS LINK_SCHEDULER_MAX_ITEMS
+#define MBLINK_SCHEDULER_PRIORITY_LOW LINK_SCHEDULER_PRIORITY_LOW
+#define MBLINK_SCHEDULER_PRIORITY_NORMAL LINK_SCHEDULER_PRIORITY_NORMAL
+#define MBLINK_SCHEDULER_PRIORITY_HIGH LINK_SCHEDULER_PRIORITY_HIGH
+#define MBLINK_SCHEDULER_PRIORITY_CRITICAL LINK_SCHEDULER_PRIORITY_CRITICAL
+#define MBLINK_SCHEDULER_RESULT_OK LINK_SCHEDULER_RESULT_OK
+#define MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT LINK_SCHEDULER_RESULT_INVALID_ARGUMENT
+#define MBLINK_SCHEDULER_RESULT_FULL LINK_SCHEDULER_RESULT_FULL
+#define MBLINK_SCHEDULER_RESULT_DUPLICATE LINK_SCHEDULER_RESULT_DUPLICATE
+#define MBLINK_SCHEDULER_RESULT_NOT_FOUND LINK_SCHEDULER_RESULT_NOT_FOUND
+#define MBLINK_SCHEDULER_NEXT_READY LINK_SCHEDULER_NEXT_READY
+#define MBLINK_SCHEDULER_NEXT_WAITING LINK_SCHEDULER_NEXT_WAITING
+#define MBLINK_SCHEDULER_NEXT_PAUSED LINK_SCHEDULER_NEXT_PAUSED
+#define MBLINK_SCHEDULER_NEXT_EMPTY LINK_SCHEDULER_NEXT_EMPTY
+#define MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT LINK_SCHEDULER_NEXT_INVALID_ARGUMENT
 
-typedef enum {
-    MBLINK_SCHEDULER_RESULT_OK = 0,
-    MBLINK_SCHEDULER_RESULT_INVALID_ARGUMENT,
-    MBLINK_SCHEDULER_RESULT_FULL,
-    MBLINK_SCHEDULER_RESULT_DUPLICATE,
-    MBLINK_SCHEDULER_RESULT_NOT_FOUND
-} MblinkSchedulerResult;
-
-typedef enum {
-    MBLINK_SCHEDULER_NEXT_READY = 0,
-    MBLINK_SCHEDULER_NEXT_WAITING,
-    MBLINK_SCHEDULER_NEXT_PAUSED,
-    MBLINK_SCHEDULER_NEXT_EMPTY,
-    MBLINK_SCHEDULER_NEXT_INVALID_ARGUMENT
-} MblinkSchedulerNextResult;
-
-typedef struct {
-    MblinkParameterKey key;
-    uint8_t pid;
-    bool pid_valid;
-    uint32_t interval_ms;
-    uint64_t next_due_ms;
-    MblinkSchedulerPriority priority;
-    bool enabled;
-} MblinkSchedulerItem;
-
-typedef struct {
-    MblinkSchedulerItem items[MBLINK_SCHEDULER_MAX_ITEMS];
-    size_t count;
-    bool paused;
-    uint64_t pause_started_ms;
-} MblinkScheduler;
-
-typedef struct {
-    size_t index;
-    MblinkParameterKey key;
-    uint8_t pid;
-    bool pid_valid;
-    uint64_t due_ms;
-    uint64_t wait_ms;
-} MblinkSchedulerDispatch;
-
-const char *mblink_scheduler_result_name(MblinkSchedulerResult result);
-const char *mblink_scheduler_next_result_name(MblinkSchedulerNextResult result);
-
-void mblink_scheduler_init(MblinkScheduler *scheduler);
-
-/** All scheduler timestamps use one caller-supplied monotonic millisecond clock. */
-MblinkSchedulerResult mblink_scheduler_add_parameter(
-    MblinkScheduler *scheduler,
-    const MblinkParameterKey *key,
-    uint32_t interval_ms,
-    MblinkSchedulerPriority priority,
-    uint64_t first_due_ms);
-
-MblinkSchedulerResult mblink_scheduler_set_parameter_enabled(
-    MblinkScheduler *scheduler,
-    const MblinkParameterKey *key,
-    bool enabled);
-
-/** Compatibility wrapper for standard OBD-II PID scheduling. */
-MblinkSchedulerResult mblink_scheduler_add(
-    MblinkScheduler *scheduler,
-    uint8_t pid,
-    uint32_t interval_ms,
-    MblinkSchedulerPriority priority,
-    uint64_t first_due_ms);
-
-/** Compatibility wrapper for standard OBD-II PID scheduling. */
-MblinkSchedulerResult mblink_scheduler_set_enabled(
-    MblinkScheduler *scheduler, uint8_t pid, bool enabled);
+#define mblink_scheduler_result_name link_scheduler_result_name
+#define mblink_scheduler_next_result_name link_scheduler_next_result_name
+#define mblink_scheduler_init link_scheduler_init
+#define mblink_scheduler_add_parameter link_scheduler_add_parameter
+#define mblink_scheduler_set_parameter_enabled link_scheduler_set_parameter_enabled
+#define mblink_scheduler_add link_scheduler_add
+#define mblink_scheduler_set_enabled link_scheduler_set_enabled
+#define mblink_scheduler_set_paused link_scheduler_set_paused
+#define mblink_scheduler_next link_scheduler_next
+#define mblink_scheduler_mark_dispatched link_scheduler_mark_dispatched
 
 MblinkSchedulerResult mblink_scheduler_configure_standard_obd2(
     MblinkScheduler *scheduler,
     const MblinkObd2PidSet *supported,
     uint64_t first_due_ms);
 
-void mblink_scheduler_set_paused(
-    MblinkScheduler *scheduler, bool paused, uint64_t now_ms);
-
-MblinkSchedulerNextResult mblink_scheduler_next(
-    const MblinkScheduler *scheduler,
-    uint64_t now_ms,
-    MblinkSchedulerDispatch *dispatch);
-
-MblinkSchedulerResult mblink_scheduler_mark_dispatched(
-    MblinkScheduler *scheduler, size_t index, uint64_t now_ms);
-
 #ifdef __cplusplus
 }
 #endif
-
 #endif
