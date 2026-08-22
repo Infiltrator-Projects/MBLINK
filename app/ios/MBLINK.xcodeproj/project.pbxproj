@@ -68,7 +68,7 @@
 		F0A1B2C3D4E5F60718293A01 /* scheduler.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "scheduler.c"; path = "../../src/core/scheduler.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A02 /* telemetry_store.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_store.c"; path = "../../src/core/telemetry_store.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A03 /* telemetry_csv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "telemetry_csv.c"; path = "../../src/core/telemetry_csv.c"; sourceTree = SOURCE_ROOT; };
-		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/link/src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
@@ -387,7 +387,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.13;
+				MARKETING_VERSION = 0.7.14;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -418,7 +418,7 @@
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.13;
+				MARKETING_VERSION = 0.7.14;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -459,7 +459,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.13;
+				MARKETING_VERSION = 0.7.14;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -493,7 +493,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.13;
+				MARKETING_VERSION = 0.7.14;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
