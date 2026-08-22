@@ -35,57 +35,32 @@ EOF
 
 while (($#)); do
     case "$1" in
-        --build-only)
-            mode="build-only"
-            shift
-            ;;
+        --build-only) mode="build-only"; shift ;;
         --output)
             [[ $# -ge 2 ]] || { echo '--output requires a file path.' >&2; exit 2; }
-            output_path="$2"
-            shift 2
-            ;;
+            output_path="$2"; shift 2 ;;
         --extract)
             [[ $# -ge 2 ]] || { echo '--extract requires a directory.' >&2; exit 2; }
-            mode="extract"
-            extract_directory="$2"
-            shift 2
-            ;;
+            mode="extract"; extract_directory="$2"; shift 2 ;;
         --prefix)
             [[ $# -ge 2 ]] || { echo '--prefix requires a directory.' >&2; exit 2; }
-            prefix="$2"
-            shift 2
-            ;;
+            prefix="$2"; shift 2 ;;
         --jobs)
             [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2; }
-            jobs="$2"
-            shift 2
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        *)
-            printf 'Unknown option: %s\n\n' "$1" >&2
-            usage >&2
-            exit 2
-            ;;
+            jobs="$2"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'Unknown option: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
     esac
 done
 
-[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || {
-    echo '--jobs must be a positive integer.' >&2
-    exit 2
-}
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || { echo '--jobs must be a positive integer.' >&2; exit 2; }
 if [[ -n "$output_path" && "$mode" != "build-only" ]]; then
     echo '--output is valid only with --build-only.' >&2
     exit 2
 fi
 
 payload_line="$(awk '/^__MBLINK_NATIVE_PAYLOAD_BELOW__$/ { print NR + 1; exit }' "$0")"
-[[ -n "$payload_line" ]] || {
-    echo 'The embedded MBLINK source payload is missing.' >&2
-    exit 1
-}
+[[ -n "$payload_line" ]] || { echo 'The embedded MBLINK source payload is missing.' >&2; exit 1; }
 
 extract_payload()
 {
@@ -93,14 +68,12 @@ extract_payload()
     mkdir -p -- "$destination"
     tail -n +"$payload_line" "$0" | gzip -dc | tar -xf - -C "$destination"
     test -f "$destination/CMakeLists.txt"
-    test -f "$destination/src/infiltratr-common/VERSION"
+    test -f "$destination/src/link/VERSION"
+    test -f "$destination/src/link/src/infiltratr-common/VERSION"
 }
 
 if [[ "$mode" == "extract" ]]; then
-    [[ -n "$extract_directory" ]] || {
-        echo 'An extraction directory is required.' >&2
-        exit 2
-    }
+    [[ -n "$extract_directory" ]] || { echo 'An extraction directory is required.' >&2; exit 2; }
     if [[ -e "$extract_directory" && -n "$(find "$extract_directory" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
         echo "Extraction directory is not empty: $extract_directory" >&2
         exit 1
@@ -165,7 +138,6 @@ else
     exit 1
 fi
 
-printf 'MBLINK %s was compiled natively, tested, and installed under %s.\n' \
-    "$version" "$prefix"
+printf 'MBLINK %s was compiled natively, tested, and installed under %s.\n' "$version" "$prefix"
 exit 0
 __MBLINK_NATIVE_PAYLOAD_BELOW__

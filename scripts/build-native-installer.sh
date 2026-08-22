@@ -13,7 +13,8 @@ output="${1:-$project_root/MBLINK-${version}-linux-native.run}"
 }
 grep -qx '__MBLINK_NATIVE_PAYLOAD_BELOW__' "$header"
 grep -q '^version="__MBLINK_VERSION__"$' "$header"
-test -f "$project_root/src/infiltratr-common/VERSION"
+test -f "$project_root/src/link/VERSION"
+test -f "$project_root/src/link/src/infiltratr-common/VERSION"
 
 temporary="$(mktemp -d)"
 cleanup()

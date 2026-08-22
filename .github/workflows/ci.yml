@@ -75,6 +75,13 @@ jobs:
         run: cmake -S . -B build-linux-app -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=OFF
       - name: Build Linux app
         run: cmake --build build-linux-app --target mblink-linux --parallel
+      - name: Verify Linux About and emblem integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'mblink_linux_show_about' app/linux/main.c
+          grep -q 'Copyright © 2026 Shannon Smith' app/linux/about-dialog.c
+          grep -q 'gdk_texture_new_from_resource' app/linux/about-dialog.c
       - name: Build and verify Debian package
         shell: bash
         env:
@@ -107,6 +114,7 @@ jobs:
           "$installer" --help >/dev/null
           "$installer" --extract "$RUNNER_TEMP/mblink-native-source"
           test -f "$RUNNER_TEMP/mblink-native-source/src/link/VERSION"
+          test -f "$RUNNER_TEMP/mblink-native-source/src/link/src/infiltratr-common/VERSION"
           "$installer" --build-only --output "$RUNNER_TEMP/mblink-linux-native" --jobs 2
           test -x "$RUNNER_TEMP/mblink-linux-native"
       - name: Upload Linux release packages
@@ -139,10 +147,16 @@ jobs:
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
           test "$(grep -c "MARKETING_VERSION = ${version};" app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
-          test "$(tr -d '[:space:]' < src/infiltratr-common/VERSION)" = "1.10.0"
+
+          mapfile -t gitlinks < <(git ls-files --stage | awk '$1 == "160000" { print $4 }' | sort)
+          expected_gitlinks=("src/link")
+          test "${gitlinks[*]}" = "${expected_gitlinks[*]}"
+          test ! -e src/infiltratr-common
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.6.0"
-          grep -q 'set(MBLINK_LINK_COMMIT "bbb21785983f1d94483949d4a7c50adf80f4c4e7")' CMakeLists.txt
-          test "$(git -C src/link rev-parse HEAD)" = "bbb21785983f1d94483949d4a7c50adf80f4c4e7"
+          test "$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)" = "1.10.0"
+          grep -q 'set(MBLINK_LINK_COMMIT "9c1437e5d48181807863b98af04c0153ec4eff16")' CMakeLists.txt
+          test "$(git -C src/link rev-parse HEAD)" = "9c1437e5d48181807863b98af04c0153ec4eff16"
+          grep -q '../../src/link/src/infiltratr-common/apple/InfiltratrCommon.xcodeproj' app/ios/MBLINK.xcodeproj/project.pbxproj
 
           grep -q 'link_parameter_store_record' src/link/src/core/parameter.c
           grep -q 'LINK_PARAMETER_STORE_HISTORY_CAPACITY 1024U' src/link/include/link/parameter_store.h
@@ -163,6 +177,7 @@ jobs:
           grep -q 'mblink_telemetry_store_record' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_parameter_obd2_definition_count' app/ios/MBLINK/ConnectionViewModel.swift
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
+          grep -q 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
           cmp -s app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png app/linux/assets/mblink-emblem.png
       - name: Build iPhone app for simulator
         shell: bash
@@ -282,7 +297,9 @@ jobs:
             ];
 
             const main = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
-            if (main.data.commit.sha !== target) return;
+            if (main.data.commit.sha !== target) {
+              throw new Error(`Stale release run at ${target}; main is ${main.data.commit.sha}.`);
+            }
 
             let tagTarget = null;
             try {
@@ -297,8 +314,7 @@ jobs:
               if (error.status !== 404) throw error;
             }
             if (tagTarget !== null && tagTarget !== target) {
-              if (release !== null) return;
-              throw new Error(`${tag} points to ${tagTarget}, expected ${target}`);
+              throw new Error(`${tag} points to ${tagTarget}, expected ${target}; refusing a false-green release.`);
             }
             for (const name of assetNames) {
               if (!fs.existsSync(path.join(process.env.GITHUB_WORKSPACE, 'release-assets', name))) {

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MBLINK_PROJECT_VERSION)
 string(STRIP "${MBLINK_PROJECT_VERSION}" MBLINK_PROJECT_VERSION)
-if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a semantic major.minor.patch version.")
 endif()
 
@@ -34,49 +34,11 @@ endif()
 include(CTest)
 include(GNUInstallDirs)
 
-set(MBLINK_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/infiltratr-common")
-set(MBLINK_COMMON_VERSION "1.10.0")
-set(MBLINK_COMMON_COMMIT "182e64cb8b8992879e443b941565058166fe0161")
-
-if(NOT EXISTS "${MBLINK_COMMON_DIR}/VERSION")
-    message(FATAL_ERROR
-        "Infiltratr Common ${MBLINK_COMMON_VERSION} is required. Clone with --recurse-submodules or run git submodule update --init --recursive.")
-endif()
-
-file(READ "${MBLINK_COMMON_DIR}/VERSION" MBLINK_COMMON_FOUND_VERSION)
-string(STRIP "${MBLINK_COMMON_FOUND_VERSION}" MBLINK_COMMON_FOUND_VERSION)
-if(NOT MBLINK_COMMON_FOUND_VERSION STREQUAL MBLINK_COMMON_VERSION)
-    message(FATAL_ERROR
-        "Infiltratr Common ${MBLINK_COMMON_VERSION} is required; found ${MBLINK_COMMON_FOUND_VERSION}.")
-endif()
-
-find_program(MBLINK_GIT_EXECUTABLE git)
-if(MBLINK_GIT_EXECUTABLE)
-    execute_process(
-        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_COMMON_DIR}" rev-parse HEAD
-        OUTPUT_VARIABLE MBLINK_COMMON_FOUND_COMMIT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-        RESULT_VARIABLE MBLINK_COMMON_COMMIT_RESULT)
-    if(MBLINK_COMMON_COMMIT_RESULT EQUAL 0 AND
-       NOT MBLINK_COMMON_FOUND_COMMIT STREQUAL MBLINK_COMMON_COMMIT)
-        message(FATAL_ERROR
-            "Infiltratr Common must be pinned to ${MBLINK_COMMON_COMMIT}; found ${MBLINK_COMMON_FOUND_COMMIT}.")
-    endif()
-endif()
-
-set(INFILTRATR_COMMON_BUILD_TESTS OFF CACHE BOOL
-    "Build Infiltratr Common contract and smoke tests" FORCE)
-set(INFILTRATR_COMMON_WARNINGS_AS_ERRORS ON CACHE BOOL
-    "Treat Infiltratr Common compiler warnings as errors" FORCE)
-add_subdirectory(
-    "${MBLINK_COMMON_DIR}"
-    "${CMAKE_CURRENT_BINARY_DIR}/infiltratr-common"
-    EXCLUDE_FROM_ALL)
-
+# LINK is MBLINK's only top-level implementation dependency. LINK owns and
+# validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
 set(MBLINK_LINK_VERSION "0.6.0")
-set(MBLINK_LINK_COMMIT "bbb21785983f1d94483949d4a7c50adf80f4c4e7")
+set(MBLINK_LINK_COMMIT "9c1437e5d48181807863b98af04c0153ec4eff16")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -90,6 +52,7 @@ if(NOT MBLINK_LINK_FOUND_VERSION STREQUAL MBLINK_LINK_VERSION)
         "LINK ${MBLINK_LINK_VERSION} is required; found ${MBLINK_LINK_FOUND_VERSION}.")
 endif()
 
+find_program(MBLINK_GIT_EXECUTABLE git)
 if(MBLINK_GIT_EXECUTABLE)
     execute_process(
         COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD
@@ -123,21 +86,13 @@ add_library(mblink STATIC
     src/uds/uds.c
     src/mercedes/mercedes.c
     src/mercedes/probe.c)
-target_include_directories(mblink
-    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_compile_definitions(mblink PRIVATE
-    MBLINK_VERSION="${PROJECT_VERSION}")
-target_link_libraries(mblink PUBLIC InfiltratrCommon::Portable LINK::Core)
+target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}")
+target_link_libraries(mblink PUBLIC LINK::Core)
 
 set(MBLINK_WARNING_FLAGS
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wshadow
-    -Wformat=2
-    -Wstrict-prototypes
-    -Wmissing-prototypes)
-
+    -Wall -Wextra -Wpedantic -Wshadow -Wformat=2
+    -Wstrict-prototypes -Wmissing-prototypes)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(mblink PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
 endif()
@@ -149,11 +104,9 @@ if(MBLINK_BUILD_LINUX_APP)
 
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
-    find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE
-        NAMES glib-compile-resources REQUIRED)
+    find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE NAMES glib-compile-resources REQUIRED)
 
-    set(MBLINK_LINUX_RESOURCE_SOURCE
-        "${CMAKE_CURRENT_BINARY_DIR}/mblink-linux-resources.c")
+    set(MBLINK_LINUX_RESOURCE_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/mblink-linux-resources.c")
     add_custom_command(
         OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
         COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
@@ -168,32 +121,28 @@ if(MBLINK_BUILD_LINUX_APP)
 
     add_executable(mblink-linux
         app/linux/main.c
+        app/linux/about-dialog.c
         "${MBLINK_LINUX_RESOURCE_SOURCE}")
-    set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}"
-        PROPERTIES COMPILE_OPTIONS "-w")
+    set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-w")
     target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(mblink-linux PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
 
-    install(TARGETS mblink-linux
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(TARGETS mblink-linux RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
     install(FILES app/linux/assets/mblink-emblem.png
         DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/180x180/apps"
         RENAME mblink.png)
     install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop
         DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
-    install(FILES LICENSE README.md
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
+    install(FILES LICENSE README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
 
     set(CPACK_GENERATOR "DEB")
     set(CPACK_PACKAGE_NAME "mblink")
     set(CPACK_PACKAGE_VENDOR "The First Infiltrator")
     set(CPACK_PACKAGE_CONTACT "Shannon Smith")
-    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-        "Portable Mercedes-oriented vehicle diagnostics")
-    set(CPACK_PACKAGE_HOMEPAGE_URL
-        "https://github.com/The-First-Infiltrator/MBLINK")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Portable Mercedes-oriented vehicle diagnostics")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/The-First-Infiltrator/MBLINK")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -226,9 +175,7 @@ endfunction()
 
 if(BUILD_TESTING)
     mblink_add_test(mblink-test-core tests/test_core.c)
-    target_compile_definitions(mblink-test-core PRIVATE
-        MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
-
+    target_compile_definitions(mblink-test-core PRIVATE MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
     mblink_add_test(mblink-test-elm327 tests/test_elm327.c)
     mblink_add_test(mblink-test-elm327-can tests/test_elm327_can.c)
     mblink_add_test(mblink-test-elm327-session tests/test_elm327_session.c)
@@ -239,18 +186,14 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-parameter-store tests/test_parameter_store.c)
     mblink_add_test(mblink-test-scheduler-parameters tests/test_scheduler_parameters.c)
     mblink_add_test(mblink-test-isotp tests/test_isotp.c)
-    mblink_add_test(mblink-test-isotp-failed-state
-        tests/test_isotp_failed_state.c)
-    mblink_add_test(mblink-test-isotp-functional-response
-        tests/test_isotp_functional_response.c)
+    mblink_add_test(mblink-test-isotp-failed-state tests/test_isotp_failed_state.c)
+    mblink_add_test(mblink-test-isotp-functional-response tests/test_isotp_functional_response.c)
     mblink_add_test(mblink-test-uds tests/test_uds.c)
     mblink_add_test(mblink-test-uds-dtc tests/test_uds_dtc.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
     mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-om651 tests/test_mercedes_om651.c)
     mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)
-    mblink_add_test(mblink-test-mercedes-trace-replay
-        tests/test_mercedes_trace_replay.c)
-    mblink_add_test(mblink-test-mercedes-engine-scan
-        tests/test_mercedes_engine_scan.c)
+    mblink_add_test(mblink-test-mercedes-trace-replay tests/test_mercedes_trace_replay.c)
+    mblink_add_test(mblink-test-mercedes-engine-scan tests/test_mercedes_engine_scan.c)
 endif()

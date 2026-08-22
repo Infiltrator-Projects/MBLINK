@@ -78,7 +78,7 @@
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
 		DCDEF808C26455A6B72E4784 /* obd2.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "obd2.c"; path = "../../src/obd2/obd2.c"; sourceTree = SOURCE_ROOT; };
-		C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = InfiltratrCommon.xcodeproj; path = "../../src/infiltratr-common/apple/InfiltratrCommon.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		C0A110000000000000000004 /* InfiltratrCommon.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = InfiltratrCommon.xcodeproj; path = "../../src/link/src/infiltratr-common/apple/InfiltratrCommon.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		8BCD5BC4CDFDF0918087C782 /* MBLINK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MBLINK.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
@@ -385,9 +385,9 @@
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
-					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.17;
+				MARKETING_VERSION = 0.7.18;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -416,9 +416,9 @@
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
-					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.17;
+				MARKETING_VERSION = 0.7.18;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -448,7 +448,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
-					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
@@ -459,7 +459,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.17;
+				MARKETING_VERSION = 0.7.18;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -482,7 +482,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
-					"$(SRCROOT)/../../src/infiltratr-common/include",
+					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
@@ -493,7 +493,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.17;
+				MARKETING_VERSION = 0.7.18;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
