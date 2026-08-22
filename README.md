@@ -4,7 +4,7 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development vehicle is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current release: 0.7.21.**
+**Current release: 0.7.22.**
 
 ## Dependency hierarchy
 
@@ -17,9 +17,9 @@ Infiltratr Common
  Mercedes face
 ```
 
-MBLINK pins LINK 0.7.1 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK carries no second top-level Common submodule.
+MBLINK pins LINK 0.7.2 at `src/link`. LINK owns and pins Infiltratr Common 1.10.0 beneath it; MBLINK carries no second top-level Common submodule.
 
-LINK is the source of truth for the shared workspace, ISO-TP, byte-stream transport ABI, ELM327 framing/parser/initialisation, ELM-managed CAN, ELM session/probe, parameter/store/scheduler/telemetry runtime, Discover safety/evidence and the Windows OpenPort 2.0/J2534 scanner. MBLINK retains small compatibility façades for those APIs plus Mercedes identity, Mercedes definitions and manufacturer-specific diagnostic behaviour.
+LINK is the source of truth for the shared workspace, ISO-TP, byte-stream transport ABI, ELM327 framing/parser/initialisation, ELM-managed CAN, ELM session/probe, parameter/store/scheduler/telemetry runtime, Discover safety/evidence, and the native Windows OpenPort 2.0/J2534 scanner shell. MBLINK retains small compatibility façades for those APIs plus Mercedes identity, Mercedes definitions and manufacturer-specific diagnostic behaviour.
 
 The next shared migrations are standard OBD-II and UDS.
 
@@ -47,15 +47,15 @@ cmake --build build-linux --target mblink-linux
 ./build-linux/mblink-linux
 ```
 
-The Linux shell uses the official Mercedes three-pointed-star MBLINK emblem and includes the standard About dialog with version, author, website and GPL information.
+The Linux shell uses the Mercedes three-pointed-star MBLINK emblem and includes the standard About dialog with version, author, website and GPL information.
 
 ### iPhone
 
-The native project is `app/ios/MBLINK.xcodeproj`. It uses the official MBLINK emblem throughout the app and carries `Copyright © 2026 Shannon Smith` in both the visible About experience and bundle metadata.
+The native project is `app/ios/MBLINK.xcodeproj`. It uses the MBLINK emblem throughout the app and carries `Copyright © 2026 Shannon Smith` in both the visible About experience and bundle metadata.
 
 ### Windows Discover
 
-`mblink-discover` is the Mercedes face of LINK's shared read-only OpenPort/J2534 scanner. It uses the same scanner source and safety/evidence engine as JAGLINK.
+`mblink-discover` is the Mercedes face of LINK's shared read-only OpenPort/J2534 scanner. LINK 0.7.2 supplies the native Windows shell with a proper File/Help menu, `Help → About MBLINK`, responsive layout, status area and evidence controls. MBLINK supplies its own embedded Windows icon, version, Mercedes-Benz subtitle and Shannon Smith attribution, so the EXE, title bar, taskbar and About dialog are branded as MBLINK rather than a generic utility.
 
 ## Release assets
 
