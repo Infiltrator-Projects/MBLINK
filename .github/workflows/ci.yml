@@ -148,7 +148,12 @@ jobs:
       - name: Reject dynamic Visual C++ runtime dependencies
         shell: pwsh
         run: |
-          $deps = (& dumpbin /DEPENDENTS build-win32/Release/mblink-discover.exe | Out-String)
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe is unavailable' }
+          $dumpbin = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x86\dumpbin.exe' | Select-Object -First 1)
+          if (-not $dumpbin -or -not (Test-Path $dumpbin)) { throw 'Unable to locate dumpbin.exe' }
+          $deps = (& $dumpbin /DEPENDENTS build-win32/Release/mblink-discover.exe | Out-String)
+          Write-Host $deps
           foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {
             if ($deps -match [regex]::Escape($dll)) { throw "Unexpected dynamic runtime dependency: $dll" }
           }
