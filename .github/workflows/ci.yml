@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 env:
-  LINK_VERSION: 0.7.1
-  LINK_COMMIT: 4c75618da2085ecd09e8110f2883decf9b2162f9
+  LINK_VERSION: 0.7.2
+  LINK_COMMIT: 8d00d2d24ed514f7bc2f2025054839d4efabb29a
 
 jobs:
   portable-core:
@@ -31,8 +31,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Keep this check POSIX/Bash-3 compatible: macOS runners do not ship
-          # Bash 4's mapfile builtin.
           gitlinks="$(git ls-files --stage | awk '$1 == "160000" { print $4 }' | sort)"
           test "$gitlinks" = "src/link"
           test ! -e src/infiltratr-common
@@ -126,6 +124,14 @@ jobs:
           $version = (Get-Content VERSION -Raw).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
           "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Verify branded shared Windows shell
+        shell: pwsh
+        run: |
+          if (-not (Test-Path app/windows/mblink.ico)) { throw 'Missing MBLINK .ico resource' }
+          if (-not (Test-Path app/windows/mblink.rc)) { throw 'Missing MBLINK .rc resource' }
+          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'IDM_HELP_ABOUT' -Quiet)) { throw 'Shared About menu is missing' }
+          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'ShellAboutA' -Quiet)) { throw 'Shared About dialog is missing' }
+          if (-not (Select-String -Path src/link/platform/windows/link-discover-ui.c -Pattern 'create_main_menu' -Quiet)) { throw 'Shared File/Help menu is missing' }
       - name: Configure Win32 OpenPort build
         shell: pwsh
         run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
@@ -289,7 +295,7 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
               --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: shared automotive runtime through LINK 0.7.1."
+              --notes "MBLINK $VERSION: complete cross-platform release on LINK 0.7.2 with the shared native Windows menu/About shell and MBLINK icon branding."
           fi
 
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
