@@ -1,0 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Resource ID 1 is the canonical product icon consumed by LINK's shared
+// Windows Discover shell for the title bar, taskbar and About dialog.
+1 ICON "mblink.ico"
