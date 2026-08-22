@@ -4,7 +4,7 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development vehicle is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current release: 0.7.20.**
+**Current release: 0.7.21.**
 
 ## Dependency hierarchy
 
@@ -59,7 +59,16 @@ The native project is `app/ios/MBLINK.xcodeproj`. It uses the official MBLINK em
 
 ## Release assets
 
-A successful release publishes `MBLINK-X.Y.Z-unsigned.ipa`, `MBLINK-X.Y.Z-linux-amd64.deb` and `MBLINK-X.Y.Z-linux-native.run`. The native `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
+A successful release is atomic across all supported targets and is required to publish these top-level assets before the release job can pass:
+
+- `MBLINK-X.Y.Z-unsigned.ipa`
+- `MBLINK-X.Y.Z-linux-amd64.deb`
+- `MBLINK-X.Y.Z-linux-native.run`
+- `MBLINK-X.Y.Z-windows-discover.exe`
+- `MBLINK-X.Y.Z-source.zip`
+- `SHA256SUMS.txt`
+
+The native `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation. Release CI fails if any required asset is absent.
 
 ## Engineering rules
 
