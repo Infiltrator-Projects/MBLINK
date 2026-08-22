@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  LINK_VERSION: 0.9.0
-  LINK_COMMIT: 669f030d58f7bb0f1fdd2d50ebea77fdf8ca1be2
+  LINK_VERSION: 0.9.1
+  LINK_COMMIT: 08ba2b4148836df1c9d584456f280ec131ae6778
 
 jobs:
   portable-core:
@@ -37,7 +37,7 @@ jobs:
           test ! -e src/infiltratr-common
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "$LINK_VERSION"
           test "$(git -C src/link rev-parse HEAD)" = "$LINK_COMMIT"
-          test "$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)" = "1.10.0"
+          test "$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)" = "1.11.0"
           grep -q 'link_elm327_parser_feed' src/link/src/elm327/elm327.c
           grep -q 'link_elm327_can_decode_pdu' src/link/src/elm327/can.c
           grep -q 'link_elm327_session_begin' src/link/src/elm327/session.c
@@ -337,7 +337,7 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
               --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.9.0 with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.9.1 with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
           fi
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
