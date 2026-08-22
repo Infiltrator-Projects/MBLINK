@@ -6,6 +6,7 @@
 #ifndef MBLINK_OBD2_H
 #define MBLINK_OBD2_H
 
+#include "mblink/elm327.h"
 #include "link/obd2.h"
 
 #ifdef __cplusplus
