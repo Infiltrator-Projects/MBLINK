@@ -75,8 +75,8 @@ add_subdirectory(
     EXCLUDE_FROM_ALL)
 
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.3.0")
-set(MBLINK_LINK_COMMIT "23bc4c98dffc32990df1bf3803c15157244f3305")
+set(MBLINK_LINK_VERSION "0.4.0")
+set(MBLINK_LINK_COMMIT "64779f2847f7a7262941d18889d1ffa663c20077")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
@@ -210,7 +210,10 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     if(NOT WIN32)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
-    link_add_windows_discover(mblink-discover "MBLINK" "mblink" "MBLINKDiscoverWindow")
+    link_add_windows_discover(mblink-discover
+        PRODUCT_NAME "MBLINK"
+        PRODUCT_SLUG "mblink"
+        WINDOW_CLASS "MBLINKDiscoverWindow")
 endif()
 
 function(mblink_add_test target source)
