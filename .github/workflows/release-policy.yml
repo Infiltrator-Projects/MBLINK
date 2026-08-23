@@ -4,8 +4,6 @@ name: MBLINK Release Policy
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -15,20 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Enforce explicit immutable release approval
+      - name: Enforce main-only automatic immutable publishing
         shell: bash
         run: |
           set -euo pipefail
           test ! -e .github/workflows/auto-release.yml
           ci=.github/workflows/ci.yml
-          grep -Fq "if: github.event_name == 'workflow_dispatch'" "$ci"
+          grep -Fq "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')" "$ci"
           grep -Fq 'git fetch origin main --tags' "$ci"
           grep -Fq 'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"' "$ci"
           grep -Fq 'Release tag $TAG already exists; published releases are immutable.' "$ci"
           grep -Fq 'Release $TAG already exists; published releases are immutable.' "$ci"
-          if grep -REn --include='*.yml' --include='*.yaml' \
-              -e 'workflow_run:' -e 'push:[[:space:]]*$' .github/workflows | \
-              grep -E '(auto-release|publish-release|release\.yml)' >/dev/null; then
-            echo 'A standalone automatic MBLINK publisher is forbidden.' >&2
+          if grep -Eq '^  pull_request:|^  merge_group:' "$ci"; then
+            echo 'MBLINK CI must use main only; PR/merge branches are forbidden.' >&2
+            exit 1
+          fi
+          if grep -Fq "if: github.event_name == 'workflow_dispatch'" "$ci"; then
+            echo 'MBLINK publication must never require manual approval.' >&2
             exit 1
           fi
