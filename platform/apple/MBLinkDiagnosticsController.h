@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) NSUInteger recordedSampleCount;
 
 - (void)start;
+- (void)startSimulated;
 - (void)disconnect;
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                                       limit:(NSUInteger)limit;
