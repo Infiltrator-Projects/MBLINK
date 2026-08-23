@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Combine
 import Foundation
+import UIKit
 
 struct DiagnosticParameter: Identifiable {
     let id: String
@@ -65,6 +66,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var permanentFaults = [DiagnosticFault]()
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
+    @Published private(set) var isSimulationActive = false
 
     @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
@@ -72,6 +74,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var csvExportURL: URL?
 
     private let controller = MBLinkDiagnosticsController()
+    private var simulationTimer: Timer?
+    private var simulationStep = 0
+    private var simulationHistory = [String: [Double]]()
+    private var simulationFavourites: Set<String> = [
+        "obd2.engine.rpm",
+        "obd2.vehicle.speed",
+        "obd2.engine.coolant",
+        "obd2.diesel.rail_pressure"
+    ]
 
     var obdFaultScanComplete: Bool {
         faultScanStatusText.hasPrefix("Complete ·") || faultScanStatusText == "Complete"
@@ -91,11 +102,38 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func connect() {
         clearPreparedExport()
-        controller.start()
+        if isSimulationActive { return }
+
+        let alert = UIAlertController(
+            title: "Connection Test",
+            message: "Choose a real Bluetooth adapter or run the built-in simulated ECU.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Real Adapter", style: .default) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.controller.start()
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Simulated ECU", style: .default) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.startSimulation()
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+        guard let presenter = presentingViewController() else {
+            controller.start()
+            return
+        }
+        presenter.present(alert, animated: true)
     }
 
     func disconnect() {
-        controller.disconnect()
+        if isSimulationActive {
+            stopSimulation()
+        } else {
+            controller.disconnect()
+        }
     }
 
     func parameter(stableKey: String) -> DiagnosticParameter? {
@@ -107,6 +145,16 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func toggleFavourite(stableKey: String) {
+        if isSimulationActive {
+            if simulationFavourites.contains(stableKey) {
+                simulationFavourites.remove(stableKey)
+            } else {
+                simulationFavourites.insert(stableKey)
+            }
+            rebuildSimulationParameters()
+            return
+        }
+
         let pid: UInt8? = stableKey.withCString { key in
             guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else {
                 return nil
@@ -134,8 +182,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func prepareCSVExport() {
-        guard let csv = controller.csvSnapshot(),
-              let data = csv.data(using: .utf8) else {
+        let csv: String?
+        if isSimulationActive {
+            csv = simulationCSV()
+        } else {
+            csv = controller.csvSnapshot()
+        }
+        guard let csv, let data = csv.data(using: .utf8) else {
             clearPreparedExport()
             return
         }
@@ -154,8 +207,179 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
         Task { @MainActor [weak self] in
-            self?.refresh()
+            guard let self, !self.isSimulationActive else { return }
+            self.refresh()
         }
+    }
+
+    private func presentingViewController() -> UIViewController? {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else {
+            return nil
+        }
+        return topViewController(root)
+    }
+
+    private func topViewController(_ controller: UIViewController) -> UIViewController {
+        if let presented = controller.presentedViewController {
+            return topViewController(presented)
+        }
+        if let navigation = controller as? UINavigationController,
+           let visible = navigation.visibleViewController {
+            return topViewController(visible)
+        }
+        if let tabs = controller as? UITabBarController,
+           let selected = tabs.selectedViewController {
+            return topViewController(selected)
+        }
+        return controller
+    }
+
+    private func startSimulation() {
+        isSimulationActive = true
+        if controller.isActive { controller.disconnect() }
+        simulationTimer?.invalidate()
+        simulationStep = 0
+        simulationHistory.removeAll()
+
+        isActive = true
+        isReady = true
+        statusText = "Simulated ECU"
+        peripheralName = "MBLINK Demo Adapter"
+        adapterIdentifier = "ELM327 SIM v1.0"
+        mercedesProbeStatusText = "Complete · simulated CRD3 response"
+        mercedesProbeEndpointText = "Engine ECU · 0x7E0 → 0x7E8 · SIMULATED"
+        mercedesVINText = "WDD2073032F000001"
+        mercedesIdentitySummaryText = "3 simulated identity records"
+        mercedesIdentityResults = [
+            "VIN · WDD2073032F000001 · SIMULATED",
+            "ECU · Delphi CRD3.x · SIMULATED",
+            "Software · MBLINK-DEMO-1 · SIMULATED"
+        ]
+        mercedesCrd3SummaryText = "Delphi CRD3.x · simulated"
+        mercedesUDSFaultStatusText = "Complete · 2 simulated records"
+        mercedesUDSFaults = [
+            "13A200 · status 0x09",
+            "17F100 · status 0x08"
+        ]
+        faultScanStatusText = "Complete · simulated vehicle response"
+
+        storedFaults = resolveFaults(["P0401", "P0101"], state: "Stored")
+        pendingFaults = resolveFaults(["P0299"], state: "Pending")
+        permanentFaults = resolveFaults(["P2002"], state: "Permanent")
+        storedDTCs = storedFaults.map(\.displayText)
+        pendingDTCs = pendingFaults.map(\.displayText)
+        permanentDTCs = permanentFaults.map(\.displayText)
+        recordedSampleCount = 0
+        rebuildSimulationParameters()
+
+        let timer = Timer(
+            timeInterval: 1.0,
+            target: self,
+            selector: #selector(simulationTimerFired),
+            userInfo: nil,
+            repeats: true
+        )
+        simulationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopSimulation() {
+        simulationTimer?.invalidate()
+        simulationTimer = nil
+        simulationHistory.removeAll()
+        isSimulationActive = false
+        refresh()
+    }
+
+    @objc private func simulationTimerFired() {
+        guard isSimulationActive else { return }
+        simulationStep += 1
+        rebuildSimulationParameters()
+        recordedSampleCount += diagnosticParameters.filter(\.isAvailable).count
+    }
+
+    private func simulatedValue(for stableKey: String) -> Double? {
+        let wave = sin(Double(simulationStep) * 0.33)
+        let slowWave = sin(Double(simulationStep) * 0.11)
+        switch stableKey {
+        case "obd2.engine.rpm": return 980.0 + (wave * 360.0)
+        case "obd2.vehicle.speed": return 52.0 + (slowWave * 20.0)
+        case "obd2.engine.map": return 118.0 + (wave * 20.0)
+        case "obd2.engine.throttle": return 22.0 + (wave * 7.0)
+        case "obd2.engine.load": return 41.0 + (wave * 13.0)
+        case "obd2.engine.maf": return 18.5 + (wave * 4.8)
+        case "obd2.engine.coolant": return 91.0 + (slowWave * 1.2)
+        case "obd2.engine.intake_air": return 29.0 + (slowWave * 2.0)
+        case "obd2.diesel.rail_pressure": return 34500.0 + (wave * 7200.0)
+        case "obd2.diesel.egr_command": return 30.0 + (wave * 10.0)
+        case "obd2.diesel.egr_error": return wave * 2.0
+        case "obd2.engine.barometric_pressure": return 100.0
+        case "obd2.aftertreatment.catalyst_temp_b1s1": return 382.0 + (wave * 25.0)
+        case "obd2.electrical.control_module_voltage": return 14.21 + (wave * 0.07)
+        case "obd2.environment.ambient_air": return 24.0
+        case "obd2.engine.oil_temperature": return 96.0 + slowWave
+        case "obd2.engine.fuel_rate": return 4.9 + (wave * 1.0)
+        case "obd2.aftertreatment.egt_b1s1": return 430.0 + (wave * 40.0)
+        case "obd2.dpf.bank1_delta_pressure": return 1.85 + (wave * 0.40)
+        case "obd2.dpf.bank1_inlet_temperature": return 365.0 + (wave * 30.0)
+        default: return nil
+        }
+    }
+
+    private func rebuildSimulationParameters() {
+        let count = mblink_parameter_obd2_definition_count()
+        var result = [DiagnosticParameter]()
+        result.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
+            let metadata = definition.pointee
+            let stableKey = string(from: metadata.stable_key)
+            guard !stableKey.isEmpty else { continue }
+
+            let value = simulatedValue(for: stableKey)
+            if let value {
+                var history = simulationHistory[stableKey, default: []]
+                if history.last != value {
+                    history.append(value)
+                    if history.count > 60 { history.removeFirst(history.count - 60) }
+                    simulationHistory[stableKey] = history
+                }
+            }
+
+            result.append(DiagnosticParameter(
+                id: stableKey,
+                protocolName: string(from: mblink_parameter_protocol_name(metadata.key.protocol)),
+                moduleIdentifier: metadata.key.module,
+                parameterIdentifier: metadata.key.identifier,
+                shortName: string(from: metadata.short_name),
+                title: string(from: metadata.name),
+                suffix: string(from: metadata.suffix),
+                formattedValue: formattedValue(definition: definition, value: value),
+                value: value,
+                favourite: simulationFavourites.contains(stableKey),
+                history: simulationHistory[stableKey] ?? []
+            ))
+        }
+        diagnosticParameters = result
+    }
+
+    private func simulationCSV() -> String {
+        var rows = ["timestamp_ms,source,type,key,value"]
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000.0)
+        rows.append("\(timestamp),simulated,adapter,identity,ELM327 SIM v1.0")
+        rows.append("\(timestamp),simulated,vehicle,vin,WDD2073032F000001")
+        rows.append("\(timestamp),simulated,dtc,stored,P0401")
+        rows.append("\(timestamp),simulated,dtc,stored,P0101")
+        rows.append("\(timestamp),simulated,dtc,pending,P0299")
+        rows.append("\(timestamp),simulated,dtc,permanent,P2002")
+        for parameter in diagnosticParameters where parameter.value != nil {
+            rows.append("\(timestamp),simulated,parameter,\(parameter.id),\(parameter.formattedValue)")
+        }
+        return rows.joined(separator: "\n") + "\n"
     }
 
     private func clearPreparedExport() {
@@ -329,6 +553,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func refresh() {
+        guard !isSimulationActive else { return }
         statusText = controller.statusText
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
@@ -349,8 +574,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         pendingFaults = resolveFaults(rawPendingDTCs, state: "Pending")
         permanentFaults = resolveFaults(rawPermanentDTCs, state: "Permanent")
 
-        // Compatibility display arrays keep the existing Faults view useful
-        // while the structured fault objects remain the authoritative UI model.
         storedDTCs = storedFaults.map(\.displayText)
         pendingDTCs = pendingFaults.map(\.displayText)
         permanentDTCs = permanentFaults.map(\.displayText)
