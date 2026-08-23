@@ -29,6 +29,7 @@ Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, UDS, scheduler/tel
 ## Capabilities
 
 - Shared ELM327/OBD-II/UDS diagnostics through LINK.
+- Standard and Mercedes fault acquisition with a required diagnostic-knowledge layer that translates known DTCs into useful descriptions, status, module/system information and context rather than stopping at raw codes.
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
@@ -37,6 +38,12 @@ Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, UDS, scheduler/tel
 - Canonical Mercedes three-pointed-star branding reused across supported targets.
 
 Manufacturer-specific data remains evidence-gated until documentation or reproducible vehicle captures establish its meaning.
+
+## Product diagnostic priority
+
+Fault diagnosis is a primary MBLINK function, not a secondary companion to live dashboards. Finding `Pxxxx`/`Cxxxx`/`Bxxxx`/`Uxxxx` or a Mercedes 24-bit UDS DTC is only the acquisition step. When trustworthy definitions exist, MBLINK must translate the code, identify its module/system/category, decode its state and expose associated freeze-frame/readiness/diagnostic context. Unknown codes must remain explicit and retain their raw evidence rather than receiving invented descriptions.
+
+The normative requirement and ownership split are defined in `docs/FAULT_DIAGNOSTICS.md`. Generic SAE/ISO knowledge belongs in LINK; Mercedes/CRD3/OM651-specific knowledge belongs in MBLINK.
 
 ## Architecture
 
@@ -98,13 +105,14 @@ Manually runnable build/smoke workflows are diagnostic helpers only and are not 
 - Broadly reusable non-automotive primitives belong in Infiltratr Common.
 - Shared automotive behaviour belongs in LINK.
 - Mercedes-only definitions and behaviour stay in MBLINK.
+- Fault acquisition is not feature-complete until known codes can be translated through the appropriate shared or Mercedes knowledge layer and diagnostic context is preserved.
 - Public APIs document ownership, lifetime, failure behaviour and invariants.
 - Comments explain rationale and non-obvious state-machine constraints rather than obvious syntax.
 - Unknown or unsafe diagnostic services are denied before transport transmission.
 
 ## Documentation
 
-See `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
+See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/OBD2.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
 
 ## Licence
 
