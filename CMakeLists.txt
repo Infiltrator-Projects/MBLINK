@@ -47,8 +47,8 @@ include(GNUInstallDirs)
 # LINK is MBLINK's only top-level implementation dependency. LINK owns and
 # validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.10.0")
-set(MBLINK_LINK_COMMIT "aa0af1581c9682b4918873646b71a2bc81d6aa43")
+set(MBLINK_LINK_VERSION "0.11.0")
+set(MBLINK_LINK_COMMIT "52936abcb124e4b6a7b81adaca8562ec03bc1fdc")
 
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
