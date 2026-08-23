@@ -25,8 +25,8 @@ int main(void)
     check(strcmp(fault.title,
                  "Exhaust Gas Recirculation Flow Insufficient Detected") == 0,
           "P0401 human-readable title reaches MBLINK");
-    check(strcmp(fault.category, "EGR/emissions") == 0,
-          "P0401 category reaches MBLINK");
+    check(strcmp(fault.category, "powertrain") == 0,
+          "P0401 generated catalogue category reaches MBLINK");
     check(fault.origin == MBLINK_DTC_ORIGIN_STANDARD_GENERIC,
           "P0401 is standards-generic");
 
