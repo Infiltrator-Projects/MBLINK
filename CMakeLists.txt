@@ -1,9 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
 
-# Discover is shipped as a standalone Windows executable. Select the static
-# MSVC runtime before C is enabled so MBLINK, LINK and Common use one coherent
-# runtime model and the EXE starts on clean Windows installations.
 if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
@@ -16,7 +13,6 @@ string(STRIP "${MBLINK_PROJECT_VERSION}" MBLINK_PROJECT_VERSION)
 if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a semantic major.minor.patch version.")
 endif()
-
 project(MBLINK VERSION "${MBLINK_PROJECT_VERSION}" LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
@@ -44,36 +40,43 @@ endif()
 include(CTest)
 include(GNUInstallDirs)
 
-# LINK is MBLINK's only top-level implementation dependency. LINK owns and
-# validates its own Infiltratr Common pin, preserving Common -> LINK -> product.
+# LINK is MBLINK's only top-level implementation dependency. The superproject
+# gitlink is the commit source of truth; LINK owns and validates Common beneath it.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
-set(MBLINK_LINK_VERSION "0.11.0")
-set(MBLINK_LINK_COMMIT "52936abcb124e4b6a7b81adaca8562ec03bc1fdc")
-
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR
-        "LINK ${MBLINK_LINK_VERSION} is required. Clone with --recurse-submodules or run git submodule update --init --recursive.")
+        "LINK is required. Clone with --recurse-submodules or initialise submodules recursively.")
 endif()
-
-file(READ "${MBLINK_LINK_DIR}/VERSION" MBLINK_LINK_FOUND_VERSION)
-string(STRIP "${MBLINK_LINK_FOUND_VERSION}" MBLINK_LINK_FOUND_VERSION)
-if(NOT MBLINK_LINK_FOUND_VERSION STREQUAL MBLINK_LINK_VERSION)
-    message(FATAL_ERROR
-        "LINK ${MBLINK_LINK_VERSION} is required; found ${MBLINK_LINK_FOUND_VERSION}.")
+file(READ "${MBLINK_LINK_DIR}/VERSION" MBLINK_LINK_VERSION)
+string(STRIP "${MBLINK_LINK_VERSION}" MBLINK_LINK_VERSION)
+if(NOT MBLINK_LINK_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
+    message(FATAL_ERROR "Pinned LINK VERSION is not semantic: ${MBLINK_LINK_VERSION}")
 endif()
 
 find_program(MBLINK_GIT_EXECUTABLE git)
 if(MBLINK_GIT_EXECUTABLE)
+    execute_process(
+        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}" ls-tree HEAD src/link
+        OUTPUT_VARIABLE MBLINK_LINK_GITLINK
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE MBLINK_LINK_GITLINK_RESULT)
     execute_process(
         COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD
         OUTPUT_VARIABLE MBLINK_LINK_FOUND_COMMIT
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
         RESULT_VARIABLE MBLINK_LINK_COMMIT_RESULT)
-    if(MBLINK_LINK_COMMIT_RESULT EQUAL 0 AND
-       NOT MBLINK_LINK_FOUND_COMMIT STREQUAL MBLINK_LINK_COMMIT)
-        message(FATAL_ERROR
-            "LINK must be pinned to ${MBLINK_LINK_COMMIT}; found ${MBLINK_LINK_FOUND_COMMIT}.")
+    if(MBLINK_LINK_GITLINK_RESULT EQUAL 0 AND MBLINK_LINK_COMMIT_RESULT EQUAL 0)
+        string(REGEX MATCH "^160000 commit ([0-9a-fA-F]+)" MBLINK_LINK_GITLINK_MATCH "${MBLINK_LINK_GITLINK}")
+        if(NOT MBLINK_LINK_GITLINK_MATCH)
+            message(FATAL_ERROR "Unable to resolve the LINK gitlink from the MBLINK commit.")
+        endif()
+        set(MBLINK_LINK_EXPECTED_COMMIT "${CMAKE_MATCH_1}")
+        if(NOT MBLINK_LINK_FOUND_COMMIT STREQUAL MBLINK_LINK_EXPECTED_COMMIT)
+            message(FATAL_ERROR
+                "LINK checkout does not match the MBLINK gitlink: expected ${MBLINK_LINK_EXPECTED_COMMIT}, found ${MBLINK_LINK_FOUND_COMMIT}.")
+        endif()
     endif()
 endif()
 
@@ -111,7 +114,6 @@ if(MBLINK_BUILD_LINUX_APP)
     if(NOT UNIX OR APPLE)
         message(FATAL_ERROR "MBLINK_BUILD_LINUX_APP is supported on Linux only.")
     endif()
-
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
     find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE NAMES glib-compile-resources REQUIRED)
@@ -120,8 +122,7 @@ if(MBLINK_BUILD_LINUX_APP)
     add_custom_command(
         OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
         COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
-            --generate-source
-            "--target=${MBLINK_LINUX_RESOURCE_SOURCE}"
+            --generate-source "--target=${MBLINK_LINUX_RESOURCE_SOURCE}"
             mblink.gresource.xml
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
         DEPENDS
@@ -130,8 +131,7 @@ if(MBLINK_BUILD_LINUX_APP)
         VERBATIM)
 
     add_executable(mblink-linux
-        app/linux/main.c
-        app/linux/about-dialog.c
+        app/linux/main.c app/linux/about-dialog.c
         "${MBLINK_LINUX_RESOURCE_SOURCE}")
     set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-w")
     target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
@@ -168,7 +168,6 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     if(NOT WIN32)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
-
     link_add_windows_discover(mblink-discover
         PRODUCT_NAME "MBLINK"
         PRODUCT_SLUG "mblink"
@@ -192,6 +191,7 @@ endfunction()
 if(BUILD_TESTING)
     mblink_add_test(mblink-test-core tests/test_core.c)
     target_compile_definitions(mblink-test-core PRIVATE MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
+    mblink_add_test(mblink-test-link-facade tests/test_link_facade.c)
     mblink_add_test(mblink-test-elm327 tests/test_elm327.c)
     mblink_add_test(mblink-test-elm327-can tests/test_elm327_can.c)
     mblink_add_test(mblink-test-elm327-session tests/test_elm327_session.c)

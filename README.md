@@ -6,8 +6,8 @@
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development target is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
-**Current source version:** 0.7.26  
-**Shared engine:** LINK 0.10.0 → Infiltratr Common 1.11.0  
+**Current source version:** see [`VERSION`](VERSION)  
+**Shared engine:** exact LINK gitlink at `src/link`; LINK owns the nested Infiltratr Common pin  
 **Platforms:** Linux, iPhone/iOS and Windows Discover  
 **Licence:** GPL-3.0-or-later
 
@@ -22,22 +22,24 @@ Infiltratr Common
  Mercedes face
 ```
 
-MBLINK pins LINK at `src/link`. LINK owns the Common dependency beneath it, so MBLINK carries no second top-level Common submodule.
+MBLINK pins one exact LINK commit at `src/link`. LINK owns Common beneath it, so MBLINK carries no second top-level Common submodule and cannot silently choose a different Common revision.
 
-Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, generic DTC knowledge, UDS, scheduler/telemetry, portable diagnostic sequencing, Discover safety/evidence and the Windows OpenPort/J2534 shell belong in LINK. Mercedes identity, definitions and genuinely Mercedes-specific behaviour remain in MBLINK.
+Shared workspace, Classical CAN/CAN-FD ISO-TP, transport, ELM327, standard OBD-II, generic DTC knowledge, the complete product-neutral UDS codec catalogue, scheduler/telemetry, portable diagnostic sequencing, Discover safety/evidence and the Windows OpenPort/J2534 shell belong in LINK. Mercedes identity, definitions and genuinely Mercedes-specific behaviour remain in MBLINK.
 
 ## Diagnostic priority
 
 Fault diagnosis is a first-class product function. Acquiring and printing a raw `Pxxxx`/`Uxxxx` or Mercedes UDS value is not considered complete fault support.
 
-MBLINK now consumes LINK 0.10.0's shared generic DTC knowledge layer. Standard OBD fault records can be translated into a human-readable definition, system/category and generic/manufacturer classification while preserving the raw code. The iPhone model carries structured `DiagnosticFault` records and the existing Faults presentation receives translated `CODE — description` text for known definitions. Unknown manufacturer-specific codes remain explicitly unmapped rather than receiving invented meanings.
+MBLINK consumes LINK's shared generic DTC knowledge layer. Standard OBD fault records can be translated into a human-readable definition, system/category and generic/manufacturer classification while preserving the raw code. The iPhone model carries structured `DiagnosticFault` records and the existing Faults presentation receives translated `CODE — description` text for known definitions. Unknown manufacturer-specific codes remain explicitly unmapped rather than receiving invented meanings.
 
 The remaining fault-diagnostic completion work is deliberately ahead of additional dashboard polish: rich fault-card presentation with correct not-scanned/failed/clean states, freeze-frame/readiness context integration, and the evidence-backed Mercedes/CRD3/OM651 DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 
 ## Capabilities
 
 - Shared ELM327/OBD-II/UDS diagnostics through LINK.
-- Shared generic DTC interpretation through LINK 0.10.0, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
+- Shared Classical CAN and CAN-FD ISO-TP, including 64-byte CAN-FD payloads and extended ISO-TP lengths.
+- Product-prefixed access to LINK's complete 27-service UDS catalogue and codecs without duplicating implementations.
+- Shared generic DTC interpretation through LINK, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
@@ -75,7 +77,7 @@ cmake --build build-linux --target mblink-linux
 
 The native iPhone project is `app/ios/MBLINK.xcodeproj`.
 
-GitHub CI verifies the portable core, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run. The portable test suite now also verifies that LINK's shared DTC knowledge reaches the MBLINK compatibility/product layer.
+GitHub CI verifies the exact recursive dependency gitlinks, portable core, product-to-LINK facade, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run.
 
 ## Release assets
 
@@ -91,6 +93,8 @@ A successful numbered release is atomic across supported targets and publishes:
 | `SHA256SUMS.txt` | SHA-256 checksums for all project-owned release artifacts. |
 
 The `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
+
+Release notes derive the LINK and Common versions from that exact dependency tree rather than maintaining separate hard-coded version strings.
 
 ## Repository and release policy
 

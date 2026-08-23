@@ -26,6 +26,7 @@ typedef LinkIsoTpTxConfig MblinkIsoTpTxConfig;
 typedef LinkIsoTpTx MblinkIsoTpTx;
 
 #define MBLINK_ISOTP_CLASSIC_CAN_DATA_LENGTH LINK_ISOTP_CLASSIC_CAN_DATA_LENGTH
+#define MBLINK_ISOTP_CAN_FD_MAX_DATA_LENGTH LINK_ISOTP_CAN_FD_MAX_DATA_LENGTH
 #define MBLINK_ISOTP_MAX_PDU_LENGTH LINK_ISOTP_MAX_PDU_LENGTH
 
 #define MBLINK_ISOTP_ADDRESSING_NORMAL LINK_ISOTP_ADDRESSING_NORMAL
@@ -70,6 +71,7 @@ typedef LinkIsoTpTx MblinkIsoTpTx;
 #define mblink_isotp_rx_state_name link_isotp_rx_state_name
 #define mblink_isotp_tx_state_name link_isotp_tx_state_name
 #define mblink_isotp_address_is_valid link_isotp_address_is_valid
+#define mblink_isotp_can_data_length_is_valid link_isotp_can_data_length_is_valid
 #define mblink_isotp_stmin_to_us link_isotp_stmin_to_us
 #define mblink_isotp_rx_init link_isotp_rx_init
 #define mblink_isotp_rx_reset link_isotp_rx_reset

@@ -71,26 +71,26 @@ MBLINK must not copy generic SAE/ISO tables out of LINK. LINK must not contain M
 
 ## Current implementation state
 
-The generic diagnostic-knowledge layer is now implemented in **LINK 0.10.0** and MBLINK is pinned to that shared release. This is a material step beyond the former raw-code-only path:
+The generic diagnostic-knowledge layer is implemented in the exact LINK revision pinned by MBLINK's `src/link` gitlink. This is materially beyond the former raw-code-only path:
 
-- standard OBD services 03/07/0A still retrieve stored, pending and permanent DTCs without altering the vehicle;
-- raw DTC bytes are still preserved and decoded to the five-character SAE-style code;
-- LINK now resolves valid generic codes into a presentation-neutral `LinkDtcKnowledge` record containing normalized code, known/unknown state, system, generic/manufacturer origin, source class, title and category;
-- the initial shared catalogue covers high-value engine/diesel areas including fuel delivery/rail pressure, injection, boost, engine-position sensing, EGR, misfire, glow-plug/preheat, DPF/EGT/NOx aftertreatment and common vehicle-network faults;
+- standard OBD services 03/07/0A retrieve stored, pending and permanent DTCs without altering the vehicle;
+- raw DTC bytes are preserved and decoded to the five-character SAE-style code;
+- LINK resolves valid generic codes into a presentation-neutral `LinkDtcKnowledge` record containing normalized code, known/unknown state, system, generic/manufacturer origin, source class, title and category;
+- the shared catalogue covers high-value engine/diesel and network diagnostic areas and is maintained in LINK rather than copied into MBLINK;
 - structured per-cylinder injector, misfire and glow-plug families are generated deterministically;
 - valid but unmapped manufacturer-specific codes remain explicit unknown diagnostic records rather than receiving fabricated meanings;
-- ISO 14229 status-byte translation is now shared in LINK rather than being a manufacturer-specific concept;
-- MBLINK exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for immediate compatibility;
-- MBLINK has a product-level regression test proving the LINK knowledge path reaches the Mercedes product face;
-- Mercedes UDS `19 02 FF` continues to retrieve raw 24-bit DTC values plus their status byte;
-- OBD freeze-frame request/decoding and readiness decoding primitives continue to exist in LINK.
+- ISO 14229 status-byte translation is shared in LINK rather than being a manufacturer-specific concept;
+- MBLINK exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for compatibility;
+- MBLINK has product-level regression coverage proving the shared LINK knowledge and compatibility APIs reach the Mercedes product face;
+- Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte;
+- OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
 
-The remaining major gaps in this vertical slice are now narrower and explicit:
+The remaining major gaps in this vertical slice are explicit:
 
 1. complete the Faults UI refactor so scan-not-run, failed, clean and faults-present states are visually distinct and rich fault cards consume the structured model directly;
 2. integrate capability-driven freeze-frame and readiness context into the fault workflow instead of leaving those decoders as dormant primitives;
 3. build the evidence-backed Mercedes/CRD3/OM651 manufacturer DTC catalogue in MBLINK without inventing proprietary meanings;
-4. continue expanding the generic standards-backed LINK catalogue beyond the first high-value diagnostic set.
+4. continue maintaining and expanding standards-backed generic diagnostic knowledge in LINK.
 
 This remains a completion track, not optional polish. Additional dashboard work is not a substitute for these remaining items.
 
@@ -110,7 +110,7 @@ Context:     freeze-frame/readiness values when available
 Source:      standards-backed definition
 ```
 
-LINK 0.10.0 now provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Freeze-frame/readiness association remains the next shared-flow step.
+The pinned LINK layer provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Freeze-frame/readiness association remains the next shared-flow step.
 
 ## Required Mercedes fault workflow
 
@@ -156,7 +156,7 @@ The UI may correlate a fault with current/freeze-frame measurements, but must di
 
 Fault diagnostics are not considered feature-complete until all of the following are true:
 
-- LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented in LINK 0.10.0; catalogue expansion continues**;
+- LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
 - MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **not yet complete**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
 - the app distinguishes not-scanned, failed, clean and faults-present states — **controller state exists; Faults UI correction remains**;
