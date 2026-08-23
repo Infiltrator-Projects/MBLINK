@@ -16,11 +16,11 @@ Infiltratr Common
 
 Infiltratr Common owns portable primitives useful across unrelated programs.
 
-LINK owns vehicle-diagnostics/application behaviour shared by MBLINK and JAGLINK. In LINK 0.6.0 that includes the workspace model, Classical-CAN ISO-TP, parameter definitions/store/history, scheduling, telemetry/CSV, Discover safety/evidence and the shared Windows OpenPort/J2534 scanner.
+LINK owns vehicle-diagnostics/application behaviour shared by MBLINK and JAGLINK. That includes the workspace model, Classical-CAN ISO-TP, transport contracts, ELM327 framing/parser/session behaviour, standard OBD-II, generic UDS, parameter definitions/store/history, scheduling, telemetry/CSV, portable diagnostic sequencing, Discover safety/evidence and the shared Windows OpenPort/J2534 scanner.
 
-MBLINK owns Mercedes identity, the C207/OM651/CRD3 profile, Mercedes endpoint/definition provenance and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
+MBLINK owns Mercedes identity, the C207/OM651/CRD3 profile, Mercedes endpoint/definition provenance, Mercedes DTC knowledge and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
 
-ELM327, standard OBD-II and UDS remain product-local migration candidates for the next LINK releases.
+The ownership rule applies to diagnostic knowledge as well as protocol code. Standards-defined generic DTC descriptions/classification, OBD freeze-frame/readiness semantics and generic UDS DTC status interpretation belong in LINK. Mercedes-Benz/CRD3/OM651-specific DTC definitions, module associations and manufacturer diagnostic metadata belong in MBLINK. See `FAULT_DIAGNOSTICS.md` for the normative product requirement.
 
 ## Platform boundaries
 
@@ -38,9 +38,11 @@ SwiftUI / Objective-C                  GTK4 / C
                 adapter -> vehicle
 ```
 
-Objective-C owns Apple framework integration such as CoreBluetooth lifecycle and write/notification mechanics. SwiftUI owns iPhone presentation. Neither layer may carry an alternate ELM327/OBD/ISO-TP/UDS implementation.
+Objective-C owns Apple framework integration such as CoreBluetooth lifecycle and write/notification mechanics. SwiftUI owns iPhone presentation. Neither layer may carry an alternate ELM327/OBD/ISO-TP/UDS implementation or a separate fault-code lookup database.
 
 The Linux shell is C/GTK4 and renders the same portable workspace and Mercedes profile. A future Linux BLE/serial/SocketCAN provider remains a transport-edge concern rather than a protocol or manufacturer layer.
+
+Platform UIs consume resolved diagnostic records from the portable/shared and manufacturer layers. SwiftUI, GTK and Win32 must not independently translate the same DTC into different descriptions or statuses.
 
 ## Native iPhone dependency detail
 
@@ -50,7 +52,15 @@ The Xcode project references Infiltratr Common through LINK's nested checkout (`
 
 Portable state machines use caller-supplied monotonic time rather than OS clocks. Buffer ownership and provider/session lifetimes are explicit. Terminal protocol errors require the documented reset/resynchronisation operation rather than heuristic recovery.
 
-Manufacturer definitions carry evidence/provenance status. Undocumented identifiers or formulas are not promoted to factual vehicle definitions without source evidence or reproducible capture fixtures.
+Manufacturer definitions carry evidence/provenance status. Undocumented identifiers, DTC meanings or formulas are not promoted to factual vehicle definitions without source evidence or reproducible capture fixtures.
+
+A failed or unperformed fault scan must remain distinguishable from a successful clean scan all the way through the portable model to the user interface.
+
+## Diagnostic product rule
+
+Acquiring a raw DTC is only the first stage of fault diagnosis. Where trustworthy knowledge exists, the portable model must carry the translated description, classification, module/system information, state and available diagnostic context while preserving the raw code/status for evidence. Live dashboards are supporting diagnostic views and do not substitute for this path.
+
+The complete requirement is defined in `FAULT_DIAGNOSTICS.md` and is considered part of the architecture, not optional UI polish.
 
 ## Documentation standard
 
