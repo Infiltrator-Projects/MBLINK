@@ -18,6 +18,19 @@ struct DiagnosticParameter: Identifiable {
     var isAvailable: Bool { value != nil }
 }
 
+struct DiagnosticFault: Identifiable {
+    let code: String
+    let title: String
+    let system: String
+    let category: String
+    let origin: String
+    let source: String
+    let state: String
+    let definitionKnown: Bool
+
+    var id: String { "\(state):\(code)" }
+}
+
 struct MercedesTargetSignal: Identifiable {
     let id: String
     let title: String
@@ -32,7 +45,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var peripheralName = "No adapter"
     @Published private(set) var adapterIdentifier = "Unknown"
     @Published private(set) var mercedesProbeStatusText = "Not attempted"
-    @Published private(set) var mercedesProbeEndpointText = "Candidate not selected"
+    @Published private(set) var mercedesProbeEndpointText = "Source-corroborated endpoint not selected"
     @Published private(set) var mercedesVINText = "Not captured"
     @Published private(set) var mercedesIdentitySummaryText = "Not attempted"
     @Published private(set) var mercedesIdentityResults = [String]()
@@ -43,6 +56,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var storedDTCs = [String]()
     @Published private(set) var pendingDTCs = [String]()
     @Published private(set) var permanentDTCs = [String]()
+    @Published private(set) var storedFaults = [DiagnosticFault]()
+    @Published private(set) var pendingFaults = [DiagnosticFault]()
+    @Published private(set) var permanentFaults = [DiagnosticFault]()
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
 
@@ -52,6 +68,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var csvExportURL: URL?
 
     private let controller = MBLinkDiagnosticsController()
+
+    var obdFaultScanComplete: Bool {
+        faultScanStatusText.hasPrefix("Complete ·") || faultScanStatusText == "Complete"
+    }
+
+    var obdFaultScanFailed: Bool {
+        let value = faultScanStatusText.lowercased()
+        return value.contains("timed out") || value.contains("error") || value.contains("failed")
+    }
 
     override init() {
         super.init()
@@ -90,6 +115,20 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         refresh()
     }
 
+    func udsStatusText(_ status: UInt8) -> String {
+        var buffer = [CChar](repeating: 0, count: Int(LINK_DTC_STATUS_TEXT_LENGTH))
+        let success = buffer.withUnsafeMutableBufferPointer { storage in
+            link_dtc_format_uds_status(status, storage.baseAddress, storage.count)
+        }
+        guard success else { return String(format: "Status 0x%02X", status) }
+        return buffer.withUnsafeBufferPointer { storage in
+            guard let baseAddress = storage.baseAddress else {
+                return String(format: "Status 0x%02X", status)
+            }
+            return String(cString: baseAddress)
+        }
+    }
+
     func prepareCSVExport() {
         guard let csv = controller.csvSnapshot(),
               let data = csv.data(using: .utf8) else {
@@ -125,6 +164,64 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     private func string(from cString: UnsafePointer<CChar>?) -> String {
         guard let cString else { return "" }
         return String(cString: cString)
+    }
+
+    private func stringFromFixedCString<T>(_ value: T) -> String {
+        var copy = value
+        return withUnsafePointer(to: &copy) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: MemoryLayout<T>.size) {
+                String(cString: $0)
+            }
+        }
+    }
+
+    private func resolveFault(_ code: String, state: String) -> DiagnosticFault {
+        var knowledge = LinkDtcKnowledge()
+        let resolved = code.withCString { rawCode in
+            link_dtc_resolve(rawCode, &knowledge)
+        }
+
+        guard resolved else {
+            return DiagnosticFault(
+                code: code,
+                title: "Invalid diagnostic trouble code",
+                system: "Unknown",
+                category: "Unclassified",
+                origin: "Unknown",
+                source: "Invalid raw code",
+                state: state,
+                definitionKnown: false
+            )
+        }
+
+        let normalizedCode = stringFromFixedCString(knowledge.code)
+        let system = string(from: link_dtc_system_name(knowledge.system))
+        let origin = string(from: link_dtc_origin_name(knowledge.origin))
+        let source = string(from: link_dtc_source_name(knowledge.source))
+        let known = knowledge.definition_known
+        let title = known
+            ? stringFromFixedCString(knowledge.title)
+            : (knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC
+                ? "Manufacturer-specific definition not yet mapped"
+                : "Diagnostic definition not yet mapped")
+        let category = known
+            ? stringFromFixedCString(knowledge.category)
+            : "Unmapped"
+
+        return DiagnosticFault(
+            code: normalizedCode.isEmpty ? code : normalizedCode,
+            title: title,
+            system: system,
+            category: category,
+            origin: origin,
+            source: source,
+            state: state,
+            definitionKnown: known
+        )
+    }
+
+    private func resolveFaults(_ codes: [String], state: String) -> [DiagnosticFault] {
+        codes.map { resolveFault($0, state: state) }
     }
 
     private func formattedValue(
@@ -232,7 +329,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
         mercedesProbeStatusText = controller.mercedesProbeStatusText
-        mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Candidate not selected"
+        mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
         mercedesVINText = controller.mercedesVINText ?? "Not captured"
         mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
         mercedesIdentityResults = controller.mercedesIdentityResults
@@ -243,6 +340,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         storedDTCs = controller.storedDTCs
         pendingDTCs = controller.pendingDTCs
         permanentDTCs = controller.permanentDTCs
+        storedFaults = resolveFaults(storedDTCs, state: "Stored")
+        pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
+        permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
