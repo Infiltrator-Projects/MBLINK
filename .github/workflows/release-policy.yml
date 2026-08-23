@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK Release Policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce explicit immutable release approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/auto-release.yml
+          ci=.github/workflows/ci.yml
+          grep -Fq "if: github.event_name == 'workflow_dispatch'" "$ci"
+          grep -Fq 'git fetch origin main --tags' "$ci"
+          grep -Fq 'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"' "$ci"
+          grep -Fq 'Release tag $TAG already exists; published releases are immutable.' "$ci"
+          grep -Fq 'Release $TAG already exists; published releases are immutable.' "$ci"
+          if grep -REn --include='*.yml' --include='*.yaml' \
+              -e 'workflow_run:' -e 'push:[[:space:]]*$' .github/workflows | \
+              grep -E '(auto-release|publish-release|release\.yml)' >/dev/null; then
+            echo 'A standalone automatic MBLINK publisher is forbidden.' >&2
+            exit 1
+          fi
