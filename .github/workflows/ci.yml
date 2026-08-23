@@ -4,8 +4,6 @@ name: MBLINK CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -267,7 +265,7 @@ jobs:
   release:
     name: Publish complete atomic release
     needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios, iphone-device-ipa]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -281,6 +279,11 @@ jobs:
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
+          subject="$(git log -1 --format=%s "$GITHUB_SHA")"
+          if [[ "$subject" != "Release ${version}" && "$subject" != "Release ${version}:"* ]]; then
+            echo "Release commit subject must begin with Release ${version}." >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
