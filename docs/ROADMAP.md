@@ -4,7 +4,27 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable.
 
-**Completed through test release 0.7.12. Current release target: 0.7.13. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+**Current source version: 0.7.26. Active feature milestone: 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics.**
+
+## Critical product track — fault interpretation and diagnostic knowledge
+
+Fault diagnosis is a primary MBLINK feature and must not be displaced by dashboard/live-data work. Retrieving a DTC and printing its raw code is only the acquisition layer.
+
+Before fault diagnostics can be treated as feature-complete, the project must deliver the requirements in `FAULT_DIAGNOSTICS.md`, including:
+
+- a tested standards-backed generic DTC lookup/knowledge mechanism in LINK;
+- human-readable translation of known standard OBD-II DTCs while preserving raw codes;
+- a tested Mercedes-Benz DTC knowledge mechanism in MBLINK with module/component applicability and provenance;
+- human-readable translation of known Mercedes/CRD3/OM651 DTCs while preserving the raw 24-bit UDS DTC and status;
+- integrated OBD freeze-frame context rather than leaving Mode 02 support as an isolated decoder API;
+- integrated readiness/monitor information as part of diagnosis;
+- clear separation of successful-clean, not-scanned, failed-scan and faults-present states;
+- portable resolved diagnostic records consumed consistently by iPhone, Linux and any future full diagnostic front end;
+- explicit unknown-definition behaviour instead of invented fault descriptions.
+
+This work is not blocked by physical C207 access where the information is standards-defined or comes from defensible public manufacturer diagnostic material. Vehicle-specific promotion remains evidence-gated, but the generic diagnostic knowledge architecture and data model should be built independently of the development car.
+
+Additional gauges or presentation polish are not a substitute for completing this diagnostic path.
 
 ## Completed foundations
 
@@ -105,6 +125,8 @@ This slice moved immediately useful feature areas forward without inventing undo
 - add a dedicated Diesel workspace;
 - keep injector corrections, soot load, regeneration state, ash load and other Mercedes-specific values explicitly unavailable until a reproducible OM651 capture identifies their real DIDs and encoding.
 
+This release completed raw OBD DTC acquisition, **not** the final diagnostic-knowledge requirement. Code-to-description translation, fault metadata, integrated freeze-frame/readiness context and Mercedes manufacturer DTC knowledge remain required work under `FAULT_DIAGNOSTICS.md`.
+
 ## 0.7.11 — CRD3/CDID3 engine fingerprint (complete test slice)
 
 This release put development back on the manufacturer-specific 0.8 track without fabricating live-data formulas.
@@ -138,7 +160,7 @@ Branding/interface work:
 
 **Exit condition:** all required CI gates pass on the exact 0.7.12 release commit and the matching unsigned iPhone IPA is published for physical C207/OM651 testing.
 
-## 0.7.13 — Official emblem and interface completion (current release target)
+## 0.7.13 — Official emblem and interface completion (historical release target)
 
 - use the existing iPhone AppIcon PNG as the official MBLINK emblem on iPhone, Linux and packaged desktop metadata;
 - remove the placeholder `MB` mark and enforce exact AppIcon/emblem equality in CI;
@@ -148,32 +170,33 @@ Branding/interface work:
 - replace the Linux label-only façade with workspace views backed by the portable MBLINK, Mercedes and parameter catalogues while reporting unavailable transport data honestly;
 - package the Linux emblem through GResource and desktop installation metadata.
 
-**Exit condition:** all required CI gates pass on the exact 0.7.13 release commit and the matching unsigned iPhone IPA is published.
+**Historical exit condition:** all required CI gates pass on the exact 0.7.13 release commit and the matching unsigned iPhone IPA is published.
 
 ## 0.8 — Mercedes-Benz C207 / OM651 engine diagnostics (active)
 
-Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters.
+Validate useful engine data such as ECU identity, DPF state/pressure/temperature, turbo/boost, rail pressure, injector information, EGR and related diesel parameters, while completing the fault-interpretation path that turns raw DTC acquisition into useful diagnosis.
 
-Current state after the 0.7.12 development slice:
+Current state:
 
 - the C207/OM651 profile carries one source-corroborated conventional 11-bit physical engine endpoint at `0x7E0 → 0x7E8` and still requires the development vehicle for vehicle-verified promotion;
 - the iPhone performs complete standard OBD capability discovery, read-only UDS TesterPresent, standard VIN/identity evidence collection, a bounded CRD3 fingerprint pass and one read-only Mercedes UDS fault-memory request before restoring normal OBD-II;
 - the CRD3 pass requests `F100`, `F154`, `F196`, `1001` and `1002`, decodes only corroborated identity fields and records every raw response without assigning unsupported physical meanings;
 - captured VIN, CRD3 identity, per-DID outcomes and Mercedes UDS faults are visible and preserved in the evidence transcript;
 - standard diesel/DPF values remain available where the vehicle advertises them;
-- the iPhone and Linux shells now use the project-wide black/silver Mercedes-oriented diagnostic identity;
-- no successful physical Mercedes exchange is claimed until the development vehicle actually provides the capture;
+- raw standard and Mercedes DTC acquisition exists, but comprehensive human-readable fault lookup/knowledge is not yet complete;
+- OBD freeze-frame/readiness primitives exist but still need integration into the fault investigation workflow;
+- the iPhone and Linux shells use the project-wide black/silver Mercedes-oriented diagnostic identity;
 - no manufacturer-specific soot-load, regeneration, injector-correction or other undocumented OM651 formula is claimed without vehicle evidence.
 
-The next evidence step remains physical: install the 0.7.13 IPA, connect to the C207/OM651 and export the diagnostic evidence CSV. A reproducible CRD3/ECU fingerprint can then become a fixture and unlock the first genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
+Physical evidence from the C207/OM651 remains necessary for vehicle-specific protocol promotion. In parallel, standards-backed generic DTC translation and sourced Mercedes diagnostic knowledge should progress without waiting for that capture.
 
-Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
+Every undocumented Mercedes definition remains experimental until verified against defensible sources and, where vehicle-specific behaviour is claimed, real vehicle responses and regression fixtures.
 
-**Exit condition:** verified information materially exceeds generic OBD-II capability on the development vehicle.
+**Exit condition:** verified information materially exceeds generic OBD-II capability on the development vehicle **and** fault diagnostics satisfy the applicable completion criteria in `FAULT_DIAGNOSTICS.md` rather than stopping at raw codes.
 
 ## 0.9 — additional Mercedes modules
 
-Subject to real vehicle/network access: transmission, ABS/ESP, SRS, climate, instrument cluster and other discoverable ECUs. Start with identification, DTCs and selected reads before write-oriented functions.
+Subject to real vehicle/network access: transmission, ABS/ESP, SRS, climate, instrument cluster and other discoverable ECUs. Start with identification, DTCs and selected reads before write-oriented functions. DTC support for a newly added module includes lookup/translation and status/context handling where definitions are available; merely enumerating hexadecimal DTCs is not sufficient.
 
 ## 0.10 — adapter portability
 
@@ -183,6 +206,7 @@ Formalise adapter capabilities/profiles, verified firmware quirks and additional
 
 - stable documented ABI for supported functionality;
 - provenance for verified fixtures/definitions;
+- complete fault-diagnostic knowledge path for supported standard and Mercedes functionality;
 - saved vehicle/session behaviour as appropriate;
 - accessibility, performance and battery review;
 - durable long-session storage;
@@ -193,4 +217,4 @@ Later work may include service functions, adaptations, additional manufacturers 
 
 ## Development principle
 
-Each feature begins at the lowest reusable layer that can correctly own it. UI convenience is never a reason to duplicate protocol logic outside the C core.
+Each feature begins at the lowest reusable layer that can correctly own it. UI convenience is never a reason to duplicate protocol logic outside the C core. Diagnostic acquisition is not considered complete merely because a raw code can be displayed; interpretation belongs in the appropriate shared or manufacturer knowledge layer.
