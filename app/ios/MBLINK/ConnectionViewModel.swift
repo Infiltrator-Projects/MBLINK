@@ -29,6 +29,10 @@ struct DiagnosticFault: Identifiable {
     let definitionKnown: Bool
 
     var id: String { "\(state):\(code)" }
+
+    var displayText: String {
+        "\(code) — \(title)"
+    }
 }
 
 struct MercedesTargetSignal: Identifiable {
@@ -337,12 +341,20 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
         mercedesUDSFaults = controller.mercedesUDSFaults
         faultScanStatusText = controller.faultScanStatusText
-        storedDTCs = controller.storedDTCs
-        pendingDTCs = controller.pendingDTCs
-        permanentDTCs = controller.permanentDTCs
-        storedFaults = resolveFaults(storedDTCs, state: "Stored")
-        pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
-        permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
+
+        let rawStoredDTCs = controller.storedDTCs
+        let rawPendingDTCs = controller.pendingDTCs
+        let rawPermanentDTCs = controller.permanentDTCs
+        storedFaults = resolveFaults(rawStoredDTCs, state: "Stored")
+        pendingFaults = resolveFaults(rawPendingDTCs, state: "Pending")
+        permanentFaults = resolveFaults(rawPermanentDTCs, state: "Permanent")
+
+        // Compatibility display arrays keep the existing Faults view useful
+        // while the structured fault objects remain the authoritative UI model.
+        storedDTCs = storedFaults.map(\.displayText)
+        pendingDTCs = pendingFaults.map(\.displayText)
+        permanentDTCs = permanentFaults.map(\.displayText)
+
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
