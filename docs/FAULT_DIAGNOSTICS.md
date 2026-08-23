@@ -69,18 +69,30 @@ Mercedes-specific information belongs in MBLINK. This includes:
 
 MBLINK must not copy generic SAE/ISO tables out of LINK. LINK must not contain Mercedes-only definitions.
 
-## Current implementation gap (0.7.26)
+## Current implementation state
 
-As of source version 0.7.26, the low-level acquisition path is materially ahead of the diagnostic-knowledge layer:
+The generic diagnostic-knowledge layer is now implemented in **LINK 0.10.0** and MBLINK is pinned to that shared release. This is a material step beyond the former raw-code-only path:
 
-- standard OBD services 03/07/0A retrieve stored, pending and permanent DTCs;
-- the generic decoder converts raw DTC bytes to the five-character SAE-style code;
-- Mercedes UDS `19 02 FF` retrieves 24-bit DTC values and their ISO 14229 status byte;
-- the iPhone UI interprets Mercedes status bits such as pending/confirmed/test-failed;
-- OBD freeze-frame request/decoding primitives exist in LINK;
-- OBD readiness decoding exists in LINK.
+- standard OBD services 03/07/0A still retrieve stored, pending and permanent DTCs without altering the vehicle;
+- raw DTC bytes are still preserved and decoded to the five-character SAE-style code;
+- LINK now resolves valid generic codes into a presentation-neutral `LinkDtcKnowledge` record containing normalized code, known/unknown state, system, generic/manufacturer origin, source class, title and category;
+- the initial shared catalogue covers high-value engine/diesel areas including fuel delivery/rail pressure, injection, boost, engine-position sensing, EGR, misfire, glow-plug/preheat, DPF/EGT/NOx aftertreatment and common vehicle-network faults;
+- structured per-cylinder injector, misfire and glow-plug families are generated deterministically;
+- valid but unmapped manufacturer-specific codes remain explicit unknown diagnostic records rather than receiving fabricated meanings;
+- ISO 14229 status-byte translation is now shared in LINK rather than being a manufacturer-specific concept;
+- MBLINK exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for immediate compatibility;
+- MBLINK has a product-level regression test proving the LINK knowledge path reaches the Mercedes product face;
+- Mercedes UDS `19 02 FF` continues to retrieve raw 24-bit DTC values plus their status byte;
+- OBD freeze-frame request/decoding and readiness decoding primitives continue to exist in LINK.
 
-However, the current product does **not yet provide a comprehensive DTC description/knowledge database**, and the live diagnostic flow does not yet make full freeze-frame/readiness context part of each fault investigation. This is a major incomplete product area, not an optional polish item.
+The remaining major gaps in this vertical slice are now narrower and explicit:
+
+1. complete the Faults UI refactor so scan-not-run, failed, clean and faults-present states are visually distinct and rich fault cards consume the structured model directly;
+2. integrate capability-driven freeze-frame and readiness context into the fault workflow instead of leaving those decoders as dormant primitives;
+3. build the evidence-backed Mercedes/CRD3/OM651 manufacturer DTC catalogue in MBLINK without inventing proprietary meanings;
+4. continue expanding the generic standards-backed LINK catalogue beyond the first high-value diagnostic set.
+
+This remains a completion track, not optional polish. Additional dashboard work is not a substitute for these remaining items.
 
 ## Required standard OBD fault workflow
 
@@ -98,7 +110,7 @@ Context:     freeze-frame/readiness values when available
 Source:      standards-backed definition
 ```
 
-The example illustrates the required shape; the actual database must be sourced and tested rather than filled from guesses.
+LINK 0.10.0 now provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Freeze-frame/readiness association remains the next shared-flow step.
 
 ## Required Mercedes fault workflow
 
@@ -144,13 +156,13 @@ The UI may correlate a fault with current/freeze-frame measurements, but must di
 
 Fault diagnostics are not considered feature-complete until all of the following are true:
 
-- LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone;
-- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance;
-- fault records can carry resolved description/category/module information without losing raw data;
-- the app distinguishes not-scanned, failed, clean and faults-present states;
-- stored, pending, permanent and Mercedes UDS fault records are translated for the user when definitions are known;
-- freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user;
-- unknown codes remain explicit and evidence-preserving;
-- the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32.
+- LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented in LINK 0.10.0; catalogue expansion continues**;
+- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **not yet complete**;
+- fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
+- the app distinguishes not-scanned, failed, clean and faults-present states — **controller state exists; Faults UI correction remains**;
+- stored, pending, permanent and Mercedes UDS fault records are translated for the user when definitions are known — **generic OBD translation implemented; Mercedes definitions remain**;
+- freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **not yet complete**;
+- unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;
+- the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared LINK API implemented; additional platform consumers remain**.
 
 Until these conditions are met, additional dashboard polish or additional live gauges must not be treated as a substitute for completing the diagnostic knowledge path.
