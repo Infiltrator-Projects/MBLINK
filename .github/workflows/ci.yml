@@ -267,7 +267,7 @@ jobs:
   release:
     name: Publish complete atomic release
     needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios, iphone-device-ipa]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -327,18 +327,18 @@ jobs:
           git fetch origin main --tags
           test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            test "$(git rev-list -n1 "$TAG")" = "$GITHUB_SHA"
-          else
-            git tag "$TAG" "$GITHUB_SHA"
-            git push origin "$TAG"
+            echo "Release tag $TAG already exists; published releases are immutable." >&2
+            exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/* --clobber
-          else
-            gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
-              --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.9.1 with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
+            echo "Release $TAG already exists; published releases are immutable." >&2
+            exit 1
           fi
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+          gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
+            --title "MBLINK $VERSION" \
+            --notes "MBLINK $VERSION: complete launch-verified release on LINK 0.9.1 with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
             "MBLINK-${VERSION}-unsigned.ipa" \
