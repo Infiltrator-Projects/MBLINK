@@ -41,6 +41,8 @@ PID-set unions, typed samples and DTC-list decodes commit caller-visible output 
 
 Mode 01 PID 01 preserves MIL/DTC information, spark/compression ignition selection, monitor masks and the original four bytes. Raw masks are retained because non-continuous monitor meanings differ by ignition type.
 
+Readiness is diagnostic information, not merely protocol state. The user-facing diagnostic workflow must ultimately expose applicable monitor completion/support information and must preserve the difference between a clean completed monitor and a monitor that has not completed.
+
 ## VIN and ELM long responses
 
 Mode 09 PID 02 decoding requires exactly 17 VIN characters: digits or uppercase `A`–`Z`, excluding `I`, `O` and `Q`. Output is transactional: a failed decode leaves the caller-visible VIN empty rather than partially updated.
@@ -49,11 +51,31 @@ ELM-compatible adapters may display a long CAN reply as indexed text lines (`0:`
 
 Malformed hexadecimal input, broken index sequences, truncated declared lengths and incomplete VINs are rejected.
 
-## DTCs and clear-code gate
+## DTCs and diagnostic knowledge
 
 Mode `03`/`43`, `07`/`47` and `0A`/`4A` cover stored, pending and permanent DTCs. Zero padding is ignored, duplicates are removed and the bounded list reports overflow instead of truncating silently. The iPhone connection path performs those three read-only scans automatically after restoring the generic OBD-II adapter channel, exposes the results in Faults and records every exchange as diagnostic evidence.
 
-Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in `MblinkObd2ClearAuthorization`. Higher layers must still require an explicit user action immediately before execution. MBLINK 0.7.10 does not automatically clear faults.
+Formatting the returned bytes as `Pxxxx`, `Cxxxx`, `Bxxxx` or `Uxxxx` is **not the completion condition for OBD fault support**. Where a standards-backed definition is available, LINK must provide a presentation-neutral lookup/knowledge result that can carry the human-readable DTC description, generic/manufacturer classification, system/category information and source/provenance class while always preserving the raw code.
+
+The full product requirement is defined in `FAULT_DIAGNOSTICS.md`. Generic SAE/ISO diagnostic knowledge belongs in LINK so every LINK-family product uses the same definitions and semantics. Manufacturer-specific meanings must remain in the product layer that owns that manufacturer.
+
+An unknown DTC must remain explicit as an unknown code with its raw value intact. No layer may synthesize a plausible description merely to avoid an unknown result.
+
+## Freeze-frame integration requirement
+
+The portable API already supports Mode 02 freeze-frame PID request construction and decoding using the same typed PID formulas as live data. That capability is part of the fault-diagnostic feature set and must not remain an isolated library feature.
+
+After a fault is found, higher-level diagnostic flow should collect capability-supported freeze-frame context where available and associate it with the relevant fault investigation. Useful context can include RPM, vehicle speed, load, coolant temperature, intake/manifold data and other supported standard PIDs. Unsupported or unavailable values remain unavailable.
+
+A diagnostic UI should clearly distinguish current live data from freeze-frame values captured when the ECU recorded a fault.
+
+## Scan-state requirement
+
+A successful scan that returns zero DTCs, a scan that has not run and a scan that failed are distinct outcomes. The portable/application state must preserve that distinction. User interfaces must not infer `no faults` merely because a result array is currently empty.
+
+## Clear-code gate
+
+Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in `MblinkObd2ClearAuthorization`. Higher layers must still require an explicit user action immediately before execution. MBLINK does not automatically clear faults.
 
 ## Error policy
 
