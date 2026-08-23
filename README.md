@@ -7,7 +7,7 @@
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development target is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
 **Current source version:** 0.7.26  
-**Shared engine:** LINK 0.9.1 → Infiltratr Common 1.11.0  
+**Shared engine:** LINK 0.10.0 → Infiltratr Common 1.11.0  
 **Platforms:** Linux, iPhone/iOS and Windows Discover  
 **Licence:** GPL-3.0-or-later
 
@@ -24,12 +24,20 @@ Infiltratr Common
 
 MBLINK pins LINK at `src/link`. LINK owns the Common dependency beneath it, so MBLINK carries no second top-level Common submodule.
 
-Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, UDS, scheduler/telemetry, portable diagnostic sequencing, Discover safety/evidence and the Windows OpenPort/J2534 shell belong in LINK. Mercedes identity, definitions and genuinely Mercedes-specific behaviour remain in MBLINK.
+Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, generic DTC knowledge, UDS, scheduler/telemetry, portable diagnostic sequencing, Discover safety/evidence and the Windows OpenPort/J2534 shell belong in LINK. Mercedes identity, definitions and genuinely Mercedes-specific behaviour remain in MBLINK.
+
+## Diagnostic priority
+
+Fault diagnosis is a first-class product function. Acquiring and printing a raw `Pxxxx`/`Uxxxx` or Mercedes UDS value is not considered complete fault support.
+
+MBLINK now consumes LINK 0.10.0's shared generic DTC knowledge layer. Standard OBD fault records can be translated into a human-readable definition, system/category and generic/manufacturer classification while preserving the raw code. The iPhone model carries structured `DiagnosticFault` records and the existing Faults presentation receives translated `CODE — description` text for known definitions. Unknown manufacturer-specific codes remain explicitly unmapped rather than receiving invented meanings.
+
+The remaining fault-diagnostic completion work is deliberately ahead of additional dashboard polish: rich fault-card presentation with correct not-scanned/failed/clean states, freeze-frame/readiness context integration, and the evidence-backed Mercedes/CRD3/OM651 DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 
 ## Capabilities
 
 - Shared ELM327/OBD-II/UDS diagnostics through LINK.
-- Standard and Mercedes fault acquisition with a required diagnostic-knowledge layer that translates known DTCs into useful descriptions, status, module/system information and context rather than stopping at raw codes.
+- Shared generic DTC interpretation through LINK 0.10.0, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
@@ -38,12 +46,6 @@ Shared workspace, ISO-TP, transport, ELM327, standard OBD-II, UDS, scheduler/tel
 - Canonical Mercedes three-pointed-star branding reused across supported targets.
 
 Manufacturer-specific data remains evidence-gated until documentation or reproducible vehicle captures establish its meaning.
-
-## Product diagnostic priority
-
-Fault diagnosis is a primary MBLINK function, not a secondary companion to live dashboards. Finding `Pxxxx`/`Cxxxx`/`Bxxxx`/`Uxxxx` or a Mercedes 24-bit UDS DTC is only the acquisition step. When trustworthy definitions exist, MBLINK must translate the code, identify its module/system/category, decode its state and expose associated freeze-frame/readiness/diagnostic context. Unknown codes must remain explicit and retain their raw evidence rather than receiving invented descriptions.
-
-The normative requirement and ownership split are defined in `docs/FAULT_DIAGNOSTICS.md`. Generic SAE/ISO knowledge belongs in LINK; Mercedes/CRD3/OM651-specific knowledge belongs in MBLINK.
 
 ## Architecture
 
@@ -73,7 +75,7 @@ cmake --build build-linux --target mblink-linux
 
 The native iPhone project is `app/ios/MBLINK.xcodeproj`.
 
-GitHub CI verifies the portable core, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run.
+GitHub CI verifies the portable core, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run. The portable test suite now also verifies that LINK's shared DTC knowledge reaches the MBLINK compatibility/product layer.
 
 ## Release assets
 
@@ -103,16 +105,15 @@ Manually runnable build/smoke workflows are diagnostic helpers only and are not 
 ## Engineering rules
 
 - Broadly reusable non-automotive primitives belong in Infiltratr Common.
-- Shared automotive behaviour belongs in LINK.
+- Shared automotive behaviour and generic diagnostic knowledge belong in LINK.
 - Mercedes-only definitions and behaviour stay in MBLINK.
-- Fault acquisition is not feature-complete until known codes can be translated through the appropriate shared or Mercedes knowledge layer and diagnostic context is preserved.
 - Public APIs document ownership, lifetime, failure behaviour and invariants.
 - Comments explain rationale and non-obvious state-machine constraints rather than obvious syntax.
-- Unknown or unsafe diagnostic services are denied before transport transmission.
+- Unknown diagnostic definitions remain explicit and evidence-preserving; unknown or unsafe diagnostic services are denied before transport transmission.
 
 ## Documentation
 
-See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/OBD2.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
+See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
 
 ## Licence
 
