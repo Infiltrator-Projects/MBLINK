@@ -8,6 +8,7 @@
 
 #include "mblink/elm327.h"
 #include "link/obd2.h"
+#include "link/dtc_knowledge.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +23,10 @@ typedef LinkObd2Dtc MblinkObd2Dtc;
 typedef LinkObd2DtcList MblinkObd2DtcList;
 typedef LinkObd2Readiness MblinkObd2Readiness;
 typedef LinkObd2ClearAuthorization MblinkObd2ClearAuthorization;
+typedef LinkDtcSystem MblinkDtcSystem;
+typedef LinkDtcOrigin MblinkDtcOrigin;
+typedef LinkDtcSource MblinkDtcSource;
+typedef LinkDtcKnowledge MblinkDtcKnowledge;
 
 #define MBLINK_OBD2_VIN_LENGTH LINK_OBD2_VIN_LENGTH
 #define MBLINK_OBD2_DTC_TEXT_LENGTH LINK_OBD2_DTC_TEXT_LENGTH
@@ -50,6 +55,17 @@ typedef LinkObd2ClearAuthorization MblinkObd2ClearAuthorization;
 #define MBLINK_OBD2_DTC_PERMANENT LINK_OBD2_DTC_PERMANENT
 #define MBLINK_OBD2_CLEAR_AUTHORIZATION_INIT LINK_OBD2_CLEAR_AUTHORIZATION_INIT
 
+#define MBLINK_DTC_SYSTEM_UNKNOWN LINK_DTC_SYSTEM_UNKNOWN
+#define MBLINK_DTC_SYSTEM_POWERTRAIN LINK_DTC_SYSTEM_POWERTRAIN
+#define MBLINK_DTC_SYSTEM_CHASSIS LINK_DTC_SYSTEM_CHASSIS
+#define MBLINK_DTC_SYSTEM_BODY LINK_DTC_SYSTEM_BODY
+#define MBLINK_DTC_SYSTEM_NETWORK LINK_DTC_SYSTEM_NETWORK
+#define MBLINK_DTC_ORIGIN_UNKNOWN LINK_DTC_ORIGIN_UNKNOWN
+#define MBLINK_DTC_ORIGIN_STANDARD_GENERIC LINK_DTC_ORIGIN_STANDARD_GENERIC
+#define MBLINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC
+#define MBLINK_DTC_SOURCE_UNKNOWN LINK_DTC_SOURCE_UNKNOWN
+#define MBLINK_DTC_SOURCE_STANDARD_GENERIC LINK_DTC_SOURCE_STANDARD_GENERIC
+
 #define mblink_obd2_result_name link_obd2_result_name
 #define mblink_obd2_unit_name link_obd2_unit_name
 #define mblink_obd2_pid_name link_obd2_pid_name
@@ -68,6 +84,11 @@ typedef LinkObd2ClearAuthorization MblinkObd2ClearAuthorization;
 #define mblink_obd2_decode_vin link_obd2_decode_vin
 #define mblink_obd2_decode_dtcs link_obd2_decode_dtcs
 #define mblink_obd2_decode_dtc_pair link_obd2_decode_dtc_pair
+#define mblink_dtc_resolve link_dtc_resolve
+#define mblink_dtc_system_name link_dtc_system_name
+#define mblink_dtc_origin_name link_dtc_origin_name
+#define mblink_dtc_source_name link_dtc_source_name
+#define mblink_dtc_format_uds_status link_dtc_format_uds_status
 
 #ifdef __cplusplus
 }
