@@ -2,12 +2,66 @@
 
 # MBLINK Discover
 
-MBLINK Discover is the MBLINK-branded face of the shared LINK Discover subsystem.
+MBLINK Discover is the Mercedes-branded specialist ECU/module discovery and read-only evidence/dump application built on the shared LINK Discover subsystem.
 
-MBLINK does not own a separate discovery engine or Windows OpenPort/J2534 scanner implementation. Shared discovery behaviour, safety classification, evidence writing and the Windows scanner source live in LINK.
+It is not a separate repository and it is not a future `MBLINK-Reader` product. It is already the second application target inside the MBLINK repository, alongside the main MBLINK diagnostic application.
 
-The MBLINK compatibility API is exposed through `include/mblink/discover.h`, which aliases the product-prefixed names to the shared `link_*` API without duplicating implementation.
+```text
+MBLINK repository
+  |- main MBLINK application
+  `- MBLINK Discover
+       Mercedes ECU/module reader and evidence tool
+```
 
-On Windows, `mblink-discover.exe` is built by LINK's `link_add_windows_discover` constructor from the same `platform/windows/link-discover.c` used for JAGLINK. The MBLINK face supplies only the product identity (`MBLINK`, `mblink`, and the MBLINK window class).
+## Ownership
 
-The behavioural contract and safety model are documented in LINK's `docs/DISCOVER.md`. Any shared scanner or Discover improvement belongs in LINK, not in this repository.
+MBLINK does not own a separate generic discovery engine or Windows OpenPort/J2534 scanner implementation. Shared discovery behaviour, transport handling, safety classification, evidence writing, standard OBD inventory and generic ECU/module interrogation machinery live in LINK.
+
+MBLINK supplies the Mercedes-specific layer:
+
+- Mercedes/C207 network and ECU knowledge;
+- known module identities and endpoint definitions;
+- evidence-backed Mercedes read-only probes and identifiers;
+- Mercedes-specific decoders where meaning is documented or reproducibly verified;
+- MBLINK branding, iconography and presentation.
+
+The MBLINK compatibility API is exposed through `include/mblink/discover.h`, which aliases product-prefixed names to the shared `link_*` API without duplicating implementation.
+
+## Current implementation
+
+On Windows, `mblink-discover.exe` is built through LINK's `link_add_windows_discover` constructor from the same shared implementation used for JAGLINK.
+
+The current Discover baseline provides:
+
+- passive 500 kbit/s CAN capture;
+- bounded read-only standard OBD inventory;
+- deny-by-default request classification;
+- JSON Lines evidence export and operator annotations;
+- product-branded Windows presentation.
+
+This is the starting point, not the final intended scope.
+
+## Intended evolution
+
+MBLINK Discover should evolve in place into the deeper Mercedes engineering reader/dumper:
+
+```text
+passive network observation
+    -> standards-based inventory
+    -> Mercedes-aware module discovery
+    -> ECU/module identification
+    -> documented read-only information acquisition
+    -> structured raw/evidence dump
+```
+
+The main MBLINK application remains the normal diagnostic experience. Discover is the specialist tool for determining what control modules exist, identifying them, reading supported information and preserving raw evidence for analysis.
+
+A "dump" here means bounded read-only acquisition of diagnostic information and raw responses. It does not imply unrestricted coding, flashing, reset, security-access or programming capability.
+
+## Architecture rule
+
+Any generic scanner, transport, safety, evidence or reader improvement belongs in LINK first. Any Mercedes-only definition or evidence-backed request belongs in MBLINK.
+
+Do not create a separate MBLINK Reader repository and do not fork LINK's scanner to add Mercedes depth. Extend the shared Discover engine where the behaviour is generic and supply Mercedes knowledge from this product repository.
+
+The full behavioural, safety and repository contract is documented in LINK's `docs/DISCOVER.md` and `docs/PRODUCT_FACES.md`.
