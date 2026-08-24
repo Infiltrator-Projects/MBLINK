@@ -19,11 +19,10 @@
 #endif
 
 /*
- * Normal CMake builds consume shared engines through LINK::Core.  The native
- * iPhone target compiles portable C sources directly rather than linking the
- * CMake target, so include the exact sources from the pinned LINK checkout.
- * This preserves one implementation while avoiding a second product-owned
- * copy of workspace, runtime, transport, ELM327 or diagnostic-flow logic.
+ * Normal CMake builds consume shared engines through LINK::Core. The native
+ * iPhone target still compiles the pinned LINK C sources into MBLINKCore; keep
+ * this bridge complete until LINK's dedicated Apple static-library target
+ * replaces the compatibility path.
  */
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/core/workspace.c"
@@ -36,6 +35,8 @@
 #include "../link/src/elm327/can.c"
 #include "../link/src/elm327/probe.c"
 #include "../link/src/elm327/session.c"
+#include "../link/src/discover/safety.c"
+#include "../link/src/discover/ecu_probe.c"
 #endif
 
 static const InfiltratrProjectInfo mblink_project_info = {
