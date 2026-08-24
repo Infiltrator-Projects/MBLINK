@@ -1,48 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#import <Foundation/Foundation.h>
-
-NS_ASSUME_NONNULL_BEGIN
-
-@class MBLinkBLETransport;
-
-typedef NS_ENUM(NSInteger, MBLinkBLETransportState) {
-    MBLinkBLETransportStateIdle = 0,
-    MBLinkBLETransportStateWaitingForBluetooth,
-    MBLinkBLETransportStateScanning,
-    MBLinkBLETransportStateConnecting,
-    MBLinkBLETransportStateDiscovering,
-    MBLinkBLETransportStateProbing,
-    MBLinkBLETransportStateReady,
-    MBLinkBLETransportStateDisconnected,
-    MBLinkBLETransportStateFailed
-};
-
-@protocol MBLinkBLETransportDelegate <NSObject>
-- (void)bleTransportDidUpdate:(MBLinkBLETransport *)transport;
-@end
-
 /**
- * CoreBluetooth implementation of the MBLINK byte-stream transport boundary.
- *
- * The public Objective-C surface intentionally contains no OBD-II parsing.
- * BLE/GATT discovery remains a platform concern; diagnostic interpretation
- * remains in libmblink.
+ * @file MBLinkBLETransport.h
+ * @brief Compatibility names for LINK's shared CoreBluetooth provider.
  */
-@interface MBLinkBLETransport : NSObject
+#import "../../src/link/platform/apple/LinkBLETransport.h"
 
-@property(nonatomic, weak, nullable) id<MBLinkBLETransportDelegate> delegate;
-@property(nonatomic, readonly) MBLinkBLETransportState state;
-@property(nonatomic, copy, readonly) NSString *statusText;
-@property(nonatomic, copy, readonly, nullable) NSString *peripheralName;
-@property(nonatomic, copy, readonly, nullable) NSString *adapterIdentifier;
-@property(nonatomic, copy, readonly, nullable) NSString *serviceUUID;
-@property(nonatomic, copy, readonly, nullable) NSString *writeCharacteristicUUID;
-@property(nonatomic, copy, readonly, nullable) NSString *notifyCharacteristicUUID;
-@property(nonatomic, readonly, getter=isReady) BOOL ready;
+#define MBLinkBLETransport LinkBLETransport
+#define MBLinkBLETransportDelegate LinkBLETransportDelegate
 
-- (void)start;
-- (void)disconnect;
+typedef LinkBLETransportState MBLinkBLETransportState;
 
-@end
-
-NS_ASSUME_NONNULL_END
+#define MBLinkBLETransportStateIdle LinkBLETransportStateIdle
+#define MBLinkBLETransportStateWaitingForBluetooth LinkBLETransportStateWaitingForBluetooth
+#define MBLinkBLETransportStateScanning LinkBLETransportStateScanning
+#define MBLinkBLETransportStateConnecting LinkBLETransportStateConnecting
+#define MBLinkBLETransportStateDiscovering LinkBLETransportStateDiscovering
+#define MBLinkBLETransportStateProbing LinkBLETransportStateProbing
+#define MBLinkBLETransportStateReady LinkBLETransportStateReady
+#define MBLinkBLETransportStateDisconnected LinkBLETransportStateDisconnected
+#define MBLinkBLETransportStateFailed LinkBLETransportStateFailed
