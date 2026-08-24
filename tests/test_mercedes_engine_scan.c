@@ -36,9 +36,7 @@ static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
 {
     const MblinkMercedesVehicleProfile *profile =
         mblink_mercedes_c207_om651_profile();
-    if (profile == NULL) {
-        return NULL;
-    }
+    if (profile == NULL) return NULL;
     return mblink_mercedes_profile_find_endpoint(
         profile, "c207-om651-engine-eobd-11bit");
 }
@@ -108,7 +106,14 @@ static int test_optional_dtc_negative_response(void)
 
     CHECK(endpoint != NULL);
     CHECK(mblink_mercedes_engine_scan_begin(&scan, endpoint));
+
+    /*
+     * This test isolates only the final DTC outcome. The Mercedes public stage
+     * is a compatibility view; LINK owns the actual probe state machine now,
+     * so both views must be placed at the same isolated stage.
+     */
     scan.probe.stage = MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION;
+    scan.probe.shared.stage = LINK_ECU_PROBE_STAGE_READ_DTC_INFORMATION;
     response.result = MBLINK_ELM327_RESULT_OK;
     memcpy(response.text, "7F1931", 6U);
     response.text[6] = '\0';
