@@ -26,6 +26,26 @@ MBLINK pins one exact LINK commit at `src/link`. LINK owns Common beneath it, so
 
 Shared workspace, Classical CAN/CAN-FD ISO-TP, transport, ELM327, standard OBD-II, generic DTC knowledge, the complete product-neutral UDS codec catalogue, scheduler/telemetry, portable diagnostic sequencing, Discover safety/evidence and the Windows OpenPort/J2534 shell belong in LINK. Mercedes identity, definitions and genuinely Mercedes-specific behaviour remain in MBLINK.
 
+## Applications in this repository
+
+MBLINK is one manufacturer product family with more than one application target. It is intentionally **not** split into separate `MBLINK` and `MBLINK-Reader` repositories.
+
+```text
+MBLINK repository
+  |- MBLINK
+  |    normal Mercedes diagnostic application
+  |
+  `- MBLINK Discover
+       specialist Mercedes ECU/module discovery,
+       identification, read-only inventory and evidence/dump tool
+```
+
+The main application is the normal driver/technician diagnostic experience. Discover is the deeper engineering-oriented reader used to determine what control modules are present, identify them, read documented information and preserve raw evidence.
+
+The current Windows Discover implementation is the first stage of that role: passive CAN capture plus a bounded read-only standard OBD inventory. It should evolve in place into the deeper Mercedes ECU/module reader rather than spawning a separate repository or duplicate scanner implementation.
+
+Generic Discover mechanics belong in LINK. Mercedes-specific network topology, module identities, endpoints, read-only probes and decoders belong here.
+
 ## Diagnostic priority
 
 Fault diagnosis is a first-class product function. Acquiring and printing a raw `Pxxxx`/`Uxxxx` or Mercedes UDS value is not considered complete fault support.
@@ -43,7 +63,7 @@ The remaining fault-diagnostic completion work is deliberately ahead of addition
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
-- Read-only Windows OpenPort 2.0/J2534 Discover scanner with evidence export.
+- MBLINK Discover: the branded specialist ECU/module reader, currently implemented on Windows as a read-only OpenPort 2.0/J2534 scanner with passive capture, bounded inventory and evidence export.
 - Shared portable diagnostic-flow state machine across platforms.
 - Canonical Mercedes three-pointed-star branding reused across supported targets.
 
@@ -53,9 +73,11 @@ Manufacturer-specific data remains evidence-gated until documentation or reprodu
 
 Portable diagnostic behaviour is C11. C++ is used only where it materially improves a design. Platform-required languages remain narrow presentation/interop edges and must not become alternate protocol implementations.
 
-The Linux shell is C/GTK4. The iPhone shell consumes the same portable C model. Windows Discover is the MBLINK face of LINK's shared read-only OpenPort/J2534 scanner shell.
+The Linux shell is C/GTK4. The iPhone shell consumes the same portable C model. Windows Discover is the MBLINK face of LINK's shared read-only OpenPort/J2534 scanner shell and the current platform implementation of the specialist ECU/module reader.
 
 The Windows executable uses the canonical MBLINK app icon from the iPhone asset catalogue, embeds product/version metadata and links the static MSVC runtime. CI launches the built EXE, verifies the `MBLINK Discover` window stays alive and checks that no matching dynamic Visual C++ runtime is required.
+
+As Discover gains manufacturer-aware depth, the boundary stays the same: reusable interrogation, transport, safety and evidence behaviour goes into LINK; Mercedes-specific definitions and read-only requests remain in MBLINK.
 
 ## Build and test
 
@@ -88,7 +110,7 @@ A successful numbered release is atomic across supported targets and publishes:
 | `MBLINK-<version>-unsigned.ipa` | Unsigned physical-device iPhone package. |
 | `MBLINK-<version>-linux-amd64.deb` | Generic Linux amd64 Debian package. |
 | `MBLINK-<version>-linux-native.run` | Native local Linux build/install program. |
-| `MBLINK-<version>-windows-discover.exe` | Read-only Windows OpenPort/J2534 Discover application. |
+| `MBLINK-<version>-windows-discover.exe` | MBLINK Discover specialist read-only ECU/module scanner and evidence application. |
 | `MBLINK-<version>-source.zip` | Exact tested source archive including the pinned dependency tree. |
 | `SHA256SUMS.txt` | SHA-256 checksums for all project-owned release artifacts. |
 
@@ -111,13 +133,14 @@ Manually runnable build/smoke workflows are diagnostic helpers only and are not 
 - Broadly reusable non-automotive primitives belong in Infiltratr Common.
 - Shared automotive behaviour and generic diagnostic knowledge belong in LINK.
 - Mercedes-only definitions and behaviour stay in MBLINK.
+- A second MBLINK application target does not require a second repository; Discover remains part of this manufacturer product family.
 - Public APIs document ownership, lifetime, failure behaviour and invariants.
 - Comments explain rationale and non-obvious state-machine constraints rather than obvious syntax.
 - Unknown diagnostic definitions remain explicit and evidence-preserving; unknown or unsafe diagnostic services are denied before transport transmission.
 
 ## Documentation
 
-See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
+See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/DISCOVER.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
 
 ## Licence
 
