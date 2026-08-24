@@ -14,114 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Wire runtime language switching and Xcode resources
+      - name: Apply iPhone language wiring
+        run: python3 scripts/tmp-wire-ios-language.py
+      - name: Commit wiring and remove temporary helpers
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          swift_path = Path('app/ios/MBLINK/MBLINKApp.swift')
-          s = swift_path.read_text()
-
-          def once(old, new, label):
-              global s
-              count = s.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected one occurrence, found {count}')
-              s = s.replace(old, new, 1)
-
-          once(
-              '    @StateObject private var connection = ConnectionViewModel()\n    @State private var showingAbout = false\n',
-              '    @StateObject private var connection = ConnectionViewModel()\n    @State private var showingAbout = false\n    @AppStorage("mblink.language") private var language = "en"\n',
-              'app language storage')
-          once(
-              '                .environmentObject(connection)\n                .preferredColorScheme(.dark)\n',
-              '                .environmentObject(connection)\n                .environment(\\.locale, Locale(identifier: language))\n                .preferredColorScheme(.dark)\n',
-              'root locale')
-          once(
-              '    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true\n',
-              '    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true\n    @AppStorage("mblink.language") private var language = "en"\n',
-              'settings language storage')
-          language_panel = '''                    MBPanel {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Language")
-                                .font(.headline)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Picker("Language", selection: $language) {
-                                Text("English").tag("en")
-                                Text("Deutsch").tag("de")
-                                Text("Polski").tag("pl")
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-'''
-          marker = '''                    MBPanel {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Toggle("Prefer favourites on Dashboard and Graphs", isOn: $preferFavouriteSignals)
-'''
-          if marker not in s:
-              raise SystemExit('settings preference panel marker missing')
-          s = s.replace(marker, language_panel + marker, 1)
-
-          replacements = {
-              'Text(text.uppercased())': 'Text(LocalizedStringKey(text)).textCase(.uppercase)',
-              'Text(kicker.uppercased())': 'Text(LocalizedStringKey(kicker)).textCase(.uppercase)',
-              'Text(title)': 'Text(LocalizedStringKey(title))',
-              'Text(subtitle)': 'Text(LocalizedStringKey(subtitle))',
-              'Text(label)': 'Text(LocalizedStringKey(label))',
-              'Text(value)': 'Text(LocalizedStringKey(value))',
-              'Text(parameter.shortName.uppercased())': 'Text(LocalizedStringKey(parameter.shortName)).textCase(.uppercase)',
-              'Text(parameter.title)': 'Text(LocalizedStringKey(parameter.title))',
-              'Text(item.rawValue).tag(item)': 'Text(LocalizedStringKey(item.rawValue)).tag(item)',
-              'Label(group.rawValue, systemImage: group.symbol)': 'Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)',
-              '.navigationTitle(title)': '.navigationTitle(LocalizedStringKey(title))',
-          }
-          for old, new in replacements.items():
-              s = s.replace(old, new)
-
-          swift_path.write_text(s)
-
-          pbx_path = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
-          p = pbx_path.read_text()
-          if 'MBL10CAL0000000000000001 /* Localizable.strings in Resources */' not in p:
-              p = p.replace(
-                  'A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };',
-                  'A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };\n\t\tMBL10CAL0000000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = MBL10CAL0000000000000005 /* Localizable.strings */; };')
-              p = p.replace(
-                  'A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };',
-                  'A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };\n\t\tMBL10CAL0000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "MBLINK/en.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };\n\t\tMBL10CAL0000000000000003 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = "MBLINK/de.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };\n\t\tMBL10CAL0000000000000004 /* pl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl; path = "MBLINK/pl.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };')
-              p = p.replace(
-                  '\t\t\t\tA1B2C3D4E5F60718293C0002 /* Assets.xcassets */,\n',
-                  '\t\t\t\tA1B2C3D4E5F60718293C0002 /* Assets.xcassets */,\n\t\t\t\tMBL10CAL0000000000000005 /* Localizable.strings */,\n', 1)
-              p = p.replace(
-                  '/* End PBXGroup section */',
-                  '''/* End PBXGroup section */
-
-/* Begin PBXVariantGroup section */
-\t\tMBL10CAL0000000000000005 /* Localizable.strings */ = {
-\t\t\tisa = PBXVariantGroup;
-\t\t\tchildren = (
-\t\t\t\tMBL10CAL0000000000000002 /* en */,
-\t\t\t\tMBL10CAL0000000000000003 /* de */,
-\t\t\t\tMBL10CAL0000000000000004 /* pl */,
-\t\t\t);
-\t\t\tname = Localizable.strings;
-\t\t\tsourceTree = "<group>";
-\t\t};
-/* End PBXVariantGroup section */''', 1)
-              p = p.replace(
-                  '\t\t\tknownRegions = (\n\t\t\t\ten,\n\t\t\t\tBase,\n\t\t\t);',
-                  '\t\t\tknownRegions = (\n\t\t\t\ten,\n\t\t\t\tde,\n\t\t\t\tpl,\n\t\t\t\tBase,\n\t\t\t);', 1)
-              p = p.replace(
-                  '\t\t\t\tA1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */,\n',
-                  '\t\t\t\tA1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */,\n\t\t\t\tMBL10CAL0000000000000001 /* Localizable.strings in Resources */,\n', 1)
-          pbx_path.write_text(p)
-          PY
-
-          git rm .github/workflows/tmp-wire-ios-language.yml
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-wire-ios-language.yml scripts/tmp-wire-ios-language.py
           git add app/ios/MBLINK/MBLINKApp.swift app/ios/MBLINK.xcodeproj/project.pbxproj
           git commit -m "Wire live English German Polish iPhone UI"
           git push origin HEAD:main
