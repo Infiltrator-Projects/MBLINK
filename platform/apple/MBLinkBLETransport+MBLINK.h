@@ -4,11 +4,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/**
- * Return a C ABI transport backed by the supplied CoreBluetooth provider.
- *
- * The provider must outlive every MblinkTransport copy created from it.
- */
-MblinkTransport MBLinkBLETransportMakeCTransport(MBLinkBLETransport *transport);
+/* MblinkTransport is a compatibility typedef of LinkTransport. */
+#define MBLinkBLETransportMakeCTransport LinkBLETransportMakeCTransport
 
 NS_ASSUME_NONNULL_END
