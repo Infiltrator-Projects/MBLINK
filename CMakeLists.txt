@@ -117,6 +117,17 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
         PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png")
+    if(MSVC)
+        target_compile_options(mblink-discover PRIVATE "/FI${MBLINK_LINK_DIR}/platform/windows/link-discover-theme.h")
+    endif()
+    target_compile_definitions(mblink-discover PRIVATE
+        LINK_THEME_BACKGROUND=0x00080605
+        LINK_THEME_PANEL=0x00181310
+        LINK_THEME_INPUT=0x0014100D
+        LINK_THEME_TEXT=0x00EFECE8
+        LINK_THEME_MUTED=0x00989189
+        LINK_THEME_ACCENT=0x00E2DDD7
+        LINK_THEME_ACCENT_TEXT=0x00181411)
 endif()
 function(mblink_add_test target source)
     add_executable(${target} ${source})
