@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file mercedes_probe.h
- * @brief Read-only Mercedes ECU endpoint probing over ELM-managed CAN.
+ * @brief Mercedes profile layer over LINK's shared read-only ECU probe.
  *
- * The probe coordinates existing ELM CAN and UDS contracts. It configures one
- * caller-selected physical endpoint, sends a positive-response TesterPresent
- * request, attempts the ISO 14229 standard VIN DID 0xF190, performs a bounded
- * standardized ECU-identification sweep, then performs a second bounded
- * evidence-only CRD3 fingerprint sweep using identifiers published by the
- * open-source CaesarSuite CRD3 simulator. Before restoring the adapter channel
- * it also issues one read-only UDS ReadDTCInformation request. Completion proves
- * only that the endpoint answered UDS and records the evidence returned; it does
- * not claim a proprietary live-data interpretation.
+ * LINK owns channel setup, TesterPresent, bounded UDS DID acquisition, DTC
+ * inventory, safety policy and raw result capture. MBLINK supplies the
+ * Mercedes/CRD3 DID catalogue and interprets only Mercedes-specific evidence.
  */
 #ifndef MBLINK_MERCEDES_PROBE_H
 #define MBLINK_MERCEDES_PROBE_H
 
+#include "link/ecu_probe.h"
 #include "mblink/elm327_can.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_crd3.h"
@@ -74,6 +69,7 @@ typedef enum {
 
 typedef struct {
     const MblinkMercedesEcuEndpointDefinition *endpoint;
+    LinkEcuProbe shared;
     MblinkElm327CanChannelState channel;
     MblinkMercedesEcuProbeStage stage;
     MblinkMercedesEcuProbeResult failure;
