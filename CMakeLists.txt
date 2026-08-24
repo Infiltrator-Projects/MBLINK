@@ -1,25 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-
 if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
 if(MSVC OR WIN32)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
-
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MBLINK_PROJECT_VERSION)
 string(STRIP "${MBLINK_PROJECT_VERSION}" MBLINK_PROJECT_VERSION)
 if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a semantic major.minor.patch version.")
 endif()
 project(MBLINK VERSION "${MBLINK_PROJECT_VERSION}" LANGUAGES C)
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MBLINK_BUILD_LINUX_APP "Build the native GTK4 Linux front end" OFF)
 if(WIN32)
@@ -28,7 +24,6 @@ else()
     set(MBLINK_WINDOWS_DISCOVER_DEFAULT OFF)
 endif()
 option(MBLINK_BUILD_WINDOWS_DISCOVER "Build the Win32 OpenPort/J2534 discovery GUI" ${MBLINK_WINDOWS_DISCOVER_DEFAULT})
-
 if(MBLINK_ENABLE_SANITIZERS)
     if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         message(FATAL_ERROR "MBLINK_ENABLE_SANITIZERS requires GCC or Clang.")
@@ -36,37 +31,21 @@ if(MBLINK_ENABLE_SANITIZERS)
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address,undefined)
 endif()
-
 include(CTest)
 include(GNUInstallDirs)
-
-# LINK is MBLINK's only top-level implementation dependency. The superproject
-# gitlink is the commit source of truth; LINK owns and validates Common beneath it.
 set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
-    message(FATAL_ERROR
-        "LINK is required. Clone with --recurse-submodules or initialise submodules recursively.")
+    message(FATAL_ERROR "LINK is required. Clone with --recurse-submodules or initialise submodules recursively.")
 endif()
 file(READ "${MBLINK_LINK_DIR}/VERSION" MBLINK_LINK_VERSION)
 string(STRIP "${MBLINK_LINK_VERSION}" MBLINK_LINK_VERSION)
 if(NOT MBLINK_LINK_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "Pinned LINK VERSION is not semantic: ${MBLINK_LINK_VERSION}")
 endif()
-
 find_program(MBLINK_GIT_EXECUTABLE git)
 if(MBLINK_GIT_EXECUTABLE)
-    execute_process(
-        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}" ls-tree HEAD src/link
-        OUTPUT_VARIABLE MBLINK_LINK_GITLINK
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-        RESULT_VARIABLE MBLINK_LINK_GITLINK_RESULT)
-    execute_process(
-        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD
-        OUTPUT_VARIABLE MBLINK_LINK_FOUND_COMMIT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-        RESULT_VARIABLE MBLINK_LINK_COMMIT_RESULT)
+    execute_process(COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}" ls-tree HEAD src/link OUTPUT_VARIABLE MBLINK_LINK_GITLINK OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE MBLINK_LINK_GITLINK_RESULT)
+    execute_process(COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD OUTPUT_VARIABLE MBLINK_LINK_FOUND_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE MBLINK_LINK_COMMIT_RESULT)
     if(MBLINK_LINK_GITLINK_RESULT EQUAL 0 AND MBLINK_LINK_COMMIT_RESULT EQUAL 0)
         string(REGEX MATCH "^160000 commit ([0-9a-fA-F]+)" MBLINK_LINK_GITLINK_MATCH "${MBLINK_LINK_GITLINK}")
         if(NOT MBLINK_LINK_GITLINK_MATCH)
@@ -74,42 +53,22 @@ if(MBLINK_GIT_EXECUTABLE)
         endif()
         set(MBLINK_LINK_EXPECTED_COMMIT "${CMAKE_MATCH_1}")
         if(NOT MBLINK_LINK_FOUND_COMMIT STREQUAL MBLINK_LINK_EXPECTED_COMMIT)
-            message(FATAL_ERROR
-                "LINK checkout does not match the MBLINK gitlink: expected ${MBLINK_LINK_EXPECTED_COMMIT}, found ${MBLINK_LINK_FOUND_COMMIT}.")
+            message(FATAL_ERROR "LINK checkout does not match the MBLINK gitlink: expected ${MBLINK_LINK_EXPECTED_COMMIT}, found ${MBLINK_LINK_FOUND_COMMIT}.")
         endif()
     endif()
 endif()
-
-add_subdirectory(
-    "${MBLINK_LINK_DIR}"
-    "${CMAKE_CURRENT_BINARY_DIR}/link"
-    EXCLUDE_FROM_ALL)
-
+add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE_FROM_ALL)
 add_library(mblink STATIC
-    src/core/mblink.c
-    src/core/parameter.c
-    src/core/scheduler.c
-    src/core/telemetry_store.c
-    src/core/telemetry_csv.c
-    src/elm327/elm327.c
-    src/elm327/can.c
-    src/elm327/session.c
-    src/elm327/probe.c
-    src/obd2/obd2.c
-    src/uds/uds.c
-    src/mercedes/mercedes.c
-    src/mercedes/probe.c)
+    src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
+    src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
+    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/probe.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(mblink PUBLIC LINK::Core)
-
-set(MBLINK_WARNING_FLAGS
-    -Wall -Wextra -Wpedantic -Wshadow -Wformat=2
-    -Wstrict-prototypes -Wmissing-prototypes)
+set(MBLINK_WARNING_FLAGS -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wstrict-prototypes -Wmissing-prototypes)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(mblink PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
 endif()
-
 if(MBLINK_BUILD_LINUX_APP)
     if(NOT UNIX OR APPLE)
         message(FATAL_ERROR "MBLINK_BUILD_LINUX_APP is supported on Linux only.")
@@ -117,36 +76,22 @@ if(MBLINK_BUILD_LINUX_APP)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
     find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE NAMES glib-compile-resources REQUIRED)
-
     set(MBLINK_LINUX_RESOURCE_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/mblink-linux-resources.c")
-    add_custom_command(
-        OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
-        COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}"
-            --generate-source "--target=${MBLINK_LINUX_RESOURCE_SOURCE}"
-            mblink.gresource.xml
+    add_custom_command(OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
+        COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}" --generate-source "--target=${MBLINK_LINUX_RESOURCE_SOURCE}" mblink.gresource.xml
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
-        DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml"
-            "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/assets/mblink-emblem.png"
-        VERBATIM)
-
-    add_executable(mblink-linux
-        app/linux/main.c app/linux/about-dialog.c
-        "${MBLINK_LINUX_RESOURCE_SOURCE}")
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml" "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/assets/mblink-emblem.png" VERBATIM)
+    add_executable(mblink-linux app/linux/main.c app/linux/about-dialog.c "${MBLINK_LINUX_RESOURCE_SOURCE}")
     set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-w")
     target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
+    link_enable_linux_gtk_shell(mblink-linux)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(mblink-linux PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
-
     install(TARGETS mblink-linux RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-    install(FILES app/linux/assets/mblink-emblem.png
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/180x180/apps"
-        RENAME mblink.png)
-    install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES app/linux/assets/mblink-emblem.png DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/180x180/apps" RENAME mblink.png)
+    install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
     install(FILES LICENSE README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
-
     set(CPACK_GENERATOR "DEB")
     set(CPACK_PACKAGE_NAME "mblink")
     set(CPACK_PACKAGE_VENDOR "The First Infiltrator")
@@ -163,22 +108,15 @@ if(MBLINK_BUILD_LINUX_APP)
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
     include(CPack)
 endif()
-
 if(MBLINK_BUILD_WINDOWS_DISCOVER)
     if(NOT WIN32)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
-    link_add_windows_discover(mblink-discover
-        PRODUCT_NAME "MBLINK"
-        PRODUCT_SLUG "mblink"
-        WINDOW_CLASS "MBLINKDiscoverWindow"
-        PRODUCT_VERSION "${PROJECT_VERSION}"
-        PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
-        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics"
-        PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
+    link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
+        PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
+        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png")
 endif()
-
 function(mblink_add_test target source)
     add_executable(${target} ${source})
     target_link_libraries(${target} PRIVATE mblink)
@@ -187,7 +125,6 @@ function(mblink_add_test target source)
     endif()
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
-
 if(BUILD_TESTING)
     mblink_add_test(mblink-test-core tests/test_core.c)
     target_compile_definitions(mblink-test-core PRIVATE MBLINK_TEST_EXPECTED_VERSION="${PROJECT_VERSION}")
