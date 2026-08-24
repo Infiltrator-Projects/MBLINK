@@ -17,6 +17,12 @@ typedef struct MblinkLinuxContext {
     bool connected;
     char adapter_identity[160];
     LinkTransport transport;
+    bool diagnostic_valid;
+    bool diagnostic_active;
+    bool diagnostic_ready;
+    LinkDiagnosticFlow diagnostic;
+    bool sample_valid[256];
+    LinkObd2Sample samples[256];
 } MblinkLinuxContext;
 
 static const char mblink_css[] =
@@ -42,6 +48,51 @@ static const char *connection_text(const MblinkLinuxContext *context)
     return context->connected ? "LINKED · ELM327 VERIFIED" : "NOT LINKED";
 }
 
+static const char *diagnostic_text(const MblinkLinuxContext *context)
+{
+    if (!context->connected) return "LINK OFFLINE";
+    if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
+    if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) return "DIAGNOSTIC SESSION FAILED";
+    if (context->diagnostic_ready) return "LIVE DIAGNOSTICS ACTIVE";
+    return link_diagnostic_flow_stage_name(context->diagnostic.stage);
+}
+
+static void format_sample(const LinkObd2Sample *sample,
+                          char *buffer,
+                          size_t capacity)
+{
+    const char *unit;
+    if (buffer == NULL || capacity == 0U) return;
+    if (sample == NULL) {
+        (void)snprintf(buffer, capacity, "Waiting");
+        return;
+    }
+    unit = link_obd2_unit_name(sample->unit);
+    if (unit == NULL || unit[0] == '\0' || sample->unit == LINK_OBD2_UNIT_NONE)
+        (void)snprintf(buffer, capacity, "%.2f", sample->value);
+    else
+        (void)snprintf(buffer, capacity, "%.2f %s", sample->value, unit);
+}
+
+static void append_dtc_list(GtkWidget *card,
+                            const char *prefix,
+                            const LinkObd2DtcList *list)
+{
+    size_t index;
+    if (card == NULL || prefix == NULL || list == NULL) return;
+    if (list->count == 0U) {
+        char label[48];
+        (void)snprintf(label, sizeof(label), "%s faults", prefix);
+        link_gtk_card_append_detail(card, label, "None reported");
+        return;
+    }
+    for (index = 0U; index < list->count; ++index) {
+        char label[48];
+        (void)snprintf(label, sizeof(label), "%s %zu", prefix, index + 1U);
+        link_gtk_card_append_detail(card, label, list->entries[index].code);
+    }
+}
+
 static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
 {
     const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
@@ -62,8 +113,9 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
     link_gtk_card_append_detail(connection, "Adapter",
                                 context->connected && context->adapter_identity[0] != '\0'
                                     ? context->adapter_identity : "Select an adapter above and press LINK UP");
+    link_gtk_card_append_detail(connection, "Diagnostic flow", diagnostic_text(context));
     link_gtk_card_append_note(connection,
-        "LINK owns the Linux serial transport and validates the ELM327 identity before the application reports a live link.");
+        "LINK now carries the Linux connection directly into ELM initialisation, supported-PID discovery, stored/pending/permanent OBD-II fault inventory and live polling.");
     gtk_box_append(GTK_BOX(body), identity);
     gtk_box_append(GTK_BOX(body), connection);
 }
@@ -83,37 +135,76 @@ static void append_modules(GtkWidget *body)
         }
     }
     link_gtk_card_append_note(card,
-        "Additional Mercedes modules belong here as their addresses and read-only identities are evidence-backed.");
+        "Mercedes-specific endpoint definitions remain in MBLINK; transport, standard OBD-II sequencing and live polling are owned by LINK.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
 static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 {
-    GtkWidget *mercedes = link_gtk_card_new("MERCEDES ENGINE", "UDS 0x19 fault memory");
+    GtkWidget *mercedes = link_gtk_card_new("MERCEDES ENGINE", "Manufacturer profile status");
     GtkWidget *obd = link_gtk_card_new("STANDARD OBD-II", "Stored, pending and permanent faults");
-    const char *status = context->connected ? "LINK READY · SCAN NOT STARTED" : "NOT SCANNED · LINK OFFLINE";
-    link_gtk_card_append_status(mercedes, status, context->connected ? "state-success" : "state-warning");
+    char summary[160];
+
+    link_gtk_card_append_status(mercedes,
+        context->connected ? "PROFILE READY" : "LINK OFFLINE",
+        context->connected ? "state-success" : "state-warning");
     link_gtk_card_append_note(mercedes,
-        "Read-only Mercedes fault acquisition uses the shared LINK UDS engine; no fault data is invented before a scan.");
-    link_gtk_card_append_status(obd, status, context->connected ? "state-success" : "state-warning");
+        "The C207/OM651 profile is available for Mercedes-specific read-only probing; the automatic Linux pass below is the shared standards-based inventory.");
+
+    if (!context->connected) {
+        link_gtk_card_append_status(obd, "NOT SCANNED · LINK OFFLINE", "state-warning");
+    } else if (!context->diagnostic_valid) {
+        link_gtk_card_append_status(obd, "STARTING SCAN", "state-warning");
+    } else if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) {
+        link_gtk_card_append_status(obd, "SCAN FAILED · RECONNECT TO RETRY", "state-warning");
+    } else if (context->diagnostic_ready) {
+        (void)snprintf(summary, sizeof(summary),
+                       "COMPLETE · %zu stored · %zu pending · %zu permanent",
+                       context->diagnostic.stored_dtcs.count,
+                       context->diagnostic.pending_dtcs.count,
+                       context->diagnostic.permanent_dtcs.count);
+        link_gtk_card_append_status(obd, summary, "state-success");
+        append_dtc_list(obd, "Stored", &context->diagnostic.stored_dtcs);
+        append_dtc_list(obd, "Pending", &context->diagnostic.pending_dtcs);
+        append_dtc_list(obd, "Permanent", &context->diagnostic.permanent_dtcs);
+    } else {
+        (void)snprintf(summary, sizeof(summary), "SCAN IN PROGRESS · %s",
+                       link_diagnostic_flow_stage_name(context->diagnostic.stage));
+        link_gtk_card_append_status(obd, summary, "state-warning");
+    }
+
     gtk_box_append(GTK_BOX(body), mercedes);
     gtk_box_append(GTK_BOX(body), obd);
 }
 
-static void append_parameters(GtkWidget *body, bool compact)
+static void append_parameters(GtkWidget *body,
+                              bool compact,
+                              const MblinkLinuxContext *context)
 {
     GtkWidget *card = link_gtk_card_new(compact ? "PARAMETER TABLE" : "LIVE DATA CATALOGUE",
-                                        compact ? "Standard OBD-II definitions" : "Available shared diagnostic parameters");
+                                        compact ? "Real standard OBD-II samples" : "Available shared diagnostic parameters");
     size_t count = mblink_parameter_obd2_definition_count();
     size_t index;
     for (index = 0U; index < count; ++index) {
         const MblinkParameterDefinition *definition = mblink_parameter_obd2_definition_at(index);
-        char key[48];
+        char key[64];
+        char value[96];
+        uint8_t pid;
         if (definition == NULL) continue;
+        pid = definition->key.identifier;
         (void)snprintf(key, sizeof(key), "PID 0x%02X · %s",
-                       (unsigned int)definition->key.identifier, definition->short_name);
-        link_gtk_card_append_detail(card, compact ? key : definition->name,
-                                    compact ? definition->name : key);
+                       (unsigned int)pid, definition->short_name);
+        if (context->sample_valid[pid]) {
+            format_sample(&context->samples[pid], value, sizeof(value));
+        } else if (context->diagnostic_valid &&
+                   !link_obd2_pid_set_contains(&context->diagnostic.supported_pids, pid)) {
+            (void)snprintf(value, sizeof(value), "Not supported by vehicle");
+        } else if (context->diagnostic_active || context->diagnostic_ready) {
+            (void)snprintf(value, sizeof(value), "Waiting for sample");
+        } else {
+            (void)snprintf(value, sizeof(value), "No live session");
+        }
+        link_gtk_card_append_detail(card, compact ? key : definition->name, value);
     }
     gtk_box_append(GTK_BOX(body), card);
 }
@@ -128,11 +219,17 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
     GtkWidget *card = link_gtk_card_new("AT-A-GLANCE", "Powertrain dashboard");
     size_t index;
     link_gtk_card_append_status(card,
-        context->connected ? "LINK READY · WAITING FOR LIVE SAMPLES" : "WAITING FOR LINK",
-        context->connected ? "state-success" : "state-warning");
+        context->diagnostic_ready ? "LIVE SAMPLES" : diagnostic_text(context),
+        context->diagnostic_ready ? "state-success" : "state-warning");
     for (index = 0U; index < sizeof(keys) / sizeof(keys[0]); ++index) {
         const MblinkParameterDefinition *definition = mblink_parameter_obd2_definition_for_stable_key(keys[index]);
-        if (definition != NULL) link_gtk_card_append_detail(card, definition->name, "N/A");
+        char value[96];
+        if (definition == NULL) continue;
+        if (context->sample_valid[definition->key.identifier])
+            format_sample(&context->samples[definition->key.identifier], value, sizeof(value));
+        else
+            (void)snprintf(value, sizeof(value), "Waiting");
+        link_gtk_card_append_detail(card, definition->name, value);
     }
     gtk_box_append(GTK_BOX(body), card);
 }
@@ -144,8 +241,8 @@ static void append_generic_status(GtkWidget *body,
                                   const MblinkLinuxContext *context)
 {
     GtkWidget *card = link_gtk_card_new(kicker, title);
-    link_gtk_card_append_status(card, context->connected ? "LINK READY" : "LINK OFFLINE",
-                                context->connected ? "state-success" : "state-warning");
+    link_gtk_card_append_status(card, diagnostic_text(context),
+                                context->diagnostic_ready ? "state-success" : "state-warning");
     link_gtk_card_append_note(card, note);
     gtk_box_append(GTK_BOX(body), card);
 }
@@ -157,21 +254,22 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
     case LINK_WORKSPACE_VEHICLE: append_vehicle(body, context); break;
     case LINK_WORKSPACE_MODULES: append_modules(body); break;
     case LINK_WORKSPACE_FAULTS: append_faults(body, context); break;
-    case LINK_WORKSPACE_LIVE_DATA: append_parameters(body, false); break;
-    case LINK_WORKSPACE_TABLE: append_parameters(body, true); break;
+    case LINK_WORKSPACE_LIVE_DATA: append_parameters(body, false, context); break;
+    case LINK_WORKSPACE_TABLE: append_parameters(body, true, context); break;
     case LINK_WORKSPACE_DASHBOARD: append_dashboard(body, context); break;
     case LINK_WORKSPACE_GRAPHS:
         append_generic_status(body, "INSTRUMENT TRACES", "Signal history",
-                              "Time-series traces populate from real LINK telemetry samples.", context); break;
+                              "Time-series traces now receive real LINK telemetry samples from the active Linux diagnostic flow.", context); break;
     case LINK_WORKSPACE_LOG:
         append_generic_status(body, "SESSION RECORDER", "Diagnostic evidence",
-                              "The shared recorder preserves raw diagnostic evidence and telemetry for export.", context); break;
+                              "The shared recorder/evidence path can consume the same real diagnostic events without inventing data.", context); break;
     case LINK_WORKSPACE_SETTINGS: {
         GtkWidget *card = link_gtk_card_new("MBLINK", "System identity");
         link_gtk_card_append_detail(card, "Version", mblink_version());
         link_gtk_card_append_detail(card, "Product", "Mercedes-Benz diagnostics");
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK serial ELM327 provider");
+        link_gtk_card_append_detail(card, "Linux diagnostic flow", "Automatic PID + DTC + live polling");
         gtk_box_append(GTK_BOX(body), card);
         break;
     }
@@ -197,6 +295,30 @@ static void connection_changed(LinkTransport *transport,
                    connected && adapter_identity != NULL ? adapter_identity : "");
 }
 
+static void diagnostic_changed(const LinkDiagnosticFlow *flow,
+                               const LinkDiagnosticFlowEvent *event,
+                               bool active,
+                               bool ready,
+                               void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    context->diagnostic_active = active;
+    context->diagnostic_ready = ready;
+    if (flow == NULL) {
+        context->diagnostic_valid = false;
+        memset(&context->diagnostic, 0, sizeof(context->diagnostic));
+        memset(context->sample_valid, 0, sizeof(context->sample_valid));
+        memset(context->samples, 0, sizeof(context->samples));
+        return;
+    }
+    context->diagnostic = *flow;
+    context->diagnostic_valid = true;
+    if (event != NULL && event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
+        context->samples[event->sample.pid] = event->sample;
+        context->sample_valid[event->sample.pid] = true;
+    }
+}
+
 int main(int argc, char **argv)
 {
     MblinkLinuxContext context = {0};
@@ -211,6 +333,7 @@ int main(int argc, char **argv)
     descriptor.render_section = render_section;
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
+    descriptor.diagnostic_changed = diagnostic_changed;
     descriptor.context = &context;
     return link_gtk_shell_run(argc, argv, &descriptor);
 }
