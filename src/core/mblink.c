@@ -26,6 +26,7 @@
  */
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/core/workspace.c"
+#include "../link/src/core/fuel_economy.c"
 #include "../link/src/core/diagnostic_flow.c"
 #include "../link/src/core/parameter.c"
 #include "../link/src/core/scheduler.c"
