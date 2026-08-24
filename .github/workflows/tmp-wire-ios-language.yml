@@ -26,3 +26,5 @@ jobs:
           git add app/ios/MBLINK/MBLINKApp.swift app/ios/MBLINK.xcodeproj/project.pbxproj
           git commit -m "Wire live English German Polish iPhone UI"
           git push origin HEAD:main
+
+# hardened helper revision 2
