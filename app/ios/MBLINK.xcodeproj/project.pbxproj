@@ -32,6 +32,7 @@
 		D1A900000000000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000005 /* Localizable.strings */; };
 		D1A900000000000000000006 /* link_i18n.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000008 /* link_i18n.c */; };
 		D1A900000000000000000007 /* link_i18n_platform.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000009 /* link_i18n_platform.c */; };
+		D1A900000000000000000010 /* link_language_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000011 /* link_language_pack.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +89,7 @@
 		A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000008 /* link_i18n.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n.c; path = "../../src/link/src/core/i18n.c"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000009 /* link_i18n_platform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n_platform.c; path = "../../src/link/src/core/i18n_platform.c"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000011 /* link_language_pack.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_language_pack.c; path = "../../src/link/src/core/language_pack.c"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000020 /* en-AU */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en-AU"; path = "MBLINK/en-AU.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000021 /* en-US */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en-US"; path = "MBLINK/en-US.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000022 /* en-GB */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en-GB"; path = "MBLINK/en-GB.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
@@ -390,6 +392,7 @@
 				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
 				D1A900000000000000000006 /* link_i18n.c in Sources */,
 				D1A900000000000000000007 /* link_i18n_platform.c in Sources */,
+				D1A900000000000000000010 /* link_language_pack.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
