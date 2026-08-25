@@ -42,7 +42,14 @@ struct MercedesTargetSignal: Identifiable {
 }
 
 private func mblinkLocalized(_ key: String) -> String {
-    let language = UserDefaults.standard.string(forKey: "mblink.language") ?? "en"
+    let stored = UserDefaults.standard.string(forKey: "mblink.language") ?? "en-AU"
+    let language: String
+    switch stored {
+    case "en": language = "en-AU"
+    case "de": language = "de-DE"
+    case "pl": language = "pl-PL"
+    default: language = stored
+    }
     guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
           let bundle = Bundle(path: path) else {
         return key

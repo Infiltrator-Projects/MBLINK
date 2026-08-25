@@ -316,17 +316,50 @@ private extension DiagnosticParameter {
     }
 }
 
+private struct MBInterfaceLanguage: Identifiable, Hashable {
+    let id: String
+    let nativeName: String
+
+    static let all: [MBInterfaceLanguage] = {
+        let count = Int(link_i18n_supported_locale_count())
+        return (0..<count).compactMap { index in
+            guard let locale = link_i18n_supported_locale(index),
+                  let name = link_i18n_supported_locale_name(index) else { return nil }
+            return MBInterfaceLanguage(id: String(cString: locale), nativeName: String(cString: name))
+        }
+    }()
+
+    static func canonical(_ stored: String) -> String {
+        switch stored {
+        case "en": return "en-AU"
+        case "de": return "de-DE"
+        case "pl": return "pl-PL"
+        default: return all.contains(where: { $0.id == stored }) ? stored : "en-AU"
+        }
+    }
+
+    static func displayName(for stored: String) -> String {
+        let code = canonical(stored)
+        return all.first(where: { $0.id == code })?.nativeName ?? "English (Australia)"
+    }
+}
+
 @main
 struct MBLINKApp: App {
     @StateObject private var connection = ConnectionViewModel()
     @State private var showingAbout = false
-    @AppStorage("mblink.language") private var language = "en"
+    @AppStorage("mblink.language") private var language = "en-AU"
 
     var body: some Scene {
         WindowGroup {
             MBCommandCentreView()
                 .environmentObject(connection)
-                .environment(\.locale, Locale(identifier: language))
+                .environment(\.locale, Locale(identifier: MBInterfaceLanguage.canonical(language)))
+                .environment(\.layoutDirection, MBInterfaceLanguage.canonical(language).hasPrefix("ar") ? .rightToLeft : .leftToRight)
+                .onAppear {
+                    let canonical = MBInterfaceLanguage.canonical(language)
+                    if language != canonical { language = canonical }
+                }
                 .preferredColorScheme(.dark)
                 .tint(MBBrand.silverBright)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -1041,17 +1074,27 @@ private struct MBSettingsView: View {
                         }
                     }
                     MBPanel {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Language")
-                                .font(.headline)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Picker("Language", selection: $language) {
-                                Text("English").tag("en")
-                                Text("Deutsch").tag("de")
-                                Text("Polski").tag("pl")
+                        NavigationLink {
+                            MBLanguageSelectionView(selection: $language)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "globe")
+                                    .font(.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text("Language")
+                                    .font(.headline)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Spacer()
+                                Text(MBInterfaceLanguage.displayName(for: language))
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(MBBrand.muted)
                             }
-                            .pickerStyle(.segmented)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                     MBPanel {
                         VStack(alignment: .leading, spacing: 14) {
@@ -1069,6 +1112,40 @@ private struct MBSettingsView: View {
             }
         }
         .mbDiagnosticScreen("Settings")
+    }
+}
+
+private struct MBLanguageSelectionView: View {
+    @Binding var selection: String
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            List {
+                ForEach(MBInterfaceLanguage.all) { item in
+                    Button {
+                        selection = item.id
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(item.nativeName)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(MBBrand.silverBright)
+                            Spacer()
+                            if MBInterfaceLanguage.canonical(selection) == item.id {
+                                Image(systemName: "checkmark")
+                                    .font(.body.weight(.bold))
+                                    .foregroundStyle(MBBrand.silverBright)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(MBBrand.panel)
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+        .mbDiagnosticScreen("Language")
     }
 }
 
