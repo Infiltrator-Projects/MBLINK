@@ -1,4 +1,4 @@
-name: Temporary materialise iPhone language fix
+name: Temporary transport iPhone language fix
 
 on:
   push:
@@ -7,25 +7,22 @@ on:
       - .github/workflows/tmp-wire-ios-language.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  materialise:
+  transport:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Apply iPhone language wiring
         run: python3 scripts/tmp-wire-ios-language.py
-      - name: Stage generated files
+      - name: Create disposable transport commit
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p generated/app/ios/MBLINK generated/app/ios/MBLINK.xcodeproj
-          cp app/ios/MBLINK/MBLINKApp.swift generated/app/ios/MBLINK/MBLINKApp.swift
-          cp app/ios/MBLINK.xcodeproj/project.pbxproj generated/app/ios/MBLINK.xcodeproj/project.pbxproj
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mblink-ios-language-generated
-          path: generated
-          if-no-files-found: error
-          retention-days: 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-wire-ios-language.yml scripts/tmp-wire-ios-language.py
+          git add app/ios/MBLINK/MBLINKApp.swift app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m "Wire live English German Polish iPhone UI"
+          git push --force origin HEAD:refs/heads/tmp-mblink-language-wire
