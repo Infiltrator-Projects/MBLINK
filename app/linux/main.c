@@ -6,6 +6,7 @@
 #include "link/workspace.h"
 #include "mblink/mblink.h"
 #include "mblink/mercedes.h"
+#include "mblink/mercedes_engine_scan.h"
 #include "mblink/parameter.h"
 
 #include <gtk/gtk.h>
@@ -26,6 +27,11 @@ typedef struct MblinkLinuxContext {
     bool sample_valid[256];
     LinkObd2Sample samples[256];
     LinkFuelEconomy fuel_economy;
+    MblinkMercedesEngineScan manufacturer_scan;
+    bool manufacturer_scan_started;
+    bool manufacturer_scan_active;
+    bool manufacturer_scan_complete;
+    bool manufacturer_scan_failed;
 } MblinkLinuxContext;
 
 static const char mblink_css[] =
@@ -52,6 +58,23 @@ static uint64_t monotonic_ms(void)
     return value <= 0 ? 0U : (uint64_t)(value / 1000);
 }
 
+static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
+{
+    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
+    return profile != NULL && profile->endpoint_count != 0U
+        ? &profile->endpoints[0] : NULL;
+}
+
+static void reset_manufacturer_scan(MblinkLinuxContext *context)
+{
+    if (context == NULL) return;
+    memset(&context->manufacturer_scan, 0, sizeof(context->manufacturer_scan));
+    context->manufacturer_scan_started = false;
+    context->manufacturer_scan_active = false;
+    context->manufacturer_scan_complete = false;
+    context->manufacturer_scan_failed = false;
+}
+
 static const char *connection_text(const MblinkLinuxContext *context)
 {
     return context->connected ? "LINKED · ELM327 VERIFIED" : "NOT LINKED";
@@ -62,6 +85,7 @@ static const char *diagnostic_text(const MblinkLinuxContext *context)
     if (!context->connected) return "LINK OFFLINE";
     if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
     if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) return "DIAGNOSTIC SESSION FAILED";
+    if (context->manufacturer_scan_active) return "MERCEDES FACTORY SCAN ACTIVE";
     if (context->diagnostic_ready) return "LIVE DIAGNOSTICS ACTIVE";
     return link_diagnostic_flow_stage_name(context->diagnostic.stage);
 }
@@ -116,11 +140,36 @@ static void append_dtc_list(GtkWidget *card,
     }
 }
 
+static void append_factory_dtc_list(GtkWidget *card,
+                                    const MblinkUdsDtcList *list)
+{
+    size_t index;
+    if (card == NULL || list == NULL) return;
+    if (list->count == 0U) {
+        link_gtk_card_append_detail(card, "Factory faults", "None reported");
+        return;
+    }
+    for (index = 0U; index < list->count; ++index) {
+        char label[48];
+        char code[7];
+        char value[96];
+        if (!mblink_uds_dtc_format_hex(list->records[index].code,
+                                       code, sizeof(code))) {
+            (void)snprintf(code, sizeof(code), "??????");
+        }
+        (void)snprintf(label, sizeof(label), "Factory %zu", index + 1U);
+        (void)snprintf(value, sizeof(value), "%s · status 0x%02X",
+                       code, (unsigned int)list->records[index].status);
+        link_gtk_card_append_detail(card, label, value);
+    }
+    if (list->truncated)
+        link_gtk_card_append_detail(card, "Factory list", "Truncated at safe bounded capacity");
+}
+
 static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
 {
     const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
-    const MblinkMercedesEcuEndpointDefinition *endpoint =
-        profile != NULL && profile->endpoint_count != 0U ? &profile->endpoints[0] : NULL;
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
     GtkWidget *identity = link_gtk_card_new("VEHICLE EVIDENCE", "C207 E 250 CDI");
     GtkWidget *connection = link_gtk_card_new("CONNECTION", "Linux diagnostic link");
 
@@ -138,7 +187,7 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
                                     ? context->adapter_identity : "Select an adapter above and press LINK UP");
     link_gtk_card_append_detail(connection, "Diagnostic flow", diagnostic_text(context));
     link_gtk_card_append_note(connection,
-        "LINK carries the Linux connection directly into ELM initialisation, supported-PID discovery, stored/pending/permanent OBD-II fault inventory and live polling.");
+        "LINK now hands the normal Linux sequence to MBLINK's read-only Mercedes engine probe after SAE PID discovery, then restores the generic OBD-II channel before stored/pending/permanent SAE fault inventory and live polling.");
     gtk_box_append(GTK_BOX(body), identity);
     gtk_box_append(GTK_BOX(body), connection);
 }
@@ -158,21 +207,51 @@ static void append_modules(GtkWidget *body)
         }
     }
     link_gtk_card_append_note(card,
-        "Mercedes-specific endpoint definitions remain in MBLINK; transport, standard OBD-II sequencing and live polling are owned by LINK.");
+        "Mercedes-specific endpoint and factory diagnostic definitions remain in MBLINK. LINK owns transport and standards plumbing; MBLINK owns Mercedes interpretation and the read-only factory probe.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
 static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 {
-    GtkWidget *mercedes = link_gtk_card_new("MERCEDES ENGINE", "Manufacturer profile status");
-    GtkWidget *obd = link_gtk_card_new("STANDARD OBD-II", "Stored, pending and permanent faults");
+    GtkWidget *mercedes = link_gtk_card_new("MERCEDES FACTORY", "Engine ECU factory diagnostics");
+    GtkWidget *obd = link_gtk_card_new("STANDARD SAE OBD-II", "Stored, pending and permanent faults");
     char summary[160];
 
-    link_gtk_card_append_status(mercedes,
-        context->connected ? "PROFILE READY" : "LINK OFFLINE",
-        context->connected ? "state-success" : "state-warning");
+    if (!context->connected) {
+        link_gtk_card_append_status(mercedes, "NOT SCANNED · LINK OFFLINE", "state-warning");
+    } else if (!context->manufacturer_scan_started) {
+        link_gtk_card_append_status(mercedes, "FACTORY SCAN PENDING", "state-warning");
+    } else if (context->manufacturer_scan_active) {
+        (void)snprintf(summary, sizeof(summary), "SCANNING · %s",
+                       mblink_mercedes_engine_scan_stage_name(context->manufacturer_scan.stage));
+        link_gtk_card_append_status(mercedes, summary, "state-warning");
+    } else if (context->manufacturer_scan_complete) {
+        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu factory DTC%s",
+                       context->manufacturer_scan.dtcs.count,
+                       context->manufacturer_scan.dtcs.count == 1U ? "" : "s");
+        link_gtk_card_append_status(mercedes, summary, "state-success");
+        if (context->manufacturer_scan.probe.vin_result ==
+            MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE) {
+            link_gtk_card_append_detail(mercedes, "VIN",
+                                        context->manufacturer_scan.probe.vin);
+        }
+        link_gtk_card_append_detail(mercedes, "Factory DTC result",
+            mblink_mercedes_engine_dtc_result_name(context->manufacturer_scan.dtc_result));
+        link_gtk_card_append_detail(mercedes, "CRD3 / Delphi signature",
+            context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
+                ? "Matched" : "Not matched / insufficient evidence");
+        append_factory_dtc_list(mercedes, &context->manufacturer_scan.dtcs);
+    } else if (context->manufacturer_scan_failed) {
+        link_gtk_card_append_status(mercedes,
+                                    "FACTORY SCAN UNAVAILABLE · SAE PASS CONTINUES",
+                                    "state-warning");
+        link_gtk_card_append_detail(mercedes, "Probe result",
+            mblink_mercedes_ecu_probe_result_name(context->manufacturer_scan.probe_result));
+    } else {
+        link_gtk_card_append_status(mercedes, "FACTORY SCAN STATUS UNKNOWN", "state-warning");
+    }
     link_gtk_card_append_note(mercedes,
-        "The C207/OM651 profile is available for Mercedes-specific read-only probing; the automatic Linux pass below is the shared standards-based inventory.");
+        "These are Mercedes engine-ECU factory UDS results and are kept separate from legislated SAE OBD-II DTCs. Raw 24-bit factory identifiers are not relabelled as SAE P/B/C/U codes unless a Mercedes definition proves that mapping.");
 
     if (!context->connected) {
         link_gtk_card_append_status(obd, "NOT SCANNED · LINK OFFLINE", "state-warning");
@@ -343,7 +422,8 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Product", "Mercedes-Benz diagnostics");
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK serial ELM327 provider");
-        link_gtk_card_append_detail(card, "Linux diagnostic flow", "Automatic PID + DTC + live polling");
+        link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
+        link_gtk_card_append_detail(card, "Factory engine scan", "VIN + identity + CRD3 fingerprint + UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         gtk_box_append(GTK_BOX(body), card);
         break;
@@ -358,6 +438,92 @@ static void show_about(GtkWindow *window, void *context)
     mblink_linux_show_about(window);
 }
 
+static bool manufacturer_begin(void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    if (context == NULL || endpoint == NULL) return false;
+
+    memset(&context->manufacturer_scan, 0, sizeof(context->manufacturer_scan));
+    context->manufacturer_scan_started = true;
+    context->manufacturer_scan_active = false;
+    context->manufacturer_scan_complete = false;
+    context->manufacturer_scan_failed = false;
+    if (!mblink_mercedes_engine_scan_begin(&context->manufacturer_scan, endpoint)) {
+        context->manufacturer_scan_failed = true;
+        return false;
+    }
+    context->manufacturer_scan_active = true;
+    return true;
+}
+
+static bool manufacturer_next_command(char *buffer,
+                                      size_t buffer_size,
+                                      size_t *written,
+                                      uint64_t *timeout_ms,
+                                      void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    MblinkMercedesEcuProbeResult result;
+    if (context == NULL || !context->manufacturer_scan_active) return false;
+
+    result = mblink_mercedes_engine_scan_command(&context->manufacturer_scan,
+                                                 buffer, buffer_size, written);
+    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
+        context->manufacturer_scan_active = false;
+        context->manufacturer_scan_failed = true;
+        return false;
+    }
+    if (timeout_ms != NULL) *timeout_ms = UINT64_C(4000);
+    return true;
+}
+
+static bool manufacturer_accept_response(const LinkElm327Response *response,
+                                         bool *complete,
+                                         void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    MblinkMercedesEcuProbeResult result;
+    if (complete != NULL) *complete = false;
+    if (context == NULL || response == NULL || !context->manufacturer_scan_active)
+        return false;
+
+    result = mblink_mercedes_engine_scan_accept(
+        &context->manufacturer_scan, (const MblinkElm327Response *)response);
+    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
+        context->manufacturer_scan_active = false;
+        context->manufacturer_scan_complete = true;
+        context->manufacturer_scan_failed = false;
+        if (complete != NULL) *complete = true;
+        return true;
+    }
+    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) return true;
+
+    context->manufacturer_scan_active = false;
+    context->manufacturer_scan_failed = true;
+    return false;
+}
+
+static void manufacturer_finished(bool complete, void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    if (context == NULL) return;
+    context->manufacturer_scan_active = false;
+    if (complete) {
+        context->manufacturer_scan_complete = true;
+        context->manufacturer_scan_failed = false;
+    } else if (context->manufacturer_scan_started && !context->manufacturer_scan_complete) {
+        context->manufacturer_scan_failed = true;
+    }
+}
+
+static const LinkGtkManufacturerExtension mblink_manufacturer_extension = {
+    .begin = manufacturer_begin,
+    .next_command = manufacturer_next_command,
+    .accept_response = manufacturer_accept_response,
+    .finished = manufacturer_finished
+};
+
 static void connection_changed(LinkTransport *transport,
                                bool connected,
                                const char *adapter_identity,
@@ -368,6 +534,7 @@ static void connection_changed(LinkTransport *transport,
     context->transport = *transport;
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
+    reset_manufacturer_scan(context);
     if (connected)
         link_fuel_economy_reset_trip(&context->fuel_economy, monotonic_ms());
     else
@@ -419,6 +586,7 @@ int main(int argc, char **argv)
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
+    descriptor.manufacturer_extension = &mblink_manufacturer_extension;
     descriptor.context = &context;
     return link_gtk_shell_run(argc, argv, &descriptor);
 }
