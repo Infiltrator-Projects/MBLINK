@@ -1,0 +1,61 @@
+name: Temporary localise MBLINK connection alert
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/tmp-localise-connection-alert.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Route UIKit alert through selected language pack
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = p.read_text()
+          marker = '@MainActor\nfinal class ConnectionViewModel'
+          helper = '''private func mblinkLocalized(_ key: String) -> String {
+    let language = UserDefaults.standard.string(forKey: "mblink.language") ?? "en"
+    guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+          let bundle = Bundle(path: path) else {
+        return key
+    }
+    return bundle.localizedString(forKey: key, value: key, table: nil)
+}
+
+@MainActor
+final class ConnectionViewModel'''
+          if s.count(marker) != 1:
+              raise SystemExit('ConnectionViewModel class marker changed')
+          s = s.replace(marker, helper, 1)
+          replacements = {
+              'title: "Connection Test"': 'title: mblinkLocalized("Connection Test")',
+              'message: "Real Adapter uses Bluetooth. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator."': 'message: mblinkLocalized("Real Adapter uses Bluetooth. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator.")',
+              'UIAlertAction(title: "Real Adapter", style: .default)': 'UIAlertAction(title: mblinkLocalized("Real Adapter"), style: .default)',
+              'UIAlertAction(title: "Simulated ELM327", style: .default)': 'UIAlertAction(title: mblinkLocalized("Simulated ELM327"), style: .default)',
+              'UIAlertAction(title: "Cancel", style: .cancel)': 'UIAlertAction(title: mblinkLocalized("Cancel"), style: .cancel)',
+          }
+          for old, new in replacements.items():
+              if s.count(old) != 1:
+                  raise SystemExit(f'alert marker changed: {old}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Create disposable transport commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-localise-connection-alert.yml
+          git add app/ios/MBLINK/ConnectionViewModel.swift
+          git commit -m "Localise iPhone connection chooser"
+          git push --force origin HEAD:refs/heads/tmp-mblink-alert-language
