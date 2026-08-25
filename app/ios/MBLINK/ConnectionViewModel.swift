@@ -41,6 +41,15 @@ struct MercedesTargetSignal: Identifiable {
     let provenance: String
 }
 
+private func mblinkLocalized(_ key: String) -> String {
+    let language = UserDefaults.standard.string(forKey: "mblink.language") ?? "en"
+    guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+          let bundle = Bundle(path: path) else {
+        return key
+    }
+    return bundle.localizedString(forKey: key, value: key, table: nil)
+}
+
 @MainActor
 final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsControllerDelegate {
     @Published private(set) var statusText = "Idle"
@@ -93,25 +102,25 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         if isActive { return }
 
         let alert = UIAlertController(
-            title: "Connection Test",
-            message: "Real Adapter uses Bluetooth. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator.",
+            title: mblinkLocalized("Connection Test"),
+            message: mblinkLocalized("Real Adapter uses Bluetooth. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator."),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Real Adapter", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: mblinkLocalized("Real Adapter"), style: .default) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isSimulationActive = false
                 self.controller.start()
             }
         })
-        alert.addAction(UIAlertAction(title: "Simulated ELM327", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: mblinkLocalized("Simulated ELM327"), style: .default) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isSimulationActive = true
                 self.controller.startSimulated()
             }
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: mblinkLocalized("Cancel"), style: .cancel))
 
         guard let presenter = presentingViewController() else {
             isSimulationActive = false
