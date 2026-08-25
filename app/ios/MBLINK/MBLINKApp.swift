@@ -59,7 +59,7 @@ private struct MBStatusPill: View {
             Circle()
                 .fill(active ? MBBrand.success : MBBrand.muted)
                 .frame(width: 7, height: 7)
-            Text(text.uppercased())
+            Text(LocalizedStringKey(text)).textCase(.uppercase)
                 .font(.caption2.weight(.bold))
                 .tracking(0.8)
                 .lineLimit(1)
@@ -101,12 +101,12 @@ private struct MBSectionHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if let kicker {
-                Text(kicker.uppercased())
+                Text(LocalizedStringKey(kicker)).textCase(.uppercase)
                     .font(.caption2.weight(.bold))
                     .tracking(1.4)
                     .foregroundStyle(MBBrand.muted)
             }
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(MBBrand.silverBright)
         }
@@ -120,11 +120,11 @@ private struct MBInfoRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.subheadline)
                 .foregroundStyle(MBBrand.muted)
             Spacer(minLength: 16)
-            Text(value)
+            Text(LocalizedStringKey(value))
                 .font(monospaced ? .subheadline.monospaced() : .subheadline.weight(.medium))
                 .foregroundStyle(MBBrand.silverBright)
                 .multilineTextAlignment(.trailing)
@@ -187,12 +187,12 @@ private struct MBTileFace: View {
                 .foregroundStyle(MBBrand.silverBright)
                 .frame(width: 30, height: 30, alignment: .leading)
 
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(MBBrand.silverBright)
                 .lineLimit(1)
 
-            Text(subtitle)
+            Text(LocalizedStringKey(subtitle))
                 .font(.caption)
                 .foregroundStyle(MBBrand.muted)
                 .lineLimit(2)
@@ -232,7 +232,7 @@ private struct MBMetricTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text(parameter.shortName.uppercased())
+                Text(LocalizedStringKey(parameter.shortName)).textCase(.uppercase)
                     .font(.caption2.monospaced().weight(.bold))
                     .tracking(0.7)
                     .foregroundStyle(MBBrand.silver)
@@ -249,7 +249,7 @@ private struct MBMetricTile: View {
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
 
-            Text(parameter.title)
+            Text(LocalizedStringKey(parameter.title))
                 .font(.caption)
                 .foregroundStyle(MBBrand.muted)
                 .lineLimit(2)
@@ -320,11 +320,13 @@ private extension DiagnosticParameter {
 struct MBLINKApp: App {
     @StateObject private var connection = ConnectionViewModel()
     @State private var showingAbout = false
+    @AppStorage("mblink.language") private var language = "en"
 
     var body: some Scene {
         WindowGroup {
             MBCommandCentreView()
                 .environmentObject(connection)
+                .environment(\.locale, Locale(identifier: language))
                 .preferredColorScheme(.dark)
                 .tint(MBBrand.silverBright)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -464,7 +466,7 @@ private extension View {
     func mbDiagnosticScreen(_ title: String) -> some View {
         self
             .background(MBBrand.background.ignoresSafeArea())
-            .navigationTitle(title)
+            .navigationTitle(LocalizedStringKey(title))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(MBBrand.chrome, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -711,7 +713,7 @@ private struct MBLiveDataView: View {
 
                     Picker("Show", selection: $scope) {
                         ForEach(MBLiveScope.allCases) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(LocalizedStringKey(item.rawValue)).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -721,7 +723,7 @@ private struct MBLiveDataView: View {
                         if !parameters.isEmpty {
                             MBPanel {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Label(group.rawValue, systemImage: group.symbol)
+                                    Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
                                         .font(.headline)
                                         .foregroundStyle(MBBrand.silverBright)
                                         .padding(.bottom, 4)
@@ -756,7 +758,7 @@ private struct MBLiveDataView: View {
     private func liveRow(_ parameter: DiagnosticParameter) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(parameter.title)
+                Text(LocalizedStringKey(parameter.title))
                     .font(.subheadline)
                     .foregroundStyle(MBBrand.silverBright)
                 Text("\(parameter.shortName) · \(parameter.brandPidText)")
@@ -801,7 +803,7 @@ private struct MBDataTableView: View {
                                     .font(.caption.monospaced().weight(.bold))
                                     .foregroundStyle(MBBrand.silver)
                                     .frame(width: 48, alignment: .leading)
-                                Text(parameter.title)
+                                Text(LocalizedStringKey(parameter.title))
                                     .font(.subheadline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Spacer()
@@ -878,7 +880,7 @@ private struct MBDieselView: View {
                         let parameters = connection.diagnosticParameters.filter { $0.brandGroup == group }
                         if !parameters.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
-                                Label(group.rawValue, systemImage: group.symbol)
+                                Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
                                     .font(.headline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 LazyVGrid(columns: mbDashboardColumns, spacing: 10) {
@@ -937,7 +939,7 @@ private struct MBGraphsView: View {
                             MBPanel {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack {
-                                        Text(parameter.title)
+                                        Text(LocalizedStringKey(parameter.title))
                                             .font(.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                         Spacer()
@@ -1018,6 +1020,7 @@ private struct MBSettingsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
     @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
     @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
+    @AppStorage("mblink.language") private var language = "en"
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -1035,6 +1038,19 @@ private struct MBSettingsView: View {
                             MBInfoRow(label: "Status", value: connection.statusText)
                             MBInfoRow(label: "Version", value: version, monospaced: true)
                             MBInfoRow(label: "Bundle", value: Bundle.main.bundleIdentifier ?? "Unknown", monospaced: true)
+                        }
+                    }
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Language")
+                                .font(.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Picker("Language", selection: $language) {
+                                Text("English").tag("en")
+                                Text("Deutsch").tag("de")
+                                Text("Polski").tag("pl")
+                            }
+                            .pickerStyle(.segmented)
                         }
                     }
                     MBPanel {

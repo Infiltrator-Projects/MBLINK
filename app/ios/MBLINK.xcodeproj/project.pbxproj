@@ -29,6 +29,9 @@
 		B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */; };
 		C0A110000000000000000001 /* libInfiltratrCommonPortable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C0A110000000000000000005 /* libInfiltratrCommonPortable.a */; };
 		A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };
+		D1A900000000000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000005 /* Localizable.strings */; };
+		D1A900000000000000000006 /* link_i18n.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000008 /* link_i18n.c */; };
+		D1A900000000000000000007 /* link_i18n_platform.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000009 /* link_i18n_platform.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +86,11 @@
 		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
 		A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "MBLINK/en.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000003 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = "MBLINK/de.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000004 /* pl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl; path = "MBLINK/pl.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000008 /* link_i18n.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n.c; path = "../../src/link/src/core/i18n.c"; sourceTree = SOURCE_ROOT; };
+		D1A900000000000000000009 /* link_i18n_platform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n_platform.c; path = "../../src/link/src/core/i18n_platform.c"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +133,7 @@
 				9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */,
 				152DBA6BC3FE7288A1725A47 /* MBLINK-Bridging-Header.h */,
 				A1B2C3D4E5F60718293C0002 /* Assets.xcassets */,
+				D1A900000000000000000005 /* Localizable.strings */,
 			);
 			name = App;
 			sourceTree = "<group>";
@@ -197,6 +206,19 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXVariantGroup section */
+		D1A900000000000000000005 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				D1A900000000000000000002 /* en */,
+				D1A900000000000000000003 /* de */,
+				D1A900000000000000000004 /* pl */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin PBXNativeTarget section */
 		C13732C8E715C9BEE4FA51C9 /* MBLINK */ = {
 			isa = PBXNativeTarget;
@@ -257,6 +279,8 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				de,
+				pl,
 				Base,
 			);
 			mainGroup = E50290A24C49A459B43487C5;
@@ -292,6 +316,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */,
+				D1A900000000000000000001 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -327,6 +352,8 @@
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
 				C3A42E37825A806839C66F16 /* probe.c in Sources */,
 				B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */,
+				D1A900000000000000000006 /* link_i18n.c in Sources */,
+				D1A900000000000000000007 /* link_i18n_platform.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
