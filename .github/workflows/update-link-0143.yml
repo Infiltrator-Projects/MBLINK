@@ -1,0 +1,72 @@
+name: Temporary MBLINK LINK 0.14.3 update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update-link-0143.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config
+      - name: Pin LINK 0.14.3 and update Linux prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C src/link fetch origin main
+          git -C src/link checkout 78acc943c4491ae0e975335f6af7323aa7081a08
+          git -C src/link submodule update --init --recursive
+          printf '0.7.50\n' > VERSION
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('packaging/native-installer.sh')
+          s = p.read_text()
+          s = s.replace('build-essential cmake pkg-config libgtk-4-dev',
+                        'build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev')
+          needle = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    return 0\n"
+          replacement = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    pkg-config --exists bluez >/dev/null 2>&1 || return 1\n    return 0\n"
+          if needle not in s:
+              raise SystemExit('MBLINK prerequisite check insertion point missing')
+          s = s.replace(needle, replacement, 1)
+          p.write_text(s)
+
+          p = Path('.github/workflows/ci.yml')
+          s = p.read_text()
+          old = 'build-essential cmake dpkg-dev libgtk-4-dev pkg-config'
+          new = 'build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config'
+          if old not in s:
+              raise SystemExit('MBLINK CI Linux dependency line missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Build and test updated MBLINK Linux app
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = '0.14.3'
+          cmake -S . -B build-update -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=ON
+          cmake --build build-update --parallel 2
+          ctest --test-dir build-update --output-on-failure
+          scripts/build-native-installer.sh "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run"
+          "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run" --help >/dev/null
+      - name: Publish staged source update to main
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/update-link-0143.yml
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add -A
+          git commit -m 'Stage 0.7.50 dual-mode Bluetooth transport'
+          git push origin HEAD:main
