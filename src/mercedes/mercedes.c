@@ -241,9 +241,27 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
                 .tx_address_extension = 0U,
                 .rx_address_extension = 0U
             },
-            .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            .status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
             .provenance =
-                "autodiag2/database maps W207 E 250 2200 CDI (148/150 kW) to Delphi CRD3.x; independent public Foxwell-derived Mercedes CRD3 system data identifies CAN 0x7E0 request / 0x7E8 response and extended-session access 0x1003; exact C207 capture still required for vehicle-verified status"
+                "Independent W207/CRD3 sources identify 0x7E0/0x7E8; a direct 2026-08-26 Linux MBLINK vehicle capture then verified this endpoint with TesterPresent, VIN DID, CRD3 identity DIDs and ReadDTCInformation. Vehicle-identifying data is deliberately not embedded in the repository."
+        },
+        {
+            .key = "c207-secondary-powertrain-eobd-11bit",
+            .name = "Secondary EOBD powertrain ECU",
+            .module = MBLINK_MERCEDES_MODULE_OTHER,
+            .address = {
+                .tx_can_id = UINT32_C(0x7e1),
+                .rx_can_id = UINT32_C(0x7e9),
+                .tx_extended_id = false,
+                .rx_extended_id = false,
+                .addressing_mode = MBLINK_ISOTP_ADDRESSING_NORMAL,
+                .target_type = MBLINK_ISOTP_TARGET_PHYSICAL,
+                .tx_address_extension = 0U,
+                .rx_address_extension = 0U
+            },
+            .status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+            .provenance =
+                "Direct 2026-08-26 Linux MBLINK vehicle capture returned a valid UDS negative response to TesterPresent at physical 0x7E1/0x7E9, proving an ECU responder at this address. Exact ECU identity remains intentionally unassigned until separately evidenced."
         }
     };
     static const MblinkMercedesVehicleProfile profile = {
