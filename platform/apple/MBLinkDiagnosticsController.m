@@ -190,7 +190,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         { "22F196", "62F196010203040506" },
         { "221001", "621001AABBCCDD" },
         { "221002", "6210021122" },
-        { "1902FF", "5902FF0112345609ABCDEF28" }
+        { "1902FF", "5902FF12345609ABCDEF28" }
     };
     for (size_t index = 0U; index < sizeof(replies) / sizeof(replies[0]); ++index) {
         if (strcmp(command, replies[index].command) != 0) continue;
@@ -1010,11 +1010,10 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     switch (_mercedesProbe.dtc_result) {
     case MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE:
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"Complete · %lu Mercedes UDS fault record%@ · availability 0x%02X · format 0x%02X%@",
+            @"Complete · %lu Mercedes UDS fault record%@ · availability 0x%02X%@",
             (unsigned long)self.mercedesUDSFaults.count,
             self.mercedesUDSFaults.count == 1U ? @"" : @"s",
             (unsigned int)_mercedesProbe.dtcs.availability_mask,
-            (unsigned int)_mercedesProbe.dtcs.format_identifier,
             _mercedesProbe.dtcs.truncated ? @" · truncated" : @""];
         break;
     case MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE:

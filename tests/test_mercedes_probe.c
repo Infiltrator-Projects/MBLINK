@@ -205,7 +205,7 @@ static int test_successful_read_only_identity_probe(void)
         size_t written = 0U;
         MblinkElm327Response response = make_response(
             MBLINK_ELM327_RESULT_OK,
-            "5902FF0112345609ABCDEF28",
+            "5902FF12345609ABCDEF28",
             false);
         CHECK(mblink_mercedes_ecu_probe_command(
                   &probe, command, sizeof(command), &written) ==

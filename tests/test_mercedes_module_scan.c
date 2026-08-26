@@ -46,7 +46,7 @@ int main(void)
     MblinkElm327Response tester = response(MBLINK_ELM327_RESULT_OK, "7E00", false);
     MblinkElm327Response no_data = response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
     MblinkElm327Response dtcs = response(MBLINK_ELM327_RESULT_OK,
-        "5902FF0112345609ABCDEF28", false);
+        "5902FF12345609ABCDEF28", false);
     MblinkElm327Response engine_identity = response(
         MBLINK_ELM327_RESULT_OK, "62F19743524433", false);
     MblinkElm327Response unknown_identity = response(

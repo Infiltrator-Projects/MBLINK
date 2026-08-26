@@ -29,7 +29,7 @@ static const MblinkTestElmTraceEntry c207_crd3_fixture[] = {
     { "221001", MBLINK_ELM327_RESULT_OK, "621001000000001000", false },
     { "221002", MBLINK_ELM327_RESULT_OK, "621002000010", false },
     { "1902FF", MBLINK_ELM327_RESULT_OK,
-      "5902FF0112345609ABCDEF28", false }
+      "5902FF12345609ABCDEF28", false }
 };
 
 static int replay_probe_fixture(void)
