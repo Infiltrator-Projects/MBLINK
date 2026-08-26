@@ -165,7 +165,12 @@ static int replay_vehicle_capture_shape(void)
     CHECK(probe.crd3_positive_mask == UINT32_C(0x07));
     CHECK(probe.crd3_negative_mask == UINT32_C(0x18));
     CHECK(probe.crd3_session_variant_available);
-    CHECK(probe.crd3_supplier_available);
+    /*
+     * The vehicle returned F154 payload 00 40, not the one-byte layout from
+     * the published CRD3 simulator. Preserve the raw positive DID evidence,
+     * but do not pretend the supplier encoding has been proven.
+     */
+    CHECK(!probe.crd3_supplier_available);
     CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE);
     CHECK(probe.dtcs.count == 0U);
     return 0;
