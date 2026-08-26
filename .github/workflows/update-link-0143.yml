@@ -81,11 +81,10 @@ jobs:
           ctest --test-dir build-update --output-on-failure
           scripts/build-native-installer.sh "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run"
           "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run" --help >/dev/null
-      - name: Create validated release commit object
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Handoff validated release commit
         run: |
           set -euo pipefail
+          handoff='tmp-mblink-0144-handoff'
           rm -f .github/workflows/update-link-0143.yml
           git add -u .github/workflows/update-link-0143.yml
           if git diff --cached --quiet; then
@@ -93,60 +92,8 @@ jobs:
           else
             git commit --amend --no-edit
           fi
-          python3 - <<'PY'
-          import base64
-          import json
-          import os
-          import subprocess
-          import urllib.request
-          from pathlib import Path
-
-          repo = os.environ['GITHUB_REPOSITORY']
-          token = os.environ['GITHUB_TOKEN']
-          api = f'https://api.github.com/repos/{repo}'
-
-          def git(*args):
-              return subprocess.check_output(['git', *args], text=True).strip()
-
-          def request(path, payload):
-              data = json.dumps(payload).encode()
-              req = urllib.request.Request(
-                  api + path,
-                  data=data,
-                  method='POST',
-                  headers={
-                      'Authorization': f'Bearer {token}',
-                      'Accept': 'application/vnd.github+json',
-                      'X-GitHub-Api-Version': '2022-11-28',
-                      'Content-Type': 'application/json',
-                  })
-              with urllib.request.urlopen(req) as response:
-                  return json.load(response)
-
-          parent = git('rev-parse', 'HEAD^')
-          base_tree = git('rev-parse', f'{parent}^{{tree}}')
-          changed = subprocess.check_output(
-              ['git', 'diff', '--name-status', parent, 'HEAD'], text=True).splitlines()
-          entries = []
-          for line in changed:
-              status, path = line.split('\t', 1)
-              if status == 'D':
-                  entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': None})
-                  continue
-              if path == 'src/link':
-                  entries.append({'path': path, 'mode': '160000', 'type': 'commit',
-                                  'sha': git('rev-parse', 'HEAD:src/link')})
-                  continue
-              mode = git('ls-tree', 'HEAD', '--', path).split()[0]
-              encoded = base64.b64encode(Path(path).read_bytes()).decode()
-              blob = request('/git/blobs', {'content': encoded, 'encoding': 'base64'})
-              entries.append({'path': path, 'mode': mode, 'type': 'blob', 'sha': blob['sha']})
-
-          tree = request('/git/trees', {'base_tree': base_tree, 'tree': entries})
-          commit = request('/git/commits', {
-              'message': git('log', '-1', '--format=%B'),
-              'tree': tree['sha'],
-              'parents': [parent],
-          })
-          print('REMOTE_COMMIT_SHA=' + commit['sha'])
-          PY
+          echo "HANDOFF_COMMIT_SHA=$(git rev-parse HEAD)"
+          git push --force origin "HEAD:refs/heads/${handoff}"
+          echo 'Validated handoff published; allowing time for main ref adoption.'
+          sleep 240
+          git push origin --delete "${handoff}" || true
