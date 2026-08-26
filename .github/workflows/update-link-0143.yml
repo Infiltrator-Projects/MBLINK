@@ -50,10 +50,18 @@ jobs:
           if old not in s:
               raise SystemExit('MBLINK CI Linux dependency line missing')
           p.write_text(s.replace(old, new, 1))
+
+          p = Path('tests/test_mercedes_probe.c')
+          s = p.read_text()
+          old = '''    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==\n          MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR);\n    CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);\n'''
+          new = '''    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==\n          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);\n    CHECK(probe.stage ==\n          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN);\n    CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);\n'''
+          if old not in s:
+              raise SystemExit('Mercedes TesterPresent negative-response test block missing')
+          p.write_text(s.replace(old, new, 1))
           PY
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
-          git add VERSION packaging/native-installer.sh .github/workflows/ci.yml src/link
+          git add VERSION packaging/native-installer.sh .github/workflows/ci.yml tests/test_mercedes_probe.c src/link
           git commit -m 'Release 0.7.50: dual-mode Bluetooth transport'
       - name: Build and test updated MBLINK Linux app
         run: |
