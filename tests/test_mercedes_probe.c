@@ -271,13 +271,6 @@ static int test_optional_identification_failures_continue(void)
         make_response(MBLINK_ELM327_RESULT_OK, "62F19102", false),
         make_response(MBLINK_ELM327_RESULT_OK, "7F2211", false)
     };
-    MblinkElm327Response crd3_outcomes[5] = {
-        make_response(MBLINK_ELM327_RESULT_OK, "62F10002100001", false),
-        make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false),
-        make_response(MBLINK_ELM327_RESULT_OK, "7F2231", false),
-        make_response(MBLINK_ELM327_RESULT_OK, "GG", false),
-        make_response(MBLINK_ELM327_RESULT_OK, "6210021122", false)
-    };
     char command[16];
     size_t written = 0U;
 
