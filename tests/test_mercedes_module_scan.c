@@ -82,11 +82,11 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(mblink_mercedes_module_scan_accept(&scan, &dtcs) ==
 MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.module_count == 2U);
-    CHECK(scan.modules[1].kind == MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    CHECK(scan.modules[1].kind == MBLINK_MERCEDES_MODULE_OTHER);
     CHECK(scan.modules[1].dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
     CHECK(scan.modules[1].dtcs.count == 2U);
     CHECK(scan.modules[1].dtcs.records[0].code == UINT32_C(0x123456));
-    CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[1]), "Transmission ECU") == 0);
+    CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[1]), "Secondary EOBD powertrain ECU") == 0);
     CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 2U);
     CHECK(mblink_mercedes_module_scan_timeout_ms(&scan) > 0U);
 
