@@ -103,9 +103,10 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
  * Return the C207 E 250 CDI / OM651 / Delphi CRD3.x development profile.
  *
  * Independent W207 fitment data and a separate Mercedes diagnostic database
- * corroborate the CRD3.x family and 7E0/7E8 physical CAN endpoint. The endpoint
- * remains below vehicle-verified until a reproducible C207 capture is committed.
- * Manufacturer live-data DIDs remain unbound until their encodings are proven.
+ * corroborate the CRD3.x family. A direct 2026-08-26 C207 capture verifies the
+ * 7E0/7E8 engine endpoint and a secondary responder at 7E1/7E9; identifying
+ * vehicle data is not embedded here. Manufacturer live-data DIDs remain unbound
+ * until their encodings are proven.
  */
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void);
 
