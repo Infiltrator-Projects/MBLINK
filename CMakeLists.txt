@@ -123,6 +123,9 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         target_compile_options(mblink-discover PRIVATE "/FI${MBLINK_LINK_DIR}/platform/windows/link-discover-theme.h")
     endif()
     target_compile_definitions(mblink-discover PRIVATE
+        LINK_ENABLE_FULL_SWEEP=1
+        LINK_FULL_SWEEP_LABEL_7E0="Engine ECU"
+        LINK_FULL_SWEEP_LABEL_7E1="Secondary EOBD powertrain ECU"
         LINK_THEME_BACKGROUND=0x00080605
         LINK_THEME_PANEL=0x00181310
         LINK_THEME_INPUT=0x0014100D
