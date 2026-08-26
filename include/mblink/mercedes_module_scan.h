@@ -204,30 +204,25 @@ static inline void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesMo
 
 static inline void mblink_mercedes_module_scan_advance_candidate(MblinkMercedesModuleScan *scan)
 {
-    /* Normal eleven-bit OBD physical addressing is deliberately bounded to
-       0x7E0..0x7E7.  The previous implementation continued by brute-forcing
-       0x600..0x7F7, causing hundreds of header/filter/probe cycles on a live
-       ELM327 connection.  After the bounded physical range, move directly to
-       the optional ISO 15765 normal-fixed twenty-nine-bit discovery phase. */
-    if (scan->discovery_mode == 0U) {
-        if (scan->candidate_tx < UINT32_C(0x7e7)) {
-            mblink_mercedes_module_scan_set_11_candidate(scan, scan->candidate_tx + 1U);
-            scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
-            return;
-        }
-        scan->discovery_mode = 2U;
-        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29;
+    if (scan == NULL) return;
+
+    /*
+     * The direct C207 capture verifies the normal 11-bit EOBD diagnostic
+     * range used here.  Do not turn the normal inventory into a blind sweep
+     * of unrelated 0x600-0x7FF or 29-bit targets: that kept the live session
+     * in manufacturer-extension for hundreds of NO DATA exchanges.
+     *
+     * Additional Mercedes gateway/address families can be added later as
+     * explicit profile-driven targets when vehicle evidence supports them.
+     */
+    if (scan->discovery_mode == 0U &&
+        scan->candidate_tx < UINT32_C(0x7e7)) {
+        mblink_mercedes_module_scan_set_11_candidate(
+            scan, scan->candidate_tx + 1U);
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
         return;
     }
-    if (scan->discovery_mode == 2U) {
-        uint16_t next = (uint16_t)(scan->normal_fixed_target + 1U);
-        if (next == 0xF1U) ++next;
-        if (next <= 0xFFU) {
-            mblink_mercedes_module_scan_set_29_candidate(scan, next);
-            scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
-            return;
-        }
-    }
+
     mblink_mercedes_module_scan_finish_discovery(scan);
 }
 
