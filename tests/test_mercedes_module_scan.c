@@ -90,19 +90,32 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 2U);
     CHECK(mblink_mercedes_module_scan_timeout_ms(&scan) > 0U);
 
-    /* The normal discovery pass must remain bounded to the legislated
-       physical diagnostic CAN range.  A missed 0x7E7 must move directly to
-       the optional 29-bit phase instead of brute-forcing 0x600..0x7F7. */
+    /*
+     * The C207 capture proves that normal discovery should stop after 0x7E7.
+     * With a responding ECU already recorded, proceed to its DTC inventory.
+     */
+    memset(&scan, 0, sizeof(scan));
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+    scan.discovery_mode = 0U;
+    scan.module_count = 1U;
+    scan.modules[0].tx_can_id = UINT32_C(0x7e0);
+    scan.modules[0].rx_can_id = UINT32_C(0x7e8);
+    scan.modules[0].extended_id = false;
+    mblink_mercedes_module_scan_set_11_candidate(&scan, UINT32_C(0x7e7));
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL);
+    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "ATSP6") == 0);
+
+    /* With no responders there is nothing further to brute-force. */
     memset(&scan, 0, sizeof(scan));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
     scan.discovery_mode = 0U;
     mblink_mercedes_module_scan_set_11_candidate(&scan, UINT32_C(0x7e7));
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29);
-    CHECK(scan.discovery_mode == 2U);
-    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "ATSP7") == 0);
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
     return 0;
 }
