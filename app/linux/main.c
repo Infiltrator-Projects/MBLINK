@@ -237,7 +237,7 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, "MODULE SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(card,
-        "Read-only discovery sweeps physical 11-bit CAN diagnostic addresses and ISO 15765 normal-fixed 29-bit targets. Presence is corroborated with UDS TesterPresent, ReadDTCInformation or standardized VIN reads; no write/coding/security services are used.");
+        "Read-only C207 discovery is bounded to the standard 11-bit physical EOBD range 0x7E0–0x7E7. Presence is corroborated with UDS TesterPresent, ReadDTCInformation or standardized VIN reads; wider Mercedes gateway targets are only added when vehicle evidence supports them.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
@@ -496,7 +496,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK serial + BlueZ BLE ELM327 providers");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + full 11/29-bit module discovery + per-module UDS DTC inventory");
+        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + bounded evidence-backed module discovery + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         gtk_box_append(GTK_BOX(body), card);
         break;
