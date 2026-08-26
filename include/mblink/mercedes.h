@@ -7,6 +7,7 @@
 #define MBLINK_MERCEDES_H
 
 #include "mblink/isotp.h"
+#include "mblink/mercedes_vin.h"
 #include "mblink/uds.h"
 
 #include <stdbool.h>
@@ -100,13 +101,9 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
     MblinkUdsDidValue *value);
 
 /**
- * Return the C207 E 250 CDI / OM651 / Delphi CRD3.x development profile.
- *
- * Independent W207 fitment data and a separate Mercedes diagnostic database
- * corroborate the CRD3.x family. A direct 2026-08-26 C207 capture verifies the
- * 7E0/7E8 engine endpoint and a secondary responder at 7E1/7E9; identifying
- * vehicle data is not embedded here. Manufacturer live-data DIDs remain unbound
- * until their encodings are proven.
+ * Mercedes diagnostic profiles are selected from decoded VIN/Baumuster and
+ * live ECU evidence. Exact model/engine suffixes belong to the VIN catalogue;
+ * these profiles describe only diagnostic families and evidence status.
  */
 const MblinkMercedesEcuEndpointDefinition *
 mblink_mercedes_generic_engine_endpoint(void);

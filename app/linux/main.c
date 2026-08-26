@@ -191,24 +191,115 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
 {
     const MblinkMercedesVehicleProfile *profile = active_vehicle_profile(context);
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
-    GtkWidget *identity = link_gtk_card_new("VEHICLE EVIDENCE", "Automatic Mercedes identification");
+    GtkWidget *identity = link_gtk_card_new(
+        "VEHICLE EVIDENCE", "Automatic Mercedes VIN / Baumuster identification");
     GtkWidget *connection = link_gtk_card_new("CONNECTION", "Linux diagnostic link");
+    MblinkMercedesVinDecode decoded;
+    const bool vin_decoded =
+        context->manufacturer_scan.probe.vin_result ==
+            MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
+        mblink_mercedes_vin_decode(
+            context->manufacturer_scan.probe.vin, &decoded);
+    char detail[192];
 
-    link_gtk_card_append_detail(identity, "Platform", profile != NULL ? profile->chassis_code : "Unavailable");
-    link_gtk_card_append_detail(identity, "Engine", profile != NULL ? profile->engine_family : "Unavailable");
-    link_gtk_card_append_detail(identity, "Profile", profile != NULL ? profile->display_name : "Unavailable");
-    link_gtk_card_append_detail(identity, "Engine ECU", endpoint != NULL ? endpoint->name : "Unavailable");
-    link_gtk_card_append_detail(identity, "Definition", endpoint != NULL ? mblink_mercedes_definition_status_name(endpoint->status) : "Unavailable");
-    link_gtk_card_append_detail(identity, "Physical CAN", "0x7E0 → 0x7E8");
+    if (vin_decoded) {
+        link_gtk_card_append_detail(
+            identity, "WMI",
+            decoded.wmi_definition != NULL
+                ? decoded.wmi_definition->manufacturer : decoded.wmi);
+        if (decoded.wmi_definition != NULL)
+            link_gtk_card_append_detail(
+                identity, "WMI country",
+                decoded.wmi_definition->wmi_country);
+        if (decoded.baumuster_available)
+            link_gtk_card_append_detail(identity, "Baumuster", decoded.baumuster);
 
-    link_gtk_card_append_status(connection, connection_text(context),
-                                context->connected ? "state-success" : "state-warning");
-    link_gtk_card_append_detail(connection, "Adapter",
-                                context->connected && context->adapter_identity[0] != '\0'
-                                    ? context->adapter_identity : "Select an adapter above and press LINK UP");
-    link_gtk_card_append_detail(connection, "Diagnostic flow", diagnostic_text(context));
-    link_gtk_card_append_note(connection,
-        "LINK now hands the normal Linux sequence to MBLINK's read-only Mercedes engine probe after SAE PID discovery, then restores the generic OBD-II channel before stored/pending/permanent SAE fault inventory and live polling.");
+        if (decoded.baumuster_definition != NULL) {
+            link_gtk_card_append_detail(
+                identity, "Chassis",
+                decoded.baumuster_definition->chassis_family);
+            link_gtk_card_append_detail(
+                identity, "Body",
+                decoded.baumuster_definition->body_style);
+            link_gtk_card_append_detail(
+                identity, "Model",
+                decoded.baumuster_definition->model);
+            link_gtk_card_append_detail(
+                identity, "Engine",
+                decoded.baumuster_definition->engine_code);
+            link_gtk_card_append_detail(
+                identity, "Fuel",
+                mblink_mercedes_fuel_type_name(
+                    decoded.baumuster_definition->fuel));
+            if (decoded.baumuster_definition->displacement_cc != 0U) {
+                (void)snprintf(
+                    detail, sizeof(detail), "%u cc",
+                    decoded.baumuster_definition->displacement_cc);
+                link_gtk_card_append_detail(identity, "Displacement", detail);
+            }
+            if (decoded.baumuster_definition->rated_power_kw != 0U) {
+                (void)snprintf(
+                    detail, sizeof(detail), "%u kW",
+                    decoded.baumuster_definition->rated_power_kw);
+                link_gtk_card_append_detail(identity, "Catalogue power", detail);
+            }
+        } else {
+            link_gtk_card_append_detail(
+                identity, "Series", decoded.series_number);
+            link_gtk_card_append_detail(
+                identity, "Model",
+                "Baumuster not yet present in offline catalogue");
+        }
+
+        link_gtk_card_append_detail(
+            identity, "Steering",
+            mblink_mercedes_steering_name(decoded.steering));
+        if (decoded.plant_definition != NULL) {
+            (void)snprintf(
+                detail, sizeof(detail), "%s, %s",
+                decoded.plant_definition->plant,
+                decoded.plant_definition->country);
+            link_gtk_card_append_detail(identity, "Assembly plant", detail);
+        } else if (decoded.plant_code != '\0') {
+            detail[0] = decoded.plant_code;
+            detail[1] = '\0';
+            link_gtk_card_append_detail(identity, "Assembly plant code", detail);
+        }
+        link_gtk_card_append_detail(
+            identity, "Production serial", decoded.serial_number);
+    } else {
+        link_gtk_card_append_detail(
+            identity, "Platform",
+            profile != NULL ? profile->chassis_code : "Unidentified");
+        link_gtk_card_append_detail(
+            identity, "Engine family",
+            profile != NULL ? profile->engine_family : "Unidentified");
+        link_gtk_card_append_detail(
+            identity, "VIN decode", "Waiting for standard VIN DID F190");
+    }
+
+    link_gtk_card_append_detail(
+        identity, "Diagnostic profile",
+        profile != NULL ? profile->display_name : "Mercedes generic");
+    link_gtk_card_append_detail(
+        identity, "Engine ECU",
+        endpoint != NULL ? endpoint->name : "Unavailable");
+    link_gtk_card_append_detail(
+        identity, "Physical CAN", "0x7E0 → 0x7E8");
+
+    link_gtk_card_append_status(
+        connection, connection_text(context),
+        context->connected ? "state-success" : "state-warning");
+    link_gtk_card_append_detail(
+        connection, "Adapter",
+        context->connected && context->adapter_identity[0] != '\0'
+            ? context->adapter_identity
+            : "Select an adapter above and press LINK UP");
+    link_gtk_card_append_detail(
+        connection, "Diagnostic flow", diagnostic_text(context));
+    link_gtk_card_append_note(
+        connection,
+        "MBLINK decodes the Mercedes VIN/FIN offline first, then uses live ECU identity to confirm the controller actually installed. Chassis/model assumptions do not override live evidence.");
     gtk_box_append(GTK_BOX(body), identity);
     gtk_box_append(GTK_BOX(body), connection);
 }

@@ -4,17 +4,28 @@
 
 Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
 
+## Offline Mercedes VIN / FIN / Baumuster decoder
+
+MBLINK contains a portable offline Mercedes VIN decoder. It follows Mercedes-Benz's own FIN decomposition for the long-running numeric Baumuster format: three-character WMI, six-digit vehicle Baumuster, steering code, assembly-plant code and six-digit production serial. When positions 4-9 are not numeric, the decoder preserves the VIN as an ISO VDS-style layout rather than falsely treating it as a Mercedes Baumuster.
+
+The decoded facts are deliberately separated:
+
+- WMI identifies the manufacturer/legal manufacturer context and WMI country.
+- The six-digit Baumuster identifies series/body/engine configuration when a catalogue entry exists.
+- Steering code 1/2 decodes left/right-hand drive on the Mercedes FIN layout.
+- Plant code is decoded separately from the WMI; this is the vehicle assembly location, not merely the WMI country.
+- The final six characters are retained as the production serial.
+- Exact ECU hardware/software remains live UDS evidence and is never inferred solely from VIN.
+
+The first populated Baumuster catalogue covers the C207 coupe family across diesel and petrol engines, including OM651, OM642, M271, M272, M273, M274, M276 and M278 variants. Unknown six-digit types still decode structurally and remain catalogue-unknown instead of being guessed. The catalogue is data-driven so additional Mercedes series can be added without changing the VIN parser or LINK.
+
 ## Vehicle-family identification before ECU-family probing
 
 MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
 
 The normal Mercedes engine probe therefore starts from a generic read-only physical engine-ECU candidate, reads VIN and standardized identity first, and selects the narrowest supported vehicle/engine profile from evidence. CRD3-only fingerprint DIDs are gated behind that selection. Known petrol or unknown engine families proceed directly from standardized identity to read-only UDS fault inventory unless their returned ECU identity independently indicates CRD3.
 
-Current C207 VIN type-code mappings are intentionally family-level:
-- `207.301`-`207.304` → OM651 diesel family, CRD3 extension permitted;
-- `207.347`/`207.348` → M271.860 petrol family, CRD3 extension suppressed;
-- `207.334`/`207.336` → M274.920 petrol family, CRD3 extension suppressed;
-- other C207 variants → C207/engine-unidentified until more evidence is available.
+C207 identification now comes from the shared offline Baumuster catalogue rather than a short hard-coded list. The catalogue carries exact model, engine code, engine family, fuel, body style, displacement and source provenance. Diagnostic selection consumes only the resulting family evidence: OM651 permits the CRD3 extension; petrol M271/M274 and other non-CRD3 families do not. Unknown Baumuster values remain structurally decoded but engine-unidentified until catalogue evidence is added.
 
 A vehicle capture from one member of a family does not promote every member to vehicle-verified status. Family profiles are source-corroborated; exact vehicle verification remains attached to reproducible evidence rather than to a model badge.
 

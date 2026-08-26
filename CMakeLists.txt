@@ -61,8 +61,8 @@ add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE
 add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
-    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/probe.c
-    src/mercedes/discover_plan.c)
+    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
+    src/mercedes/probe.c src/mercedes/discover_plan.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(mblink PUBLIC LINK::Core)
@@ -163,6 +163,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-uds-dtc tests/test_uds_dtc.c)
     mblink_add_test(mblink-test-discover-plan tests/test_discover_plan.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
+    mblink_add_test(mblink-test-mercedes-vin tests/test_mercedes_vin.c)
     mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-om651 tests/test_mercedes_om651.c)
     mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)

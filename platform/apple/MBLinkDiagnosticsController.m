@@ -948,6 +948,42 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         else if ((_mercedesProbe.identity_invalid_mask & bit) != 0U) state = @"invalid response";
         [identityResults addObject:[NSString stringWithFormat:@"%04X · %@ · %@", (unsigned int)did, name, state]];
     }
+    if (_mercedesProbe.vin_result ==
+            MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
+        _mercedesProbe.vin[0] != '\0') {
+        MblinkMercedesVinDecode decoded;
+        if (mblink_mercedes_vin_decode(_mercedesProbe.vin, &decoded)) {
+            if (decoded.baumuster_definition != NULL) {
+                [identityResults addObject:[NSString stringWithFormat:
+                    @"VIN · %@ · %@ · %@ · %@",
+                    MBLinkStringFromCString(decoded.baumuster),
+                    MBLinkStringFromCString(decoded.baumuster_definition->chassis_family),
+                    MBLinkStringFromCString(decoded.baumuster_definition->model),
+                    MBLinkStringFromCString(decoded.baumuster_definition->engine_code)]];
+                [identityResults addObject:[NSString stringWithFormat:
+                    @"ENGINE · %@ · %u cc · %@",
+                    MBLinkStringFromCString(decoded.baumuster_definition->engine_code),
+                    decoded.baumuster_definition->displacement_cc,
+                    MBLinkStringFromCString(
+                        mblink_mercedes_fuel_type_name(
+                            decoded.baumuster_definition->fuel))]];
+            } else if (decoded.baumuster_available) {
+                [identityResults addObject:[NSString stringWithFormat:
+                    @"VIN · Baumuster %@ · series %@ · catalogue entry unavailable",
+                    MBLinkStringFromCString(decoded.baumuster),
+                    MBLinkStringFromCString(decoded.series_number)]];
+            }
+            if (decoded.plant_definition != NULL) {
+                [identityResults addObject:[NSString stringWithFormat:
+                    @"BUILD · %@, %@ · %@ · serial %@",
+                    MBLinkStringFromCString(decoded.plant_definition->plant),
+                    MBLinkStringFromCString(decoded.plant_definition->country),
+                    MBLinkStringFromCString(
+                        mblink_mercedes_steering_name(decoded.steering)),
+                    MBLinkStringFromCString(decoded.serial_number)]];
+            }
+        }
+    }
     self.mercedesIdentityResults = [identityResults copy];
 
     NSString *vinSummary = nil;

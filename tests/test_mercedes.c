@@ -67,10 +67,10 @@ static int test_development_profile(void)
     CHECK(mblink_mercedes_profile_is_crd3_candidate(om651));
 
     CHECK(mblink_mercedes_vehicle_profile_is_valid(m271));
-    CHECK(strcmp(m271->engine_family, "M271.860") == 0);
+    CHECK(strcmp(m271->engine_family, "M271") == 0);
     CHECK(!mblink_mercedes_profile_is_crd3_candidate(m271));
     CHECK(mblink_mercedes_vehicle_profile_is_valid(m274));
-    CHECK(strcmp(m274->engine_family, "M274.920") == 0);
+    CHECK(strcmp(m274->engine_family, "M274") == 0);
     CHECK(!mblink_mercedes_profile_is_crd3_candidate(m274));
 
     CHECK(mblink_mercedes_profile_for_vin("WDD2073022F123456") == om651);

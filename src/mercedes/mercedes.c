@@ -333,8 +333,8 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m271_profile(void)
 {
     static const MblinkMercedesVehicleProfile profile = {
         .chassis_code = "C207",
-        .engine_family = "M271.860",
-        .display_name = "Mercedes-Benz C207 · M271.860 petrol family",
+        .engine_family = "M271",
+        .display_name = "Mercedes-Benz C207 · M271 petrol family",
         .endpoints = &mercedes_generic_engine_endpoint,
         .endpoint_count = 1U,
         .definitions = NULL,
@@ -347,8 +347,8 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m274_profile(void)
 {
     static const MblinkMercedesVehicleProfile profile = {
         .chassis_code = "C207",
-        .engine_family = "M274.920",
-        .display_name = "Mercedes-Benz C207 · M274.920 petrol family",
+        .engine_family = "M274",
+        .display_name = "Mercedes-Benz C207 · M274 petrol family",
         .endpoints = &mercedes_generic_engine_endpoint,
         .endpoint_count = 1U,
         .definitions = NULL,
@@ -366,33 +366,28 @@ static bool mercedes_vin_type_is(const char *vin, const char *type)
 const MblinkMercedesVehicleProfile *mblink_mercedes_profile_for_vin(
     const char *vin)
 {
-    static const char *const om651_types[] = {
-        "207301", "207302", "207303", "207304"
-    };
-    static const char *const m271_types[] = {
-        "207347", "207348"
-    };
-    static const char *const m274_types[] = {
-        "207334", "207336"
-    };
-    size_t index;
+    MblinkMercedesVinDecode decoded;
+    const MblinkMercedesBaumusterDefinition *definition;
 
-    if (vin == NULL || strlen(vin) != 17U) {
+    if (!mblink_mercedes_vin_decode(vin, &decoded))
+        return mblink_mercedes_generic_profile();
+
+    definition = decoded.baumuster_definition;
+    if (definition == NULL) {
+        if (decoded.baumuster_available &&
+            strcmp(decoded.series_number, "207") == 0) {
+            return mblink_mercedes_c207_generic_profile();
+        }
         return mblink_mercedes_generic_profile();
     }
-    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(om651_types); ++index) {
-        if (mercedes_vin_type_is(vin, om651_types[index]))
-            return mblink_mercedes_c207_om651_profile();
-    }
-    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(m271_types); ++index) {
-        if (mercedes_vin_type_is(vin, m271_types[index]))
-            return mblink_mercedes_c207_m271_profile();
-    }
-    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(m274_types); ++index) {
-        if (mercedes_vin_type_is(vin, m274_types[index]))
-            return mblink_mercedes_c207_m274_profile();
-    }
-    if (memcmp(vin + 3U, "207", 3U) == 0)
+
+    if (strcmp(definition->engine_family, "OM651") == 0)
+        return mblink_mercedes_c207_om651_profile();
+    if (strcmp(definition->engine_family, "M271") == 0)
+        return mblink_mercedes_c207_m271_profile();
+    if (strcmp(definition->engine_family, "M274") == 0)
+        return mblink_mercedes_c207_m274_profile();
+    if (strcmp(definition->chassis_family, "C207") == 0)
         return mblink_mercedes_c207_generic_profile();
     return mblink_mercedes_generic_profile();
 }
