@@ -37,6 +37,8 @@ typedef struct MblinkLinuxContext {
     bool module_scan_active;
     bool module_scan_complete;
     bool module_scan_failed;
+    bool full_sweep_requested;
+    bool module_scan_full;
 } MblinkLinuxContext;
 
 static const char mblink_css[] =
@@ -82,6 +84,7 @@ static void reset_manufacturer_scan(MblinkLinuxContext *context)
     context->module_scan_active = false;
     context->module_scan_complete = false;
     context->module_scan_failed = false;
+    context->module_scan_full = false;
 }
 
 static const char *connection_text(const MblinkLinuxContext *context)
@@ -94,6 +97,7 @@ static const char *diagnostic_text(const MblinkLinuxContext *context)
     if (!context->connected) return "LINK OFFLINE";
     if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
     if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) return "DIAGNOSTIC SESSION FAILED";
+    if (context->module_scan_active && context->module_scan_full) return "MERCEDES FULL SWEEP ACTIVE";
     if (context->manufacturer_scan_active || context->module_scan_active) return "MERCEDES FACTORY SCAN ACTIVE";
     if (context->diagnostic_ready) return "LIVE DIAGNOSTICS ACTIVE";
     return link_diagnostic_flow_stage_name(context->diagnostic.stage);
@@ -208,11 +212,13 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
     if (!context->connected) {
         link_gtk_card_append_status(card, "NOT SCANNED · LINK OFFLINE", "state-warning");
     } else if (context->module_scan_active) {
-        (void)snprintf(summary, sizeof(summary), "SCANNING · %zu modules found so far",
+        (void)snprintf(summary, sizeof(summary), "%s · %zu modules found so far",
+             context->module_scan_full ? "FULL SWEEP SCANNING" : "SCANNING",
              context->module_scan.module_count);
         link_gtk_card_append_status(card, summary, "state-warning");
     } else if (context->module_scan_complete) {
-        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu responding module%s%s",
+        (void)snprintf(summary, sizeof(summary), "%s · %zu responding module%s%s",
+             context->module_scan_full ? "FULL SWEEP COMPLETE" : "COMPLETE",
              context->module_scan.module_count,
              context->module_scan.module_count == 1U ? "" : "s",
              context->module_scan.truncated ? " · result capacity reached" : "");
@@ -237,7 +243,7 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, "MODULE SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(card,
-        "Read-only C207 discovery is bounded to the standard 11-bit physical EOBD range 0x7E0–0x7E7. Presence is corroborated with UDS TesterPresent, ReadDTCInformation or standardized VIN reads; wider Mercedes gateway targets are only added when vehicle evidence supports them.");
+        "Normal discovery is bounded to 0x7E0–0x7E7. FULL SWEEP is an explicit read-only forensic pass across 0x600–0x7F7 plus ISO 15765 normal-fixed 29-bit targets. Responders are queried for F197 system-name evidence; unknown ECUs remain address-labelled rather than guessed.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
@@ -511,16 +517,35 @@ static void show_about(GtkWindow *window, void *context)
     mblink_linux_show_about(window);
 }
 
+static MblinkMercedesModuleScanResult begin_module_scan(
+    MblinkLinuxContext *context)
+{
+    if (context == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
+    return context->module_scan_full
+        ? mblink_mercedes_module_scan_begin_full(&context->module_scan)
+        : mblink_mercedes_module_scan_begin(&context->module_scan);
+}
+
+static void request_full_sweep(void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    if (context != NULL) context->full_sweep_requested = true;
+}
+
 static bool manufacturer_begin(void *opaque)
 {
     MblinkLinuxContext *context = opaque;
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    bool full_sweep;
     if (context == NULL || endpoint == NULL) return false;
+    full_sweep = context->full_sweep_requested;
+    context->full_sweep_requested = false;
     reset_manufacturer_scan(context);
+    context->module_scan_full = full_sweep;
     context->manufacturer_scan_started = true;
     if (!mblink_mercedes_engine_scan_begin(&context->manufacturer_scan, endpoint)) {
         context->manufacturer_scan_failed = true;
-        if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+        if (begin_module_scan(context) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
   context->module_scan_active = true;
   return true;
         }
@@ -578,7 +603,7 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
         if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
   context->manufacturer_scan_active = false;
   context->manufacturer_scan_complete = true;
-  if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+  if (begin_module_scan(context) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
       context->module_scan_active = true;
       return true;
   }
@@ -589,7 +614,7 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
         if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) return true;
         context->manufacturer_scan_active = false;
         context->manufacturer_scan_failed = true;
-        if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+        if (begin_module_scan(context) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
   context->module_scan_active = true;
   return true;
         }
@@ -644,6 +669,7 @@ static void connection_changed(LinkTransport *transport,
     MblinkLinuxContext *context = opaque;
     context->connected = connected;
     context->transport = *transport;
+    context->full_sweep_requested = false;
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
     reset_manufacturer_scan(context);
@@ -698,6 +724,8 @@ int main(int argc, char **argv)
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
+    descriptor.diagnostic_restart_action_label = "FULL SWEEP";
+    descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;
     descriptor.context = &context;
     return link_gtk_shell_run(argc, argv, &descriptor);
