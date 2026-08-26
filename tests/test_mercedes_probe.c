@@ -304,17 +304,12 @@ static int test_optional_identification_failures_continue(void)
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
     }
 
-    CHECK(probe.stage ==
-          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT);
-    for (size_t index = 0U; index < 5U; ++index) {
-        CHECK(mblink_mercedes_ecu_probe_command(
-                  &probe, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-        CHECK(mblink_mercedes_ecu_probe_accept(
-                  &probe, &crd3_outcomes[index]) ==
-              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-    }
-
+    /*
+     * VIN was unavailable and the standard identity did not prove CRD3.
+     * The safe default is therefore to skip family-specific DIDs.
+     */
+    CHECK(!probe.crd3_fingerprint_allowed);
+    CHECK(!probe.crd3_fingerprint_attempted);
     CHECK(probe.stage ==
           MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION);
     {
@@ -329,15 +324,15 @@ static int test_optional_identification_failures_continue(void)
     }
 
     CHECK(probe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-    CHECK(probe.identity_no_response_mask == 0x081U);
-    CHECK(probe.identity_negative_mask == 0x122U);
-    CHECK(probe.identity_invalid_mask == 0x204U);
-    CHECK(probe.identity_positive_mask == 0x458U);
-    CHECK(probe.crd3_positive_mask == 0x11U);
-    CHECK(probe.crd3_no_response_mask == 0x02U);
-    CHECK(probe.crd3_negative_mask == 0x04U);
-    CHECK(probe.crd3_invalid_mask == 0x08U);
-    CHECK(probe.crd3_session_variant_available);
+    CHECK(probe.identity_no_response_mask == 0x001U);
+    CHECK(probe.identity_negative_mask == 0x022U);
+    CHECK(probe.identity_invalid_mask == 0x004U);
+    CHECK(probe.identity_positive_mask == 0x018U);
+    CHECK(probe.crd3_positive_mask == 0U);
+    CHECK(probe.crd3_no_response_mask == 0U);
+    CHECK(probe.crd3_negative_mask == 0U);
+    CHECK(probe.crd3_invalid_mask == 0U);
+    CHECK(!probe.crd3_session_variant_available);
     CHECK(!probe.crd3_supplier_available);
     CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE);
     return 0;
