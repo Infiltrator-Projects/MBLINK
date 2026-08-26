@@ -50,8 +50,7 @@ while (($#)); do
             [[ $# -ge 2 ]] || { echo '--prefix requires a directory.' >&2; exit 2; }
             prefix="$2"; shift 2 ;;
         --jobs)
-            [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2 ;;
-            }
+            [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2; }
             jobs="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) printf 'Unknown option: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
