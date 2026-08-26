@@ -6,6 +6,7 @@
 #import "mblink/elm327_session.h"
 #import "mblink/mercedes.h"
 #import "mblink/mercedes_probe.h"
+#import "mblink/mercedes_module_scan.h"
 #import "mblink/telemetry.h"
 #import "link/diagnostic_flow.h"
 #import "link/elm327_simulator.h"
@@ -45,6 +46,10 @@
 - (void)beginMercedesProbe;
 - (void)beginCurrentMercedesProbeCommand;
 - (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
+- (void)beginMercedesModuleScan;
+- (void)beginCurrentMercedesModuleScanCommand;
+- (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
+- (void)updateMercedesModuleScanSummary;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
@@ -59,6 +64,8 @@
     LinkDiagnosticFlow _flow;
     MblinkMercedesEcuProbe _mercedesProbe;
     BOOL _manufacturerProbeActive;
+    MblinkMercedesModuleScan _mercedesModuleScan;
+    BOOL _moduleScanActive;
     MblinkTelemetryStore _telemetry;
     MblinkTelemetryRecorder _recorder;
     MblinkTelemetrySessionMetadata _sessionMetadata;
@@ -273,6 +280,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     self.permanentDTCs = @[];
     _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
     LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
     flowConfig.manufacturer_extension_after_pid_discovery = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
@@ -347,6 +355,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     flowConfig.restore_adapter_after_manufacturer_extension = true;
     (void)link_diagnostic_flow_init(&_flow, &flowConfig);
     _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
     _simulated = NO;
     self.active = NO;
     self.ready = NO;
@@ -373,6 +382,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         mblink_elm327_session_deinit(&_session);
         link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
         _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
         self.ready = NO;
     }
     if (!_sessionInitialized) self.statusText = transport.statusText;
@@ -469,10 +479,12 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
                 self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read timed out";
             }
         }
+        if (_moduleScanActive) { self.mercedesProbeStatusText = @"Mercedes module scan timed out"; self.mercedesUDSFaultStatusText = @"Module fault inventory timed out"; }
         if (MBLinkFlowIsFaultScan(&_flow)) self.faultScanStatusText = @"Fault scan timed out; reconnect required";
         _flow.elm_failure = session->elm_result;
         link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
         _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
         [self setStatus:@"Diagnostic request timed out; reconnect to resynchronise"];
         return;
     }
@@ -485,12 +497,14 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
                 self.mercedesUDSFaultStatusText = [NSString stringWithFormat:@"Mercedes UDS fault read adapter error: %@", reason];
             }
         }
+        if (_moduleScanActive) { self.mercedesProbeStatusText = [NSString stringWithFormat:@"Mercedes module scan adapter error: %@", reason]; self.mercedesUDSFaultStatusText = @"Module fault inventory interrupted"; }
         if (MBLinkFlowIsFaultScan(&_flow)) {
             self.faultScanStatusText = [NSString stringWithFormat:@"Fault scan adapter error: %@", reason];
         }
         _flow.elm_failure = session->elm_result;
         link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_ELM_ERROR);
         _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
         [self setStatus:[NSString stringWithFormat:@"Adapter response failed: %@", reason]];
         return;
     }
@@ -500,6 +514,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         flowConfig.restore_adapter_after_manufacturer_extension = true;
         (void)link_diagnostic_flow_init(&_flow, &flowConfig);
         _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
         [self setStatus:@"Diagnostic request cancelled"];
     }
 }
@@ -520,6 +535,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         return;
     }
 
+    if (_moduleScanActive) { [self processMercedesModuleScanResponse:response]; return; }
     if (_manufacturerProbeActive) { [self processMercedesProbeResponse:response]; return; }
 
     LinkDiagnosticFlowEvent event;
@@ -541,7 +557,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         ? (_sessionInitialized && mblink_elm327_session_is_connected(&_session))
         : _provider.isReady;
     if (!_sessionInitialized || !transportReady ||
-        _flow.stage == LINK_DIAGNOSTIC_FLOW_FAILED || _manufacturerProbeActive) return;
+        _flow.stage == LINK_DIAGNOSTIC_FLOW_FAILED || _manufacturerProbeActive || _moduleScanActive) return;
 
     LinkDiagnosticFlowAction action;
     LinkDiagnosticFlowResult result = link_diagnostic_flow_next_action(
@@ -674,6 +690,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
 {
     link_diagnostic_flow_fail(&_flow, LINK_DIAGNOSTIC_FLOW_RESULT_INVALID_STATE);
     _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
     self.ready = NO;
     [self setStatus:status];
 }
@@ -778,7 +795,7 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
     if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
         [self updateMercedesProbeEvidenceSummary];
-        [self finishMercedesExtensionRestoringAdapter:YES];
+        [self beginMercedesModuleScan];
         return;
     }
     if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
@@ -791,9 +808,121 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     [self beginCurrentMercedesProbeCommand];
 }
 
+- (void)beginMercedesModuleScan
+{
+    if (_simulated) {
+        memset(&_mercedesModuleScan, 0, sizeof(_mercedesModuleScan));
+        _mercedesModuleScan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE;
+        _mercedesModuleScan.module_count = 1U;
+        MblinkMercedesModuleScanEntry *module = &_mercedesModuleScan.modules[0];
+        module->tx_can_id = UINT32_C(0x7e0);
+        module->rx_can_id = UINT32_C(0x7e8);
+        module->kind = MBLINK_MERCEDES_MODULE_ENGINE;
+        module->tester_present_response = true;
+        module->dtcs = _mercedesProbe.dtcs;
+        module->dtc_result = _mercedesProbe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE
+  ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE : MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
+        [self updateMercedesModuleScanSummary];
+        [self finishMercedesExtensionRestoringAdapter:YES];
+        return;
+    }
+    MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_begin(&_mercedesModuleScan);
+    if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+        self.mercedesProbeStatusText = @"Mercedes module discovery could not start";
+        [self finishMercedesExtensionRestoringAdapter:YES];
+        return;
+    }
+    _moduleScanActive = YES;
+    self.mercedesProbeStatusText = @"Discovering Mercedes-Benz control modules (read-only)";
+    self.mercedesUDSFaultStatusText = @"Module discovery in progress";
+    [self notifyDelegate];
+    [self beginCurrentMercedesModuleScanCommand];
+}
+
+- (void)beginCurrentMercedesModuleScanCommand
+{
+    char command[MBLINK_ELM327_MAX_COMMAND];
+    size_t written = 0U;
+    MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_command(
+        &_mercedesModuleScan, command, sizeof(command), &written);
+    if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK || written == 0U) {
+        _moduleScanActive = NO;
+        self.mercedesProbeStatusText = [NSString stringWithFormat:@"Module scan command failed: %@",
+  MBLinkStringFromCString(mblink_mercedes_module_scan_result_name(result))];
+        [self finishMercedesExtensionRestoringAdapter:YES];
+        return;
+    }
+    self.mercedesProbeStatusText = [NSString stringWithFormat:
+        @"Mercedes module scan · %@ · %zu found",
+        MBLinkStringFromCString(mblink_mercedes_module_scan_stage_name(_mercedesModuleScan.stage)),
+        _mercedesModuleScan.module_count];
+    [self notifyDelegate];
+    (void)[self beginCommand:command timeout:mblink_mercedes_module_scan_timeout_ms(&_mercedesModuleScan)];
+}
+
+- (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response
+{
+    MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(&_mercedesModuleScan, response);
+    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
+        _moduleScanActive = NO;
+        [self updateMercedesModuleScanSummary];
+        [self finishMercedesExtensionRestoringAdapter:YES];
+        return;
+    }
+    if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||
+        _mercedesModuleScan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED) {
+        _moduleScanActive = NO;
+        self.mercedesProbeStatusText = [NSString stringWithFormat:@"Module scan incomplete: %@",
+  MBLinkStringFromCString(mblink_mercedes_module_scan_result_name(result))];
+        self.mercedesUDSFaultStatusText = @"Module fault inventory incomplete";
+        [self finishMercedesExtensionRestoringAdapter:YES];
+        return;
+    }
+    [self beginCurrentMercedesModuleScanCommand];
+}
+
+- (void)updateMercedesModuleScanSummary
+{
+    NSMutableArray<NSString *> *identity = self.mercedesIdentityResults != nil
+        ? [self.mercedesIdentityResults mutableCopy] : [[NSMutableArray alloc] init];
+    NSMutableArray<NSString *> *faults = [[NSMutableArray alloc] init];
+    const size_t count = mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    const size_t totalFaults = mblink_mercedes_module_scan_total_dtc_count(&_mercedesModuleScan);
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module = mblink_mercedes_module_scan_module_at(&_mercedesModuleScan, index);
+        if (module == NULL) continue;
+        NSString *name = MBLinkStringFromCString(mblink_mercedes_module_scan_module_name(module));
+        NSString *address = module->extended_id
+  ? [NSString stringWithFormat:@"0x%08X → 0x%08X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id]
+  : [NSString stringWithFormat:@"0x%03X → 0x%03X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id];
+        [identity addObject:[NSString stringWithFormat:@"MODULE · %@ · %@ · %zu fault record%@",
+  name, address, module->dtcs.count, module->dtcs.count == 1U ? @"" : @"s"]];
+        for (size_t dtcIndex = 0U; dtcIndex < module->dtcs.count; ++dtcIndex) {
+  char code[7];
+  if (!mblink_uds_dtc_format_hex(module->dtcs.records[dtcIndex].code, code, sizeof(code))) continue;
+  [faults addObject:[NSString stringWithFormat:@"%@ · %@ · %@ · status 0x%02X",
+      name, address, MBLinkStringFromCString(code),
+      (unsigned int)module->dtcs.records[dtcIndex].status]];
+        }
+    }
+    self.mercedesIdentityResults = [identity copy];
+    self.mercedesIdentitySummaryText = [NSString stringWithFormat:@"%@ · %zu responding module%@",
+        self.mercedesIdentitySummaryText, count, count == 1U ? @"" : @"s"];
+    self.mercedesUDSFaults = [faults copy];
+    self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+        @"Complete · %zu modules · %zu Mercedes factory fault record%@%@",
+        count, totalFaults, totalFaults == 1U ? @"" : @"s",
+        _mercedesModuleScan.truncated ? @" · module list truncated" : @""];
+    self.mercedesProbeStatusText = [NSString stringWithFormat:
+        @"Mercedes full module discovery complete · %zu responding module%@ · per-module fault memory read",
+        count, count == 1U ? @"" : @"s"];
+    [self notifyDelegate];
+}
+
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore
 {
     _manufacturerProbeActive = NO;
+    _moduleScanActive = NO;
     _flow.config.restore_adapter_after_manufacturer_extension = restore;
     LinkDiagnosticFlowResult result = link_diagnostic_flow_resume_after_manufacturer(&_flow);
     if (result != LINK_DIAGNOSTIC_FLOW_RESULT_OK) {

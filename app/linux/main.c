@@ -7,6 +7,7 @@
 #include "mblink/mblink.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_engine_scan.h"
+#include "mblink/mercedes_module_scan.h"
 #include "mblink/parameter.h"
 
 #include <gtk/gtk.h>
@@ -32,6 +33,10 @@ typedef struct MblinkLinuxContext {
     bool manufacturer_scan_active;
     bool manufacturer_scan_complete;
     bool manufacturer_scan_failed;
+    MblinkMercedesModuleScan module_scan;
+    bool module_scan_active;
+    bool module_scan_complete;
+    bool module_scan_failed;
 } MblinkLinuxContext;
 
 static const char mblink_css[] =
@@ -73,6 +78,10 @@ static void reset_manufacturer_scan(MblinkLinuxContext *context)
     context->manufacturer_scan_active = false;
     context->manufacturer_scan_complete = false;
     context->manufacturer_scan_failed = false;
+    memset(&context->module_scan, 0, sizeof(context->module_scan));
+    context->module_scan_active = false;
+    context->module_scan_complete = false;
+    context->module_scan_failed = false;
 }
 
 static const char *connection_text(const MblinkLinuxContext *context)
@@ -85,7 +94,7 @@ static const char *diagnostic_text(const MblinkLinuxContext *context)
     if (!context->connected) return "LINK OFFLINE";
     if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
     if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) return "DIAGNOSTIC SESSION FAILED";
-    if (context->manufacturer_scan_active) return "MERCEDES FACTORY SCAN ACTIVE";
+    if (context->manufacturer_scan_active || context->module_scan_active) return "MERCEDES FACTORY SCAN ACTIVE";
     if (context->diagnostic_ready) return "LIVE DIAGNOSTICS ACTIVE";
     return link_diagnostic_flow_stage_name(context->diagnostic.stage);
 }
@@ -192,28 +201,50 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
     gtk_box_append(GTK_BOX(body), connection);
 }
 
-static void append_modules(GtkWidget *body)
+static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
 {
-    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
-    GtkWidget *card = link_gtk_card_new("MERCEDES PROFILE", "Known ECU endpoints");
-    size_t index;
-    if (profile == NULL || profile->endpoint_count == 0U) {
-        link_gtk_card_append_status(card, "NO ENDPOINT DEFINITIONS", "state-warning");
-    } else {
-        for (index = 0U; index < profile->endpoint_count; ++index) {
-            const MblinkMercedesEcuEndpointDefinition *endpoint = &profile->endpoints[index];
-            link_gtk_card_append_detail(card, endpoint->name,
-                                        mblink_mercedes_definition_status_name(endpoint->status));
+    GtkWidget *card = link_gtk_card_new("MERCEDES MODULE INVENTORY", "Discovered control units");
+    char summary[128];
+    if (!context->connected) {
+        link_gtk_card_append_status(card, "NOT SCANNED · LINK OFFLINE", "state-warning");
+    } else if (context->module_scan_active) {
+        (void)snprintf(summary, sizeof(summary), "SCANNING · %zu modules found so far",
+             context->module_scan.module_count);
+        link_gtk_card_append_status(card, summary, "state-warning");
+    } else if (context->module_scan_complete) {
+        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu responding module%s%s",
+             context->module_scan.module_count,
+             context->module_scan.module_count == 1U ? "" : "s",
+             context->module_scan.truncated ? " · result capacity reached" : "");
+        link_gtk_card_append_status(card, summary, "state-success");
+        for (size_t index = 0U; index < context->module_scan.module_count; ++index) {
+  const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[index];
+  char value[128];
+  if (module->extended_id) {
+      (void)snprintf(value, sizeof(value), "0x%08X → 0x%08X · %zu fault record%s",
+                     (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id,
+                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
+  } else {
+      (void)snprintf(value, sizeof(value), "0x%03X → 0x%03X · %zu fault record%s",
+                     (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id,
+                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
+  }
+  link_gtk_card_append_detail(card, mblink_mercedes_module_scan_module_name(module), value);
         }
+    } else if (context->module_scan_failed) {
+        link_gtk_card_append_status(card, "MODULE INVENTORY INCOMPLETE", "state-warning");
+    } else {
+        link_gtk_card_append_status(card, "MODULE SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(card,
-        "Mercedes-specific endpoint and factory diagnostic definitions remain in MBLINK. LINK owns transport and standards plumbing; MBLINK owns Mercedes interpretation and the read-only factory probe.");
+        "Read-only discovery sweeps physical 11-bit CAN diagnostic addresses and ISO 15765 normal-fixed 29-bit targets. Presence is corroborated with UDS TesterPresent, ReadDTCInformation or standardized VIN reads; no write/coding/security services are used.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
 static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 {
     GtkWidget *mercedes = link_gtk_card_new("MERCEDES FACTORY", "Engine ECU factory diagnostics");
+    GtkWidget *modules = link_gtk_card_new("ALL DISCOVERED MODULES", "Per-module Mercedes UDS fault memory");
     GtkWidget *obd = link_gtk_card_new("STANDARD SAE OBD-II", "Stored, pending and permanent faults");
     char summary[160];
 
@@ -223,35 +254,78 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(mercedes, "FACTORY SCAN PENDING", "state-warning");
     } else if (context->manufacturer_scan_active) {
         (void)snprintf(summary, sizeof(summary), "SCANNING · %s",
-                       mblink_mercedes_engine_scan_stage_name(context->manufacturer_scan.stage));
+             mblink_mercedes_engine_scan_stage_name(context->manufacturer_scan.stage));
         link_gtk_card_append_status(mercedes, summary, "state-warning");
     } else if (context->manufacturer_scan_complete) {
         (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu factory DTC%s",
-                       context->manufacturer_scan.dtcs.count,
-                       context->manufacturer_scan.dtcs.count == 1U ? "" : "s");
+             context->manufacturer_scan.dtcs.count,
+             context->manufacturer_scan.dtcs.count == 1U ? "" : "s");
         link_gtk_card_append_status(mercedes, summary, "state-success");
-        if (context->manufacturer_scan.probe.vin_result ==
-            MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE) {
-            link_gtk_card_append_detail(mercedes, "VIN",
-                                        context->manufacturer_scan.probe.vin);
-        }
+        if (context->manufacturer_scan.probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE)
+  link_gtk_card_append_detail(mercedes, "VIN", context->manufacturer_scan.probe.vin);
         link_gtk_card_append_detail(mercedes, "Factory DTC result",
-            mblink_mercedes_engine_dtc_result_name(context->manufacturer_scan.dtc_result));
+  mblink_mercedes_engine_dtc_result_name(context->manufacturer_scan.dtc_result));
         link_gtk_card_append_detail(mercedes, "CRD3 / Delphi signature",
-            context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
-                ? "Matched" : "Not matched / insufficient evidence");
+  context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
+      ? "Matched" : "Not matched / insufficient evidence");
         append_factory_dtc_list(mercedes, &context->manufacturer_scan.dtcs);
     } else if (context->manufacturer_scan_failed) {
-        link_gtk_card_append_status(mercedes,
-                                    "FACTORY SCAN UNAVAILABLE · SAE PASS CONTINUES",
-                                    "state-warning");
-        link_gtk_card_append_detail(mercedes, "Probe result",
-            mblink_mercedes_ecu_probe_result_name(context->manufacturer_scan.probe_result));
-    } else {
-        link_gtk_card_append_status(mercedes, "FACTORY SCAN STATUS UNKNOWN", "state-warning");
+        link_gtk_card_append_status(mercedes, "ENGINE FACTORY SCAN UNAVAILABLE · MODULE PASS CONTINUES", "state-warning");
     }
     link_gtk_card_append_note(mercedes,
-        "These are Mercedes engine-ECU factory UDS results and are kept separate from legislated SAE OBD-II DTCs. Raw 24-bit factory identifiers are not relabelled as SAE P/B/C/U codes unless a Mercedes definition proves that mapping.");
+        "Mercedes engine-ECU UDS results remain separate from legislated SAE OBD-II DTCs.");
+
+    if (!context->connected) {
+        link_gtk_card_append_status(modules, "NOT SCANNED · LINK OFFLINE", "state-warning");
+    } else if (context->module_scan_active) {
+        (void)snprintf(summary, sizeof(summary), "SCANNING · %zu module%s found",
+             context->module_scan.module_count,
+             context->module_scan.module_count == 1U ? "" : "s");
+        link_gtk_card_append_status(modules, summary, "state-warning");
+    } else if (context->module_scan_complete) {
+        const size_t total = mblink_mercedes_module_scan_total_dtc_count(&context->module_scan);
+        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu modules · %zu factory fault record%s",
+             context->module_scan.module_count, total, total == 1U ? "" : "s");
+        link_gtk_card_append_status(modules, summary, "state-success");
+        for (size_t module_index = 0U; module_index < context->module_scan.module_count; ++module_index) {
+  const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[module_index];
+  char module_label[96];
+  char module_value[128];
+  if (module->extended_id)
+      (void)snprintf(module_label, sizeof(module_label), "%s · 0x%08X",
+                     mblink_mercedes_module_scan_module_name(module), (unsigned int)module->tx_can_id);
+  else
+      (void)snprintf(module_label, sizeof(module_label), "%s · 0x%03X",
+                     mblink_mercedes_module_scan_module_name(module), (unsigned int)module->tx_can_id);
+  if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE)
+      (void)snprintf(module_value, sizeof(module_value), "%zu fault record%s",
+                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
+  else if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE)
+      (void)snprintf(module_value, sizeof(module_value), "DTC read negative response · NRC 0x%02X",
+                     (unsigned int)module->dtc_negative_response_code);
+  else
+      (void)snprintf(module_value, sizeof(module_value), "DTC read %s",
+                     module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE ? "no response" : "unavailable");
+  link_gtk_card_append_detail(modules, module_label, module_value);
+  for (size_t dtc_index = 0U; dtc_index < module->dtcs.count; ++dtc_index) {
+      char code[7];
+      char label[96];
+      char value[96];
+      if (!mblink_uds_dtc_format_hex(module->dtcs.records[dtc_index].code, code, sizeof(code)))
+          (void)snprintf(code, sizeof(code), "??????");
+      (void)snprintf(label, sizeof(label), "  %s fault %zu", mblink_mercedes_module_scan_module_name(module), dtc_index + 1U);
+      (void)snprintf(value, sizeof(value), "%s · status 0x%02X", code,
+                     (unsigned int)module->dtcs.records[dtc_index].status);
+      link_gtk_card_append_detail(modules, label, value);
+  }
+        }
+    } else if (context->module_scan_failed) {
+        link_gtk_card_append_status(modules, "MODULE FAULT INVENTORY INCOMPLETE", "state-warning");
+    } else {
+        link_gtk_card_append_status(modules, "MODULE FAULT SCAN PENDING", "state-warning");
+    }
+    link_gtk_card_append_note(modules,
+        "Each responding ECU is queried independently with UDS ReadDTCInformation 0x19/0x02/0xFF. Fault memory is read only; MBLINK does not clear or alter any module.");
 
     if (!context->connected) {
         link_gtk_card_append_status(obd, "NOT SCANNED · LINK OFFLINE", "state-warning");
@@ -260,22 +334,21 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
     } else if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) {
         link_gtk_card_append_status(obd, "SCAN FAILED · RECONNECT TO RETRY", "state-warning");
     } else if (context->diagnostic_ready) {
-        (void)snprintf(summary, sizeof(summary),
-                       "COMPLETE · %zu stored · %zu pending · %zu permanent",
-                       context->diagnostic.stored_dtcs.count,
-                       context->diagnostic.pending_dtcs.count,
-                       context->diagnostic.permanent_dtcs.count);
+        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu stored · %zu pending · %zu permanent",
+             context->diagnostic.stored_dtcs.count, context->diagnostic.pending_dtcs.count,
+             context->diagnostic.permanent_dtcs.count);
         link_gtk_card_append_status(obd, summary, "state-success");
         append_dtc_list(obd, "Stored", &context->diagnostic.stored_dtcs);
         append_dtc_list(obd, "Pending", &context->diagnostic.pending_dtcs);
         append_dtc_list(obd, "Permanent", &context->diagnostic.permanent_dtcs);
     } else {
         (void)snprintf(summary, sizeof(summary), "SCAN IN PROGRESS · %s",
-                       link_diagnostic_flow_stage_name(context->diagnostic.stage));
+             link_diagnostic_flow_stage_name(context->diagnostic.stage));
         link_gtk_card_append_status(obd, summary, "state-warning");
     }
 
     gtk_box_append(GTK_BOX(body), mercedes);
+    gtk_box_append(GTK_BOX(body), modules);
     gtk_box_append(GTK_BOX(body), obd);
 }
 
@@ -405,7 +478,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
     MblinkLinuxContext *context = opaque;
     switch ((LinkWorkspaceSection)section) {
     case LINK_WORKSPACE_VEHICLE: append_vehicle(body, context); break;
-    case LINK_WORKSPACE_MODULES: append_modules(body); break;
+    case LINK_WORKSPACE_MODULES: append_modules(body, context); break;
     case LINK_WORKSPACE_FAULTS: append_faults(body, context); break;
     case LINK_WORKSPACE_LIVE_DATA: append_parameters(body, false, context); break;
     case LINK_WORKSPACE_TABLE: append_parameters(body, true, context); break;
@@ -421,9 +494,9 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Version", mblink_version());
         link_gtk_card_append_detail(card, "Product", "Mercedes-Benz diagnostics");
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
-        link_gtk_card_append_detail(card, "Linux transport", "LINK serial ELM327 provider");
+        link_gtk_card_append_detail(card, "Linux transport", "LINK serial + BlueZ BLE ELM327 providers");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Factory engine scan", "VIN + identity + CRD3 fingerprint + UDS DTC inventory");
+        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + full 11/29-bit module discovery + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         gtk_box_append(GTK_BOX(body), card);
         break;
@@ -443,14 +516,15 @@ static bool manufacturer_begin(void *opaque)
     MblinkLinuxContext *context = opaque;
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
     if (context == NULL || endpoint == NULL) return false;
-
-    memset(&context->manufacturer_scan, 0, sizeof(context->manufacturer_scan));
+    reset_manufacturer_scan(context);
     context->manufacturer_scan_started = true;
-    context->manufacturer_scan_active = false;
-    context->manufacturer_scan_complete = false;
-    context->manufacturer_scan_failed = false;
     if (!mblink_mercedes_engine_scan_begin(&context->manufacturer_scan, endpoint)) {
         context->manufacturer_scan_failed = true;
+        if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+  context->module_scan_active = true;
+  return true;
+        }
+        context->module_scan_failed = true;
         return false;
     }
     context->manufacturer_scan_active = true;
@@ -458,49 +532,87 @@ static bool manufacturer_begin(void *opaque)
 }
 
 static bool manufacturer_next_command(char *buffer,
-                                      size_t buffer_size,
-                                      size_t *written,
-                                      uint64_t *timeout_ms,
-                                      void *opaque)
+                            size_t buffer_size,
+                            size_t *written,
+                            uint64_t *timeout_ms,
+                            void *opaque)
 {
     MblinkLinuxContext *context = opaque;
-    MblinkMercedesEcuProbeResult result;
-    if (context == NULL || !context->manufacturer_scan_active) return false;
-
-    result = mblink_mercedes_engine_scan_command(&context->manufacturer_scan,
-                                                 buffer, buffer_size, written);
-    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
-        context->manufacturer_scan_active = false;
-        context->manufacturer_scan_failed = true;
-        return false;
+    if (context == NULL) return false;
+    if (context->manufacturer_scan_active) {
+        MblinkMercedesEcuProbeResult result = mblink_mercedes_engine_scan_command(
+  &context->manufacturer_scan, buffer, buffer_size, written);
+        if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
+  context->manufacturer_scan_active = false;
+  context->manufacturer_scan_failed = true;
+  return false;
+        }
+        if (timeout_ms != NULL) *timeout_ms = UINT64_C(4000);
+        return true;
     }
-    if (timeout_ms != NULL) *timeout_ms = UINT64_C(4000);
-    return true;
+    if (context->module_scan_active) {
+        MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_command(
+  &context->module_scan, buffer, buffer_size, written);
+        if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+  context->module_scan_active = false;
+  context->module_scan_failed = true;
+  return false;
+        }
+        if (timeout_ms != NULL) *timeout_ms = mblink_mercedes_module_scan_timeout_ms(&context->module_scan);
+        return true;
+    }
+    return false;
 }
 
 static bool manufacturer_accept_response(const LinkElm327Response *response,
-                                         bool *complete,
-                                         void *opaque)
+                               bool *complete,
+                               void *opaque)
 {
     MblinkLinuxContext *context = opaque;
-    MblinkMercedesEcuProbeResult result;
     if (complete != NULL) *complete = false;
-    if (context == NULL || response == NULL || !context->manufacturer_scan_active)
-        return false;
+    if (context == NULL || response == NULL) return false;
 
-    result = mblink_mercedes_engine_scan_accept(
-        &context->manufacturer_scan, (const MblinkElm327Response *)response);
-    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
+    if (context->manufacturer_scan_active) {
+        MblinkMercedesEcuProbeResult result = mblink_mercedes_engine_scan_accept(
+  &context->manufacturer_scan, (const MblinkElm327Response *)response);
+        if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
+  context->manufacturer_scan_active = false;
+  context->manufacturer_scan_complete = true;
+  if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+      context->module_scan_active = true;
+      return true;
+  }
+  context->module_scan_failed = true;
+  if (complete != NULL) *complete = true;
+  return true;
+        }
+        if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) return true;
         context->manufacturer_scan_active = false;
-        context->manufacturer_scan_complete = true;
-        context->manufacturer_scan_failed = false;
+        context->manufacturer_scan_failed = true;
+        if (mblink_mercedes_module_scan_begin(&context->module_scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+  context->module_scan_active = true;
+  return true;
+        }
+        context->module_scan_failed = true;
         if (complete != NULL) *complete = true;
         return true;
     }
-    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) return true;
 
-    context->manufacturer_scan_active = false;
-    context->manufacturer_scan_failed = true;
+    if (context->module_scan_active) {
+        MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(
+  &context->module_scan, (const MblinkElm327Response *)response);
+        if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
+  context->module_scan_active = false;
+  context->module_scan_complete = true;
+  if (complete != NULL) *complete = true;
+  return true;
+        }
+        if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) return true;
+        context->module_scan_active = false;
+        context->module_scan_failed = true;
+        if (complete != NULL) *complete = true;
+        return true;
+    }
     return false;
 }
 
@@ -509,11 +621,11 @@ static void manufacturer_finished(bool complete, void *opaque)
     MblinkLinuxContext *context = opaque;
     if (context == NULL) return;
     context->manufacturer_scan_active = false;
-    if (complete) {
-        context->manufacturer_scan_complete = true;
-        context->manufacturer_scan_failed = false;
-    } else if (context->manufacturer_scan_started && !context->manufacturer_scan_complete) {
-        context->manufacturer_scan_failed = true;
+    context->module_scan_active = false;
+    if (!complete) {
+        if (context->manufacturer_scan_started && !context->manufacturer_scan_complete)
+  context->manufacturer_scan_failed = true;
+        if (!context->module_scan_complete) context->module_scan_failed = true;
     }
 }
 
