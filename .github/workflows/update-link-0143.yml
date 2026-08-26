@@ -34,35 +34,43 @@ jobs:
 
           p = Path('packaging/native-installer.sh')
           s = p.read_text()
-          s = s.replace('build-essential cmake pkg-config libgtk-4-dev',
-                        'build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev')
-          needle = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    return 0\n"
-          replacement = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    pkg-config --exists bluez >/dev/null 2>&1 || return 1\n    return 0\n"
-          if needle not in s:
-              raise SystemExit('MBLINK prerequisite check insertion point missing')
-          s = s.replace(needle, replacement, 1)
+          if 'libbluetooth-dev' not in s:
+              s = s.replace('build-essential cmake pkg-config libgtk-4-dev',
+                            'build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev')
+          if 'pkg-config --exists bluez' not in s:
+              needle = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    return 0\n"
+              replacement = "    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1\n    pkg-config --exists bluez >/dev/null 2>&1 || return 1\n    return 0\n"
+              if needle not in s:
+                  raise SystemExit('MBLINK prerequisite check insertion point missing')
+              s = s.replace(needle, replacement, 1)
           p.write_text(s)
 
           p = Path('.github/workflows/ci.yml')
           s = p.read_text()
           old = 'build-essential cmake dpkg-dev libgtk-4-dev pkg-config'
           new = 'build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config'
-          if old not in s:
-              raise SystemExit('MBLINK CI Linux dependency line missing')
-          p.write_text(s.replace(old, new, 1))
+          if new not in s:
+              if old not in s:
+                  raise SystemExit('MBLINK CI Linux dependency line missing')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
 
           p = Path('tests/test_mercedes_probe.c')
           s = p.read_text()
           old = '''    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==\n          MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR);\n    CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);\n'''
           new = '''    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==\n          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);\n    CHECK(probe.stage ==\n          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN);\n    CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);\n'''
-          if old not in s:
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
               raise SystemExit('Mercedes TesterPresent negative-response test block missing')
-          p.write_text(s.replace(old, new, 1))
+          p.write_text(s)
           PY
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
           git add VERSION packaging/native-installer.sh .github/workflows/ci.yml tests/test_mercedes_probe.c src/link
-          git commit -m 'Release 0.7.50: dual-mode Bluetooth transport'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Release 0.7.50: dual-mode Bluetooth transport'
+          fi
       - name: Build and test updated MBLINK Linux app
         run: |
           set -euo pipefail
@@ -73,10 +81,72 @@ jobs:
           ctest --test-dir build-update --output-on-failure
           scripts/build-native-installer.sh "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run"
           "$RUNNER_TEMP/MBLINK-0.7.50-linux-native.run" --help >/dev/null
-      - name: Publish staged source update to main
+      - name: Create validated release commit object
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           rm -f .github/workflows/update-link-0143.yml
           git add -u .github/workflows/update-link-0143.yml
-          git commit --amend --no-edit
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            git commit --allow-empty --amend --no-edit
+          else
+            git commit --amend --no-edit
+          fi
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import subprocess
+          import urllib.request
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GITHUB_TOKEN']
+          api = f'https://api.github.com/repos/{repo}'
+
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+
+          def request(path, payload):
+              data = json.dumps(payload).encode()
+              req = urllib.request.Request(
+                  api + path,
+                  data=data,
+                  method='POST',
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'Content-Type': 'application/json',
+                  })
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
+
+          parent = git('rev-parse', 'HEAD^')
+          base_tree = git('rev-parse', f'{parent}^{{tree}}')
+          changed = subprocess.check_output(
+              ['git', 'diff', '--name-status', parent, 'HEAD'], text=True).splitlines()
+          entries = []
+          for line in changed:
+              status, path = line.split('\t', 1)
+              if status == 'D':
+                  entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': None})
+                  continue
+              if path == 'src/link':
+                  entries.append({'path': path, 'mode': '160000', 'type': 'commit',
+                                  'sha': git('rev-parse', 'HEAD:src/link')})
+                  continue
+              mode = git('ls-tree', 'HEAD', '--', path).split()[0]
+              encoded = base64.b64encode(Path(path).read_bytes()).decode()
+              blob = request('/git/blobs', {'content': encoded, 'encoding': 'base64'})
+              entries.append({'path': path, 'mode': mode, 'type': 'blob', 'sha': blob['sha']})
+
+          tree = request('/git/trees', {'base_tree': base_tree, 'tree': entries})
+          commit = request('/git/commits', {
+              'message': git('log', '-1', '--format=%B'),
+              'tree': tree['sha'],
+              'parents': [parent],
+          })
+          print('REMOTE_COMMIT_SHA=' + commit['sha'])
+          PY
