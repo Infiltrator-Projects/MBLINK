@@ -135,7 +135,7 @@ static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMe
 {
     if (module == NULL) return "Mercedes ECU";
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e0)) return "Engine ECU";
-    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1)) return "Transmission ECU";
+    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1)) return "Secondary EOBD powertrain ECU";
     switch (module->kind) {
     case MBLINK_MERCEDES_MODULE_ENGINE: return "Engine ECU";
     case MBLINK_MERCEDES_MODULE_TRANSMISSION: return "Transmission ECU";
@@ -152,7 +152,7 @@ static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMe
 static inline MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t tx_can_id, bool extended_id)
 {
     if (!extended_id && tx_can_id == UINT32_C(0x7e0)) return MBLINK_MERCEDES_MODULE_ENGINE;
-    if (!extended_id && tx_can_id == UINT32_C(0x7e1)) return MBLINK_MERCEDES_MODULE_TRANSMISSION;
+    if (!extended_id && tx_can_id == UINT32_C(0x7e1)) return MBLINK_MERCEDES_MODULE_OTHER;
     return MBLINK_MERCEDES_MODULE_OTHER;
 }
 
