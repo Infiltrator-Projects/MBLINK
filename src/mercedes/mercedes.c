@@ -357,12 +357,6 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m274_profile(void)
     return &profile;
 }
 
-static bool mercedes_vin_type_is(const char *vin, const char *type)
-{
-    return vin != NULL && type != NULL && strlen(vin) == 17U &&
-           strlen(type) == 6U && memcmp(vin + 3U, type, 6U) == 0;
-}
-
 const MblinkMercedesVehicleProfile *mblink_mercedes_profile_for_vin(
     const char *vin)
 {
