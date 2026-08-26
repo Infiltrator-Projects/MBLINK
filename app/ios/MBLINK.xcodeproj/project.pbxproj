@@ -21,6 +21,9 @@
 		E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };
 		E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A09 /* elm327_can.c */; };
 		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
+		E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0C /* discover_plan.c */; };
+		E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0D /* link_sweep.c */; };
+		E0A1B2C3D4E5F60718293B0E /* link_safety.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0E /* link_safety.c */; };
 		06422F9F26875EF894020FA5 /* elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = F11F17B4723669FC1AF042DF /* elm327.c */; };
 		9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = A4A92AE396A1586C99D8BB56 /* session.c */; };
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
@@ -78,6 +81,9 @@
 		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A09 /* elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327_can.c"; path = "../../src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A0C /* discover_plan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "discover_plan.c"; path = "../../src/mercedes/discover_plan.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A0D /* link_sweep.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_sweep.c"; path = "../../src/link/src/discover/sweep.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A0E /* link_safety.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_safety.c"; path = "../../src/link/src/discover/safety.c"; sourceTree = SOURCE_ROOT; };
 		F11F17B4723669FC1AF042DF /* elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327.c"; path = "../../src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A4A92AE396A1586C99D8BB56 /* session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "session.c"; path = "../../src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
 		41A80A01E9B823433E288953 /* probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "probe.c"; path = "../../src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -176,6 +182,9 @@
 				F0A1B2C3D4E5F60718293A05 /* uds.c */,
 				F0A1B2C3D4E5F60718293A06 /* mercedes.c */,
 				F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */,
+				F0A1B2C3D4E5F60718293A0C /* discover_plan.c */,
+				F0A1B2C3D4E5F60718293A0D /* link_sweep.c */,
+				F0A1B2C3D4E5F60718293A0E /* link_safety.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
 				F0A1B2C3D4E5F60718293A09 /* elm327_can.c */,
 				A4A92AE396A1586C99D8BB56 /* session.c */,
@@ -385,6 +394,9 @@
 				E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,
 				E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,
 				E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */,
+				E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */,
+				E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */,
+				E0A1B2C3D4E5F60718293B0E /* link_safety.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
 				E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */,
 				9FC2D25D1FC0CFB4D57458CB /* session.c in Sources */,
@@ -454,7 +466,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.25;
+				MARKETING_VERSION = 0.7.52;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -486,7 +498,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.25;
+				MARKETING_VERSION = 0.7.52;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					-Wall,
@@ -529,7 +541,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.25;
+				MARKETING_VERSION = 0.7.52;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
@@ -565,7 +577,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.25;
+				MARKETING_VERSION = 0.7.52;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "MBLINK/MBLINK-Bridging-Header.h";
