@@ -61,7 +61,8 @@ add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE
 add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
-    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/probe.c)
+    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/probe.c
+    src/mercedes/discover_plan.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(mblink PUBLIC LINK::Core)
@@ -118,14 +119,13 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
         PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
         PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
-        PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png")
+        PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
+        FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
+    target_link_libraries(mblink-discover PRIVATE mblink)
     if(MSVC)
         target_compile_options(mblink-discover PRIVATE "/FI${MBLINK_LINK_DIR}/platform/windows/link-discover-theme.h")
     endif()
     target_compile_definitions(mblink-discover PRIVATE
-        LINK_ENABLE_FULL_SWEEP=1
-        LINK_FULL_SWEEP_LABEL_7E0="Engine ECU"
-        LINK_FULL_SWEEP_LABEL_7E1="Secondary EOBD powertrain ECU"
         LINK_THEME_BACKGROUND=0x00080605
         LINK_THEME_PANEL=0x00181310
         LINK_THEME_INPUT=0x0014100D
@@ -161,6 +161,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-isotp-functional-response tests/test_isotp_functional_response.c)
     mblink_add_test(mblink-test-uds tests/test_uds.c)
     mblink_add_test(mblink-test-uds-dtc tests/test_uds_dtc.c)
+    mblink_add_test(mblink-test-discover-plan tests/test_discover_plan.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
     mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-om651 tests/test_mercedes_om651.c)

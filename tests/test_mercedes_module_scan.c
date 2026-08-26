@@ -115,7 +115,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
      */
     memset(&scan, 0, sizeof(scan));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-    scan.discovery_mode = 0U;
     scan.module_count = 1U;
     scan.modules[0].tx_can_id = UINT32_C(0x7e0);
     scan.modules[0].rx_can_id = UINT32_C(0x7e8);
@@ -131,63 +130,78 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     /* With no responders there is nothing further to brute-force. */
     memset(&scan, 0, sizeof(scan));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-    scan.discovery_mode = 0U;
     mblink_mercedes_module_scan_set_11_candidate(&scan, UINT32_C(0x7e7));
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
 
-    /* Explicit FULL starts at the broad Mercedes diagnostic range, not 7E0. */
-    CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
-    CHECK(scan.discovery_mode == 1U);
-    CHECK(scan.candidate_tx == UINT32_C(0x600));
-    CHECK(scan.candidate_rx == UINT32_C(0x608));
+    /* Explicit FULL consumes the one Mercedes-owned plan. */
+    {
+        const link_discover_sweep_plan *plan =
+            mblink_discover_full_sweep_plan();
+        link_discover_sweep_target target;
 
-    /* A responder can supply F197 evidence that becomes its label. */
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.module_count == 1U);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
-    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "22F197") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &unknown_identity) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.modules[0].identity_available);
-    CHECK(strcmp(scan.modules[0].identity, "ESP") == 0);
-    CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[0]), "ESP") == 0);
-    CHECK(scan.candidate_tx == UINT32_C(0x601));
+        CHECK(link_discover_sweep_plan_is_valid(plan));
+        CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
+        CHECK(scan.full_target_index == 0U);
+        CHECK(scan.candidate_tx == UINT32_C(0x600));
+        CHECK(scan.candidate_rx == UINT32_C(0x608));
 
-    /* Exhaust the 11-bit range, then deliberately enter the 29-bit phase. */
-    memset(&scan, 0, sizeof(scan));
-    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_FULL;
-    scan.discovery_mode = 1U;
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-    mblink_mercedes_module_scan_set_11_candidate(&scan, UINT32_C(0x7f7));
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29);
-    CHECK(send_ok(&scan, "ATSP7") == 0);
-    CHECK(scan.discovery_mode == 2U);
-    CHECK(scan.candidate_extended);
-    CHECK(scan.normal_fixed_target == 0U);
+        /* A responder can still supply F197 evidence that becomes its label. */
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.module_count == 1U);
+        CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "22F197") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &unknown_identity) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.modules[0].identity_available);
+        CHECK(strcmp(scan.modules[0].identity, "ESP") == 0);
+        CHECK(scan.full_target_index == 1U);
+        CHECK(scan.candidate_tx == UINT32_C(0x601));
 
-    /* The tester address F1 is skipped during normal-fixed target enumeration. */
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-    mblink_mercedes_module_scan_set_29_candidate(&scan, UINT16_C(0x00f0));
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.normal_fixed_target == UINT16_C(0x00f2));
+        /* The plan itself controls the 11-bit to 29-bit transition. */
+        memset(&scan, 0, sizeof(scan));
+        scan.scope = MBLINK_MERCEDES_MODULE_SCAN_FULL;
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 503U));
+        CHECK(scan.candidate_tx == UINT32_C(0x7f7));
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.full_target_index == 504U);
+        CHECK(scan.candidate_extended);
+        CHECK(scan.candidate_tx == UINT32_C(0x18da00f1));
+        CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29);
+        CHECK(send_ok(&scan, "ATSP7") == 0);
 
-    /* FF is the last normal-fixed target. */
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-    scan.module_count = 0U;
-    mblink_mercedes_module_scan_set_29_candidate(&scan, UINT16_C(0x00ff));
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+        /* F1 is absent because the MBLINK plan skips the tester address. */
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 744U));
+        CHECK(scan.candidate_tx == UINT32_C(0x18daf0f1));
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.full_target_index == 745U);
+        CHECK(scan.candidate_tx == UINT32_C(0x18daf2f1));
+
+        /* The plan's final target ends discovery. */
+        memset(&scan, 0, sizeof(scan));
+        scan.scope = MBLINK_MERCEDES_MODULE_SCAN_FULL;
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        CHECK(link_discover_sweep_plan_target_at(
+                  plan, plan->target_count - 1U, &target));
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, plan->target_count - 1U));
+        CHECK(scan.candidate_tx == target.tx_can_id);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+        CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+    }
+
     return 0;
 }

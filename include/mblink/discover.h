@@ -31,4 +31,10 @@ typedef link_evidence_writer mblink_evidence_writer;
 #define mblink_evidence_flush link_evidence_flush
 #define mblink_evidence_close link_evidence_close
 
+/*
+ * Mercedes owns the address/probe strategy; LINK owns the sweep machinery.
+ * Both Linux and Windows consume this same product plan.
+ */
+const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void);
+
 #endif
