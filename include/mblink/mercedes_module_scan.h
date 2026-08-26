@@ -6,8 +6,9 @@
  * The scan never sends coding, programming, security-access, routine-control,
  * reset or clear-DTC services. It probes physical diagnostic endpoints using
  * TesterPresent, ReadDTCInformation and ReadDataByIdentifier only, then reads
- * each responding ECU's DTC memory. Both 11-bit physical addressing and the
- * ISO 15765 normal-fixed 29-bit pattern are covered.
+ * each responding ECU's DTC memory. The C207 automatic pass is deliberately
+ * bounded to the standard 11-bit EOBD physical range proven by vehicle capture;
+ * wider gateway/address families require explicit evidence-backed profiles.
  */
 #ifndef MBLINK_MERCEDES_MODULE_SCAN_H
 #define MBLINK_MERCEDES_MODULE_SCAN_H
