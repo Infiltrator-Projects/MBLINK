@@ -51,6 +51,10 @@ jobs:
               raise SystemExit('MBLINK CI Linux dependency line missing')
           p.write_text(s.replace(old, new, 1))
           PY
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add VERSION packaging/native-installer.sh .github/workflows/ci.yml src/link
+          git commit -m 'Release 0.7.50: dual-mode Bluetooth transport'
       - name: Build and test updated MBLINK Linux app
         run: |
           set -euo pipefail
@@ -65,8 +69,6 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/workflows/update-link-0143.yml
-          git config user.name 'Shannon Smith'
-          git config user.email 'infiltratr@yandex.com'
-          git add -A
-          git commit -m 'Stage 0.7.50 dual-mode Bluetooth transport'
+          git add -u .github/workflows/update-link-0143.yml
+          git commit --amend --no-edit
           git push origin HEAD:main
