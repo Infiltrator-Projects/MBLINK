@@ -84,7 +84,7 @@ jobs:
           submodules: recursive
       - run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev pkg-config
+          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config
       - id: version
         shell: bash
         run: |

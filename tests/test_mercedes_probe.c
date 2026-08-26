@@ -357,7 +357,9 @@ static int test_failure_provenance(void)
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
     CHECK(advance_configuration(&probe) == 0);
     CHECK(mblink_mercedes_ecu_probe_accept(&probe, &negative) ==
-          MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR);
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe.stage ==
+          MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN);
     CHECK(probe.uds_failure == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);
     CHECK(probe.uds_negative_response_code == 0x11U);
     CHECK(probe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED);
