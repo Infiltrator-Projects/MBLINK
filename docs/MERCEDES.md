@@ -53,6 +53,23 @@ The CRD3 fingerprint sweep requests these evidence-only identifiers:
 
 The CRD3 identifiers are not treated as DPF, rail-pressure, injector, EGR or turbo parameters. Their purpose is to identify the responding engine-control family and preserve exact raw responses for later fixture promotion. MBLINK does not infer a live-data formula from a positive fingerprint response.
 
+## Delphi CRD3.10 hardware profile research
+
+A dedicated external-research pass on 2026-08-27 strengthened the hardware-family evidence without changing MBLINK's read-only boundary.
+
+Multiple public ECU/firmware catalogues identify 2011 E 250 CDI 2.2-litre / 150 kW applications with Delphi CRD3.10-family control hardware. The strongest recurring identity set is Mercedes hardware `6519040001`, software `6519020001` and spare-part number `6519011801`. Separate C207/A207 fitment listings identify Delphi CRD3.10 units such as Mercedes `A6519003701 / A6519012101` and Delphi `28381049`, demonstrating that one model badge does not imply one immutable part number. Independent CRD3.10 tooling documentation identifies Infineon TriCore TC1797 as the processor used by this ECU family.
+
+MBLINK therefore does **not** hard-code “2011 E250 = one ECU part number.” Instead, the portable probe already reads standardized identity DIDs `F187`, `F188`, `F191` and `F197`. The CRD3 layer now has a source-corroborated hardware profile catalogue and matches those returned values against known families:
+
+- a matching CRD3 system-name prefix alone is a family-level match;
+- one matching hardware/software/spare number is source-corroborated evidence;
+- two or more returned typed numbers matching the same profile is a strong source match;
+- absence of a source match is never converted into a guessed ECU variant.
+
+The first catalogue entry represents the 2011 E250 150 kW CRD3.10 family with HW `6519040001`, SW `6519020001`, spare `6519011801` and source-corroborated TC1797 MCU. This is deliberately not marked vehicle-verified until the physical C207 returns matching identity values. Returned identifiers are displayed directly in the native application so the evidence can be compared with the catalogue instead of being hidden behind a model label.
+
+This profile data remains in MBLINK because it is Mercedes/Delphi-specific; the generic UDS DID acquisition remains in LINK.
+
 ## OM651 / CDID3 family signature
 
 The portable CRD3 decoder understands the payload shape published by the CaesarSuite CRD3 simulator for `F100` and `F154`. `F100` carries gateway mode, a big-endian 16-bit ECU variant and the active session; `F154` carries a one-byte supplier identifier.

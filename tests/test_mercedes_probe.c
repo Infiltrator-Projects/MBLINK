@@ -108,8 +108,12 @@ static int test_successful_read_only_identity_probe(void)
         "22F18C", "22F187", "22F188", "22F189", "22F191", "22F197"
     };
     static const char *identity_responses[] = {
-        "62F18CAA", "62F187AA", "62F188AA",
-        "62F189AA", "62F191AA", "62F197AA"
+        "62F18C534E313233343536",
+        "62F18736353139303131383031",
+        "62F18836353139303230303031",
+        "62F1894D45313231313031",
+        "62F19136353139303430303031",
+        "62F197435244332D3635312D574D4134424433"
     };
     static const char *crd3_commands[] = {
         "22F100", "22F154", "22F196", "221001", "221002"
@@ -199,6 +203,21 @@ static int test_successful_read_only_identity_probe(void)
     CHECK(probe.crd3_supplier_available);
     CHECK(probe.crd3_supplier.supplier_identifier == 64U);
     CHECK(strcmp(probe.crd3_supplier.supplier_name, "Delphi") == 0);
+    CHECK(probe.ecu_spare_part_number_available);
+    CHECK(strcmp(probe.ecu_spare_part_number, "6519011801") == 0);
+    CHECK(probe.ecu_software_number_available);
+    CHECK(strcmp(probe.ecu_software_number, "6519020001") == 0);
+    CHECK(probe.ecu_hardware_number_available);
+    CHECK(strcmp(probe.ecu_hardware_number, "6519040001") == 0);
+    CHECK(probe.ecu_system_name_available);
+    CHECK(strcmp(probe.ecu_system_name, "CRD3-651-WMA4BD3") == 0);
+    CHECK(probe.crd3_hardware_match ==
+          MBLINK_MERCEDES_CRD3_PROFILE_MATCH_STRONG);
+    CHECK(probe.crd3_hardware_profile != NULL);
+    CHECK(strcmp(probe.crd3_hardware_profile->ecu_family,
+                 "Delphi CRD3.10") == 0);
+    CHECK(strcmp(probe.crd3_hardware_profile->microcontroller,
+                 "Infineon TriCore TC1797") == 0);
 
     {
         char command[16];

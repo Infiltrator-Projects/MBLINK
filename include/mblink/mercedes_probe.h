@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #define MBLINK_MERCEDES_PROBE_VIN_LENGTH 17U
+#define MBLINK_MERCEDES_PROBE_IDENTITY_TEXT_CAPACITY 96U
 #define MBLINK_MERCEDES_PROBE_VIN_DID 0xF190U
 #define MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT 6U
 #define MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT 5U
@@ -90,6 +91,16 @@ typedef struct {
     uint32_t identity_negative_mask;
     uint32_t identity_no_response_mask;
     uint32_t identity_invalid_mask;
+    bool ecu_spare_part_number_available;
+    char ecu_spare_part_number[MBLINK_MERCEDES_PROBE_IDENTITY_TEXT_CAPACITY];
+    bool ecu_software_number_available;
+    char ecu_software_number[MBLINK_MERCEDES_PROBE_IDENTITY_TEXT_CAPACITY];
+    bool ecu_hardware_number_available;
+    char ecu_hardware_number[MBLINK_MERCEDES_PROBE_IDENTITY_TEXT_CAPACITY];
+    bool ecu_system_name_available;
+    char ecu_system_name[MBLINK_MERCEDES_PROBE_IDENTITY_TEXT_CAPACITY];
+    MblinkMercedesCrd3ProfileMatch crd3_hardware_match;
+    const MblinkMercedesCrd3HardwareProfile *crd3_hardware_profile;
 
     size_t crd3_index;
     uint32_t crd3_positive_mask;

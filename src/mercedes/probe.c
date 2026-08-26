@@ -81,6 +81,42 @@ static bool mercedes_probe_vin_character_is_valid(uint8_t value)
     return value != (uint8_t)'I' && value != (uint8_t)'O' && value != (uint8_t)'Q';
 }
 
+static bool mercedes_probe_copy_printable_identity(
+    const LinkEcuProbeDidResult *result,
+    char *buffer,
+    size_t capacity)
+{
+    size_t length;
+    size_t index;
+
+    if (buffer == NULL || capacity == 0U) return false;
+    buffer[0] = '\0';
+    if (result == NULL || result->status != LINK_ECU_PROBE_READ_AVAILABLE ||
+        result->data_length == 0U) {
+        return false;
+    }
+
+    length = result->data_length;
+    while (length != 0U &&
+           (result->data[length - 1U] == 0U ||
+            result->data[length - 1U] == UINT8_C(0xff) ||
+            result->data[length - 1U] == (uint8_t)' ')) {
+        --length;
+    }
+    if (length == 0U || length >= capacity) return false;
+
+    for (index = 0U; index < length; ++index) {
+        const uint8_t value = result->data[index];
+        if (value < UINT8_C(0x20) || value > UINT8_C(0x7e)) {
+            buffer[0] = '\0';
+            return false;
+        }
+        buffer[index] = (char)value;
+    }
+    buffer[length] = '\0';
+    return true;
+}
+
 static MblinkMercedesEcuProbeResult mercedes_probe_map_result(LinkEcuProbeResult result)
 {
     switch (result) {
@@ -260,6 +296,42 @@ static void mercedes_probe_sync_evidence(MblinkMercedesEcuProbe *probe)
                                     &probe->crd3_no_response_mask,
                                     &probe->crd3_invalid_mask);
         }
+    }
+
+    probe->ecu_spare_part_number_available =
+        mercedes_probe_copy_printable_identity(
+            link_ecu_probe_did_result_at(&probe->shared, 2U),
+            probe->ecu_spare_part_number,
+            sizeof(probe->ecu_spare_part_number));
+    probe->ecu_software_number_available =
+        mercedes_probe_copy_printable_identity(
+            link_ecu_probe_did_result_at(&probe->shared, 3U),
+            probe->ecu_software_number,
+            sizeof(probe->ecu_software_number));
+    probe->ecu_hardware_number_available =
+        mercedes_probe_copy_printable_identity(
+            link_ecu_probe_did_result_at(&probe->shared, 5U),
+            probe->ecu_hardware_number,
+            sizeof(probe->ecu_hardware_number));
+    probe->ecu_system_name_available =
+        mercedes_probe_copy_printable_identity(
+            link_ecu_probe_did_result_at(&probe->shared, 6U),
+            probe->ecu_system_name,
+            sizeof(probe->ecu_system_name));
+    {
+        const MblinkMercedesCrd3ObservedIdentity observed = {
+            probe->ecu_hardware_number_available
+                ? probe->ecu_hardware_number : NULL,
+            probe->ecu_software_number_available
+                ? probe->ecu_software_number : NULL,
+            probe->ecu_spare_part_number_available
+                ? probe->ecu_spare_part_number : NULL,
+            probe->ecu_system_name_available
+                ? probe->ecu_system_name : NULL
+        };
+        probe->crd3_hardware_match =
+            mblink_mercedes_crd3_match_hardware_profile(
+                &observed, &probe->crd3_hardware_profile);
     }
 
     probe->crd3_session_variant_available = false;

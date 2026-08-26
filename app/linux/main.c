@@ -274,6 +274,27 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_detail(mercedes, "CRD3 / Delphi signature",
   context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
       ? "Matched" : "Not matched / insufficient evidence");
+        if (context->manufacturer_scan.probe.ecu_hardware_number_available)
+  link_gtk_card_append_detail(mercedes, "ECU hardware",
+      context->manufacturer_scan.probe.ecu_hardware_number);
+        if (context->manufacturer_scan.probe.ecu_software_number_available)
+  link_gtk_card_append_detail(mercedes, "ECU software",
+      context->manufacturer_scan.probe.ecu_software_number);
+        if (context->manufacturer_scan.probe.ecu_spare_part_number_available)
+  link_gtk_card_append_detail(mercedes, "ECU spare part",
+      context->manufacturer_scan.probe.ecu_spare_part_number);
+        if (context->manufacturer_scan.probe.ecu_system_name_available)
+  link_gtk_card_append_detail(mercedes, "ECU system name",
+      context->manufacturer_scan.probe.ecu_system_name);
+        if (context->manufacturer_scan.probe.crd3_hardware_profile != NULL) {
+  char profile_match[192];
+  (void)snprintf(profile_match, sizeof(profile_match), "%s · %s · %s",
+      context->manufacturer_scan.probe.crd3_hardware_profile->ecu_family,
+      context->manufacturer_scan.probe.crd3_hardware_profile->microcontroller,
+      mblink_mercedes_crd3_profile_match_name(
+          context->manufacturer_scan.probe.crd3_hardware_match));
+  link_gtk_card_append_detail(mercedes, "ECU source profile", profile_match);
+        }
         append_factory_dtc_list(mercedes, &context->manufacturer_scan.dtcs);
     } else if (context->manufacturer_scan_failed) {
         link_gtk_card_append_status(mercedes, "ENGINE FACTORY SCAN UNAVAILABLE · MODULE PASS CONTINUES", "state-warning");

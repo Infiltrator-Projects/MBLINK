@@ -1006,6 +1006,19 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         self.mercedesCrd3SummaryText = @"No decodable F100/F154 CRD3 identity returned";
     }
 
+    if (_mercedesProbe.crd3_hardware_profile != NULL) {
+        NSString *family = MBLinkStringFromCString(
+            _mercedesProbe.crd3_hardware_profile->ecu_family);
+        NSString *mcu = MBLinkStringFromCString(
+            _mercedesProbe.crd3_hardware_profile->microcontroller);
+        NSString *match = MBLinkStringFromCString(
+            mblink_mercedes_crd3_profile_match_name(
+                _mercedesProbe.crd3_hardware_match));
+        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+            @"%@ · source profile %@ · %@ · %@",
+            self.mercedesCrd3SummaryText, family, mcu, match];
+    }
+
     self.mercedesUDSFaults = MBLinkMercedesUDSDTCStrings(&_mercedesProbe.dtcs);
     switch (_mercedesProbe.dtc_result) {
     case MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE:

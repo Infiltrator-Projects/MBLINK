@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,202 @@ typedef struct {
     uint8_t supplier_identifier;
     const char *supplier_name;
 } MblinkMercedesCrd3Supplier;
+
+typedef enum {
+    MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE = 0,
+    MBLINK_MERCEDES_CRD3_PROFILE_MATCH_FAMILY,
+    MBLINK_MERCEDES_CRD3_PROFILE_MATCH_CORROBORATED,
+    MBLINK_MERCEDES_CRD3_PROFILE_MATCH_STRONG
+} MblinkMercedesCrd3ProfileMatch;
+
+typedef struct {
+    const char *key;
+    const char *ecu_family;
+    const char *microcontroller;
+    const char *vehicle_scope;
+    unsigned int rated_power_kw;
+    const char *hardware_number;
+    const char *software_number;
+    const char *spare_part_number;
+    const char *system_name_prefix;
+    const char *provenance;
+} MblinkMercedesCrd3HardwareProfile;
+
+typedef struct {
+    const char *hardware_number;
+    const char *software_number;
+    const char *spare_part_number;
+    const char *system_name;
+} MblinkMercedesCrd3ObservedIdentity;
+
+static inline const char *mblink_mercedes_crd3_profile_match_name(
+    MblinkMercedesCrd3ProfileMatch match)
+{
+    switch (match) {
+    case MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE: return "no-match";
+    case MBLINK_MERCEDES_CRD3_PROFILE_MATCH_FAMILY: return "family";
+    case MBLINK_MERCEDES_CRD3_PROFILE_MATCH_CORROBORATED:
+        return "source-corroborated";
+    case MBLINK_MERCEDES_CRD3_PROFILE_MATCH_STRONG:
+        return "strong-source-match";
+    }
+    return "unknown";
+}
+
+static inline size_t mblink_mercedes_crd3_hardware_profile_count(void)
+{
+    return 1U;
+}
+
+static inline const MblinkMercedesCrd3HardwareProfile *
+mblink_mercedes_crd3_hardware_profile_at(size_t index)
+{
+    static const MblinkMercedesCrd3HardwareProfile profiles[] = {
+        {
+            "e250-2011-crd3-10-6519040001",
+            "Delphi CRD3.10",
+            "Infineon TriCore TC1797",
+            "Mercedes E 250 CDI 2.2 / 150 kW / 2011; C207/W212 OM651 family",
+            150U,
+            "6519040001",
+            "6519020001",
+            "6519011801",
+            "CRD3-651-",
+            "2026-08-27 source corroboration: public 2011 E250 CRD3.10 firmware catalogues identify HW 6519040001 and SW 6519020001; independent E250 catalogues corroborate spare 6519011801 and CRD3.10/CRD3.1R fitment; independent CRD3.10 tooling documentation identifies the family MCU as Infineon TriCore TC1797. Exact vehicle promotion still requires returned ECU identity data."
+        }
+    };
+    return index < (sizeof(profiles) / sizeof(profiles[0]))
+        ? &profiles[index] : NULL;
+}
+
+static inline bool mblink_mercedes_crd3_ascii_contains_case_insensitive(
+    const char *text,
+    const char *needle)
+{
+    size_t text_index;
+    size_t needle_length;
+
+    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
+    needle_length = strlen(needle);
+    for (text_index = 0U; text[text_index] != '\0'; ++text_index) {
+        size_t offset = 0U;
+        while (offset < needle_length && text[text_index + offset] != '\0') {
+            unsigned char left = (unsigned char)text[text_index + offset];
+            unsigned char right = (unsigned char)needle[offset];
+            if (left >= (unsigned char)'a' && left <= (unsigned char)'z')
+                left = (unsigned char)(left - ((unsigned char)'a' - (unsigned char)'A'));
+            if (right >= (unsigned char)'a' && right <= (unsigned char)'z')
+                right = (unsigned char)(right - ((unsigned char)'a' - (unsigned char)'A'));
+            if (left != right) break;
+            ++offset;
+        }
+        if (offset == needle_length) return true;
+    }
+    return false;
+}
+
+static inline bool mblink_mercedes_crd3_number_equal(
+    const char *left,
+    const char *right)
+{
+    char left_digits[32];
+    char right_digits[32];
+    size_t left_count = 0U;
+    size_t right_count = 0U;
+    size_t index;
+
+    if (left == NULL || right == NULL) return false;
+    for (index = 0U; left[index] != '\0'; ++index) {
+        if (left[index] >= '0' && left[index] <= '9') {
+            if (left_count + 1U >= sizeof(left_digits)) return false;
+            left_digits[left_count++] = left[index];
+        }
+    }
+    for (index = 0U; right[index] != '\0'; ++index) {
+        if (right[index] >= '0' && right[index] <= '9') {
+            if (right_count + 1U >= sizeof(right_digits)) return false;
+            right_digits[right_count++] = right[index];
+        }
+    }
+    if (left_count == 0U || left_count != right_count) return false;
+    return memcmp(left_digits, right_digits, left_count) == 0;
+}
+
+static inline MblinkMercedesCrd3ProfileMatch
+mblink_mercedes_crd3_match_hardware_profile(
+    const MblinkMercedesCrd3ObservedIdentity *identity,
+    const MblinkMercedesCrd3HardwareProfile **matched_profile)
+{
+    MblinkMercedesCrd3ProfileMatch best =
+        MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE;
+    const MblinkMercedesCrd3HardwareProfile *best_profile = NULL;
+    size_t profile_index;
+
+    if (matched_profile != NULL) *matched_profile = NULL;
+    if (identity == NULL) return best;
+
+    for (profile_index = 0U;
+         profile_index < mblink_mercedes_crd3_hardware_profile_count();
+         ++profile_index) {
+        const MblinkMercedesCrd3HardwareProfile *profile =
+            mblink_mercedes_crd3_hardware_profile_at(profile_index);
+        unsigned int typed_matches = 0U;
+        unsigned int typed_available = 0U;
+        bool family_match = false;
+        MblinkMercedesCrd3ProfileMatch current =
+            MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE;
+
+        if (profile == NULL) continue;
+        if (identity->hardware_number != NULL &&
+            identity->hardware_number[0] != '\0') {
+            ++typed_available;
+            if (mblink_mercedes_crd3_number_equal(
+                    identity->hardware_number, profile->hardware_number)) {
+                ++typed_matches;
+            }
+        }
+        if (identity->software_number != NULL &&
+            identity->software_number[0] != '\0') {
+            ++typed_available;
+            if (mblink_mercedes_crd3_number_equal(
+                    identity->software_number, profile->software_number)) {
+                ++typed_matches;
+            }
+        }
+        if (identity->spare_part_number != NULL &&
+            identity->spare_part_number[0] != '\0') {
+            ++typed_available;
+            if (mblink_mercedes_crd3_number_equal(
+                    identity->spare_part_number, profile->spare_part_number)) {
+                ++typed_matches;
+            }
+        }
+        if (identity->system_name != NULL &&
+            identity->system_name[0] != '\0') {
+            family_match =
+                mblink_mercedes_crd3_ascii_contains_case_insensitive(
+                    identity->system_name, profile->system_name_prefix) ||
+                mblink_mercedes_crd3_ascii_contains_case_insensitive(
+                    identity->system_name, "CRD3");
+        }
+
+        if (typed_available >= 2U && typed_matches == typed_available) {
+            current = MBLINK_MERCEDES_CRD3_PROFILE_MATCH_STRONG;
+        } else if (typed_matches != 0U) {
+            current = MBLINK_MERCEDES_CRD3_PROFILE_MATCH_CORROBORATED;
+        } else if (family_match) {
+            current = MBLINK_MERCEDES_CRD3_PROFILE_MATCH_FAMILY;
+        }
+
+        if (current > best) {
+            best = current;
+            best_profile = profile;
+        }
+    }
+
+    if (matched_profile != NULL) *matched_profile = best_profile;
+    return best;
+}
 
 static inline const char *mblink_mercedes_crd3_supplier_name(uint8_t identifier)
 {

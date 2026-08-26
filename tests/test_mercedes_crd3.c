@@ -73,6 +73,55 @@ static int test_corroborated_om651_signature(void)
     return 0;
 }
 
+static int test_hardware_profiles(void)
+{
+    const MblinkMercedesCrd3HardwareProfile *profile;
+    const MblinkMercedesCrd3HardwareProfile *matched = NULL;
+    MblinkMercedesCrd3ObservedIdentity observed;
+    MblinkMercedesCrd3ProfileMatch match;
+
+    CHECK(mblink_mercedes_crd3_hardware_profile_count() == 1U);
+    profile = mblink_mercedes_crd3_hardware_profile_at(0U);
+    CHECK(profile != NULL);
+    CHECK(strcmp(profile->ecu_family, "Delphi CRD3.10") == 0);
+    CHECK(strcmp(profile->microcontroller, "Infineon TriCore TC1797") == 0);
+    CHECK(profile->rated_power_kw == 150U);
+    CHECK(strcmp(profile->hardware_number, "6519040001") == 0);
+    CHECK(strcmp(profile->software_number, "6519020001") == 0);
+    CHECK(strcmp(profile->spare_part_number, "6519011801") == 0);
+    CHECK(mblink_mercedes_crd3_hardware_profile_at(1U) == NULL);
+
+    observed.hardware_number = "A 651 904 00 01";
+    observed.software_number = "6519020001";
+    observed.spare_part_number = "A6519011801";
+    observed.system_name = "CRD3-651-WMA4BD3-212WA";
+    match = mblink_mercedes_crd3_match_hardware_profile(&observed, &matched);
+    CHECK(match == MBLINK_MERCEDES_CRD3_PROFILE_MATCH_STRONG);
+    CHECK(matched == profile);
+
+    observed.hardware_number = "6519040001";
+    observed.software_number = "6519999999";
+    observed.spare_part_number = NULL;
+    observed.system_name = NULL;
+    match = mblink_mercedes_crd3_match_hardware_profile(&observed, &matched);
+    CHECK(match == MBLINK_MERCEDES_CRD3_PROFILE_MATCH_CORROBORATED);
+    CHECK(matched == profile);
+
+    observed.hardware_number = NULL;
+    observed.software_number = NULL;
+    observed.spare_part_number = NULL;
+    observed.system_name = "crd3-651-unknown-calibration";
+    match = mblink_mercedes_crd3_match_hardware_profile(&observed, &matched);
+    CHECK(match == MBLINK_MERCEDES_CRD3_PROFILE_MATCH_FAMILY);
+    CHECK(matched == profile);
+
+    observed.system_name = "BOSCH EDC17";
+    match = mblink_mercedes_crd3_match_hardware_profile(&observed, &matched);
+    CHECK(match == MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE);
+    CHECK(matched == NULL);
+    return 0;
+}
+
 static int test_identifiers(void)
 {
     CHECK(MBLINK_MERCEDES_CRD3_DID_SESSION_VARIANT == 0xf100U);
@@ -91,6 +140,7 @@ int main(void)
     if (test_session_variant() != 0) return 1;
     if (test_supplier() != 0) return 1;
     if (test_corroborated_om651_signature() != 0) return 1;
+    if (test_hardware_profiles() != 0) return 1;
     if (test_identifiers() != 0) return 1;
     puts("Mercedes CRD3 identity tests passed");
     return 0;
