@@ -1,4 +1,4 @@
-name: Temporary MBLINK LINK 0.14.3 update
+name: Temporary MBLINK LINK 0.14.4 update
 
 on:
   push:
@@ -21,12 +21,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config
-      - name: Pin LINK 0.14.3 and update Linux prerequisites
+      - name: Pin LINK 0.14.4 and update Linux prerequisites
         shell: bash
         run: |
           set -euo pipefail
           git -C src/link fetch origin main
-          git -C src/link checkout 78acc943c4491ae0e975335f6af7323aa7081a08
+          git -C src/link checkout 0de26c06085f421dff4cfb554e153991c739aeb3
           git -C src/link submodule update --init --recursive
           printf '0.7.50\n' > VERSION
           python3 - <<'PY'
@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = '0.14.3'
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = '0.14.4'
           cmake -S . -B build-update -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=ON
           cmake --build build-update --parallel 2
           ctest --test-dir build-update --output-on-failure
