@@ -30,7 +30,7 @@ Options:
   -h, --help          Show this help
 
 Required build packages on Debian/Ubuntu:
-  build-essential cmake pkg-config libgtk-4-dev
+  build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev
 
 If any of these prerequisites are missing, the installer uses apt-get (and
 sudo when required) to install them automatically before continuing.
@@ -94,24 +94,25 @@ prerequisites_ready()
         command -v "$command_name" >/dev/null 2>&1 || return 1
     done
     pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1
+    pkg-config --exists bluez >/dev/null 2>&1 || return 1
     return 0
 }
 
 install_build_dependencies()
 {
     local -a elevate=()
-    local -a packages=(build-essential cmake pkg-config libgtk-4-dev)
+    local -a packages=(build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev)
 
     if ! command -v apt-get >/dev/null 2>&1; then
         echo 'Required build prerequisites are missing and apt-get is unavailable.' >&2
-        echo 'Install: build-essential cmake pkg-config libgtk-4-dev' >&2
+        echo 'Install: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev' >&2
         return 1
     fi
 
     if [[ $EUID -ne 0 ]]; then
         if ! command -v sudo >/dev/null 2>&1; then
             echo 'Build prerequisites are missing and installing them requires root access.' >&2
-            echo 'Install: build-essential cmake pkg-config libgtk-4-dev' >&2
+            echo 'Install: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev' >&2
             return 1
         fi
         echo 'MBLINK needs to install missing build prerequisites; sudo may ask for your password.'
@@ -131,7 +132,7 @@ fi
 
 if ! prerequisites_ready; then
     echo 'MBLINK prerequisites are still incomplete after the installation attempt.' >&2
-    echo 'Required: build-essential cmake pkg-config libgtk-4-dev with GTK 4.6 or newer.' >&2
+    echo 'Required: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev with GTK 4.6 or newer.' >&2
     exit 1
 fi
 
