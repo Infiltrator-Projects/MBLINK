@@ -4,9 +4,23 @@
 
 Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
 
+## Vehicle-family identification before ECU-family probing
+
+MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
+
+The normal Mercedes engine probe therefore starts from a generic read-only physical engine-ECU candidate, reads VIN and standardized identity first, and selects the narrowest supported vehicle/engine profile from evidence. CRD3-only fingerprint DIDs are gated behind that selection. Known petrol or unknown engine families proceed directly from standardized identity to read-only UDS fault inventory unless their returned ECU identity independently indicates CRD3.
+
+Current C207 VIN type-code mappings are intentionally family-level:
+- `207.301`-`207.304` → OM651 diesel family, CRD3 extension permitted;
+- `207.347`/`207.348` → M271.860 petrol family, CRD3 extension suppressed;
+- `207.334`/`207.336` → M274.920 petrol family, CRD3 extension suppressed;
+- other C207 variants → C207/engine-unidentified until more evidence is available.
+
+A vehicle capture from one member of a family does not promote every member to vehicle-verified status. Family profiles are source-corroborated; exact vehicle verification remains attached to reproducible evidence rather than to a model badge.
+
 ## C207 E 250 CDI / OM651 / Delphi CRD3.x profile
 
-The development profile contains one source-corroborated engine endpoint:
+The OM651 family profile contains source-corroborated endpoints; it is selected only after VIN/ECU evidence supports that family:
 
 | Key | Request ID | Response ID | Status |
 | --- | ---: | ---: | --- |

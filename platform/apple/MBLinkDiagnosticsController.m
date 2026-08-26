@@ -697,20 +697,10 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
 
 - (void)beginMercedesProbe
 {
-    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
-    if (profile == NULL || !mblink_mercedes_vehicle_profile_is_valid(profile)) {
-        self.mercedesProbeStatusText = @"C207 / OM651 development profile unavailable";
-        self.mercedesIdentitySummaryText = @"Not attempted";
-        self.mercedesCrd3SummaryText = @"Not attempted";
-        self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self finishMercedesExtensionRestoringAdapter:NO];
-        return;
-    }
-
-    const MblinkMercedesEcuEndpointDefinition *endpoint = mblink_mercedes_profile_find_endpoint(
-        profile, "c207-om651-engine-eobd-11bit");
-    if (endpoint == NULL) {
-        self.mercedesProbeStatusText = @"No engine endpoint candidate is defined";
+    const MblinkMercedesEcuEndpointDefinition *endpoint =
+        mblink_mercedes_generic_engine_endpoint();
+    if (endpoint == NULL || !mblink_mercedes_ecu_endpoint_is_valid(endpoint)) {
+        self.mercedesProbeStatusText = @"Generic Mercedes engine endpoint unavailable";
         self.mercedesIdentitySummaryText = @"Not attempted";
         self.mercedesCrd3SummaryText = @"Not attempted";
         self.mercedesUDSFaultStatusText = @"Not attempted";
@@ -719,7 +709,8 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
     }
 
     self.mercedesProbeEndpointText = MBLinkMercedesEndpointText(endpoint);
-    MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_begin(&_mercedesProbe, endpoint);
+    MblinkMercedesEcuProbeResult result =
+        mblink_mercedes_ecu_probe_begin(&_mercedesProbe, endpoint);
     if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
         self.mercedesProbeStatusText = [NSString stringWithFormat:@"Probe could not start: %@",
             MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
@@ -732,11 +723,12 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
 
     _manufacturerProbeActive = YES;
     _flow.config.restore_adapter_after_manufacturer_extension = true;
-    self.mercedesProbeStatusText = @"Probing Delphi CRD3.x candidate with read-only UDS TesterPresent";
-    self.mercedesIdentitySummaryText = @"Waiting for UDS endpoint response";
-    self.mercedesCrd3SummaryText = @"Waiting for CRD3 fingerprint";
+    self.mercedesProbeStatusText = @"Identifying Mercedes engine ECU with read-only UDS";
+    self.mercedesIdentitySummaryText = @"Waiting for VIN and standard ECU identity";
+    self.mercedesCrd3SummaryText = @"Family-specific fingerprint pending identification";
     self.mercedesUDSFaultStatusText = @"Waiting for Mercedes UDS fault read";
-    [self setStatus:@"Probing Mercedes-Benz CRD3.x engine ECU (read-only)"];
+    [self setStatus:@"Probing Mercedes engine ECU"];
+    [self notifyDelegate];
     [self beginCurrentMercedesProbeCommand];
 }
 
@@ -1002,8 +994,15 @@ static bool MBLinkSimulatorResponder(void *context, const char *command,
         self.mercedesCrd3SummaryText = [NSString stringWithFormat:
             @"CRD3 supplier %@ captured; variant unavailable",
             MBLinkStringFromCString(_mercedesProbe.crd3_supplier.supplier_name)];
+    } else if (!_mercedesProbe.crd3_fingerprint_attempted) {
+        NSString *family = _mercedesProbe.identified_profile != NULL
+            ? MBLinkStringFromCString(_mercedesProbe.identified_profile->engine_family)
+            : @"unidentified";
+        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
+            @"CRD3 fingerprint not selected · identified engine family %@",
+            family];
     } else {
-        self.mercedesCrd3SummaryText = @"No decodable F100/F154 CRD3 identity returned";
+        self.mercedesCrd3SummaryText = @"CRD3 fingerprint attempted but no decodable F100/F154 identity returned";
     }
 
     if (_mercedesProbe.crd3_hardware_profile != NULL) {

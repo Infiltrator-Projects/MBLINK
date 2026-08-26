@@ -31,59 +31,55 @@ static MblinkMercedesDidDefinition make_definition(
 
 static int test_development_profile(void)
 {
-    const MblinkMercedesVehicleProfile *profile =
+    const MblinkMercedesEcuEndpointDefinition *generic_endpoint =
+        mblink_mercedes_generic_engine_endpoint();
+    const MblinkMercedesVehicleProfile *generic =
+        mblink_mercedes_generic_profile();
+    const MblinkMercedesVehicleProfile *c207 =
+        mblink_mercedes_c207_generic_profile();
+    const MblinkMercedesVehicleProfile *om651 =
         mblink_mercedes_c207_om651_profile();
+    const MblinkMercedesVehicleProfile *m271 =
+        mblink_mercedes_c207_m271_profile();
+    const MblinkMercedesVehicleProfile *m274 =
+        mblink_mercedes_c207_m274_profile();
 
-    CHECK(profile != NULL);
-    CHECK(strcmp(profile->chassis_code, "C207") == 0);
-    CHECK(strcmp(profile->engine_family, "OM651") == 0);
-    CHECK(strcmp(profile->display_name,
-                 "Mercedes-Benz C207 E 250 CDI / OM651 / Delphi CRD3.x") == 0);
-    CHECK(profile->endpoints != NULL);
-    CHECK(profile->endpoint_count == 2U);
-    CHECK(strcmp(profile->endpoints[0].key,
-                 "c207-om651-engine-eobd-11bit") == 0);
-    CHECK(strcmp(profile->endpoints[0].name,
-                 "Delphi CRD3.x engine ECU") == 0);
-    CHECK(profile->endpoints[0].status ==
-          MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED);
-    CHECK(strcmp(mblink_mercedes_definition_status_name(
-                     profile->endpoints[0].status),
-                 "vehicle-verified") == 0);
-    CHECK(strstr(profile->endpoints[0].provenance,
-                 "2026-08-26") != NULL);
-    CHECK(strstr(profile->endpoints[0].provenance,
-                 "0x7E0/0x7E8") != NULL);
-    CHECK(profile->endpoints[0].module == MBLINK_MERCEDES_MODULE_ENGINE);
-    CHECK(profile->endpoints[0].address.tx_can_id == 0x7e0U);
-    CHECK(profile->endpoints[0].address.rx_can_id == 0x7e8U);
-    CHECK(!profile->endpoints[0].address.tx_extended_id);
-    CHECK(!profile->endpoints[0].address.rx_extended_id);
-    CHECK(profile->endpoints[0].address.addressing_mode ==
-          MBLINK_ISOTP_ADDRESSING_NORMAL);
-    CHECK(mblink_mercedes_ecu_endpoint_is_verified(&profile->endpoints[0]));
-    CHECK(mblink_mercedes_profile_find_endpoint(
-              profile, "c207-om651-engine-eobd-11bit") ==
-          &profile->endpoints[0]);
-    CHECK(strcmp(profile->endpoints[1].key,
-                 "c207-secondary-powertrain-eobd-11bit") == 0);
-    CHECK(strcmp(profile->endpoints[1].name,
-                 "Secondary EOBD powertrain ECU") == 0);
-    CHECK(profile->endpoints[1].module == MBLINK_MERCEDES_MODULE_OTHER);
-    CHECK(profile->endpoints[1].address.tx_can_id == 0x7e1U);
-    CHECK(profile->endpoints[1].address.rx_can_id == 0x7e9U);
-    CHECK(profile->endpoints[1].status ==
-          MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED);
-    CHECK(mblink_mercedes_ecu_endpoint_is_verified(&profile->endpoints[1]));
-    CHECK(mblink_mercedes_profile_find_endpoint(
-              profile, "c207-secondary-powertrain-eobd-11bit") ==
-          &profile->endpoints[1]);
-    CHECK(mblink_mercedes_profile_find_endpoint(profile, "missing") == NULL);
-    CHECK(profile->definitions == NULL);
-    CHECK(profile->definition_count == 0U);
-    CHECK(mblink_mercedes_vehicle_profile_is_valid(profile));
-    CHECK(mblink_mercedes_profile_find_did(
-              profile, MBLINK_MERCEDES_MODULE_ENGINE, 0x1234U) == NULL);
+    CHECK(generic_endpoint != NULL);
+    CHECK(generic_endpoint->address.tx_can_id == 0x7e0U);
+    CHECK(generic_endpoint->address.rx_can_id == 0x7e8U);
+    CHECK(generic_endpoint->status == MBLINK_MERCEDES_DEFINITION_CANDIDATE);
+    CHECK(mblink_mercedes_ecu_endpoint_is_valid(generic_endpoint));
+    CHECK(!mblink_mercedes_ecu_endpoint_is_verified(generic_endpoint));
+
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(generic));
+    CHECK(strcmp(generic->engine_family, "Unidentified") == 0);
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(c207));
+    CHECK(strcmp(c207->chassis_code, "C207") == 0);
+    CHECK(strcmp(c207->engine_family, "Unidentified") == 0);
+
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(om651));
+    CHECK(strcmp(om651->chassis_code, "C207") == 0);
+    CHECK(strcmp(om651->engine_family, "OM651") == 0);
+    CHECK(om651->endpoint_count == 2U);
+    CHECK(om651->endpoints[0].status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    CHECK(!mblink_mercedes_ecu_endpoint_is_verified(&om651->endpoints[0]));
+    CHECK(mblink_mercedes_profile_is_crd3_candidate(om651));
+
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(m271));
+    CHECK(strcmp(m271->engine_family, "M271.860") == 0);
+    CHECK(!mblink_mercedes_profile_is_crd3_candidate(m271));
+    CHECK(mblink_mercedes_vehicle_profile_is_valid(m274));
+    CHECK(strcmp(m274->engine_family, "M274.920") == 0);
+    CHECK(!mblink_mercedes_profile_is_crd3_candidate(m274));
+
+    CHECK(mblink_mercedes_profile_for_vin("WDD2073022F123456") == om651);
+    CHECK(mblink_mercedes_profile_for_vin("WDD2073032F123456") == om651);
+    CHECK(mblink_mercedes_profile_for_vin("WDD2073471F123456") == m271);
+    CHECK(mblink_mercedes_profile_for_vin("WDD2073361F123456") == m274);
+    CHECK(mblink_mercedes_profile_for_vin("WDD2073991F123456") == c207);
+    CHECK(mblink_mercedes_profile_for_vin("WDD2120001A123456") == generic);
+    CHECK(mblink_mercedes_profile_for_vin(NULL) == generic);
     return 0;
 }
 

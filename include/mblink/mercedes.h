@@ -108,7 +108,24 @@ MblinkUdsResult mblink_mercedes_decode_defined_did(
  * vehicle data is not embedded here. Manufacturer live-data DIDs remain unbound
  * until their encodings are proven.
  */
+const MblinkMercedesEcuEndpointDefinition *
+mblink_mercedes_generic_engine_endpoint(void);
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_generic_profile(void);
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_generic_profile(void);
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void);
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m271_profile(void);
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m274_profile(void);
+
+/**
+ * Select the narrowest profile justified by the VIN type code.
+ * Unknown/unmapped VINs intentionally fall back to a generic Mercedes profile.
+ */
+const MblinkMercedesVehicleProfile *mblink_mercedes_profile_for_vin(
+    const char *vin);
+
+bool mblink_mercedes_profile_is_crd3_candidate(
+    const MblinkMercedesVehicleProfile *profile);
 
 #ifdef __cplusplus
 }

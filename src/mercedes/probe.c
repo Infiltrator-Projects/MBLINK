@@ -272,6 +272,8 @@ static void mercedes_probe_sync_evidence(MblinkMercedesEcuProbe *probe)
             if (valid) {
                 memcpy(probe->vin, vin->data, MBLINK_MERCEDES_PROBE_VIN_LENGTH);
                 probe->vin[MBLINK_MERCEDES_PROBE_VIN_LENGTH] = '\0';
+                probe->identified_profile =
+                    mblink_mercedes_profile_for_vin(probe->vin);
             } else {
                 probe->vin_result = MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE;
             }
@@ -333,6 +335,21 @@ static void mercedes_probe_sync_evidence(MblinkMercedesEcuProbe *probe)
             mblink_mercedes_crd3_match_hardware_profile(
                 &observed, &probe->crd3_hardware_profile);
     }
+    if (probe->identified_profile == NULL)
+        probe->identified_profile = mblink_mercedes_generic_profile();
+    probe->crd3_fingerprint_allowed =
+        mblink_mercedes_profile_is_crd3_candidate(probe->identified_profile) ||
+        probe->crd3_hardware_match != MBLINK_MERCEDES_CRD3_PROFILE_MATCH_NONE ||
+        (probe->ecu_system_name_available &&
+         mblink_mercedes_crd3_ascii_contains_case_insensitive(
+             probe->ecu_system_name, "CRD3"));
+    probe->crd3_fingerprint_attempted =
+        probe->shared.did_index >
+            (MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 1U) ||
+        probe->crd3_positive_mask != 0U ||
+        probe->crd3_negative_mask != 0U ||
+        probe->crd3_no_response_mask != 0U ||
+        probe->crd3_invalid_mask != 0U;
 
     probe->crd3_session_variant_available = false;
     probe->crd3_supplier_available = false;
@@ -513,5 +530,21 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_accept(
     }
     result = link_ecu_probe_accept(&probe->shared, response);
     mercedes_probe_sync_evidence(probe);
+
+    /*
+     * Standard VIN/identity comes first for every Mercedes. Family-specific
+     * CRD3 DIDs are only entered after that evidence says CRD3/OM651 is
+     * plausible. Petrol/unknown vehicles proceed directly to read-only DTCs.
+     */
+    if (result == LINK_ECU_PROBE_RESULT_OK &&
+        probe->shared.stage == LINK_ECU_PROBE_STAGE_READ_DID &&
+        probe->shared.did_index ==
+            (MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 1U) &&
+        !probe->crd3_fingerprint_allowed) {
+        probe->shared.profile.did_count =
+            MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 1U;
+        probe->shared.stage = LINK_ECU_PROBE_STAGE_READ_DTC_INFORMATION;
+        mercedes_probe_sync_evidence(probe);
+    }
     return mercedes_probe_map_result(result);
 }

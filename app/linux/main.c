@@ -67,9 +67,17 @@ static uint64_t monotonic_ms(void)
 
 static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
 {
-    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
-    return profile != NULL && profile->endpoint_count != 0U
-        ? &profile->endpoints[0] : NULL;
+    return mblink_mercedes_generic_engine_endpoint();
+}
+
+static const MblinkMercedesVehicleProfile *active_vehicle_profile(
+    const MblinkLinuxContext *context)
+{
+    if (context != NULL &&
+        context->manufacturer_scan.probe.identified_profile != NULL) {
+        return context->manufacturer_scan.probe.identified_profile;
+    }
+    return mblink_mercedes_generic_profile();
 }
 
 static void reset_manufacturer_scan(MblinkLinuxContext *context)
@@ -181,9 +189,9 @@ static void append_factory_dtc_list(GtkWidget *card,
 
 static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
 {
-    const MblinkMercedesVehicleProfile *profile = mblink_mercedes_c207_om651_profile();
+    const MblinkMercedesVehicleProfile *profile = active_vehicle_profile(context);
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
-    GtkWidget *identity = link_gtk_card_new("VEHICLE EVIDENCE", "C207 E 250 CDI");
+    GtkWidget *identity = link_gtk_card_new("VEHICLE EVIDENCE", "Automatic Mercedes identification");
     GtkWidget *connection = link_gtk_card_new("CONNECTION", "Linux diagnostic link");
 
     link_gtk_card_append_detail(identity, "Platform", profile != NULL ? profile->chassis_code : "Unavailable");
@@ -271,9 +279,16 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
   link_gtk_card_append_detail(mercedes, "VIN", context->manufacturer_scan.probe.vin);
         link_gtk_card_append_detail(mercedes, "Factory DTC result",
   mblink_mercedes_engine_dtc_result_name(context->manufacturer_scan.dtc_result));
-        link_gtk_card_append_detail(mercedes, "CRD3 / Delphi signature",
-  context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
-      ? "Matched" : "Not matched / insufficient evidence");
+        link_gtk_card_append_detail(mercedes, "Identified engine family",
+  context->manufacturer_scan.probe.identified_profile != NULL
+      ? context->manufacturer_scan.probe.identified_profile->engine_family
+      : "Unidentified");
+        link_gtk_card_append_detail(mercedes, "CRD3 extension",
+  context->manufacturer_scan.probe.crd3_fingerprint_attempted
+      ? (context->manufacturer_scan.crd3_evidence.om651_cdid3_delphi_signature
+          ? "Attempted · OM651/CDID3 signature matched"
+          : "Attempted · no exact OM651/CDID3 signature")
+      : "Not selected by vehicle/ECU evidence");
         if (context->manufacturer_scan.probe.ecu_hardware_number_available)
   link_gtk_card_append_detail(mercedes, "ECU hardware",
       context->manufacturer_scan.probe.ecu_hardware_number);

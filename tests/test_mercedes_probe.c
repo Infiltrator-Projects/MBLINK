@@ -426,9 +426,62 @@ static int test_argument_and_buffer_failures(void)
     return 0;
 }
 
+static int test_petrol_profile_skips_crd3_extension(void)
+{
+    static const char *identity_responses[] = {
+        "62F18C534E504554524F4C",
+        "62F18732373131353030333931",
+        "62F18832373139303230303031",
+        "62F1894D323731",
+        "62F19132373131353030333931",
+        "62F1974D3237312E383630"
+    };
+    const MblinkMercedesEcuEndpointDefinition *endpoint =
+        mblink_mercedes_generic_engine_endpoint();
+    MblinkMercedesEcuProbe probe;
+    MblinkElm327Response vin_reply = make_response(
+        MBLINK_ELM327_RESULT_OK,
+        "62F1905744443230373334373146313233343536",
+        false);
+    char command[32];
+    size_t written = 0U;
+
+    CHECK(endpoint != NULL);
+    CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(advance_tester_present(&probe) == 0);
+    CHECK(mblink_mercedes_ecu_probe_command(
+              &probe, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(strcmp(command, "22F190") == 0);
+    CHECK(mblink_mercedes_ecu_probe_accept(&probe, &vin_reply) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(probe.identified_profile == mblink_mercedes_c207_m271_profile());
+
+    for (size_t index = 0U; index < 6U; ++index) {
+        MblinkElm327Response response = make_response(
+            MBLINK_ELM327_RESULT_OK, identity_responses[index], false);
+        CHECK(mblink_mercedes_ecu_probe_command(
+                  &probe, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+        CHECK(mblink_mercedes_ecu_probe_accept(&probe, &response) ==
+              MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    }
+
+    CHECK(!probe.crd3_fingerprint_allowed);
+    CHECK(!probe.crd3_fingerprint_attempted);
+    CHECK(probe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION);
+    CHECK(mblink_mercedes_ecu_probe_command(
+              &probe, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
+    CHECK(strcmp(command, "1902FF") == 0);
+    return 0;
+}
+
 int main(void)
 {
     if (test_successful_read_only_identity_probe() != 0) return 1;
+    if (test_petrol_profile_skips_crd3_extension() != 0) return 1;
     if (test_optional_identification_failures_continue() != 0) return 1;
     if (test_failure_provenance() != 0) return 1;
     if (test_argument_and_buffer_failures() != 0) return 1;

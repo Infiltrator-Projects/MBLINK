@@ -224,12 +224,65 @@ mblink_mercedes_om651_catalog_at(size_t index)
     return mblink_mercedes_om651_signal_at(index);
 }
 
+static const MblinkMercedesEcuEndpointDefinition mercedes_generic_engine_endpoint = {
+    .key = "mercedes-primary-engine-eobd-11bit",
+    .name = "Primary engine ECU",
+    .module = MBLINK_MERCEDES_MODULE_ENGINE,
+    .address = {
+        .tx_can_id = UINT32_C(0x7e0),
+        .rx_can_id = UINT32_C(0x7e8),
+        .tx_extended_id = false,
+        .rx_extended_id = false,
+        .addressing_mode = MBLINK_ISOTP_ADDRESSING_NORMAL,
+        .target_type = MBLINK_ISOTP_TARGET_PHYSICAL,
+        .tx_address_extension = 0U,
+        .rx_address_extension = 0U
+    },
+    .status = MBLINK_MERCEDES_DEFINITION_CANDIDATE,
+    .provenance =
+        "Generic read-only Mercedes/SAE physical engine-ECU discovery candidate. It is used only to acquire VIN, standard ECU identity and fault evidence before a manufacturer/engine family is selected."
+};
+
+const MblinkMercedesEcuEndpointDefinition *
+mblink_mercedes_generic_engine_endpoint(void)
+{
+    return &mercedes_generic_engine_endpoint;
+}
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_generic_profile(void)
+{
+    static const MblinkMercedesVehicleProfile profile = {
+        .chassis_code = "Mercedes-Benz",
+        .engine_family = "Unidentified",
+        .display_name = "Mercedes-Benz automatic vehicle identification",
+        .endpoints = &mercedes_generic_engine_endpoint,
+        .endpoint_count = 1U,
+        .definitions = NULL,
+        .definition_count = 0U
+    };
+    return &profile;
+}
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_generic_profile(void)
+{
+    static const MblinkMercedesVehicleProfile profile = {
+        .chassis_code = "C207",
+        .engine_family = "Unidentified",
+        .display_name = "Mercedes-Benz C207 · engine family not yet identified",
+        .endpoints = &mercedes_generic_engine_endpoint,
+        .endpoint_count = 1U,
+        .definitions = NULL,
+        .definition_count = 0U
+    };
+    return &profile;
+}
+
 const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
 {
     static const MblinkMercedesEcuEndpointDefinition endpoints[] = {
         {
             .key = "c207-om651-engine-eobd-11bit",
-            .name = "Delphi CRD3.x engine ECU",
+            .name = "OM651 engine ECU · Delphi CRD3.x family candidate",
             .module = MBLINK_MERCEDES_MODULE_ENGINE,
             .address = {
                 .tx_can_id = UINT32_C(0x7e0),
@@ -241,12 +294,12 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
                 .tx_address_extension = 0U,
                 .rx_address_extension = 0U
             },
-            .status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+            .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             .provenance =
-                "Independent W207/CRD3 sources identify 0x7E0/0x7E8; a direct 2026-08-26 Linux MBLINK vehicle capture then verified this endpoint with TesterPresent, VIN DID, CRD3 identity DIDs and ReadDTCInformation. Vehicle-identifying data is deliberately not embedded in the repository."
+                "C207 OM651 family sources corroborate Delphi CRD3.x and 0x7E0/0x7E8. A 2026-08-26 vehicle capture verified this endpoint on one C207/OM651 member; that single capture is evidence for the family but is not promoted as proof for every C207 OM651 variant."
         },
         {
-            .key = "c207-secondary-powertrain-eobd-11bit",
+            .key = "c207-om651-secondary-eobd-11bit",
             .name = "Secondary EOBD powertrain ECU",
             .module = MBLINK_MERCEDES_MODULE_OTHER,
             .address = {
@@ -259,19 +312,94 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
                 .tx_address_extension = 0U,
                 .rx_address_extension = 0U
             },
-            .status = MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+            .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             .provenance =
-                "Direct 2026-08-26 Linux MBLINK vehicle capture returned a valid UDS negative response to TesterPresent at physical 0x7E1/0x7E9, proving an ECU responder at this address. Exact ECU identity remains intentionally unassigned until separately evidenced."
+                "A 2026-08-26 C207/OM651 vehicle capture proved a UDS responder at 0x7E1/0x7E9. Its exact module identity is deliberately left unresolved and the evidence is not generalized to every C207."
         }
     };
     static const MblinkMercedesVehicleProfile profile = {
         .chassis_code = "C207",
         .engine_family = "OM651",
-        .display_name = "Mercedes-Benz C207 E 250 CDI / OM651 / Delphi CRD3.x",
+        .display_name = "Mercedes-Benz C207 · OM651 diesel family",
         .endpoints = endpoints,
         .endpoint_count = INFILTRATR_ARRAY_LENGTH(endpoints),
         .definitions = NULL,
         .definition_count = 0U
     };
     return &profile;
+}
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m271_profile(void)
+{
+    static const MblinkMercedesVehicleProfile profile = {
+        .chassis_code = "C207",
+        .engine_family = "M271.860",
+        .display_name = "Mercedes-Benz C207 · M271.860 petrol family",
+        .endpoints = &mercedes_generic_engine_endpoint,
+        .endpoint_count = 1U,
+        .definitions = NULL,
+        .definition_count = 0U
+    };
+    return &profile;
+}
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_c207_m274_profile(void)
+{
+    static const MblinkMercedesVehicleProfile profile = {
+        .chassis_code = "C207",
+        .engine_family = "M274.920",
+        .display_name = "Mercedes-Benz C207 · M274.920 petrol family",
+        .endpoints = &mercedes_generic_engine_endpoint,
+        .endpoint_count = 1U,
+        .definitions = NULL,
+        .definition_count = 0U
+    };
+    return &profile;
+}
+
+static bool mercedes_vin_type_is(const char *vin, const char *type)
+{
+    return vin != NULL && type != NULL && strlen(vin) == 17U &&
+           strlen(type) == 6U && memcmp(vin + 3U, type, 6U) == 0;
+}
+
+const MblinkMercedesVehicleProfile *mblink_mercedes_profile_for_vin(
+    const char *vin)
+{
+    static const char *const om651_types[] = {
+        "207301", "207302", "207303", "207304"
+    };
+    static const char *const m271_types[] = {
+        "207347", "207348"
+    };
+    static const char *const m274_types[] = {
+        "207334", "207336"
+    };
+    size_t index;
+
+    if (vin == NULL || strlen(vin) != 17U) {
+        return mblink_mercedes_generic_profile();
+    }
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(om651_types); ++index) {
+        if (mercedes_vin_type_is(vin, om651_types[index]))
+            return mblink_mercedes_c207_om651_profile();
+    }
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(m271_types); ++index) {
+        if (mercedes_vin_type_is(vin, m271_types[index]))
+            return mblink_mercedes_c207_m271_profile();
+    }
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(m274_types); ++index) {
+        if (mercedes_vin_type_is(vin, m274_types[index]))
+            return mblink_mercedes_c207_m274_profile();
+    }
+    if (memcmp(vin + 3U, "207", 3U) == 0)
+        return mblink_mercedes_c207_generic_profile();
+    return mblink_mercedes_generic_profile();
+}
+
+bool mblink_mercedes_profile_is_crd3_candidate(
+    const MblinkMercedesVehicleProfile *profile)
+{
+    return mblink_mercedes_vehicle_profile_is_valid(profile) &&
+           strcmp(profile->engine_family, "OM651") == 0;
 }

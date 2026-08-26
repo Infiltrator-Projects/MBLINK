@@ -85,6 +85,9 @@ typedef struct {
     MblinkUdsResult vin_uds_result;
     uint8_t vin_negative_response_code;
     char vin[MBLINK_MERCEDES_PROBE_VIN_LENGTH + 1U];
+    const MblinkMercedesVehicleProfile *identified_profile;
+    bool crd3_fingerprint_allowed;
+    bool crd3_fingerprint_attempted;
 
     size_t identity_index;
     uint32_t identity_positive_mask;
