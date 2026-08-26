@@ -242,10 +242,10 @@ static void test_pdu_decode_indexed(void)
     memset(pdu, 0xa5, sizeof(pdu));
     check(mblink_elm327_can_decode_pdu(
               &response, pdu, sizeof(pdu), &length) ==
-              MBLINK_ELM327_CAN_RESULT_MALFORMED_RESPONSE,
-          "indexed declared-length mismatch accepted");
-    check(length == 0U && pdu[0] == 0xa5U,
-          "failed indexed decode modified caller output");
+              MBLINK_ELM327_CAN_RESULT_OK,
+          "indexed adapter padding was not trimmed to declared length");
+    check(length == 9U && pdu[8] == 0x46U && pdu[9] == 0xa5U,
+          "declared indexed payload length was not authoritative");
 
     response = text_response(
         "00A\n0: 62 F1 90 41 42 43\n2: 44 45 46 47");
