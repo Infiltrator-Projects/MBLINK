@@ -42,7 +42,7 @@ MBLINK repository
 
 The main application is the normal driver/technician diagnostic experience. Discover is the deeper engineering-oriented reader used to determine what control modules are present, identify them, read documented information and preserve raw evidence.
 
-The current Windows Discover implementation is the first stage of that role: passive CAN capture plus a bounded read-only standard OBD inventory. It should evolve in place into the deeper Mercedes ECU/module reader rather than spawning a separate repository or duplicate scanner implementation.
+Windows Discover now combines passive CAN capture and the bounded read-only standard OBD inventory with an explicit FULL SWEEP mode for deeper engineering work. FULL SWEEP searches the broader Mercedes diagnostic address space only when the operator requests it; the normal diagnostic path remains deliberately fast and bounded.
 
 Generic Discover mechanics belong in LINK. Mercedes-specific network topology, module identities, endpoints, read-only probes and decoders belong here.
 
@@ -63,7 +63,8 @@ The remaining fault-diagnostic completion work is deliberately ahead of addition
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
-- MBLINK Discover: the branded specialist ECU/module reader, currently implemented on Windows as a read-only OpenPort 2.0/J2534 scanner with passive capture, bounded inventory and evidence export.
+- Explicit FULL SWEEP controls on Linux and Windows for read-only forensic module discovery across the wider 11-bit diagnostic range and ISO 15765 normal-fixed 29-bit targets, with F197 identity evidence and address-preserving unknown-module labels.
+- MBLINK Discover: the branded specialist ECU/module reader on Windows with passive J2534 capture, bounded normal inventory, optional FULL SWEEP and evidence export.
 - Shared portable diagnostic-flow state machine across platforms.
 - Canonical Mercedes three-pointed-star branding reused across supported targets.
 

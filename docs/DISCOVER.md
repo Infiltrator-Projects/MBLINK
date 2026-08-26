@@ -34,12 +34,14 @@ On Windows, `mblink-discover.exe` is built through LINK's `link_add_windows_disc
 The current Discover baseline provides:
 
 - passive 500 kbit/s CAN capture;
-- bounded read-only standard OBD inventory;
+- bounded read-only standard OBD inventory for routine use;
+- an explicit operator-requested `FULL SWEEP` across the wider 11-bit diagnostic range and ISO 15765 normal-fixed 29-bit targets;
+- read-only `F197` system-name probing for responding modules, with unknown identities kept explicit rather than guessed;
 - deny-by-default request classification;
 - JSON Lines evidence export and operator annotations;
 - product-branded Windows presentation.
 
-This is the starting point, not the final intended scope.
+The routine path remains bounded and fast. `FULL SWEEP` is deliberately separate because its exhaustive diagnostic-address search is an engineering operation rather than normal daily behaviour. Every transmitted probe and received response remains evidence-recorded.
 
 ## Intended evolution
 
