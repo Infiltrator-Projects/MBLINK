@@ -16,7 +16,8 @@ MBLINK ${version} native Linux builder
 
 Usage: MBLINK-${version}-linux-native.run [options]
 
-Without options, this extracts the bundled source, compiles MBLINK and its
+Without options, this checks and installs the required Debian/Ubuntu build
+packages when possible, extracts the bundled source, compiles MBLINK and its
 portable core on this machine, runs the complete test suite, and installs the
 GTK4 application under /usr/local.
 
@@ -30,6 +31,9 @@ Options:
 
 Required build packages on Debian/Ubuntu:
   build-essential cmake pkg-config libgtk-4-dev
+
+If any of these prerequisites are missing, the installer uses apt-get (and
+sudo when required) to install them automatically before continuing.
 EOF
 }
 
@@ -46,7 +50,8 @@ while (($#)); do
             [[ $# -ge 2 ]] || { echo '--prefix requires a directory.' >&2; exit 2; }
             prefix="$2"; shift 2 ;;
         --jobs)
-            [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2; }
+            [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2 ;;
+            }
             jobs="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) printf 'Unknown option: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -83,18 +88,51 @@ if [[ "$mode" == "extract" ]]; then
     exit 0
 fi
 
-missing=()
-for command_name in cmake cc pkg-config glib-compile-resources; do
-    command -v "$command_name" >/dev/null 2>&1 || missing+=("$command_name")
-done
-if ((${#missing[@]})); then
-    printf 'Missing build tools: %s\n' "${missing[*]}" >&2
-    echo 'On Debian/Ubuntu install: build-essential cmake pkg-config libgtk-4-dev' >&2
-    exit 1
+prerequisites_ready()
+{
+    local command_name
+    for command_name in cmake cc pkg-config glib-compile-resources; do
+        command -v "$command_name" >/dev/null 2>&1 || return 1
+    done
+    pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1
+    return 0
+}
+
+install_build_dependencies()
+{
+    local -a elevate=()
+    local -a packages=(build-essential cmake pkg-config libgtk-4-dev)
+
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo 'Required build prerequisites are missing and apt-get is unavailable.' >&2
+        echo 'Install: build-essential cmake pkg-config libgtk-4-dev' >&2
+        return 1
+    fi
+
+    if [[ $EUID -ne 0 ]]; then
+        if ! command -v sudo >/dev/null 2>&1; then
+            echo 'Build prerequisites are missing and installing them requires root access.' >&2
+            echo 'Install: build-essential cmake pkg-config libgtk-4-dev' >&2
+            return 1
+        fi
+        echo 'MBLINK needs to install missing build prerequisites; sudo may ask for your password.'
+        sudo -v
+        elevate=(sudo)
+    fi
+
+    echo 'Installing MBLINK native-build prerequisites...'
+    "${elevate[@]}" env DEBIAN_FRONTEND=noninteractive apt-get update
+    "${elevate[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+}
+
+if ! prerequisites_ready; then
+    echo 'One or more MBLINK native-build prerequisites are missing.'
+    install_build_dependencies
 fi
-if ! pkg-config --atleast-version=4.6 gtk4; then
-    echo 'GTK 4.6 or newer development files are required.' >&2
-    echo 'On Debian/Ubuntu install: libgtk-4-dev' >&2
+
+if ! prerequisites_ready; then
+    echo 'MBLINK prerequisites are still incomplete after the installation attempt.' >&2
+    echo 'Required: build-essential cmake pkg-config libgtk-4-dev with GTK 4.6 or newer.' >&2
     exit 1
 fi
 
