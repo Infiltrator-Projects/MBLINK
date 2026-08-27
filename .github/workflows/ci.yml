@@ -85,7 +85,7 @@ jobs:
           submodules: recursive
       - run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config xvfb xauth
+          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev pkg-config xvfb xauth
       - id: version
         shell: bash
         run: |
