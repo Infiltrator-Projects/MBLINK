@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 
 version="__MBLINK_VERSION__"
+native_version="${version}+native1"
 mode="install"
-prefix="/usr/local"
 extract_directory=""
 output_path=""
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
@@ -18,22 +18,21 @@ Usage: MBLINK-${version}-linux-native.run [options]
 
 Without options, this checks and installs the required Debian/Ubuntu build
 packages when possible, extracts the bundled source, compiles MBLINK and its
-portable core on this machine, runs the complete test suite, and installs the
-GTK4 application under /usr/local.
+portable core for this machine, runs the complete test suite, creates the
+Debian-managed package mblink ${native_version}, and installs it through APT.
 
 Options:
-  --build-only        Compile and test without installing
-  --output FILE       Native executable destination for --build-only
+  --build-only        Build and verify the native Debian package without installing it
+  --output FILE       Native .deb destination for --build-only
   --extract DIR       Extract the complete bundled source and stop
-  --prefix DIR        Installation prefix (default: /usr/local)
   --jobs N            Parallel build jobs (default: detected CPU count)
   -h, --help          Show this help
 
 Required build packages on Debian/Ubuntu:
-  build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev
+  build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev
 
-If any of these prerequisites are missing, the installer uses apt-get (and
-sudo when required) to install them automatically before continuing.
+A native install is package-managed. It replaces the generic mblink package
+record with ${native_version}; the next newer repository release can upgrade it.
 EOF
 }
 
@@ -46,9 +45,6 @@ while (($#)); do
         --extract)
             [[ $# -ge 2 ]] || { echo '--extract requires a directory.' >&2; exit 2; }
             mode="extract"; extract_directory="$2"; shift 2 ;;
-        --prefix)
-            [[ $# -ge 2 ]] || { echo '--prefix requires a directory.' >&2; exit 2; }
-            prefix="$2"; shift 2 ;;
         --jobs)
             [[ $# -ge 2 ]] || { echo '--jobs requires a positive integer.' >&2; exit 2; }
             jobs="$2"; shift 2 ;;
@@ -90,7 +86,7 @@ fi
 prerequisites_ready()
 {
     local command_name
-    for command_name in cmake cc pkg-config glib-compile-resources; do
+    for command_name in cmake cpack cc pkg-config glib-compile-resources dpkg dpkg-deb dpkg-query; do
         command -v "$command_name" >/dev/null 2>&1 || return 1
     done
     pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1
@@ -98,85 +94,99 @@ prerequisites_ready()
     return 0
 }
 
-install_build_dependencies()
+run_as_root()
 {
-    local -a elevate=()
-    local -a packages=(build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev)
-
-    if ! command -v apt-get >/dev/null 2>&1; then
-        echo 'Required build prerequisites are missing and apt-get is unavailable.' >&2
-        echo 'Install: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev' >&2
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo 'Administrator access is required and sudo is unavailable.' >&2
         return 1
     fi
+}
 
-    if [[ $EUID -ne 0 ]]; then
-        if ! command -v sudo >/dev/null 2>&1; then
-            echo 'Build prerequisites are missing and installing them requires root access.' >&2
-            echo 'Install: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev' >&2
-            return 1
-        fi
-        echo 'MBLINK needs to install missing build prerequisites; sudo may ask for your password.'
-        sudo -v
-        elevate=(sudo)
-    fi
-
+install_build_dependencies()
+{
+    local -a packages=(build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev)
+    command -v apt-get >/dev/null 2>&1 || {
+        echo 'Required build prerequisites are missing and apt-get is unavailable.' >&2
+        return 1
+    }
     echo 'Installing MBLINK native-build prerequisites...'
-    "${elevate[@]}" env DEBIAN_FRONTEND=noninteractive apt-get update
-    "${elevate[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+    run_as_root env DEBIAN_FRONTEND=noninteractive apt-get update
+    run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
 }
 
 if ! prerequisites_ready; then
     echo 'One or more MBLINK native-build prerequisites are missing.'
     install_build_dependencies
 fi
-
-if ! prerequisites_ready; then
+prerequisites_ready || {
     echo 'MBLINK prerequisites are still incomplete after the installation attempt.' >&2
-    echo 'Required: build-essential cmake pkg-config libgtk-4-dev libbluetooth-dev with GTK 4.6 or newer.' >&2
     exit 1
-fi
+}
 
 work_directory="$(mktemp -d)"
-cleanup()
-{
-    rm -rf -- "$work_directory"
-}
+cleanup() { rm -rf -- "$work_directory"; }
 trap cleanup EXIT
 
 source_directory="$work_directory/source"
 build_directory="$work_directory/build"
+package_directory="$work_directory/package"
 extract_payload "$source_directory"
 
 cmake \
     -S "$source_directory" \
     -B "$build_directory" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="$prefix" \
+    -DCMAKE_INSTALL_PREFIX=/usr \
     -DMBLINK_BUILD_LINUX_APP=ON \
     -DMBLINK_BUILD_PROFILE=native \
+    -DMBLINK_PACKAGE_VERSION="$native_version" \
     -DBUILD_TESTING=ON
 cmake --build "$build_directory" --parallel "$jobs"
 ctest --test-dir "$build_directory" --output-on-failure --parallel "$jobs"
 
+mkdir -p "$package_directory"
+cpack --config "$build_directory/CPackConfig.cmake" -G DEB -B "$package_directory"
+package_path="$(find "$package_directory" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+[[ -n "$package_path" && -s "$package_path" ]] || { echo 'Native Debian package was not produced.' >&2; exit 1; }
+
+[[ "$(dpkg-deb -f "$package_path" Package)" == "mblink" ]] || { echo 'Native package has the wrong package name.' >&2; exit 1; }
+[[ "$(dpkg-deb -f "$package_path" Version)" == "$native_version" ]] || { echo 'Native package has the wrong version.' >&2; exit 1; }
+[[ "$(dpkg-deb -f "$package_path" Architecture)" == "$(dpkg --print-architecture)" ]] || { echo 'Native package has the wrong architecture.' >&2; exit 1; }
+
 if [[ "$mode" == "build-only" ]]; then
     if [[ -z "$output_path" ]]; then
-        output_path="$PWD/MBLINK-${version}-linux-native"
+        output_path="$PWD/mblink_${native_version}_$(dpkg --print-architecture).deb"
     fi
-    install -Dm755 "$build_directory/mblink-linux" "$output_path"
-    printf 'Native MBLINK executable created: %s\n' "$output_path"
+    mkdir -p "$(dirname "$output_path")"
+    install -m 0644 "$package_path" "$output_path"
+    printf 'Native MBLINK Debian package created: %s\n' "$output_path"
     exit 0
 fi
 
-install_command=(cmake --install "$build_directory")
-if [[ $EUID -eq 0 || -w "$prefix" || (! -e "$prefix" && -w "$(dirname "$prefix")") ]]; then
-    "${install_command[@]}"
-elif command -v sudo >/dev/null 2>&1; then
-    sudo "${install_command[@]}"
-else
-    printf 'Installing to %s requires elevated access and sudo is unavailable.\n' "$prefix" >&2
-    exit 1
-fi
+(
+    cd "$(dirname "$package_path")"
+    run_as_root apt-get install -y "./$(basename "$package_path")"
+)
 
-printf 'MBLINK %s was compiled natively, tested, and installed under %s.\n' "$version" "$prefix"
+# Remove files left by pre-0.7.61 unmanaged /usr/local native installers.
+run_as_root rm -f \
+    /usr/local/bin/mblink-linux \
+    /usr/local/share/icons/hicolor/180x180/apps/mblink.png \
+    /usr/local/share/pixmaps/mblink.png \
+    /usr/local/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop
+run_as_root rm -rf /usr/local/share/doc/mblink
+
+installed_version="$(dpkg-query -W -f='${Version}' mblink 2>/dev/null || true)"
+[[ "$installed_version" == "$native_version" ]] || {
+    printf 'Native package installation verification failed: expected %s, found %s\n' "$native_version" "$installed_version" >&2
+    exit 1
+}
+
+printf 'MBLINK %s was compiled locally, tested, packaged and installed as mblink %s.\n' "$version" "$native_version"
+printf 'APT now owns the native installation and will offer only a genuinely newer release.\n'
 exit 0
 __MBLINK_NATIVE_PAYLOAD_BELOW__

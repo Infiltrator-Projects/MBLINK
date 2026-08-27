@@ -78,7 +78,7 @@ jobs:
   linux-app:
     name: Linux / GTK4 + DEB + RUN
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,6 +124,11 @@ jobs:
           install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
           scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
           "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
+          native_deb="$RUNNER_TEMP/mblink_${VERSION}+native1_amd64.deb"
+          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --build-only --output "$native_deb"
+          test "$(dpkg-deb -f "$native_deb" Package)" = mblink
+          test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
+          dpkg --compare-versions "${VERSION}+native1" gt "${VERSION}"
           test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
           test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
       - uses: actions/upload-artifact@v4
