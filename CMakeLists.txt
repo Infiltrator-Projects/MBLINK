@@ -87,8 +87,16 @@ if(MBLINK_BUILD_LINUX_APP)
         COMMAND "${GLIB_COMPILE_RESOURCES_EXECUTABLE}" --generate-source "--target=${MBLINK_LINUX_RESOURCE_SOURCE}" mblink.gresource.xml
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/app/linux"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml" "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/assets/mblink-emblem.png" VERBATIM)
-    add_executable(mblink-linux app/linux/main.c app/linux/about-dialog.c "${MBLINK_LINUX_RESOURCE_SOURCE}")
-    set_source_files_properties(app/linux/main.c app/linux/about-dialog.c PROPERTIES
+    add_executable(mblink-linux
+        app/linux/main.c
+        app/linux/about-dialog.c
+        app/linux/c207-replay.c
+        "${MBLINK_LINUX_RESOURCE_SOURCE}")
+    set_source_files_properties(
+        app/linux/main.c
+        app/linux/about-dialog.c
+        app/linux/c207-replay.c
+        PROPERTIES
         COMPILE_OPTIONS "-include;${MBLINK_LINK_DIR}/platform/linux/link-gtk-i18n.h")
     set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-w")
     target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
