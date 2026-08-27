@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "about-dialog.h"
+#include "c207-replay.h"
 #include "link-gtk-shell.h"
 #include "link-gtk-widgets.h"
 #include "link/fuel_economy.h"
@@ -19,6 +20,8 @@
 
 typedef struct MblinkLinuxContext {
     bool connected;
+    bool replay_mode;
+    bool manufacturer_ui_dirty;
     char adapter_identity[160];
     LinkTransport transport;
     bool diagnostic_valid;
@@ -92,10 +95,13 @@ static void reset_manufacturer_scan(MblinkLinuxContext *context)
     context->module_scan_complete = false;
     context->module_scan_failed = false;
     context->module_scan_full = false;
+    context->manufacturer_ui_dirty = false;
 }
 
 static const char *connection_text(const MblinkLinuxContext *context)
 {
+    if (context->connected && context->replay_mode)
+        return "OFFLINE REPLAY · ELM327/VGATE CAPTURE";
     return context->connected ? "LINKED · ELM327 VERIFIED" : "NOT LINKED";
 }
 
@@ -286,6 +292,12 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
     link_gtk_card_append_detail(
         identity, "Physical CAN", "0x7E0 → 0x7E8");
 
+    if (context->replay_mode) {
+        link_gtk_card_append_status(
+            identity,
+            "OFFLINE C207 REPLAY · CAPTURE-DERIVED DATA + SYNTHETIC ORC FAULT",
+            "state-warning");
+    }
     link_gtk_card_append_status(
         connection, connection_text(context),
         context->connected ? "state-success" : "state-warning");
@@ -298,7 +310,9 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
         connection, "Diagnostic flow", diagnostic_text(context));
     link_gtk_card_append_note(
         connection,
-        "MBLINK decodes the Mercedes VIN/FIN offline first, then uses live ECU identity to confirm the controller actually installed. Chassis/model assumptions do not override live evidence.");
+        context->replay_mode
+            ? "Replay mode uses the captured C207/Vgate response shapes with a synthetic VIN serial suffix. The injected ORC restraint fault is test-only and is never presented as a real fault from the vehicle."
+            : "MBLINK decodes the Mercedes VIN/FIN offline first, then uses live ECU identity to confirm the controller actually installed. Chassis/model assumptions do not override live evidence.");
     gtk_box_append(GTK_BOX(body), identity);
     gtk_box_append(GTK_BOX(body), connection);
 }
