@@ -98,6 +98,14 @@ cmake --build build-linux --target mblink-linux
 ./build-linux/mblink-linux
 ```
 
+Linux adapter discovery is owned by LINK. MBLINK therefore supports the same
+native choices without product-specific transport code: tty/RFCOMM ELM327,
+Vgate-style BLE/GATT and Bluetooth Classic/SPP, plus direct USB Tactrix
+OpenPort 2.0. A connected Tactrix appears as
+`OP2:Tactrix OpenPort 2.0`; Linux talks to it through LINK/libusb and does not
+need the Windows J2534 DLL. The current native OpenPort path covers the
+CAN/ISO-15765 modes used by the C207 diagnostics (11/29-bit, 500/250 kbit/s).
+
 Offline C207/Vgate replay:
 
 ```bash
