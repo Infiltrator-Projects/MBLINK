@@ -113,7 +113,9 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'mblink_linux_show_about' app/linux/main.c
-          grep -Fq 'Copyright © 2026 Shannon Smith' app/linux/about-dialog.c
+          grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
+          grep -Fq 'info->copyright_text' app/linux/about-dialog.c
+          grep -Fq 'mblink_linux_build_label(info->build_profile)' app/linux/about-dialog.c
           grep -Fq 'Generic / APT package' app/linux/about-dialog.c
           grep -Fq 'Native / local machine compile' app/linux/about-dialog.c
           test -s app/linux/assets/mblink-emblem.png
