@@ -25,7 +25,7 @@ ELM initialization
   → normal live-data polling
 ```
 
-The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. Manufacturer scan interruption preserves evidence already captured instead of implying that the Bluetooth link itself failed.
+The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption, but LINK currently treats a manufacturer command timeout as a failed shared diagnostic session and requests reconnect to resynchronise the adapter. That timeout state is not evidence that the Bluetooth bearer itself disconnected.
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
