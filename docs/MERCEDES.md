@@ -6,7 +6,7 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manuf
 
 ## Shared Apple session architecture
 
-The iPhone face uses LINK 0.14.14's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses LINK 0.14.15's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
 
 This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
 
@@ -55,7 +55,7 @@ Mercedes' W212 introduction material documents diagnostic CAN (CAN D) terminatin
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
-Normal automatic discovery therefore uses a gateway census:
+The deeper gateway discovery path uses a gateway census. The iPhone's initial connection no longer runs this 263-target census inline; it performs the eight-target EOBD quick scan so VIN, standard faults and live data become usable promptly. The Linux workstation can run the deeper gateway/full discovery path:
 
 1. probe the eight standard 11-bit EOBD physical endpoints `0x7E0–0x7E7`;
 2. switch to ISO 15765 normal-fixed 29-bit physical addressing;

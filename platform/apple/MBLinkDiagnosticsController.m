@@ -261,6 +261,69 @@ static bool MBLinkSimulatorResponder(
     [self notifyDelegate];
 }
 
+- (void)linkDiagnosticsController:(LinkDiagnosticsController *)controller
+              didReceiveFlowEvent:(const LinkDiagnosticFlowEvent *)event
+{
+    (void)controller;
+    if (event == NULL ||
+        event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN) {
+        return;
+    }
+
+    if (!event->vin_available || event->vin == NULL) {
+        self.mercedesVINText = nil;
+        self.mercedesIdentitySummaryText =
+            @"Standard OBD VIN not returned; Mercedes ECU identity pending";
+        [self notifyDelegate];
+        return;
+    }
+
+    self.mercedesVINText = MBLinkStringFromCString(event->vin);
+    NSMutableArray<NSString *> *identity = [[NSMutableArray alloc] init];
+    MblinkMercedesVinDecode decoded;
+    if (mblink_mercedes_vin_decode(event->vin, &decoded)) {
+        if (decoded.baumuster_definition != NULL) {
+            [identity addObject:[NSString stringWithFormat:
+                @"VIN · %@ · %@ · %@ · %@",
+                MBLinkStringFromCString(decoded.baumuster),
+                MBLinkStringFromCString(
+                    decoded.baumuster_definition->chassis_family),
+                MBLinkStringFromCString(
+                    decoded.baumuster_definition->model),
+                MBLinkStringFromCString(
+                    decoded.baumuster_definition->engine_code)]];
+            [identity addObject:[NSString stringWithFormat:
+                @"ENGINE · %@ · %u cc · %@",
+                MBLinkStringFromCString(
+                    decoded.baumuster_definition->engine_code),
+                decoded.baumuster_definition->displacement_cc,
+                MBLinkStringFromCString(
+                    mblink_mercedes_fuel_type_name(
+                        decoded.baumuster_definition->fuel))]];
+        } else if (decoded.baumuster_available) {
+            [identity addObject:[NSString stringWithFormat:
+                @"VIN · Baumuster %@ · series %@",
+                MBLinkStringFromCString(decoded.baumuster),
+                MBLinkStringFromCString(decoded.series_number)]];
+        }
+        if (decoded.plant_definition != NULL) {
+            [identity addObject:[NSString stringWithFormat:
+                @"BUILD · %@, %@ · %@ · serial %@",
+                MBLinkStringFromCString(decoded.plant_definition->plant),
+                MBLinkStringFromCString(decoded.plant_definition->country),
+                MBLinkStringFromCString(
+                    mblink_mercedes_steering_name(decoded.steering)),
+                MBLinkStringFromCString(decoded.serial_number)]];
+        }
+    }
+
+    self.mercedesIdentityResults = [identity copy];
+    self.mercedesIdentitySummaryText = identity.count != 0U
+        ? @"Standard OBD VIN captured and decoded; Mercedes ECU identity pending"
+        : @"Standard OBD VIN captured; Mercedes ECU identity pending";
+    [self notifyDelegate];
+}
+
 - (void)linkDiagnosticsControllerBeginManufacturerExtension:
     (LinkDiagnosticsController *)controller
 {
@@ -303,7 +366,7 @@ static bool MBLinkSimulatorResponder(
         if (capturedModules != 0U)
             [self updateMercedesModuleScanSummary];
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes mobile gateway census interrupted: %@", status];
+            @"Mercedes module scan interrupted: %@", status];
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
             @"Partial · %zu responding modules · %zu Mercedes factory fault record%@ retained",
             capturedModules, capturedFaults, capturedFaults == 1U ? @"" : @"s"];
@@ -449,7 +512,7 @@ static bool MBLinkSimulatorResponder(
         return;
     }
     MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan);
+        mblink_mercedes_module_scan_begin(&_mercedesModuleScan);
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
         self.mercedesProbeStatusText = @"Mercedes module discovery could not start";
         [self finishMercedesExtensionRestoringAdapter:YES];
@@ -457,13 +520,15 @@ static bool MBLinkSimulatorResponder(
     }
     _moduleScanActive = YES;
     /*
-     * iPhone deliberately stops at the bounded gateway census.  The broader
-     * 0x600-0x7F7 forensic sweep belongs to the Linux workstation build.
+     * Initial iPhone connection deliberately uses only the eight standard
+     * EOBD physical endpoints.  A 263-target gateway census must not hold the
+     * connection hostage before VIN, faults and live OBD data reach the UI.
+     * Deeper gateway/forensic discovery remains a separate workstation task.
      */
     self.mercedesProbeStatusText =
-        @"Mercedes mobile gateway census · EOBD then 29-bit logical targets (read-only)";
+        @"Mercedes quick module scan · eight EOBD physical targets (read-only)";
     self.mercedesUDSFaultStatusText =
-        @"Mobile gateway-routed module discovery in progress";
+        @"Quick EOBD module discovery in progress";
     [self notifyDelegate];
     [self beginCurrentMercedesModuleScanCommand];
 }
@@ -631,7 +696,10 @@ static bool MBLinkSimulatorResponder(
             _mercedesModuleScan.truncated
                 ? @" · module list truncated" : @""];
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes mobile gateway census complete · %zu responding · %zu classified · per-module fault memory read",
+            @"Mercedes %@ module scan complete · %zu responding · %zu classified · per-module fault memory read",
+            MBLinkStringFromCString(
+                mblink_mercedes_module_scan_scope_name(
+                    _mercedesModuleScan.scope)),
             count, classified];
     }
     [self notifyDelegate];
