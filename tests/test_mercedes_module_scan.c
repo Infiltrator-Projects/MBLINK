@@ -38,6 +38,44 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     return 0;
 }
 
+static int accept_identity_metadata(
+    MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *spare,
+    const MblinkElm327Response *software,
+    const MblinkElm327Response *hardware)
+{
+    char command[32];
+    size_t written = 0U;
+
+    CHECK(scan->stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART);
+    CHECK(mblink_mercedes_module_scan_command(
+              scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "22F187") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(scan, spare) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+    CHECK(scan->stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE);
+    CHECK(mblink_mercedes_module_scan_command(
+              scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "22F188") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(scan, software) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+    CHECK(scan->stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE);
+    CHECK(mblink_mercedes_module_scan_command(
+              scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "22F191") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(scan, hardware) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    return 0;
+}
+
 int main(void)
 {
     MblinkMercedesModuleScan scan;
@@ -51,6 +89,15 @@ int main(void)
         MBLINK_ELM327_RESULT_OK, "62F19743524433", false);
     MblinkElm327Response unknown_identity = response(
         MBLINK_ELM327_RESULT_OK, "62F197455350", false);
+    MblinkElm327Response spare = response(
+        MBLINK_ELM327_RESULT_OK,
+        "62F18736353139303131383031", false);
+    MblinkElm327Response software = response(
+        MBLINK_ELM327_RESULT_OK,
+        "62F18836353139303230303031", false);
+    MblinkElm327Response hardware = response(
+        MBLINK_ELM327_RESULT_OK,
+        "62F19136353139303430303031", false);
 
     CHECK(mblink_mercedes_module_scan_begin(&scan) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(send_ok(&scan, "ATSP6") == 0);
@@ -79,6 +126,19 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.modules[0].identity_available);
     CHECK(strcmp(scan.modules[0].identity, "CRD3") == 0);
+    CHECK(scan.modules[0].definition != NULL);
+    CHECK(strcmp(scan.modules[0].definition->key, "engine-cdi") == 0);
+    CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_ENGINE);
+    CHECK(scan.modules[0].identification_status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    CHECK(accept_identity_metadata(
+              &scan, &spare, &software, &hardware) == 0);
+    CHECK(scan.modules[0].spare_part_number_available);
+    CHECK(strcmp(scan.modules[0].spare_part_number, "6519011801") == 0);
+    CHECK(scan.modules[0].software_number_available);
+    CHECK(strcmp(scan.modules[0].software_number, "6519020001") == 0);
+    CHECK(scan.modules[0].hardware_number_available);
+    CHECK(strcmp(scan.modules[0].hardware_number, "6519040001") == 0);
 
     CHECK(send_ok(&scan, "ATSH7E1") == 0);
     CHECK(send_ok(&scan, "ATCRA7E9") == 0);
@@ -105,13 +165,16 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(!scan.modules[1].identity_available);
+    CHECK(accept_identity_metadata(
+              &scan, &no_data, &no_data, &no_data) == 0);
     CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[1]), "Secondary EOBD powertrain ECU") == 0);
     CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 2U);
+    CHECK(mblink_mercedes_module_scan_classified_count(&scan) == 1U);
     CHECK(mblink_mercedes_module_scan_timeout_ms(&scan) > 0U);
 
     /*
-     * The C207 capture proves that normal discovery should stop after 0x7E7.
-     * With a responding ECU already recorded, proceed to its DTC inventory.
+     * QUICK discovery still stops after 0x7E7. The normal product path now
+     * uses the gateway census below; QUICK remains a bounded compatibility mode.
      */
     memset(&scan, 0, sizeof(scan));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
@@ -134,6 +197,76 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+
+    /* Normal product scan: EOBD first, then gateway-routed 29-bit targets. */
+    {
+        const MblinkMercedesModuleDefinition *definition;
+
+        CHECK(mblink_mercedes_c207_module_definition_count() >= 16U);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "CRD3-651-WMA4BD3");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_ENGINE);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "VGS3_0402");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "ORC_212");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
+        CHECK(mblink_mercedes_c207_module_definition_for_identity(
+                  "TOTALLY_UNKNOWN_ECU") == NULL);
+
+        CHECK(mblink_mercedes_module_scan_begin_gateway(&scan) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_GATEWAY);
+        CHECK(mblink_mercedes_module_scan_planned_target_count(
+                  scan.scope) == 263U);
+        CHECK(scan.candidate_tx == UINT32_C(0x7e0));
+
+        memset(&scan, 0, sizeof(scan));
+        scan.scope = MBLINK_MERCEDES_MODULE_SCAN_GATEWAY;
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        mblink_mercedes_module_scan_set_11_candidate(
+            &scan, UINT32_C(0x7e7));
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29);
+        CHECK(scan.gateway_target == UINT16_C(0x00));
+        CHECK(scan.candidate_extended);
+        CHECK(scan.candidate_tx == UINT32_C(0x18da00f1));
+        CHECK(scan.candidate_rx == UINT32_C(0x18daf100));
+        CHECK(send_ok(&scan, "ATSP7") == 0);
+
+        /* Tester address F1 is never probed as an ECU. */
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        CHECK(mblink_mercedes_module_scan_set_gateway_target(
+                  &scan, UINT16_C(0xf0)));
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.gateway_target == UINT16_C(0xf2));
+        CHECK(scan.candidate_tx == UINT32_C(0x18daf2f1));
+        CHECK(scan.candidate_rx == UINT32_C(0x18daf1f2));
+
+        /* FF is the final gateway-routed logical target. */
+        memset(&scan, 0, sizeof(scan));
+        scan.scope = MBLINK_MERCEDES_MODULE_SCAN_GATEWAY;
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        CHECK(mblink_mercedes_module_scan_set_gateway_target(
+                  &scan, UINT16_C(0xff)));
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+    }
 
     /* Explicit FULL consumes the one Mercedes-owned plan. */
     {
@@ -163,6 +296,13 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.modules[0].identity_available);
         CHECK(strcmp(scan.modules[0].identity, "ESP") == 0);
+        CHECK(scan.modules[0].definition != NULL);
+        CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_ABS_ESP);
+        CHECK(strcmp(
+                  mblink_mercedes_module_scan_module_name(&scan.modules[0]),
+                  "Electronic Stability Program (ESP) control unit") == 0);
+        CHECK(accept_identity_metadata(
+                  &scan, &no_data, &no_data, &no_data) == 0);
         CHECK(scan.full_target_index == 1U);
         CHECK(scan.candidate_tx == UINT32_C(0x601));
 

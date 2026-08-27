@@ -312,29 +312,62 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, "NOT SCANNED · LINK OFFLINE", "state-warning");
     } else if (context->module_scan_active) {
         (void)snprintf(summary, sizeof(summary), "%s · %zu modules found so far",
-             context->module_scan_full ? "FULL SWEEP SCANNING" : "SCANNING",
+             context->module_scan_full
+                 ? "FULL FORENSIC SWEEP"
+                 : "GATEWAY CENSUS",
              context->module_scan.module_count);
         link_gtk_card_append_status(card, summary, "state-warning");
     } else if (context->module_scan_complete) {
-        (void)snprintf(summary, sizeof(summary), "%s · %zu responding module%s%s",
-             context->module_scan_full ? "FULL SWEEP COMPLETE" : "COMPLETE",
+        const size_t classified =
+            mblink_mercedes_module_scan_classified_count(
+                &context->module_scan);
+        (void)snprintf(summary, sizeof(summary),
+             "%s · %zu responding · %zu classified · %zu unresolved%s",
+             context->module_scan_full
+                 ? "FULL FORENSIC COMPLETE"
+                 : "GATEWAY CENSUS COMPLETE",
              context->module_scan.module_count,
-             context->module_scan.module_count == 1U ? "" : "s",
-             context->module_scan.truncated ? " · result capacity reached" : "");
+             classified,
+             context->module_scan.module_count - classified,
+             context->module_scan.truncated
+                 ? " · result capacity reached" : "");
         link_gtk_card_append_status(card, summary, "state-success");
         for (size_t index = 0U; index < context->module_scan.module_count; ++index) {
   const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[index];
   char value[128];
   if (module->extended_id) {
-      (void)snprintf(value, sizeof(value), "0x%08X → 0x%08X · %zu fault record%s",
-                     (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id,
-                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
+      (void)snprintf(value, sizeof(value),
+                     "0x%08X → 0x%08X · %zu fault record%s",
+                     (unsigned int)module->tx_can_id,
+                     (unsigned int)module->rx_can_id,
+                     module->dtcs.count,
+                     module->dtcs.count == 1U ? "" : "s");
   } else {
-      (void)snprintf(value, sizeof(value), "0x%03X → 0x%03X · %zu fault record%s",
-                     (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id,
-                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
+      (void)snprintf(value, sizeof(value),
+                     "0x%03X → 0x%03X · %zu fault record%s",
+                     (unsigned int)module->tx_can_id,
+                     (unsigned int)module->rx_can_id,
+                     module->dtcs.count,
+                     module->dtcs.count == 1U ? "" : "s");
   }
-  link_gtk_card_append_detail(card, mblink_mercedes_module_scan_module_name(module), value);
+  link_gtk_card_append_detail(
+      card, mblink_mercedes_module_scan_module_name(module), value);
+  if (module->definition != NULL)
+      link_gtk_card_append_detail(
+          card, "  Mercedes component",
+          module->definition->component_designation);
+  if (module->identity_available)
+      link_gtk_card_append_detail(
+          card, "  ECU system name", module->identity);
+  if (module->spare_part_number_available)
+      link_gtk_card_append_detail(
+          card, "  Spare part", module->spare_part_number);
+  if (module->software_number_available)
+      link_gtk_card_append_detail(
+          card, "  Software", module->software_number);
+  if (module->hardware_number_available)
+      link_gtk_card_append_detail(
+          card, "  Hardware", module->hardware_number);
         }
     } else if (context->module_scan_failed) {
         link_gtk_card_append_status(card, "MODULE INVENTORY INCOMPLETE", "state-warning");
@@ -342,7 +375,7 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, "MODULE SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(card,
-        "Normal discovery is bounded to 0x7E0–0x7E7. FULL SWEEP is an explicit read-only forensic pass across 0x600–0x7F7 plus ISO 15765 normal-fixed 29-bit targets. Responders are queried for F197 system-name evidence; unknown ECUs remain address-labelled rather than guessed.");
+        "Normal discovery performs an 8-endpoint EOBD pass, then a gateway-routed ISO 15765 normal-fixed 29-bit census (263 total targets, tester address F1 excluded). Responders are read for F197/F187/F188/F191 identity evidence and matched only against the source-corroborated W212/C207 module catalogue. FULL SWEEP remains an explicit forensic fallback that also walks 0x600–0x7F7. Unknown responders remain unresolved rather than guessed.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
@@ -416,9 +449,16 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
              context->module_scan.module_count == 1U ? "" : "s");
         link_gtk_card_append_status(modules, summary, "state-warning");
     } else if (context->module_scan_complete) {
-        const size_t total = mblink_mercedes_module_scan_total_dtc_count(&context->module_scan);
-        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu modules · %zu factory fault record%s",
-             context->module_scan.module_count, total, total == 1U ? "" : "s");
+        const size_t total =
+            mblink_mercedes_module_scan_total_dtc_count(
+                &context->module_scan);
+        const size_t classified =
+            mblink_mercedes_module_scan_classified_count(
+                &context->module_scan);
+        (void)snprintf(summary, sizeof(summary),
+             "COMPLETE · %zu modules · %zu classified · %zu factory fault record%s",
+             context->module_scan.module_count, classified,
+             total, total == 1U ? "" : "s");
         link_gtk_card_append_status(modules, summary, "state-success");
         for (size_t module_index = 0U; module_index < context->module_scan.module_count; ++module_index) {
   const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[module_index];
@@ -629,7 +669,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK serial + BlueZ BLE ELM327 providers");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + bounded evidence-backed module discovery + per-module UDS DTC inventory");
+        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + gateway-routed module census + evidence-backed module map + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         gtk_box_append(GTK_BOX(body), card);
         break;
@@ -650,7 +690,7 @@ static MblinkMercedesModuleScanResult begin_module_scan(
     if (context == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
     return context->module_scan_full
         ? mblink_mercedes_module_scan_begin_full(&context->module_scan)
-        : mblink_mercedes_module_scan_begin(&context->module_scan);
+        : mblink_mercedes_module_scan_begin_gateway(&context->module_scan);
 }
 
 static void request_full_sweep(void *opaque)

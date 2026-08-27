@@ -418,6 +418,10 @@ static bool MBLinkSimulatorResponder(
         module->rx_can_id = UINT32_C(0x7e8);
         module->kind = MBLINK_MERCEDES_MODULE_ENGINE;
         module->tester_present_response = true;
+        (void)snprintf(
+            module->identity, sizeof(module->identity), "%s", "CRD3-SIM");
+        module->identity_available = true;
+        mblink_mercedes_module_scan_classify_identity(module);
         module->dtcs = _mercedesProbe.dtcs;
         module->dtc_result = _mercedesProbe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE
   ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE : MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
@@ -425,15 +429,18 @@ static bool MBLinkSimulatorResponder(
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
-    MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_begin(&_mercedesModuleScan);
+    MblinkMercedesModuleScanResult result =
+        mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan);
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
         self.mercedesProbeStatusText = @"Mercedes module discovery could not start";
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
     _moduleScanActive = YES;
-    self.mercedesProbeStatusText = @"Discovering Mercedes-Benz control modules (read-only)";
-    self.mercedesUDSFaultStatusText = @"Module discovery in progress";
+    self.mercedesProbeStatusText =
+        @"Mercedes gateway module census · EOBD then 29-bit logical targets (read-only)";
+    self.mercedesUDSFaultStatusText =
+        @"Gateway-routed module discovery in progress";
     [self notifyDelegate];
     [self beginCurrentMercedesModuleScanCommand];
 }
@@ -494,8 +501,35 @@ static bool MBLinkSimulatorResponder(
         NSString *address = module->extended_id
   ? [NSString stringWithFormat:@"0x%08X → 0x%08X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id]
   : [NSString stringWithFormat:@"0x%03X → 0x%03X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id];
-        [identity addObject:[NSString stringWithFormat:@"MODULE · %@ · %@ · %zu fault record%@",
-  name, address, module->dtcs.count, module->dtcs.count == 1U ? @"" : @"s"]];
+        if (module->definition != NULL) {
+            [identity addObject:[NSString stringWithFormat:
+                @"MODULE · %@ · %@ · %@ · %zu fault record%@",
+                name,
+                MBLinkStringFromCString(
+                    module->definition->component_designation),
+                address, module->dtcs.count,
+                module->dtcs.count == 1U ? @"" : @"s"]];
+        } else {
+            [identity addObject:[NSString stringWithFormat:
+                @"MODULE · %@ · %@ · unresolved family · %zu fault record%@",
+                name, address, module->dtcs.count,
+                module->dtcs.count == 1U ? @"" : @"s"]];
+        }
+        if (module->identity_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  SYSTEM · %@", MBLinkStringFromCString(module->identity)]];
+        if (module->spare_part_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  PART · %@", MBLinkStringFromCString(
+                    module->spare_part_number)]];
+        if (module->software_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  SOFTWARE · %@", MBLinkStringFromCString(
+                    module->software_number)]];
+        if (module->hardware_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  HARDWARE · %@", MBLinkStringFromCString(
+                    module->hardware_number)]];
         for (size_t dtcIndex = 0U; dtcIndex < module->dtcs.count; ++dtcIndex) {
   char code[7];
   if (!mblink_uds_dtc_format_hex(module->dtcs.records[dtcIndex].code, code, sizeof(code))) continue;
@@ -504,17 +538,32 @@ static bool MBLinkSimulatorResponder(
       (unsigned int)module->dtcs.records[dtcIndex].status]];
         }
     }
-    self.mercedesIdentityResults = [identity copy];
-    self.mercedesIdentitySummaryText = [NSString stringWithFormat:@"%@ · %zu responding module%@",
-        self.mercedesIdentitySummaryText, count, count == 1U ? @"" : @"s"];
-    self.mercedesUDSFaults = [faults copy];
-    self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-        @"Complete · %zu modules · %zu Mercedes factory fault record%@%@",
-        count, totalFaults, totalFaults == 1U ? @"" : @"s",
-        _mercedesModuleScan.truncated ? @" · module list truncated" : @""];
-    self.mercedesProbeStatusText = [NSString stringWithFormat:
-        @"Mercedes full module discovery complete · %zu responding module%@ · per-module fault memory read",
-        count, count == 1U ? @"" : @"s"];
+    {
+        const size_t classified =
+            mblink_mercedes_module_scan_classified_count(
+                &_mercedesModuleScan);
+        [identity addObject:[NSString stringWithFormat:
+            @"MODULE MAP · %zu responding · %zu classified · %zu unresolved · %@",
+            count, classified, count - classified,
+            MBLinkStringFromCString(
+                mblink_mercedes_module_scan_scope_name(
+                    _mercedesModuleScan.scope))]];
+        self.mercedesIdentityResults = [identity copy];
+        self.mercedesIdentitySummaryText = [NSString stringWithFormat:
+            @"%@ · %zu responding · %zu classified · %zu unresolved",
+            self.mercedesIdentitySummaryText,
+            count, classified, count - classified];
+        self.mercedesUDSFaults = [faults copy];
+        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+            @"Complete · %zu modules · %zu classified · %zu Mercedes factory fault record%@%@",
+            count, classified, totalFaults,
+            totalFaults == 1U ? @"" : @"s",
+            _mercedesModuleScan.truncated
+                ? @" · module list truncated" : @""];
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Mercedes gateway module census complete · %zu responding · %zu classified · per-module fault memory read",
+            count, classified];
+    }
     [self notifyDelegate];
 }
 

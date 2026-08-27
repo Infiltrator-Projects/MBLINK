@@ -47,6 +47,27 @@ The ECU-family side has direct fitment evidence: the public `autodiag2/database`
 
 Physical hardware is a validation gate, not a development gate. MBLINK continues to build the Mercedes protocol model, fixture replay, ECU-family decoding, fault knowledge and safe read-only requests offline. When the development adapter becomes available, the real C207 capture promotes only what it actually proves rather than beginning the implementation from scratch.
 
+## W212 / C207 gateway module map
+
+MBLINK now separates the **expected platform roster** from the **observed vehicle map**.
+
+Mercedes' W212 introduction material documents diagnostic CAN (CAN D) terminating at the central-gateway/front-SAM assembly, with the gateway bridging diagnostic requests onto the drivetrain, chassis, interior and other vehicle networks. W212/C207 service information independently lists the principal control-unit families, including engine CDI/ME, VGS/EGS transmission, selector/DIRECT SELECT, ESP, restraints, instrument cluster, central gateway/front SAM, rear SAM, EIS/EZS, steering-column, climate, AIRmatic/ADS, DISTRONIC and headlamp-range modules.
+
+The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
+
+Normal automatic discovery therefore uses a gateway census:
+
+1. probe the eight standard 11-bit EOBD physical endpoints `0x7E0–0x7E7`;
+2. switch to ISO 15765 normal-fixed 29-bit physical addressing;
+3. walk logical target addresses `00–FF`, excluding tester address `F1`;
+4. for each responder, retain read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number;
+5. classify the responder only when returned identity text matches a source-corroborated Mercedes module family;
+6. read that responder's UDS DTC memory independently with `19 02 FF`.
+
+That automatic census is 263 targets rather than the previous forensic plan's 759 targets. The explicit FULL SWEEP remains available and still walks the broader `0x600–0x7F7` 11-bit range plus every normal-fixed 29-bit target for cases where the gateway census is insufficient.
+
+A catalogue entry is not evidence that a module is fitted to a particular car. Optional equipment remains optional, petrol/diesel control-unit alternatives remain mutually dependent on the decoded vehicle configuration, and a discovered but unclassified responder remains unresolved. Conversely, an ECU becomes part of the live vehicle map only after it actually responds during the read-only scan.
+
 ## Read-only ECU evidence probe
 
 `MblinkMercedesEcuProbe` owns the complete bounded engine-evidence sequence:
