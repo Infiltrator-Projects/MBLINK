@@ -147,13 +147,6 @@ static bool MBLinkSimulatorResponder(
     flowConfig.manufacturer_extension_after_pid_discovery = false;
     flowConfig.manufacturer_extension_after_standard_dtcs = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
-    /*
-     * ATSP0 may need several seconds to acquire the vehicle protocol on the
-     * first cold connection.  A later retry is normally fast because the ELM
-     * has already found CAN, so give the first PID query enough room instead
-     * of forcing the user through a connect-fail-connect cycle.
-     */
-    flowConfig.query_timeout_ms = UINT64_C(8000);
     _shared = [[LinkDiagnosticsController alloc]
         initWithProductSlug:@"mblink"
         flowConfig:flowConfig

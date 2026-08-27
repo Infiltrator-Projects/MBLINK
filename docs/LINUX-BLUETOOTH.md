@@ -1,14 +1,24 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-# Linux Bluetooth and Vgate iCar Pro
+# Linux diagnostic adapters
 
-MBLINK 0.7.45 uses LINK 0.14.0's native Linux BlueZ transport. The Linux application now discovers four ELM-compatible connection classes in the same Adapter chooser:
+Linux adapter discovery and transport are owned by LINK and shared with JAGLINK. MBLINK does not maintain a separate Vgate or Tactrix implementation.
 
-- USB serial adapters exposed as `/dev/ttyUSB*` or `/dev/ttyACM*`.
-- Classic Bluetooth SPP adapters exposed through `/dev/rfcomm*`.
-- Native Bluetooth LE devices discovered through the BlueZ system D-Bus.
+The adapter chooser supports:
 
-For BLE, no RFCOMM bridge is needed. Press **Refresh**, select the entry beginning with `BLE:` for the Vgate iCar Pro, then press **LINK UP**. LINK refreshes the LE bearer, connects through BlueZ, waits for GATT services, finds a writable/notifiable characteristic pair, enables notifications and performs an `ATI` handshake. Only an adapter that returns a complete ELM-style response is accepted. MBLINK then uses the same ELM327 parser, OBD-II flow and read-only Mercedes factory diagnostic extension as the serial path.
+- ordinary ELM-compatible `/dev/ttyUSB*` and `/dev/ttyACM*` devices;
+- existing `/dev/rfcomm*` ELM-compatible devices;
+- native BlueZ BLE/GATT ELM-compatible adapters;
+- native BlueZ Bluetooth Classic/SPP ELM-compatible adapters; and
+- native USB Tactrix OpenPort 2.0.
 
-The BLE provider does not hard-code Vgate UUIDs. It supports both common split write/notify services and single UART-style characteristics that expose both capabilities. Writes are chunked at 20 bytes so longer text commands remain valid at the default ATT MTU.
+For a Vgate iCar Pro dual-mode adapter, press **Refresh**, select the actual BLE or Classic entry exposed by the adapter, then press **LINK UP**. BLE uses BlueZ D-Bus/GATT directly; Classic uses SDP/RFCOMM directly. The advertising name is not used to hard-code an operating-system path.
 
-The first hardware validation target is the Vgate iCar Pro BLE 4.0 / dual-mode adapter. If the same unit exposes Classic Bluetooth SPP on a Linux host, the existing `/dev/rfcomm*` route remains available as a second transport path.
+A connected Tactrix appears as:
+
+`OP2:Tactrix OpenPort 2.0`
+
+LINK drives it directly through libusb. No Wine, Windows Tactrix DLL or separately installed Linux J2534 package is required. The current native bridge covers the CAN/ISO-15765 modes used by present C207 diagnostics, including 11/29-bit addressing, 500/250 kbit/s, functional OBD responders, directed requests, flow control and response-pending handling. K-line is not yet exposed by the LINK Linux bridge and must not be implied by MBLINK.
+
+The package installs LINK's shared OpenPort udev rule for USB VID:PID `0403:cc4d` using `uaccess`, group `dialout` and mode `0660`. Replug the Tactrix after package installation if permissions were established while it was already connected.
+
+The generic transport details and source-of-truth behaviour are documented in LINK's `docs/LINUX-BLUETOOTH.md`; this file records only the MBLINK-facing usage boundary.
