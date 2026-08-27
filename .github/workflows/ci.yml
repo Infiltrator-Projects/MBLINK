@@ -49,8 +49,9 @@ jobs:
           grep -q 'return link_elm327_parser_feed' src/elm327/elm327.c
           grep -q 'return link_elm327_can_decode_pdu' src/elm327/can.c
           grep -q 'return link_elm327_session_begin' src/elm327/session.c
-          grep -q 'link_diagnostic_flow_accept_response' platform/apple/MBLinkDiagnosticsController.m
-          grep -q 'link_diagnostic_flow_resume_after_manufacturer' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'src/core/diagnostic_flow.c' src/core/mblink.c
           ! grep -q 'MBLinkDiagnosticsPhase' platform/apple/MBLinkDiagnosticsController.m
           test "$(wc -c < src/obd2/obd2.c)" -lt 1024
@@ -216,8 +217,9 @@ jobs:
           status="$(git submodule status --recursive)"
           ! grep -Eq '^[+-U]' <<<"$status"
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
-          grep -q 'link_diagnostic_flow_accept_response' platform/apple/MBLinkDiagnosticsController.m
-          grep -q 'link_diagnostic_flow_resume_after_manufacturer' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
       - name: Build simulator

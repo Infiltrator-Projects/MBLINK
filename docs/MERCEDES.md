@@ -4,6 +4,12 @@
 
 Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
 
+## Shared Apple session architecture
+
+The iPhone face now uses LINK 0.14.9's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+
+This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
+
 ## Offline Mercedes VIN / FIN / Baumuster decoder
 
 MBLINK contains a portable offline Mercedes VIN decoder. It follows Mercedes-Benz's own FIN decomposition for the long-running numeric Baumuster format: three-character WMI, six-digit vehicle Baumuster, steering code, assembly-plant code and six-digit production serial. When positions 4-9 are not numeric, the decoder preserves the VIN as an ISO VDS-style layout rather than falsely treating it as a Mercedes Baumuster.
