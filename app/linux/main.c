@@ -104,7 +104,7 @@ static const char *connection_text(const MblinkLinuxContext *context)
 {
     if (context->connected && context->replay_mode)
         return "OFFLINE REPLAY · ELM327/VGATE CAPTURE";
-    return context->connected ? "LINKED · ELM327 VERIFIED" : "NOT LINKED";
+    return context->connected ? "LINKED · DIAGNOSTIC ADAPTER VERIFIED" : "NOT LINKED";
 }
 
 static const char *diagnostic_text(const MblinkLinuxContext *context)
@@ -770,7 +770,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Version", mblink_version());
         link_gtk_card_append_detail(card, "Product", "Mercedes-Benz diagnostics");
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
-        link_gtk_card_append_detail(card, "Linux transport", "LINK serial + BlueZ BLE ELM327 providers");
+        link_gtk_card_append_detail(card, "Linux transport", "LINK native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
         link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + Linux full forensic module sweep + evidence-backed module map + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
