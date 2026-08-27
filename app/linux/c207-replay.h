@@ -21,6 +21,7 @@ typedef struct MblinkC207ReplayTransport {
     uint32_t tx_can_id;
     uint32_t rx_can_id;
     bool extended_id;
+    bool headers_enabled;
     char pending[1024];
     size_t pending_length;
     unsigned long command_count;

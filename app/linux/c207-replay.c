@@ -103,7 +103,7 @@ static const char *replay_uds_response(
      */
     if (replay->tx_can_id == UINT32_C(0x602)) {
         if (strcmp(command, "3E00") == 0)
-            return "7E00\r>";
+            return replay->headers_enabled ? "60A027E00\r>" : "7E00\r>";
         if (strcmp(command, "1902FF") == 0)
             return "7F1978\r5902FFB0001309\r>";
         if (strcmp(command, "22F197") == 0)
@@ -117,7 +117,7 @@ static const char *replay_uds_response(
     /* Real engine-ECU response shapes captured at 0x7E0 -> 0x7E8. */
     if (replay->tx_can_id == UINT32_C(0x7e0)) {
         if (strcmp(command, "3E00") == 0)
-            return "7E00\r>";
+            return replay->headers_enabled ? "7E8037E00\r>" : "7E00\r>";
         if (strcmp(command, "22F190") == 0)
             return "014\r0:62F190574444\r1:3230373330333246\r2:313233343536\r>";
         if (strcmp(command, "22F18C") == 0)
@@ -147,7 +147,7 @@ static const char *replay_uds_response(
      */
     if (replay->tx_can_id == UINT32_C(0x7e1)) {
         if (strcmp(command, "3E00") == 0)
-            return "7F3E12\r>";
+            return replay->headers_enabled ? "7E9037F3E12\r>" : "7F3E12\r>";
         if (strcmp(command, "1902FF") == 0 ||
             strcmp(command, "22F190") == 0 ||
             strcmp(command, "22F197") == 0 ||
@@ -216,6 +216,12 @@ static LinkTransportStatus replay_write(
         if (!parse_hex_id(command + 4U, &replay->tx_can_id))
             return LINK_TRANSPORT_IO_ERROR;
         replay->extended_id = strlen(command + 4U) > 3U;
+        response = "OK\r>";
+    } else if (strcmp(command, "ATH0") == 0 || strcmp(command, "ATH1") == 0) {
+        replay->headers_enabled = command[3] == '1';
+        response = "OK\r>";
+    } else if (strcmp(command, "ATCRA") == 0) {
+        replay->rx_can_id = 0U;
         response = "OK\r>";
     } else if (strncmp(command, "ATCRA", 5U) == 0) {
         if (!parse_hex_id(command + 5U, &replay->rx_can_id))
