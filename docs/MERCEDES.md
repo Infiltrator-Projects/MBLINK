@@ -6,7 +6,7 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manuf
 
 ## Shared Apple session architecture
 
-The iPhone face now uses LINK 0.14.9's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses LINK 0.14.13's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
 
 This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
 
@@ -64,7 +64,7 @@ Normal automatic discovery therefore uses a gateway census:
 5. classify the responder only when returned identity text matches a source-corroborated Mercedes module family;
 6. read that responder's UDS DTC memory independently with `19 02 FF`.
 
-That automatic census is 263 targets rather than the previous forensic plan's 759 targets. The explicit FULL SWEEP remains available and still walks the broader `0x600–0x7F7` 11-bit range plus every normal-fixed 29-bit target for cases where the gateway census is insufficient.
+That automatic census is 263 targets rather than the previous forensic plan's 759 targets. The explicit FULL SWEEP remains available and still walks the broader `0x600–0x7F7` 11-bit range plus every normal-fixed 29-bit target for cases where the gateway census is insufficient. For 11-bit FULL SWEEP targets MBLINK no longer assumes that the response address is request+8: it enables response headers, temporarily widens the receive filter, learns the actual responding CAN ID from UDS evidence, then locks subsequent DTC/identity traffic to that learned route. Normal mobile discovery and known 29-bit normal-fixed routing remain exact and bounded.
 
 A catalogue entry is not evidence that a module is fitted to a particular car. Optional equipment remains optional, petrol/diesel control-unit alternatives remain mutually dependent on the decoded vehicle configuration, and a discovered but unclassified responder remains unresolved. Conversely, an ECU becomes part of the live vehicle map only after it actually responds during the read-only scan.
 

@@ -161,7 +161,12 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: return "auto-formatting";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL: return "flow-control";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT: return "scan-timeout";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS: return "discover-enable-headers";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: return "discover-set-header";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE: return "discover-reset-receive";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER: return "discover-set-filter";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return "discover-set-mask";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return "discover-lock-headers-off";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return "discover-set-receive";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return "discover-tester-present";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK: return "discover-dtc-fallback";
@@ -171,6 +176,7 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return "initialise-29-bit-can";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return "29-bit-headers-off";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL: return "fault-set-protocol";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER: return "fault-set-header";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE: return "fault-set-receive";
