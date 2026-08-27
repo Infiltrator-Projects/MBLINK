@@ -40,6 +40,20 @@ static int test_supplier(void)
     CHECK(value.supplier_identifier == 64U);
     CHECK(strcmp(value.supplier_name, "Delphi") == 0);
 
+    /* Real C207/OM651 capture: F154 returned 00 40 for Delphi. */
+    {
+        const uint8_t c207_payload[] = { 0x00U, 0x40U };
+        CHECK(mblink_mercedes_crd3_decode_supplier(
+            c207_payload, sizeof(c207_payload), &value));
+        CHECK(value.supplier_identifier == 64U);
+        CHECK(strcmp(value.supplier_name, "Delphi") == 0);
+    }
+    {
+        const uint8_t ambiguous_payload[] = { 0x01U, 0x40U };
+        CHECK(!mblink_mercedes_crd3_decode_supplier(
+            ambiguous_payload, sizeof(ambiguous_payload), &value));
+    }
+
     CHECK(mblink_mercedes_crd3_decode_supplier(
         unknown_payload, sizeof(unknown_payload), &value));
     CHECK(value.supplier_identifier == 200U);
