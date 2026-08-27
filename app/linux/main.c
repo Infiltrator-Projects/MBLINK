@@ -192,6 +192,22 @@ static void append_factory_dtc_list(GtkWidget *card,
         link_gtk_card_append_detail(card, "Factory list", "Truncated at safe bounded capacity");
 }
 
+static const MblinkMercedesModuleScanEntry *replay_orc_module(
+    const MblinkLinuxContext *context)
+{
+    size_t index;
+    if (context == NULL || !context->replay_mode) return NULL;
+    for (index = 0U; index < context->module_scan.module_count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            &context->module_scan.modules[index];
+        if (module->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS &&
+            module->dtcs.count != 0U) {
+            return module;
+        }
+    }
+    return NULL;
+}
+
 static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
 {
     const MblinkMercedesVehicleProfile *profile = active_vehicle_profile(context);
@@ -293,10 +309,29 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
         identity, "Physical CAN", "0x7E0 → 0x7E8");
 
     if (context->replay_mode) {
+        const MblinkMercedesModuleScanEntry *orc =
+            replay_orc_module(context);
         link_gtk_card_append_status(
             identity,
-            "OFFLINE C207 REPLAY · CAPTURE-DERIVED DATA + SYNTHETIC ORC FAULT",
+            orc != NULL
+                ? "REPLAY ORC FAULT CAPTURED · SEATBELT / AIRBAG"
+                : "OFFLINE C207 REPLAY · WAITING FOR INJECTED ORC FAULT",
             "state-warning");
+        if (orc != NULL) {
+            char code[7];
+            char value[128];
+            if (!mblink_uds_dtc_format_hex(
+                    orc->dtcs.records[0].code,
+                    code, sizeof(code))) {
+                (void)snprintf(code, sizeof(code), "??????");
+            }
+            (void)snprintf(
+                value, sizeof(value),
+                "%s · status 0x%02X · synthetic replay evidence",
+                code, (unsigned int)orc->dtcs.records[0].status);
+            link_gtk_card_append_detail(
+                identity, "Injected ORC UDS fault", value);
+        }
     }
     link_gtk_card_append_status(
         connection, connection_text(context),
@@ -1035,6 +1070,7 @@ int main(int argc, char **argv)
         mblink_c207_replay_init(&replay);
         descriptor.transport_provider = mblink_c207_replay_provider();
         descriptor.transport_provider_context = &replay;
+        descriptor.auto_connect = true;
     }
     descriptor.context = &context;
     return link_gtk_shell_run(argc, argv, &descriptor);
