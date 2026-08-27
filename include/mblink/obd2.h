@@ -85,6 +85,8 @@ typedef LinkDtcKnowledge MblinkDtcKnowledge;
 #define mblink_obd2_decode_dtcs link_obd2_decode_dtcs
 #define mblink_obd2_decode_dtc_pair link_obd2_decode_dtc_pair
 #define mblink_dtc_resolve link_dtc_resolve
+#define mblink_dtc_catalogue_definition_count link_dtc_catalogue_definition_count
+#define mblink_dtc_catalogue_snapshot link_dtc_catalogue_snapshot
 #define mblink_dtc_system_name link_dtc_system_name
 #define mblink_dtc_origin_name link_dtc_origin_name
 #define mblink_dtc_source_name link_dtc_source_name

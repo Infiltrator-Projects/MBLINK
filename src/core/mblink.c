@@ -4,6 +4,7 @@
  * @brief Core project metadata and compatibility boundary for shared LINK code.
  */
 #include "mblink/mblink.h"
+#include "mblink/project_info.h"
 #include "mblink/transport.h"
 
 #include "infiltratr/core.h"
@@ -44,7 +45,7 @@
 #include "../link/src/discover/ecu_probe.c"
 #endif
 
-static const InfiltratrProjectInfo mblink_project_info = {
+static const InfiltratrProjectInfo mblink_project_info_record = {
     .struct_size = sizeof(InfiltratrProjectInfo),
     .abi_version = INFILTRATR_PROJECT_INFO_ABI,
     .program_name = "MBLINK",
@@ -61,6 +62,11 @@ static const InfiltratrProjectInfo mblink_project_info = {
     .copyright_text = "Copyright (C) 2026 Shannon Smith"
 };
 
+const InfiltratrProjectInfo *mblink_project_info(void)
+{
+    return &mblink_project_info_record;
+}
+
 const char *mblink_version(void)
 {
     return MBLINK_VERSION;
@@ -73,7 +79,7 @@ const char *mblink_build_profile(void)
 
 bool mblink_self_check(void)
 {
-    return infiltratr_project_info_is_valid(&mblink_project_info);
+    return infiltratr_project_info_is_valid(mblink_project_info());
 }
 
 bool mblink_transport_is_valid(const MblinkTransport *transport)

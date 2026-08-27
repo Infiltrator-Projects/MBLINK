@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mblink.h"
+#include "mblink/project_info.h"
 #include "mblink/transport.h"
 
 #include <stdbool.h>
@@ -110,6 +111,15 @@ int main(void)
     }
     if (!check(mblink_self_check(), "project identity validation failed")) {
         passed = false;
+    }
+    {
+        const InfiltratrProjectInfo *info = mblink_project_info();
+        if (!check(info != NULL && strcmp(info->source_id, "The-First-Infiltrator/MBLINK") == 0,
+                   "project source identity mismatch") ||
+            !check(strcmp(info->build_profile, mblink_build_profile()) == 0,
+                   "project build profile mismatch")) {
+            passed = false;
+        }
     }
     if (!check_workspace()) {
         passed = false;
