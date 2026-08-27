@@ -78,7 +78,12 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK,
@@ -88,6 +93,7 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE,
@@ -130,6 +136,7 @@ typedef struct MblinkMercedesModuleScan {
     uint32_t candidate_tx;
     uint32_t candidate_rx;
     bool candidate_extended;
+    bool candidate_route_locked;
     size_t dtc_index;
 } MblinkMercedesModuleScan;
 
@@ -231,6 +238,7 @@ static inline void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesMo
     scan->candidate_tx = tx;
     scan->candidate_rx = tx + UINT32_C(8);
     scan->candidate_extended = false;
+    scan->candidate_route_locked = false;
 }
 
 static inline bool mblink_mercedes_module_scan_set_gateway_target(
@@ -247,6 +255,7 @@ static inline bool mblink_mercedes_module_scan_set_gateway_target(
     scan->candidate_rx =
         UINT32_C(0x18daf100) | (uint32_t)target;
     scan->candidate_extended = true;
+    scan->candidate_route_locked = true;
     return true;
 }
 
@@ -286,6 +295,7 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_tx = target.tx_can_id;
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
+    scan->candidate_route_locked = target.extended_id;
     return true;
 }
 
@@ -394,8 +404,9 @@ static inline void mblink_mercedes_module_scan_advance_candidate(
                 : MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
             return;
         }
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        scan->stage = scan->candidate_extended
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS;
     }
 }
 
@@ -634,7 +645,13 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
         return WRITE(scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL
             ? "ATST32" : "ATST20");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return WRITE("ATSP7");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return WRITE("ATH0");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS: return WRITE("ATH1");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: return mblink_mercedes_module_scan_format_can_command("ATSH", scan->candidate_tx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE: return WRITE("ATCRA");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER: return WRITE("ATCF000");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return WRITE("ATCM000");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_mercedes_module_scan_format_can_command("ATCRA", scan->candidate_rx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return WRITE("3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
@@ -660,6 +677,92 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
 }
 
+static inline int mblink_mercedes_module_scan_hex_value(char value)
+{
+    if (value >= '0' && value <= '9') return value - '0';
+    if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+    if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+    return -1;
+}
+
+/*
+ * FULL 11-bit discovery deliberately learns the actual response CAN ID before
+ * locking a receive filter. ATH1 causes an ELM327 to prefix each accepted CAN
+ * frame with its header; the parser below accepts both the normal single-frame
+ * form (ID + PCI length + UDS payload) and an assembled/direct UDS payload.
+ */
+static inline bool mblink_mercedes_module_scan_headered_11_route(
+    const MblinkElm327Response *response,
+    uint8_t request_service,
+    uint32_t *rx_can_id)
+{
+    const char *cursor;
+    if (rx_can_id != NULL) *rx_can_id = 0U;
+    if (response == NULL || rx_can_id == NULL ||
+        response->result != MBLINK_ELM327_RESULT_OK) return false;
+
+    cursor = response->text;
+    while (cursor != NULL && *cursor != '\0') {
+        char compact[96];
+        size_t compact_length = 0U;
+        const char *end = strchr(cursor, '\n');
+        const char *line_end = end != NULL ? end : cursor + strlen(cursor);
+        const char *p;
+        uint32_t id = 0U;
+        uint8_t bytes[40];
+        size_t byte_count = 0U;
+        size_t payload_offset = 0U;
+
+        for (p = cursor; p < line_end && compact_length + 1U < sizeof(compact); ++p) {
+            if (*p == ' ' || *p == '\t' || *p == '\r') continue;
+            if (mblink_mercedes_module_scan_hex_value(*p) < 0) {
+                compact_length = 0U;
+                break;
+            }
+            compact[compact_length++] = *p;
+        }
+        compact[compact_length] = '\0';
+        if (compact_length >= 7U && ((compact_length - 3U) % 2U) == 0U) {
+            for (size_t index = 0U; index < 3U; ++index) {
+                id = (id << 4U) |
+                    (uint32_t)mblink_mercedes_module_scan_hex_value(compact[index]);
+            }
+            for (size_t index = 3U;
+                 index + 1U < compact_length && byte_count < sizeof(bytes);
+                 index += 2U) {
+                int high = mblink_mercedes_module_scan_hex_value(compact[index]);
+                int low = mblink_mercedes_module_scan_hex_value(compact[index + 1U]);
+                if (high < 0 || low < 0) { byte_count = 0U; break; }
+                bytes[byte_count++] = (uint8_t)((high << 4) | low);
+            }
+            if (byte_count != 0U) {
+                if ((bytes[0] & UINT8_C(0xf0)) == 0U &&
+                    (bytes[0] & UINT8_C(0x0f)) != 0U &&
+                    (size_t)(bytes[0] & UINT8_C(0x0f)) <= byte_count - 1U) {
+                    payload_offset = 1U;
+                } else if ((bytes[0] & UINT8_C(0xf0)) == UINT8_C(0x10) &&
+                           byte_count >= 3U) {
+                    payload_offset = 2U;
+                }
+                if (byte_count > payload_offset) {
+                    const uint8_t *payload = bytes + payload_offset;
+                    const size_t payload_length = byte_count - payload_offset;
+                    const uint8_t positive = (uint8_t)(request_service + UINT8_C(0x40));
+                    if (payload[0] == positive ||
+                        (payload_length >= 2U && payload[0] == UINT8_C(0x7f) &&
+                         payload[1] == request_service)) {
+                        *rx_can_id = id;
+                        return true;
+                    }
+                }
+            }
+        }
+        if (end == NULL) break;
+        cursor = end + 1;
+    }
+    return false;
+}
+
 static inline bool mblink_mercedes_module_scan_at_ok(const MblinkElm327Response *response) { return response != NULL && response->result == MBLINK_ELM327_RESULT_OK; }
 
 static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(MblinkMercedesModuleScan *scan, const MblinkElm327Response *response)
@@ -671,39 +774,113 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT; break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL; break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT; break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended)
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended && !scan->candidate_route_locked)
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended && scan->candidate_route_locked)
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
+        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+            !scan->candidate_extended && !scan->candidate_route_locked) {
+            uint32_t learned_rx = 0U;
+            if (mblink_mercedes_module_scan_headered_11_route(
+                    response, MBLINK_UDS_SERVICE_TESTER_PRESENT, &learned_rx)) {
+                scan->candidate_rx = learned_rx;
+                scan->candidate_route_locked = true;
+                (void)mblink_mercedes_module_scan_record_module(scan, true);
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
+            } else {
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+            }
+            break;
+        }
         present = mblink_mercedes_module_scan_decode_uds(
             response, MBLINK_UDS_SERVICE_TESTER_PRESENT,
             pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present)
-            (void)mblink_mercedes_module_scan_record_module(scan, true);
-        /*
-         * Always ask for fault memory immediately after presence probing.
-         * This lets a long Linux forensic sweep surface an SRS/ORC fault as
-         * soon as that controller is reached instead of waiting until every
-         * CAN target has been exhausted.
-         */
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+        if (present) (void)mblink_mercedes_module_scan_record_module(scan, true);
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
+        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+            !scan->candidate_extended && !scan->candidate_route_locked) {
+            uint32_t learned_rx = 0U;
+            if (mblink_mercedes_module_scan_headered_11_route(
+                    response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION, &learned_rx)) {
+                scan->candidate_rx = learned_rx;
+                scan->candidate_route_locked = true;
+                (void)mblink_mercedes_module_scan_record_module(scan, false);
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
+            } else {
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+            }
+            break;
+        }
         present = mblink_mercedes_module_scan_decode_uds(
             response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
             pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present)
-            (void)mblink_mercedes_module_scan_record_module(scan, false);
+        if (present) (void)mblink_mercedes_module_scan_record_module(scan, false);
         module = mblink_mercedes_module_scan_find_candidate(scan);
-        if (module != NULL)
-            mblink_mercedes_module_scan_capture_dtc(module, response);
+        if (module != NULL) mblink_mercedes_module_scan_capture_dtc(module, response);
         scan->stage = module != NULL
             ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
+        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+            !scan->candidate_extended && !scan->candidate_route_locked) {
+            uint32_t learned_rx = 0U;
+            if (mblink_mercedes_module_scan_headered_11_route(
+                    response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER, &learned_rx)) {
+                scan->candidate_rx = learned_rx;
+                scan->candidate_route_locked = true;
+                (void)mblink_mercedes_module_scan_record_module(scan, false);
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
+            } else {
+                mblink_mercedes_module_scan_advance_candidate(scan);
+            }
+            break;
+        }
         present = mblink_mercedes_module_scan_decode_uds(response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER, pdu, sizeof(pdu), &pdu_length, &uds);
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, false);
