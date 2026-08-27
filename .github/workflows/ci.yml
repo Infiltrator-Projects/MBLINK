@@ -251,6 +251,9 @@ jobs:
           grep -q 'didReceiveFlowEvent' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Fq 'mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'vehicleProfileStatusText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
       - name: Build simulator
