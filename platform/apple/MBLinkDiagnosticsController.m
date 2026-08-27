@@ -11,6 +11,10 @@
 #include <stdio.h>
 #include <string.h>
 
+static NSString * const MBLinkVehicleProfilesDefaultsKey =
+    @"mblink.vehicleProfiles.v1";
+static const NSInteger MBLinkVehicleProfileSchemaVersion = 1;
+
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesProbeEndpointText;
@@ -20,6 +24,7 @@
 @property(nonatomic, copy, readwrite) NSString *mercedesCrd3SummaryText;
 @property(nonatomic, copy, readwrite) NSString *mercedesUDSFaultStatusText;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *mercedesUDSFaults;
+@property(nonatomic, copy, readwrite) NSString *vehicleProfileStatusText;
 
 - (void)resetMercedesState;
 - (void)notifyDelegate;
@@ -33,6 +38,11 @@
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
 - (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
+- (nullable NSDictionary *)savedVehicleProfileForVIN:(NSString *)vin;
+- (void)loadSavedVehicleProfileForVIN:(NSString *)vin;
+- (void)saveCurrentVehicleProfile;
+- (void)removeSavedVehicleProfileForVIN:(NSString *)vin;
+- (BOOL)beginCachedVehicleProfileRefresh;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
@@ -44,6 +54,8 @@
     BOOL _manufacturerProbeActive;
     MblinkMercedesModuleScan _mercedesModuleScan;
     BOOL _moduleScanActive;
+    BOOL _cachedModuleRefreshActive;
+    NSDictionary *_Nullable _cachedVehicleProfile;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -76,6 +88,76 @@ static NSString *MBLinkMercedesEndpointText(
     return [NSString stringWithFormat:@"%@ · 0x%03X → 0x%03X", name,
         (unsigned int)endpoint->address.tx_can_id,
         (unsigned int)endpoint->address.rx_can_id];
+}
+
+static void MBLinkCopyProfileString(
+    id value,
+    char *destination,
+    size_t destinationCapacity,
+    bool *available)
+{
+    if (available != NULL) *available = false;
+    if (destination == NULL || destinationCapacity == 0U) return;
+    destination[0] = '\0';
+    if (![value isKindOfClass:[NSString class]]) return;
+    NSString *text = (NSString *)value;
+    if (text.length == 0U) return;
+    const char *utf8 = text.UTF8String;
+    if (utf8 == NULL) return;
+    (void)snprintf(destination, destinationCapacity, "%s", utf8);
+    if (available != NULL) *available = destination[0] != '\0';
+}
+
+static BOOL MBLinkPopulateModuleEntryFromProfile(
+    NSDictionary *dictionary,
+    MblinkMercedesModuleScanEntry *entry)
+{
+    if (![dictionary isKindOfClass:[NSDictionary class]] || entry == NULL)
+        return NO;
+
+    NSNumber *tx = dictionary[@"tx"];
+    NSNumber *rx = dictionary[@"rx"];
+    NSNumber *extended = dictionary[@"extended"];
+    if (![tx isKindOfClass:[NSNumber class]] ||
+        ![rx isKindOfClass:[NSNumber class]] ||
+        ![extended isKindOfClass:[NSNumber class]]) {
+        return NO;
+    }
+
+    memset(entry, 0, sizeof(*entry));
+    entry->tx_can_id = tx.unsignedIntValue;
+    entry->rx_can_id = rx.unsignedIntValue;
+    entry->extended_id = extended.boolValue;
+
+    NSNumber *kind = dictionary[@"kind"];
+    entry->kind = [kind isKindOfClass:[NSNumber class]]
+        ? (MblinkMercedesModuleKind)kind.unsignedIntegerValue
+        : mblink_mercedes_module_scan_kind(
+            entry->tx_can_id, entry->extended_id);
+    entry->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
+    entry->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
+
+    MBLinkCopyProfileString(
+        dictionary[@"identity"], entry->identity,
+        sizeof(entry->identity), &entry->identity_available);
+    MBLinkCopyProfileString(
+        dictionary[@"sparePart"], entry->spare_part_number,
+        sizeof(entry->spare_part_number),
+        &entry->spare_part_number_available);
+    MBLinkCopyProfileString(
+        dictionary[@"software"], entry->software_number,
+        sizeof(entry->software_number),
+        &entry->software_number_available);
+    MBLinkCopyProfileString(
+        dictionary[@"hardware"], entry->hardware_number,
+        sizeof(entry->hardware_number),
+        &entry->hardware_number_available);
+    if (entry->identity_available)
+        mblink_mercedes_module_scan_classify_identity(entry);
+
+    const uint32_t maxID = entry->extended_id
+        ? UINT32_C(0x1fffffff) : UINT32_C(0x7ff);
+    return entry->tx_can_id <= maxID && entry->rx_can_id <= maxID;
 }
 
 static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
@@ -175,10 +257,13 @@ static bool MBLinkSimulatorResponder(
     self.mercedesCrd3SummaryText = @"Not attempted";
     self.mercedesUDSFaultStatusText = @"Waiting for Mercedes ECU probe";
     self.mercedesUDSFaults = @[];
+    self.vehicleProfileStatusText = @"Waiting for VIN";
     _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _mercedesModuleScan = (MblinkMercedesModuleScan){0};
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
+    _cachedModuleRefreshActive = NO;
+    _cachedVehicleProfile = nil;
 }
 
 - (void)notifyDelegate
@@ -321,6 +406,7 @@ static bool MBLinkSimulatorResponder(
     self.mercedesIdentitySummaryText = identity.count != 0U
         ? @"Standard OBD VIN captured and decoded; Mercedes ECU identity pending"
         : @"Standard OBD VIN captured; Mercedes ECU identity pending";
+    [self loadSavedVehicleProfileForVIN:self.mercedesVINText];
     [self notifyDelegate];
 }
 
@@ -328,6 +414,7 @@ static bool MBLinkSimulatorResponder(
     (LinkDiagnosticsController *)controller
 {
     (void)controller;
+    if ([self beginCachedVehicleProfileRefresh]) return;
     [self beginMercedesProbe];
 }
 
@@ -382,6 +469,7 @@ static bool MBLinkSimulatorResponder(
     }
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
+    _cachedModuleRefreshActive = NO;
     [self notifyDelegate];
 }
 
@@ -559,7 +647,32 @@ static bool MBLinkSimulatorResponder(
     MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(&_mercedesModuleScan, response);
     if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
         _moduleScanActive = NO;
+        if (_cachedModuleRefreshActive) {
+            const size_t expected =
+                mblink_mercedes_module_scan_module_count(
+                    &_mercedesModuleScan);
+            const size_t fresh =
+                mblink_mercedes_module_scan_fresh_response_count(
+                    &_mercedesModuleScan);
+            if (expected == 0U || fresh != expected) {
+                NSString *vin = self.mercedesVINText;
+                _cachedModuleRefreshActive = NO;
+                _cachedVehicleProfile = nil;
+                if (vin.length != 0U)
+                    [self removeSavedVehicleProfileForVIN:vin];
+                self.vehicleProfileStatusText =
+                    @"Saved module map changed; rebuilding vehicle profile";
+                self.mercedesProbeStatusText =
+                    @"Saved module map did not validate; running one fresh discovery";
+                _mercedesModuleScan = (MblinkMercedesModuleScan){0};
+                [self notifyDelegate];
+                [self beginMercedesProbe];
+                return;
+            }
+        }
         [self updateMercedesModuleScanSummary];
+        [self saveCurrentVehicleProfile];
+        _cachedModuleRefreshActive = NO;
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
@@ -624,8 +737,18 @@ static bool MBLinkSimulatorResponder(
 
 - (void)updateMercedesModuleScanSummary
 {
-    NSMutableArray<NSString *> *identity = self.mercedesIdentityResults != nil
-        ? [self.mercedesIdentityResults mutableCopy] : [[NSMutableArray alloc] init];
+    NSMutableArray<NSString *> *identity = [[NSMutableArray alloc] init];
+    for (NSString *line in self.mercedesIdentityResults ?: @[]) {
+        if ([line hasPrefix:@"MODULE ·"] ||
+            [line hasPrefix:@"MODULE MAP ·"] ||
+            [line hasPrefix:@"  SYSTEM ·"] ||
+            [line hasPrefix:@"  PART ·"] ||
+            [line hasPrefix:@"  SOFTWARE ·"] ||
+            [line hasPrefix:@"  HARDWARE ·"]) {
+            continue;
+        }
+        [identity addObject:line];
+    }
     NSMutableArray<NSString *> *faults = [[NSMutableArray alloc] init];
     const size_t count = mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     const size_t totalFaults = mblink_mercedes_module_scan_total_dtc_count(&_mercedesModuleScan);
@@ -705,10 +828,247 @@ static bool MBLinkSimulatorResponder(
     [self notifyDelegate];
 }
 
+- (nullable NSDictionary *)savedVehicleProfileForVIN:(NSString *)vin
+{
+    if (vin.length == 0U) return nil;
+
+    NSDictionary *profiles = [[NSUserDefaults standardUserDefaults]
+        dictionaryForKey:MBLinkVehicleProfilesDefaultsKey];
+    id candidate = profiles[vin];
+    NSDictionary *profile = [candidate isKindOfClass:[NSDictionary class]]
+        ? (NSDictionary *)candidate : nil;
+    NSNumber *schema = profile[@"schema"];
+    NSArray *modules = [profile[@"modules"] isKindOfClass:[NSArray class]]
+        ? profile[@"modules"] : nil;
+    if (profile == nil || ![schema isKindOfClass:[NSNumber class]] ||
+        schema.integerValue != MBLinkVehicleProfileSchemaVersion ||
+        modules.count == 0U) {
+        return nil;
+    }
+    return profile;
+}
+
+- (void)loadSavedVehicleProfileForVIN:(NSString *)vin
+{
+    _cachedVehicleProfile = [self savedVehicleProfileForVIN:vin];
+    if (_cachedVehicleProfile == nil) {
+        self.vehicleProfileStatusText =
+            @"New VIN · module profile will be learned once";
+        return;
+    }
+
+    NSArray *modules = _cachedVehicleProfile[@"modules"];
+    NSString *endpoint = [_cachedVehicleProfile[@"probeEndpoint"]
+        isKindOfClass:[NSString class]]
+        ? _cachedVehicleProfile[@"probeEndpoint"] : nil;
+    NSString *crd3 = [_cachedVehicleProfile[@"crd3Summary"]
+        isKindOfClass:[NSString class]]
+        ? _cachedVehicleProfile[@"crd3Summary"] : nil;
+    if (endpoint.length != 0U)
+        self.mercedesProbeEndpointText = endpoint;
+    if (crd3.length != 0U)
+        self.mercedesCrd3SummaryText = crd3;
+
+    NSMutableArray<NSString *> *identity =
+        [self.mercedesIdentityResults mutableCopy] ?: [[NSMutableArray alloc] init];
+    size_t validModules = 0U;
+    for (id value in modules) {
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        MblinkMercedesModuleScanEntry module;
+        if (!MBLinkPopulateModuleEntryFromProfile(
+                (NSDictionary *)value, &module)) {
+            continue;
+        }
+        ++validModules;
+        NSString *name = MBLinkStringFromCString(
+            mblink_mercedes_module_scan_module_name(&module));
+        NSString *address = module.extended_id
+            ? [NSString stringWithFormat:@"0x%08X → 0x%08X",
+                (unsigned int)module.tx_can_id,
+                (unsigned int)module.rx_can_id]
+            : [NSString stringWithFormat:@"0x%03X → 0x%03X",
+                (unsigned int)module.tx_can_id,
+                (unsigned int)module.rx_can_id];
+        [identity addObject:[NSString stringWithFormat:
+            @"MODULE · %@ · %@ · saved VIN profile", name, address]];
+        if (module.identity_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  SYSTEM · %@", MBLinkStringFromCString(module.identity)]];
+        if (module.spare_part_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  PART · %@",
+                MBLinkStringFromCString(module.spare_part_number)]];
+        if (module.software_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  SOFTWARE · %@",
+                MBLinkStringFromCString(module.software_number)]];
+        if (module.hardware_number_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  HARDWARE · %@",
+                MBLinkStringFromCString(module.hardware_number)]];
+    }
+
+    if (validModules == 0U) {
+        [self removeSavedVehicleProfileForVIN:vin];
+        _cachedVehicleProfile = nil;
+        self.vehicleProfileStatusText =
+            @"Saved VIN profile was invalid; rebuilding";
+        return;
+    }
+
+    [identity addObject:[NSString stringWithFormat:
+        @"MODULE MAP · %zu saved · VIN-keyed profile", validModules]];
+    self.mercedesIdentityResults = [identity copy];
+    self.mercedesIdentitySummaryText = [NSString stringWithFormat:
+        @"Fresh VIN confirmed · %zu saved module route%@ loaded",
+        validModules, validModules == 1U ? @"" : @"s"];
+    self.vehicleProfileStatusText = [NSString stringWithFormat:
+        @"Saved VIN profile loaded · %zu module%@ · validating",
+        validModules, validModules == 1U ? @"" : @"s"];
+}
+
+- (void)saveCurrentVehicleProfile
+{
+    if (_shared.isSimulated || self.mercedesVINText.length == 0U)
+        return;
+
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    if (count == 0U) return;
+
+    NSMutableArray<NSDictionary *> *modules =
+        [[NSMutableArray alloc] initWithCapacity:count];
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL) continue;
+
+        NSMutableDictionary *dictionary = [@{
+            @"tx": @(module->tx_can_id),
+            @"rx": @(module->rx_can_id),
+            @"extended": @(module->extended_id),
+            @"kind": @((NSUInteger)module->kind)
+        } mutableCopy];
+        if (module->identity_available)
+            dictionary[@"identity"] =
+                MBLinkStringFromCString(module->identity);
+        if (module->spare_part_number_available)
+            dictionary[@"sparePart"] =
+                MBLinkStringFromCString(module->spare_part_number);
+        if (module->software_number_available)
+            dictionary[@"software"] =
+                MBLinkStringFromCString(module->software_number);
+        if (module->hardware_number_available)
+            dictionary[@"hardware"] =
+                MBLinkStringFromCString(module->hardware_number);
+        [modules addObject:[dictionary copy]];
+    }
+    if (modules.count == 0U) return;
+
+    NSMutableDictionary *profile = [@{
+        @"schema": @(MBLinkVehicleProfileSchemaVersion),
+        @"vin": self.mercedesVINText,
+        @"updatedAt": @([[NSDate date] timeIntervalSince1970]),
+        @"modules": [modules copy]
+    } mutableCopy];
+    if (self.mercedesProbeEndpointText.length != 0U)
+        profile[@"probeEndpoint"] = self.mercedesProbeEndpointText;
+    if (self.mercedesCrd3SummaryText.length != 0U &&
+        ![self.mercedesCrd3SummaryText isEqualToString:@"Not attempted"]) {
+        profile[@"crd3Summary"] = self.mercedesCrd3SummaryText;
+    }
+
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *profiles =
+        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
+            mutableCopy] ?: [[NSMutableDictionary alloc] init];
+    profiles[self.mercedesVINText] = [profile copy];
+    [defaults setObject:[profiles copy]
+                 forKey:MBLinkVehicleProfilesDefaultsKey];
+
+    _cachedVehicleProfile = [profile copy];
+    self.vehicleProfileStatusText = [NSString stringWithFormat:
+        @"VIN profile saved · %lu module%@ · future connections reuse it",
+        (unsigned long)modules.count,
+        modules.count == 1U ? @"" : @"s"];
+}
+
+- (void)removeSavedVehicleProfileForVIN:(NSString *)vin
+{
+    if (vin.length == 0U) return;
+
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *profiles =
+        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
+            mutableCopy];
+    if (profiles == nil || profiles[vin] == nil) return;
+
+    [profiles removeObjectForKey:vin];
+    [defaults setObject:[profiles copy]
+                 forKey:MBLinkVehicleProfilesDefaultsKey];
+}
+
+- (BOOL)beginCachedVehicleProfileRefresh
+{
+    if (_cachedVehicleProfile == nil || _shared.isSimulated)
+        return NO;
+
+    NSArray *modules = _cachedVehicleProfile[@"modules"];
+    if (![modules isKindOfClass:[NSArray class]] || modules.count == 0U)
+        return NO;
+
+    MblinkMercedesModuleScanEntry cached[
+        MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES];
+    size_t count = 0U;
+    for (id value in modules) {
+        if (count >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) break;
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        if (MBLinkPopulateModuleEntryFromProfile(
+                (NSDictionary *)value, &cached[count])) {
+            ++count;
+        }
+    }
+
+    if (count == 0U) {
+        [self removeSavedVehicleProfileForVIN:self.mercedesVINText];
+        _cachedVehicleProfile = nil;
+        self.vehicleProfileStatusText =
+            @"Saved VIN profile was invalid; rebuilding";
+        return NO;
+    }
+
+    MblinkMercedesModuleScanResult result =
+        mblink_mercedes_module_scan_begin_cached(
+            &_mercedesModuleScan, cached, count);
+    if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+        [self removeSavedVehicleProfileForVIN:self.mercedesVINText];
+        _cachedVehicleProfile = nil;
+        self.vehicleProfileStatusText =
+            @"Saved VIN profile could not be loaded; rebuilding";
+        return NO;
+    }
+
+    _cachedModuleRefreshActive = YES;
+    _moduleScanActive = YES;
+    self.vehicleProfileStatusText = [NSString stringWithFormat:
+        @"Saved VIN profile · validating %zu known module route%@",
+        count, count == 1U ? @"" : @"s"];
+    self.mercedesProbeStatusText =
+        @"Known vehicle profile loaded; refreshing module presence and faults";
+    self.mercedesUDSFaultStatusText =
+        @"Refreshing faults from saved module topology";
+    [self setStatus:@"Known VIN; validating saved Mercedes module profile"];
+    [self notifyDelegate];
+    [self beginCurrentMercedesModuleScanCommand];
+    return YES;
+}
+
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore
 {
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
+    _cachedModuleRefreshActive = NO;
     if (![_shared completeManufacturerExtensionRestoringAdapter:restore]) {
         [_shared failWithStatus:
             @"Could not resume shared diagnostic flow after Mercedes probe"];
