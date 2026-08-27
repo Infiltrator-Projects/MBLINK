@@ -137,7 +137,7 @@ Formalise adapter capabilities/profiles, verified firmware quirks and additional
 
 - stable documented ABI for supported functionality;
 - provenance for verified fixtures/definitions;
-- saved vehicle/session behaviour as appropriate;
+- VIN-keyed iPhone vehicle/module profiles are implemented; broaden session persistence only where it remains useful;
 - accessibility, performance and battery review;
 - durable long-session storage;
 - reproducible release process;
