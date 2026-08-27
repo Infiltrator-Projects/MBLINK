@@ -130,8 +130,8 @@ int main(void)
     /*
      * The old MBLINK path jumped to the Mercedes extension here.  Current
      * behaviour must attempt standard VIN and all three standard DTC modes
-     * first.  NO DATA is used only because these replies were absent from the
-     * captured session, not because the real car is assumed not to support them.
+     * first.  The captured VIN and stored-DTC framing are replayed below;
+     * pending and permanent modes remain explicit NO DATA controls.
      */
     CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
@@ -164,6 +164,7 @@ int main(void)
     CHECK(link_diagnostic_flow_next_action(&flow, 1000U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(strcmp(action.command, "07") == 0);
+    response = no_data_response();
     CHECK(link_diagnostic_flow_accept_response(
               &flow, &response, 1000U, &event) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
