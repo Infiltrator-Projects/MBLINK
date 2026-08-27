@@ -79,6 +79,17 @@ static int accept_expected_response(
     return 0;
 }
 
+static int prepare_full_11_candidate(MblinkMercedesModuleScan *scan,
+                                     const char *header)
+{
+    CHECK(accept_expected_ok(scan, "ATH1") == 0);
+    CHECK(accept_expected_ok(scan, header) == 0);
+    CHECK(accept_expected_ok(scan, "ATCRA") == 0);
+    CHECK(accept_expected_ok(scan, "ATCF000") == 0);
+    CHECK(accept_expected_ok(scan, "ATCM000") == 0);
+    return 0;
+}
+
 static int replay_captured_full_scan_misses(void)
 {
     MblinkMercedesModuleScan scan;
@@ -89,7 +100,6 @@ static int replay_captured_full_scan_misses(void)
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
     CHECK(scan.candidate_tx == UINT32_C(0x600));
-    CHECK(scan.candidate_rx == UINT32_C(0x608));
 
     CHECK(accept_expected_ok(&scan, "ATSP6") == 0);
     CHECK(accept_expected_ok(&scan, "ATH0") == 0);
@@ -97,72 +107,88 @@ static int replay_captured_full_scan_misses(void)
     CHECK(accept_expected_ok(&scan, "ATCFC1") == 0);
     CHECK(accept_expected_ok(&scan, "ATST32") == 0);
 
-    /* Exact command/result shape observed at 0x600 in the vehicle capture. */
-    CHECK(accept_expected_ok(&scan, "ATSH600") == 0);
-    CHECK(accept_expected_ok(&scan, "ATCRA608") == 0);
+    /*
+     * The vehicle capture proved that these requests receive NO DATA. The
+     * current full-scan transport setup is deliberately different: headers
+     * are enabled and the receive filter is widened so a responder cannot be
+     * hidden merely because its CAN ID is not request+8.
+     */
+    CHECK(prepare_full_11_candidate(&scan, "ATSH600") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
     CHECK(scan.full_target_index == 1U);
     CHECK(scan.candidate_tx == UINT32_C(0x601));
-    CHECK(scan.candidate_rx == UINT32_C(0x609));
     CHECK(scan.module_count == 0U);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS);
 
-    /* And the next captured miss must advance cleanly, not fail the session. */
-    CHECK(accept_expected_ok(&scan, "ATSH601") == 0);
-    CHECK(accept_expected_ok(&scan, "ATCRA609") == 0);
+    CHECK(prepare_full_11_candidate(&scan, "ATSH601") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
     CHECK(scan.full_target_index == 2U);
     CHECK(scan.candidate_tx == UINT32_C(0x602));
-    CHECK(scan.candidate_rx == UINT32_C(0x60a));
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
+    CHECK(scan.module_count == 0U);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS);
     return 0;
 }
 
 static int replay_captured_negative_tester_present(void)
 {
     MblinkMercedesModuleScan scan;
-    MblinkElm327Response tester_negative =
-        make_response(MBLINK_ELM327_RESULT_OK, "7F3E12", false);
+    MblinkElm327Response tester_negative_headered =
+        make_response(MBLINK_ELM327_RESULT_OK, "7E9037F3E12", false);
     MblinkElm327Response no_data =
         make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
 
     CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
-    /*
-     * Full-sweep index 481 is 0x7E1.  The real car answered 3E00 here with
-     * 7F 3E 12.  A negative UDS response is proof that an ECU exists.
-     */
     CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 481U));
     CHECK(scan.candidate_tx == UINT32_C(0x7e1));
-    CHECK(scan.candidate_rx == UINT32_C(0x7e9));
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS;
 
-    CHECK(accept_expected_ok(&scan, "ATSH7E1") == 0);
-    CHECK(accept_expected_ok(&scan, "ATCRA7E9") == 0);
-    CHECK(accept_expected_response(&scan, "3E00", &tester_negative) == 0);
+    CHECK(prepare_full_11_candidate(&scan, "ATSH7E1") == 0);
+    CHECK(accept_expected_response(&scan, "3E00", &tester_negative_headered) == 0);
 
     CHECK(scan.module_count == 1U);
     CHECK(scan.modules[0].tx_can_id == UINT32_C(0x7e1));
     CHECK(scan.modules[0].rx_can_id == UINT32_C(0x7e9));
     CHECK(scan.modules[0].tester_present_response);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+    CHECK(scan.candidate_route_locked);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF);
+    CHECK(accept_expected_ok(&scan, "ATH0") == 0);
+    CHECK(accept_expected_ok(&scan, "ATCRA7E9") == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
 
-    /*
-     * Current code must immediately ask that responding ECU for DTC memory.
-     * The vehicle capture did not contain a DTC reply for 0x7E1, so feed the
-     * observed NO DATA shape and prove the ECU is still retained.
-     */
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
-    CHECK(scan.modules[0].dtc_result ==
-          MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+    CHECK(scan.modules[0].dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+    return 0;
+}
+
+static int learn_non_plus_eight_route(void)
+{
+    MblinkMercedesModuleScan scan;
+    MblinkElm327Response tester_headered =
+        make_response(MBLINK_ELM327_RESULT_OK, "640027E00", false);
+
+    CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 48U));
+    CHECK(scan.candidate_tx == UINT32_C(0x630));
+    CHECK(scan.candidate_rx == UINT32_C(0x638)); /* old plan hint only */
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS;
+
+    CHECK(prepare_full_11_candidate(&scan, "ATSH630") == 0);
+    CHECK(accept_expected_response(&scan, "3E00", &tester_headered) == 0);
+    CHECK(scan.module_count == 1U);
+    CHECK(scan.modules[0].tx_can_id == UINT32_C(0x630));
+    CHECK(scan.modules[0].rx_can_id == UINT32_C(0x640));
+    CHECK(scan.candidate_rx == UINT32_C(0x640));
+    CHECK(scan.candidate_rx != scan.candidate_tx + UINT32_C(8));
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF);
+    CHECK(accept_expected_ok(&scan, "ATH0") == 0);
+    CHECK(accept_expected_ok(&scan, "ATCRA640") == 0);
     return 0;
 }
 
@@ -224,6 +250,7 @@ int main(void)
 {
     if (replay_captured_full_scan_misses() != 0) return 1;
     if (replay_captured_negative_tester_present() != 0) return 1;
+    if (learn_non_plus_eight_route() != 0) return 1;
     if (inject_restraint_fault_after_real_scan_shapes() != 0) return 1;
     puts("Captured C207 deep-scan replay tests passed");
     return 0;
