@@ -303,20 +303,36 @@ static inline bool mblink_mercedes_crd3_decode_session_variant(
     return true;
 }
 
-/** Decode the one-byte F154 supplier identifier. */
+/**
+ * Decode CRD3 F154 supplier identity.
+ *
+ * The published simulator uses a one-byte payload, while the real C207/OM651
+ * trace captured on 2026-08-27 returned 00 40 for Delphi.  Accept the
+ * zero-extended two-byte representation as well as the original one-byte
+ * representation; reject other shapes rather than guessing.
+ */
 static inline bool mblink_mercedes_crd3_decode_supplier(
     const uint8_t *data,
     size_t data_length,
     MblinkMercedesCrd3Supplier *value)
 {
     MblinkMercedesCrd3Supplier decoded;
+    uint8_t supplier_identifier;
 
-    if (data == NULL || value == NULL || data_length != 1U) {
+    if (data == NULL || value == NULL) {
+        return false;
+    }
+    if (data_length == 1U) {
+        supplier_identifier = data[0];
+    } else if (data_length == 2U && data[0] == 0U) {
+        supplier_identifier = data[1];
+    } else {
         return false;
     }
 
-    decoded.supplier_identifier = data[0];
-    decoded.supplier_name = mblink_mercedes_crd3_supplier_name(data[0]);
+    decoded.supplier_identifier = supplier_identifier;
+    decoded.supplier_name =
+        mblink_mercedes_crd3_supplier_name(supplier_identifier);
     *value = decoded;
     return true;
 }
