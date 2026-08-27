@@ -29,7 +29,7 @@ Options:
   -h, --help          Show this help
 
 Required build packages on Debian/Ubuntu:
-  build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev
+  build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev
 
 A native install is package-managed. It replaces the generic mblink package
 record with ${native_version}; the next newer repository release can upgrade it.
@@ -91,6 +91,7 @@ prerequisites_ready()
     done
     pkg-config --atleast-version=4.6 gtk4 >/dev/null 2>&1 || return 1
     pkg-config --exists bluez >/dev/null 2>&1 || return 1
+    pkg-config --exists libusb-1.0 >/dev/null 2>&1 || return 1
     return 0
 }
 
@@ -108,7 +109,7 @@ run_as_root()
 
 install_build_dependencies()
 {
-    local -a packages=(build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev)
+    local -a packages=(build-essential cmake dpkg-dev pkg-config libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev)
     command -v apt-get >/dev/null 2>&1 || {
         echo 'Required build prerequisites are missing and apt-get is unavailable.' >&2
         return 1
