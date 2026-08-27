@@ -574,7 +574,13 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_f
 
 static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *scan)
 {
-    if (scan == NULL) return UINT64_C(1500);
+    /*
+     * The ELM's own ATST timer decides when an unanswered CAN request becomes
+     * NO DATA.  Keep the host/BLE watchdog comfortably above that value so a
+     * slow CoreBluetooth delivery does not turn an ordinary module miss into
+     * a fatal diagnostic-session timeout.
+     */
+    if (scan == NULL) return UINT64_C(4000);
     switch (scan->stage) {
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
@@ -583,9 +589,9 @@ static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMerced
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE:
-        return UINT64_C(900);
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return UINT64_C(4000);
-    default: return UINT64_C(1500);
+        return UINT64_C(4000);
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return UINT64_C(5000);
+    default: return UINT64_C(4000);
     }
 }
 
@@ -599,7 +605,14 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: return WRITE("ATCAF1");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL: return WRITE("ATCFC1");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT: return WRITE("ATST10");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT:
+        /*
+         * Mobile/gateway discovery gets a 128 ms ELM response window.  The
+         * Linux-only forensic sweep deliberately allows 200 ms for gatewayed
+         * or sleepy ECUs.  These remain bounded read-only requests.
+         */
+        return WRITE(scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL
+            ? "ATST32" : "ATST20");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return WRITE("ATSP7");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: return mblink_mercedes_module_scan_format_can_command("ATSH", scan->candidate_tx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_mercedes_module_scan_format_can_command("ATCRA", scan->candidate_rx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
