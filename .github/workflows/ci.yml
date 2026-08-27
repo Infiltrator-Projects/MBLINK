@@ -129,7 +129,7 @@ jobs:
           cpack --config build-linux/CPackConfig.cmake -G DEB -B "$RUNNER_TEMP/cpack"
           deb_src="$(find "$RUNNER_TEMP/cpack" -maxdepth 1 -type f -name '*.deb' -print -quit)"
           test -n "$deb_src"
-          dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-link-openport2.rules' >/dev/null
+          dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
           dpkg-deb -f "$deb_src" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
           install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
           scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
@@ -138,7 +138,7 @@ jobs:
           "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --build-only --output "$native_deb"
           test "$(dpkg-deb -f "$native_deb" Package)" = mblink
           test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
-          dpkg-deb -c "$native_deb" | grep -F './usr/lib/udev/rules.d/60-link-openport2.rules' >/dev/null
+          dpkg-deb -c "$native_deb" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
           dpkg-deb -f "$native_deb" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
           dpkg --compare-versions "${VERSION}+native1" gt "${VERSION}"
           test -s "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
