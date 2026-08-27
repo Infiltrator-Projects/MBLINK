@@ -140,6 +140,13 @@ static bool MBLinkSimulatorResponder(
     LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
     flowConfig.manufacturer_extension_after_pid_discovery = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
+    /*
+     * ATSP0 may need several seconds to acquire the vehicle protocol on the
+     * first cold connection.  A later retry is normally fast because the ELM
+     * has already found CAN, so give the first PID query enough room instead
+     * of forcing the user through a connect-fail-connect cycle.
+     */
+    flowConfig.query_timeout_ms = UINT64_C(8000);
     _shared = [[LinkDiagnosticsController alloc]
         initWithProductSlug:@"mblink"
         flowConfig:flowConfig
@@ -284,10 +291,22 @@ static bool MBLinkSimulatorResponder(
 {
     (void)controller;
     if (_moduleScanActive) {
+        const size_t capturedModules =
+            mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+        const size_t capturedFaults =
+            mblink_mercedes_module_scan_total_dtc_count(&_mercedesModuleScan);
+        /*
+         * A transport watchdog firing late in a census must not erase useful
+         * evidence already returned by the car.  Preserve the partial module
+         * map and any DTCs that were decoded before the interruption.
+         */
+        if (capturedModules != 0U)
+            [self updateMercedesModuleScanSummary];
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes module scan interrupted: %@", status];
-        self.mercedesUDSFaultStatusText =
-            @"Module fault inventory interrupted";
+            @"Mercedes mobile gateway census interrupted: %@", status];
+        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+            @"Partial · %zu responding modules · %zu Mercedes factory fault record%@ retained",
+            capturedModules, capturedFaults, capturedFaults == 1U ? @"" : @"s"];
     } else if (_manufacturerProbeActive) {
         self.mercedesProbeStatusText = [NSString stringWithFormat:
             @"Mercedes ECU probe interrupted: %@", status];
@@ -437,10 +456,14 @@ static bool MBLinkSimulatorResponder(
         return;
     }
     _moduleScanActive = YES;
+    /*
+     * iPhone deliberately stops at the bounded gateway census.  The broader
+     * 0x600-0x7F7 forensic sweep belongs to the Linux workstation build.
+     */
     self.mercedesProbeStatusText =
-        @"Mercedes gateway module census · EOBD then 29-bit logical targets (read-only)";
+        @"Mercedes mobile gateway census · EOBD then 29-bit logical targets (read-only)";
     self.mercedesUDSFaultStatusText =
-        @"Gateway-routed module discovery in progress";
+        @"Mobile gateway-routed module discovery in progress";
     [self notifyDelegate];
     [self beginCurrentMercedesModuleScanCommand];
 }
@@ -561,7 +584,7 @@ static bool MBLinkSimulatorResponder(
             _mercedesModuleScan.truncated
                 ? @" · module list truncated" : @""];
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes gateway module census complete · %zu responding · %zu classified · per-module fault memory read",
+            @"Mercedes mobile gateway census complete · %zu responding · %zu classified · per-module fault memory read",
             count, classified];
     }
     [self notifyDelegate];
