@@ -93,7 +93,7 @@ jobs:
           version="$(tr -d '[:space:]' < VERSION)"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DBUILD_TESTING=OFF
+      - run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DMBLINK_BUILD_PROFILE=generic -DBUILD_TESTING=OFF
       - run: cmake --build build-linux --parallel
       - name: Verify Linux About and branding
         shell: bash
@@ -101,6 +101,8 @@ jobs:
           set -euo pipefail
           grep -q 'mblink_linux_show_about' app/linux/main.c
           grep -Fq 'Copyright © 2026 Shannon Smith' app/linux/about-dialog.c
+          grep -Fq 'Generic / APT package' app/linux/about-dialog.c
+          grep -Fq 'Native / local machine compile' app/linux/about-dialog.c
           test -s app/linux/assets/mblink-emblem.png
       - name: Package DEB and native RUN
         shell: bash

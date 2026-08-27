@@ -40,6 +40,9 @@ typedef LinkWorkspaceSectionDescriptor MblinkWorkspaceSectionDescriptor;
 /** Return the semantic version of the linked MBLINK core. */
 const char *mblink_version(void);
 
+/** Return the build identity used by the current binary. */
+const char *mblink_build_profile(void);
+
 /** Validate the core's shared project-metadata contract. */
 bool mblink_self_check(void);
 

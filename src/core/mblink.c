@@ -18,6 +18,10 @@
 #error "MBLINK_VERSION must be supplied by the build system"
 #endif
 
+#ifndef MBLINK_BUILD_PROFILE
+#define MBLINK_BUILD_PROFILE "source"
+#endif
+
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native
  * iPhone target still compiles the pinned LINK C sources into MBLINKCore; keep
@@ -48,7 +52,7 @@ static const InfiltratrProjectInfo mblink_project_info = {
     .application_id = "com.github.The-First-Infiltrator.MBLINK",
     .version = MBLINK_VERSION,
     .source_id = "The-First-Infiltrator/MBLINK",
-    .build_profile = "portable-c11",
+    .build_profile = MBLINK_BUILD_PROFILE,
     .author = "Shannon Smith",
     .website = "https://github.com/The-First-Infiltrator/MBLINK",
     .license_id = "GPL-3.0-or-later",
@@ -60,6 +64,11 @@ static const InfiltratrProjectInfo mblink_project_info = {
 const char *mblink_version(void)
 {
     return MBLINK_VERSION;
+}
+
+const char *mblink_build_profile(void)
+{
+    return MBLINK_BUILD_PROFILE;
 }
 
 bool mblink_self_check(void)

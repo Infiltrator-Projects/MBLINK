@@ -153,6 +153,7 @@ cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$prefix" \
     -DMBLINK_BUILD_LINUX_APP=ON \
+    -DMBLINK_BUILD_PROFILE=native \
     -DBUILD_TESTING=ON
 cmake --build "$build_directory" --parallel "$jobs"
 ctest --test-dir "$build_directory" --output-on-failure --parallel "$jobs"

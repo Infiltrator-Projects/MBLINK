@@ -14,6 +14,17 @@ static gboolean destroy_about_on_close(GtkWindow *window, gpointer user_data)
     return TRUE;
 }
 
+static const char *mblink_linux_build_label(void)
+{
+    const char *profile = mblink_build_profile();
+
+    if (g_strcmp0(profile, "native") == 0)
+        return "Native / local machine compile";
+    if (g_strcmp0(profile, "generic") == 0)
+        return "Generic / APT package";
+    return "Source / development build";
+}
+
 void mblink_linux_show_about(GtkWindow *parent)
 {
     static const char *authors[] = {
@@ -29,6 +40,10 @@ void mblink_linux_show_about(GtkWindow *parent)
     GtkAboutDialog *about = GTK_ABOUT_DIALOG(widget);
     GdkTexture *logo = gdk_texture_new_from_resource(
         "/com/github/The-First-Infiltrator/MBLINK/mblink-emblem.png");
+    char *comments = g_strdup_printf(
+        "Mercedes-oriented vehicle diagnostics built on the shared LINK engine.\n\n"
+        "Build: %s",
+        mblink_linux_build_label());
 
     gtk_window_set_title(GTK_WINDOW(widget), "About MBLINK");
     gtk_window_set_transient_for(GTK_WINDOW(widget), parent);
@@ -36,9 +51,7 @@ void mblink_linux_show_about(GtkWindow *parent)
     gtk_window_set_destroy_with_parent(GTK_WINDOW(widget), TRUE);
     gtk_about_dialog_set_program_name(about, "MBLINK");
     gtk_about_dialog_set_version(about, mblink_version());
-    gtk_about_dialog_set_comments(
-        about,
-        "Mercedes-oriented vehicle diagnostics built on the shared LINK engine.");
+    gtk_about_dialog_set_comments(about, comments);
     gtk_about_dialog_set_authors(about, authors);
     gtk_about_dialog_set_website(
         about, "https://github.com/The-First-Infiltrator/MBLINK");
@@ -50,6 +63,7 @@ void mblink_linux_show_about(GtkWindow *parent)
         gtk_about_dialog_set_logo(about, GDK_PAINTABLE(logo));
         g_object_unref(logo);
     }
+    g_free(comments);
     g_signal_connect(widget, "close-request",
                      G_CALLBACK(destroy_about_on_close), NULL);
     gtk_window_present(GTK_WINDOW(widget));
