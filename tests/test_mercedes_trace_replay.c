@@ -166,11 +166,13 @@ static int replay_vehicle_capture_shape(void)
     CHECK(probe.crd3_negative_mask == UINT32_C(0x18));
     CHECK(probe.crd3_session_variant_available);
     /*
-     * The vehicle returned F154 payload 00 40, not the one-byte layout from
-     * the published CRD3 simulator. Preserve the raw positive DID evidence,
-     * but do not pretend the supplier encoding has been proven.
+     * Real C207/OM651 capture: F154 returned the zero-extended supplier
+     * encoding 00 40.  The decoder accepts that observed wire shape and maps
+     * 0x40 to Delphi.
      */
-    CHECK(!probe.crd3_supplier_available);
+    CHECK(probe.crd3_supplier_available);
+    CHECK(probe.crd3_supplier.supplier_identifier == 64U);
+    CHECK(strcmp(probe.crd3_supplier.supplier_name, "Delphi") == 0);
     CHECK(probe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE);
     CHECK(probe.dtcs.count == 0U);
     return 0;
