@@ -830,25 +830,43 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
     if (context == NULL || response == NULL) return false;
 
     if (context->manufacturer_scan_active) {
-        MblinkMercedesEcuProbeResult result = mblink_mercedes_engine_scan_accept(
-  &context->manufacturer_scan, (const MblinkElm327Response *)response);
+        const bool vin_before =
+            context->manufacturer_scan.probe.vin_result ==
+                MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE;
+        const bool supplier_before =
+            context->manufacturer_scan.probe.crd3_supplier_available;
+        MblinkMercedesEcuProbeResult result =
+            mblink_mercedes_engine_scan_accept(
+                &context->manufacturer_scan,
+                (const MblinkElm327Response *)response);
+        if (vin_before !=
+                (context->manufacturer_scan.probe.vin_result ==
+                 MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE) ||
+            supplier_before !=
+                context->manufacturer_scan.probe.crd3_supplier_available) {
+            context->manufacturer_ui_dirty = true;
+        }
         if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
-  context->manufacturer_scan_active = false;
-  context->manufacturer_scan_complete = true;
-  if (begin_module_scan(context) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
-      context->module_scan_active = true;
-      return true;
-  }
-  context->module_scan_failed = true;
-  if (complete != NULL) *complete = true;
-  return true;
+            context->manufacturer_scan_active = false;
+            context->manufacturer_scan_complete = true;
+            context->manufacturer_ui_dirty = true;
+            if (begin_module_scan(context) ==
+                MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+                context->module_scan_active = true;
+                return true;
+            }
+            context->module_scan_failed = true;
+            if (complete != NULL) *complete = true;
+            return true;
         }
         if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) return true;
         context->manufacturer_scan_active = false;
         context->manufacturer_scan_failed = true;
-        if (begin_module_scan(context) == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
-  context->module_scan_active = true;
-  return true;
+        context->manufacturer_ui_dirty = true;
+        if (begin_module_scan(context) ==
+            MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
+            context->module_scan_active = true;
+            return true;
         }
         context->module_scan_failed = true;
         if (complete != NULL) *complete = true;
@@ -856,21 +874,55 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
     }
 
     if (context->module_scan_active) {
-        MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(
-  &context->module_scan, (const MblinkElm327Response *)response);
+        const size_t modules_before = context->module_scan.module_count;
+        const size_t dtcs_before =
+            mblink_mercedes_module_scan_total_dtc_count(
+                &context->module_scan);
+        const size_t classified_before =
+            mblink_mercedes_module_scan_classified_count(
+                &context->module_scan);
+        MblinkMercedesModuleScanResult result =
+            mblink_mercedes_module_scan_accept(
+                &context->module_scan,
+                (const MblinkElm327Response *)response);
+        const size_t modules_after = context->module_scan.module_count;
+        const size_t dtcs_after =
+            mblink_mercedes_module_scan_total_dtc_count(
+                &context->module_scan);
+        const size_t classified_after =
+            mblink_mercedes_module_scan_classified_count(
+                &context->module_scan);
+
+        if (modules_before != modules_after ||
+            dtcs_before != dtcs_after ||
+            classified_before != classified_after) {
+            context->manufacturer_ui_dirty = true;
+        }
         if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
-  context->module_scan_active = false;
-  context->module_scan_complete = true;
-  if (complete != NULL) *complete = true;
-  return true;
+            context->module_scan_active = false;
+            context->module_scan_complete = true;
+            context->manufacturer_ui_dirty = true;
+            if (complete != NULL) *complete = true;
+            return true;
         }
         if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) return true;
         context->module_scan_active = false;
         context->module_scan_failed = true;
+        context->manufacturer_ui_dirty = true;
         if (complete != NULL) *complete = true;
         return true;
     }
     return false;
+}
+
+static bool manufacturer_progress_changed(void *opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    bool changed;
+    if (context == NULL) return false;
+    changed = context->manufacturer_ui_dirty;
+    context->manufacturer_ui_dirty = false;
+    return changed;
 }
 
 static void manufacturer_finished(bool complete, void *opaque)
@@ -890,6 +942,7 @@ static const LinkGtkManufacturerExtension mblink_manufacturer_extension = {
     .begin = manufacturer_begin,
     .next_command = manufacturer_next_command,
     .accept_response = manufacturer_accept_response,
+    .progress_changed = manufacturer_progress_changed,
     .finished = manufacturer_finished
 };
 
@@ -942,12 +995,32 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
 int main(int argc, char **argv)
 {
     MblinkLinuxContext context = {0};
+    MblinkC207ReplayTransport replay;
     LinkGtkShellDescriptor descriptor = {0};
+    bool replay_mode = false;
+    int index;
+
+    for (index = 1; index < argc; ++index) {
+        if (strcmp(argv[index], "--replay-c207") == 0) {
+            int move;
+            replay_mode = true;
+            for (move = index; move + 1 < argc; ++move)
+                argv[move] = argv[move + 1];
+            --argc;
+            --index;
+        }
+    }
+
+    context.replay_mode = replay_mode;
     link_fuel_economy_init(&context.fuel_economy);
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
-    descriptor.window_title = "MBLINK · Mercedes-Benz Diagnostics";
+    descriptor.window_title = replay_mode
+        ? "MBLINK · C207 Offline Replay"
+        : "MBLINK · Mercedes-Benz Diagnostics";
     descriptor.brand_name = "MBLINK";
-    descriptor.brand_subtitle = "MERCEDES-BENZ · C207 / OM651";
+    descriptor.brand_subtitle = replay_mode
+        ? "MERCEDES-BENZ · C207 / OM651 · OFFLINE REPLAY"
+        : "MERCEDES-BENZ · C207 / OM651";
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/The-First-Infiltrator/MBLINK/mblink-emblem.png";
     descriptor.css = mblink_css;
@@ -958,6 +1031,11 @@ int main(int argc, char **argv)
     descriptor.diagnostic_restart_action_label = "DEEP RESCAN";
     descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;
+    if (replay_mode) {
+        mblink_c207_replay_init(&replay);
+        descriptor.transport_provider = mblink_c207_replay_provider();
+        descriptor.transport_provider_context = &replay;
+    }
     descriptor.context = &context;
     return link_gtk_shell_run(argc, argv, &descriptor);
 }
