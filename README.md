@@ -98,6 +98,14 @@ cmake --build build-linux --target mblink-linux
 ./build-linux/mblink-linux
 ```
 
+Offline C207/Vgate replay:
+
+```bash
+./build-linux/mblink-linux --replay-c207
+```
+
+Replay mode auto-connects a deterministic ELM327 v2.3/Vgate transport. It reuses the captured C207/OM651 PID-support, CRD3, response-pending, negative-UDS and deep-scan NO-DATA shapes, with the real VIN serial replaced by a synthetic suffix. A clearly labelled synthetic ORC restraint-controller response is injected early in the Linux forensic sweep so the Vehicle and Faults views must visibly surface an airbag/seatbelt test fault while the rest of the sweep continues. Replay evidence is never presented as a fault read from a live vehicle.
+
 The native iPhone project is `app/ios/MBLINK.xcodeproj`.
 
 GitHub CI verifies the exact recursive dependency gitlinks, portable core, product-to-LINK facade, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run.
