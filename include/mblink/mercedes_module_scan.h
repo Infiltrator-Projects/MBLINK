@@ -694,12 +694,11 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         present = mblink_mercedes_module_scan_decode_uds(
             response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
             pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present) {
-            module = mblink_mercedes_module_scan_record_module(scan, false);
-            if (module != NULL)
-                mblink_mercedes_module_scan_capture_dtc(module, response);
-        }
+        if (present)
+            (void)mblink_mercedes_module_scan_record_module(scan, false);
         module = mblink_mercedes_module_scan_find_candidate(scan);
+        if (module != NULL)
+            mblink_mercedes_module_scan_capture_dtc(module, response);
         scan->stage = module != NULL
             ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
