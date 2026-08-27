@@ -118,6 +118,16 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.modules[0].rx_can_id == UINT32_C(0x7e8));
     CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_ENGINE);
     CHECK(scan.modules[0].tester_present_response);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1902FF") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.modules[0].dtc_result ==
+          MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
     CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
@@ -296,7 +306,18 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.module_count == 1U);
-        CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.modules[0].dtc_result ==
+              MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
         CHECK(mblink_mercedes_module_scan_command(
                   &scan, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
