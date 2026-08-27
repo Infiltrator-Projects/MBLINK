@@ -240,6 +240,8 @@ jobs:
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          project_versions="$(grep -E '^[[:space:]]*MARKETING_VERSION = ' app/ios/MBLINK.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);/\\1/' | sort -u)"
+          test "$project_versions" = "$version"
           status="$(git submodule status --recursive)"
           ! grep -Eq '^[+-U]' <<<"$status"
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c

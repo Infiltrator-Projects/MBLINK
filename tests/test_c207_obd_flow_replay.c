@@ -3,11 +3,12 @@
  * @file test_c207_obd_flow_replay.c
  * @brief Replay the standard OBD front half of the captured C207 session.
  *
- * The PID-support replies below are copied verbatim from the 2026-08-27
- * vehicle capture.  The later VIN/DTC replies are deliberately NO DATA
- * controls because those standard-mode replies were not captured in that run.
- * The test's purpose is to prove sequencing: standard OBD fault inventory must
- * complete before the Mercedes manufacturer extension is entered.
+ * The PID-support replies below are copied from the 2026-08-27 vehicle
+ * capture.  Indexed Mode 09 VIN framing and the dual-responder empty Mode 03
+ * shape are derived from the 2026-08-28 C207/Vgate evidence; identifying VIN
+ * digits are replaced with a synthetic fixture value.  Pending/permanent DTC
+ * replies remain NO DATA controls.  The test proves that real empty stored-DTC
+ * framing does not abort the shared flow before the Mercedes extension.
  */
 #include "link/diagnostic_flow.h"
 
@@ -135,20 +136,30 @@ int main(void)
     CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(strcmp(action.command, "0902") == 0);
-    response = no_data_response();
+    response = ok_response(
+        "014\n"
+        "0:490201574444\n"
+        "1:32303733303232\n"
+        "2:46313233343536", false);
     CHECK(link_diagnostic_flow_accept_response(
               &flow, &response, 800U, &event) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN);
+    CHECK(event.vin_available);
+    CHECK(event.vin != NULL);
+    CHECK(strcmp(event.vin, "WDD2073022F123456") == 0);
     CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS);
 
     CHECK(link_diagnostic_flow_next_action(&flow, 900U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(strcmp(action.command, "03") == 0);
+    response = ok_response("4300\n4300", false);
     CHECK(link_diagnostic_flow_accept_response(
               &flow, &response, 900U, &event) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_DTC_LIST);
     CHECK(event.dtc_kind == LINK_OBD2_DTC_STORED);
+    CHECK(event.dtc_list != NULL && event.dtc_list->count == 0U);
 
     CHECK(link_diagnostic_flow_next_action(&flow, 1000U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
