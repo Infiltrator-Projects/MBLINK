@@ -104,7 +104,7 @@ int main(void)
     CHECK(send_ok(&scan, "ATH0") == 0);
     CHECK(send_ok(&scan, "ATCAF1") == 0);
     CHECK(send_ok(&scan, "ATCFC1") == 0);
-    CHECK(send_ok(&scan, "ATST10") == 0);
+    CHECK(send_ok(&scan, "ATST20") == 0);
     CHECK(send_ok(&scan, "ATSH7E0") == 0);
     CHECK(send_ok(&scan, "ATCRA7E8") == 0);
 
@@ -281,6 +281,15 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.full_target_index == 0U);
         CHECK(scan.candidate_tx == UINT32_C(0x600));
         CHECK(scan.candidate_rx == UINT32_C(0x608));
+
+        /* Full forensic discovery gets the deliberately longer ELM timeout. */
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT;
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "ATST32") == 0);
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
 
         /* A responder can still supply F197 evidence that becomes its label. */
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
