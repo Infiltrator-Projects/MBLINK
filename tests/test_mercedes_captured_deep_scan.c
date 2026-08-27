@@ -215,7 +215,7 @@ static int inject_restraint_fault_after_real_scan_shapes(void)
     CHECK(scan.modules[0].definition != NULL);
     CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
     CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[0]),
-                 "Occupant Restraint Controller (ORC)") == 0);
+                 "Occupant restraint / airbag control unit (ORC)") == 0);
     CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 1U);
     return 0;
 }
