@@ -299,10 +299,11 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST32") == 0);
         CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        /* Route learning itself is covered by the captured deep-scan replay. */
+        scan.candidate_route_locked = true;
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
 
         /* A responder can still supply F197 evidence that becomes its label. */
-        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.module_count == 1U);
