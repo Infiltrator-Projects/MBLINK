@@ -278,6 +278,82 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
     }
 
+    /*
+     * A VIN-keyed saved profile reuses only known routes. It reinitialises
+     * the adapter, validates each saved ECU with TesterPresent, refreshes its
+     * DTC memory, and never walks undiscovered addresses.
+     */
+    {
+        MblinkMercedesModuleScanEntry cached[2];
+        memset(cached, 0, sizeof(cached));
+        cached[0].tx_can_id = UINT32_C(0x7e0);
+        cached[0].rx_can_id = UINT32_C(0x7e8);
+        cached[0].kind = MBLINK_MERCEDES_MODULE_ENGINE;
+        cached[0].identity_available = true;
+        (void)snprintf(
+            cached[0].identity, sizeof(cached[0].identity), "%s", "CRD3");
+
+        cached[1].tx_can_id = UINT32_C(0x18da02f1);
+        cached[1].rx_can_id = UINT32_C(0x18daf102);
+        cached[1].extended_id = true;
+        cached[1].kind = MBLINK_MERCEDES_MODULE_OTHER;
+
+        CHECK(mblink_mercedes_module_scan_begin_cached(
+                  &scan, cached, 2U) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED);
+        CHECK(scan.module_count == 2U);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11);
+        CHECK(scan.modules[0].identity_available);
+        CHECK(strcmp(scan.modules[0].identity, "CRD3") == 0);
+
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATH0") == 0);
+        CHECK(send_ok(&scan, "ATCAF1") == 0);
+        CHECK(send_ok(&scan, "ATCFC1") == 0);
+        CHECK(send_ok(&scan, "ATST20") == 0);
+
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATSH7E0") == 0);
+        CHECK(send_ok(&scan, "ATCRA7E8") == 0);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E00") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.modules[0].tester_present_response);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &dtcs) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+        CHECK(send_ok(&scan, "ATSP7") == 0);
+        CHECK(send_ok(&scan, "ATSH18DA02F1") == 0);
+        CHECK(send_ok(&scan, "ATCRA18DAF102") == 0);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E00") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(!scan.modules[1].tester_present_response);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+        CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+        CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 1U);
+        CHECK(scan.modules[0].dtcs.count == 2U);
+    }
+
     /* Explicit FULL consumes the one Mercedes-owned plan. */
     {
         const link_discover_sweep_plan *plan =
