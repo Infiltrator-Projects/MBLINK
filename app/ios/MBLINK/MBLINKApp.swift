@@ -535,6 +535,7 @@ private struct MBVehicleView: View {
                             MBInfoRow(label: "Engine", value: "OM651")
                             MBInfoRow(label: "Engine ECU", value: "Delphi CRD3.x")
                             MBInfoRow(label: "Connection", value: connection.statusText)
+                            MBInfoRow(label: "Vehicle profile", value: connection.vehicleProfileStatusText)
                             MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
                         }
                     }
@@ -574,12 +575,35 @@ private struct MBVehicleView: View {
 private struct MBModulesView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
+    private var observedModules: [String] {
+        connection.mercedesIdentityResults.filter { $0.hasPrefix("MODULE ·") }
+    }
+
     var body: some View {
         ZStack {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     MBSectionHeader(title: "Delphi CRD3.x", kicker: "Modules and capabilities")
+                    MBPanel {
+                        VStack(spacing: 4) {
+                            MBInfoRow(label: "VIN profile", value: connection.vehicleProfileStatusText)
+                            MBInfoRow(label: "Module state", value: connection.mercedesProbeStatusText)
+                        }
+                    }
+                    if !observedModules.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 9) {
+                                MBSectionHeader(title: "Observed modules", kicker: "Saved + live verification")
+                                ForEach(observedModules, id: \.self) { module in
+                                    Text(module)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(MBBrand.silverBright)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }
                     MBPanel {
                         VStack(alignment: .leading, spacing: 11) {
                             capability("Standard OBD-II engine diagnostics", "waveform.path.ecg")
