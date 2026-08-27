@@ -37,7 +37,6 @@ typedef struct MblinkLinuxContext {
     bool module_scan_active;
     bool module_scan_complete;
     bool module_scan_failed;
-    bool full_sweep_requested;
     bool module_scan_full;
 } MblinkLinuxContext;
 
@@ -669,7 +668,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK serial + BlueZ BLE ELM327 providers");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + gateway-routed module census + evidence-backed module map + per-module UDS DTC inventory");
+        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + Linux full forensic module sweep + evidence-backed module map + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         gtk_box_append(GTK_BOX(body), card);
         break;
@@ -687,28 +686,27 @@ static void show_about(GtkWindow *window, void *context)
 static MblinkMercedesModuleScanResult begin_module_scan(
     MblinkLinuxContext *context)
 {
-    if (context == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
-    return context->module_scan_full
-        ? mblink_mercedes_module_scan_begin_full(&context->module_scan)
-        : mblink_mercedes_module_scan_begin_gateway(&context->module_scan);
+    if (context == NULL)
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
+    return mblink_mercedes_module_scan_begin_full(&context->module_scan);
 }
 
 static void request_full_sweep(void *opaque)
 {
-    MblinkLinuxContext *context = opaque;
-    if (context != NULL) context->full_sweep_requested = true;
+    /*
+     * The Linux workstation always owns the full forensic scan.  This callback
+     * is the shell's explicit restart hook; no extra mode flag is required.
+     */
+    (void)opaque;
 }
 
 static bool manufacturer_begin(void *opaque)
 {
     MblinkLinuxContext *context = opaque;
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
-    bool full_sweep;
     if (context == NULL || endpoint == NULL) return false;
-    full_sweep = context->full_sweep_requested;
-    context->full_sweep_requested = false;
     reset_manufacturer_scan(context);
-    context->module_scan_full = full_sweep;
+    context->module_scan_full = true;
     context->manufacturer_scan_started = true;
     if (!mblink_mercedes_engine_scan_begin(&context->manufacturer_scan, endpoint)) {
         context->manufacturer_scan_failed = true;
@@ -836,7 +834,6 @@ static void connection_changed(LinkTransport *transport,
     MblinkLinuxContext *context = opaque;
     context->connected = connected;
     context->transport = *transport;
-    context->full_sweep_requested = false;
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
     reset_manufacturer_scan(context);
@@ -891,7 +888,7 @@ int main(int argc, char **argv)
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
-    descriptor.diagnostic_restart_action_label = "FULL SWEEP";
+    descriptor.diagnostic_restart_action_label = "DEEP RESCAN";
     descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;
     descriptor.context = &context;
