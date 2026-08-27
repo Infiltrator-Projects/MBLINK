@@ -21,6 +21,8 @@
 typedef struct MblinkLinuxContext {
     bool connected;
     bool replay_mode;
+    bool replay_verify;
+    bool replay_verify_emitted;
     bool manufacturer_ui_dirty;
     char adapter_identity[160];
     LinkTransport transport;
@@ -950,6 +952,14 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
     return false;
 }
 
+static gboolean replay_verify_quit(gpointer opaque)
+{
+    GApplication *application = g_application_get_default();
+    (void)opaque;
+    if (application != NULL) g_application_quit(application);
+    return G_SOURCE_REMOVE;
+}
+
 static bool manufacturer_progress_changed(void *opaque)
 {
     MblinkLinuxContext *context = opaque;
@@ -957,6 +967,21 @@ static bool manufacturer_progress_changed(void *opaque)
     if (context == NULL) return false;
     changed = context->manufacturer_ui_dirty;
     context->manufacturer_ui_dirty = false;
+
+    /*
+     * CI's replay verifier quits on the first rendered state containing the
+     * synthetic ORC fault.  Scheduling the quit through the GLib idle queue
+     * lets the shared shell repaint the current Vehicle/Faults view first.
+     */
+    if (changed && context->replay_verify &&
+        !context->replay_verify_emitted &&
+        replay_orc_module(context) != NULL) {
+        context->replay_verify_emitted = true;
+        (void)printf(
+            "MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible\n");
+        (void)fflush(stdout);
+        (void)g_idle_add(replay_verify_quit, NULL);
+    }
     return changed;
 }
 
@@ -1033,12 +1058,16 @@ int main(int argc, char **argv)
     MblinkC207ReplayTransport replay;
     LinkGtkShellDescriptor descriptor = {0};
     bool replay_mode = false;
+    bool replay_verify = false;
     int index;
 
     for (index = 1; index < argc; ++index) {
-        if (strcmp(argv[index], "--replay-c207") == 0) {
+        if (strcmp(argv[index], "--replay-c207") == 0 ||
+            strcmp(argv[index], "--replay-c207-verify") == 0) {
             int move;
             replay_mode = true;
+            if (strcmp(argv[index], "--replay-c207-verify") == 0)
+                replay_verify = true;
             for (move = index; move + 1 < argc; ++move)
                 argv[move] = argv[move + 1];
             --argc;
@@ -1047,6 +1076,7 @@ int main(int argc, char **argv)
     }
 
     context.replay_mode = replay_mode;
+    context.replay_verify = replay_verify;
     link_fuel_economy_init(&context.fuel_economy);
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
     descriptor.window_title = replay_mode
