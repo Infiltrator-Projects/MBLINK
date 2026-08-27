@@ -291,8 +291,28 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
 
 static inline void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan)
 {
+    size_t index;
+    bool needs_dtc_pass = false;
+
+    if (scan == NULL) return;
+    /*
+     * Discovery now captures DTC memory as soon as a responder is found.  A
+     * second pass is only required for unusual modules discovered solely by a
+     * VIN/identity fallback whose DTC request produced no usable response.
+     */
+    for (index = 0U; index < scan->module_count; ++index) {
+        if (scan->modules[index].dtc_result ==
+            MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED) {
+            needs_dtc_pass = true;
+            break;
+        }
+    }
     scan->dtc_index = 0U;
-    scan->stage = scan->module_count == 0U ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
+    scan->stage = scan->module_count == 0U
+        ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
+        : (needs_dtc_pass
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
 }
 
 static inline void mblink_mercedes_module_scan_advance_candidate(
@@ -656,11 +676,34 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE; break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT; break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
-        present = mblink_mercedes_module_scan_decode_uds(response, MBLINK_UDS_SERVICE_TESTER_PRESENT, pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present) { (void)mblink_mercedes_module_scan_record_module(scan, true); scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY; } else scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK; break;
+        present = mblink_mercedes_module_scan_decode_uds(
+            response, MBLINK_UDS_SERVICE_TESTER_PRESENT,
+            pdu, sizeof(pdu), &pdu_length, &uds);
+        if (present)
+            (void)mblink_mercedes_module_scan_record_module(scan, true);
+        /*
+         * Always ask for fault memory immediately after presence probing.
+         * This lets a long Linux forensic sweep surface an SRS/ORC fault as
+         * soon as that controller is reached instead of waiting until every
+         * CAN target has been exhausted.
+         */
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
-        present = mblink_mercedes_module_scan_decode_uds(response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION, pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present) { module = mblink_mercedes_module_scan_record_module(scan, false); if (module != NULL) mblink_mercedes_module_scan_capture_dtc(module, response); scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY; } else scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK; break;
+        present = mblink_mercedes_module_scan_decode_uds(
+            response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
+            pdu, sizeof(pdu), &pdu_length, &uds);
+        if (present) {
+            module = mblink_mercedes_module_scan_record_module(scan, false);
+            if (module != NULL)
+                mblink_mercedes_module_scan_capture_dtc(module, response);
+        }
+        module = mblink_mercedes_module_scan_find_candidate(scan);
+        scan->stage = module != NULL
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
         present = mblink_mercedes_module_scan_decode_uds(response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER, pdu, sizeof(pdu), &pdu_length, &uds);
         if (present) {
