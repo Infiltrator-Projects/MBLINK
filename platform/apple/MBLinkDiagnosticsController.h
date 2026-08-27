@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *mercedesCrd3SummaryText;
 @property(nonatomic, copy, readonly) NSString *mercedesUDSFaultStatusText;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *mercedesUDSFaults;
+@property(nonatomic, copy, readonly) NSString *vehicleProfileStatusText;
 @property(nonatomic, copy, readonly) NSString *faultScanStatusText;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *pendingDTCs;
