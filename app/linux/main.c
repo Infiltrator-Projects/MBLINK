@@ -392,6 +392,83 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
     gtk_box_append(GTK_BOX(body), card);
 }
 
+static void append_module_fault_rows(
+    GtkWidget *card,
+    const MblinkLinuxContext *context)
+{
+    size_t module_index;
+    if (card == NULL || context == NULL) return;
+
+    for (module_index = 0U;
+         module_index < context->module_scan.module_count;
+         ++module_index) {
+        const MblinkMercedesModuleScanEntry *module =
+            &context->module_scan.modules[module_index];
+        char module_label[96];
+        char module_value[128];
+
+        if (module->extended_id) {
+            (void)snprintf(module_label, sizeof(module_label),
+                "%s · 0x%08X",
+                mblink_mercedes_module_scan_module_name(module),
+                (unsigned int)module->tx_can_id);
+        } else {
+            (void)snprintf(module_label, sizeof(module_label),
+                "%s · 0x%03X",
+                mblink_mercedes_module_scan_module_name(module),
+                (unsigned int)module->tx_can_id);
+        }
+
+        if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE) {
+            (void)snprintf(module_value, sizeof(module_value),
+                "%zu fault record%s",
+                module->dtcs.count,
+                module->dtcs.count == 1U ? "" : "s");
+        } else if (module->dtc_result ==
+                   MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE) {
+            (void)snprintf(module_value, sizeof(module_value),
+                "DTC read negative response · NRC 0x%02X",
+                (unsigned int)module->dtc_negative_response_code);
+        } else {
+            (void)snprintf(module_value, sizeof(module_value),
+                "DTC read %s",
+                module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE
+                    ? "no response" : "unavailable");
+        }
+        link_gtk_card_append_detail(card, module_label, module_value);
+
+        for (size_t dtc_index = 0U;
+             dtc_index < module->dtcs.count;
+             ++dtc_index) {
+            char code[7];
+            char label[96];
+            char value[128];
+            if (!mblink_uds_dtc_format_hex(
+                    module->dtcs.records[dtc_index].code,
+                    code, sizeof(code))) {
+                (void)snprintf(code, sizeof(code), "??????");
+            }
+            (void)snprintf(label, sizeof(label),
+                "  %s fault %zu",
+                mblink_mercedes_module_scan_module_name(module),
+                dtc_index + 1U);
+            (void)snprintf(value, sizeof(value),
+                "%s · status 0x%02X",
+                code,
+                (unsigned int)module->dtcs.records[dtc_index].status);
+            link_gtk_card_append_detail(card, label, value);
+
+            if (context->replay_mode &&
+                module->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS) {
+                link_gtk_card_append_detail(
+                    card,
+                    "  REPLAY INJECTION",
+                    "Seatbelt / airbag restraint fault · synthetic test evidence");
+            }
+        }
+    }
+}
+
 static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 {
     GtkWidget *mercedes = link_gtk_card_new("MERCEDES FACTORY", "Engine ECU factory diagnostics");
@@ -457,10 +534,17 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
     if (!context->connected) {
         link_gtk_card_append_status(modules, "NOT SCANNED · LINK OFFLINE", "state-warning");
     } else if (context->module_scan_active) {
-        (void)snprintf(summary, sizeof(summary), "SCANNING · %zu module%s found",
+        const size_t total =
+            mblink_mercedes_module_scan_total_dtc_count(
+                &context->module_scan);
+        (void)snprintf(summary, sizeof(summary),
+             "SCANNING · %zu module%s found · %zu factory fault record%s captured",
              context->module_scan.module_count,
-             context->module_scan.module_count == 1U ? "" : "s");
+             context->module_scan.module_count == 1U ? "" : "s",
+             total,
+             total == 1U ? "" : "s");
         link_gtk_card_append_status(modules, summary, "state-warning");
+        append_module_fault_rows(modules, context);
     } else if (context->module_scan_complete) {
         const size_t total =
             mblink_mercedes_module_scan_total_dtc_count(
@@ -473,38 +557,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
              context->module_scan.module_count, classified,
              total, total == 1U ? "" : "s");
         link_gtk_card_append_status(modules, summary, "state-success");
-        for (size_t module_index = 0U; module_index < context->module_scan.module_count; ++module_index) {
-  const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[module_index];
-  char module_label[96];
-  char module_value[128];
-  if (module->extended_id)
-      (void)snprintf(module_label, sizeof(module_label), "%s · 0x%08X",
-                     mblink_mercedes_module_scan_module_name(module), (unsigned int)module->tx_can_id);
-  else
-      (void)snprintf(module_label, sizeof(module_label), "%s · 0x%03X",
-                     mblink_mercedes_module_scan_module_name(module), (unsigned int)module->tx_can_id);
-  if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE)
-      (void)snprintf(module_value, sizeof(module_value), "%zu fault record%s",
-                     module->dtcs.count, module->dtcs.count == 1U ? "" : "s");
-  else if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE)
-      (void)snprintf(module_value, sizeof(module_value), "DTC read negative response · NRC 0x%02X",
-                     (unsigned int)module->dtc_negative_response_code);
-  else
-      (void)snprintf(module_value, sizeof(module_value), "DTC read %s",
-                     module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE ? "no response" : "unavailable");
-  link_gtk_card_append_detail(modules, module_label, module_value);
-  for (size_t dtc_index = 0U; dtc_index < module->dtcs.count; ++dtc_index) {
-      char code[7];
-      char label[96];
-      char value[96];
-      if (!mblink_uds_dtc_format_hex(module->dtcs.records[dtc_index].code, code, sizeof(code)))
-          (void)snprintf(code, sizeof(code), "??????");
-      (void)snprintf(label, sizeof(label), "  %s fault %zu", mblink_mercedes_module_scan_module_name(module), dtc_index + 1U);
-      (void)snprintf(value, sizeof(value), "%s · status 0x%02X", code,
-                     (unsigned int)module->dtcs.records[dtc_index].status);
-      link_gtk_card_append_detail(modules, label, value);
-  }
-        }
+        append_module_fault_rows(modules, context);
     } else if (context->module_scan_failed) {
         link_gtk_card_append_status(modules, "MODULE FAULT INVENTORY INCOMPLETE", "state-warning");
     } else {
