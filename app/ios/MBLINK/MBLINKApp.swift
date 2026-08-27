@@ -515,6 +515,14 @@ private struct MBVehicleView: View {
             connection.pendingDTCs.count + connection.permanentDTCs.count
     }
 
+    private var decodedVehicleIdentity: [String] {
+        connection.mercedesIdentityResults.filter {
+            $0.hasPrefix("VIN ·") ||
+            $0.hasPrefix("ENGINE ·") ||
+            $0.hasPrefix("BUILD ·")
+        }
+    }
+
     var body: some View {
         ZStack {
             MBBackground()
@@ -528,6 +536,23 @@ private struct MBVehicleView: View {
                             MBInfoRow(label: "Engine ECU", value: "Delphi CRD3.x")
                             MBInfoRow(label: "Connection", value: connection.statusText)
                             MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
+                        }
+                    }
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 8) {
+                            MBSectionHeader(title: "Decoded VIN", kicker: "Vehicle identity")
+                            if decodedVehicleIdentity.isEmpty {
+                                Text("Decoded Mercedes vehicle details will appear here after VIN identification.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.muted)
+                            } else {
+                                ForEach(decodedVehicleIdentity, id: \.self) { detail in
+                                    Text(detail)
+                                        .font(.subheadline.monospaced())
+                                        .foregroundStyle(MBBrand.silverBright)
+                                        .textSelection(.enabled)
+                                }
+                            }
                         }
                     }
                     MBPanel {
@@ -625,12 +650,12 @@ private struct MBFaultsView: View {
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 10) {
-                            MBSectionHeader(title: "Mercedes engine", kicker: "UDS")
+                            MBSectionHeader(title: "Mercedes modules", kicker: "UDS")
                             Text(connection.mercedesUDSFaultStatusText)
                                 .font(.caption)
                                 .foregroundStyle(MBBrand.muted)
                             if connection.mercedesUDSFaults.isEmpty {
-                                emptyFaults("No Mercedes UDS fault records captured")
+                                emptyFaults("No Mercedes module UDS fault records captured")
                             } else {
                                 ForEach(connection.mercedesUDSFaults, id: \.self) { fault in
                                     Text(fault)
