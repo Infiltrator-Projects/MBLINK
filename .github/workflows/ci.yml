@@ -85,7 +85,7 @@ jobs:
           submodules: recursive
       - run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config
+          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev pkg-config xvfb
       - id: version
         shell: bash
         run: |
@@ -95,6 +95,13 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMBLINK_BUILD_LINUX_APP=ON -DMBLINK_BUILD_PROFILE=generic -DBUILD_TESTING=OFF
       - run: cmake --build build-linux --parallel
+      - name: Verify offline C207 replay reaches visible ORC fault
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/c207-replay.log"
+          timeout 20s xvfb-run -a ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
+          grep -Fq 'MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible' "$log"
       - name: Verify Linux About and branding
         shell: bash
         run: |
