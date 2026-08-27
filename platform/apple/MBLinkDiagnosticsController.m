@@ -31,6 +31,7 @@
 - (void)beginMercedesModuleScan;
 - (void)beginCurrentMercedesModuleScanCommand;
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
+- (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
 - (void)updateMercedesProbeEvidenceSummary;
@@ -138,7 +139,13 @@ static bool MBLinkSimulatorResponder(
     if (self == nil) return nil;
 
     LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
-    flowConfig.manufacturer_extension_after_pid_discovery = true;
+    /*
+     * Finish the standard OBD stored/pending/permanent DTC inventory first.
+     * Mercedes module discovery can be lengthy and must not prevent ordinary
+     * OBD evidence from reaching the UI.
+     */
+    flowConfig.manufacturer_extension_after_pid_discovery = false;
+    flowConfig.manufacturer_extension_after_standard_dtcs = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
     /*
      * ATSP0 may need several seconds to acquire the vehicle protocol on the
@@ -501,13 +508,60 @@ static bool MBLinkSimulatorResponder(
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||
         _mercedesModuleScan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED) {
         _moduleScanActive = NO;
-        self.mercedesProbeStatusText = [NSString stringWithFormat:@"Module scan incomplete: %@",
-  MBLinkStringFromCString(mblink_mercedes_module_scan_result_name(result))];
-        self.mercedesUDSFaultStatusText = @"Module fault inventory incomplete";
+        [self updateMercedesModuleFaultEvidenceInProgress];
+        self.mercedesProbeStatusText = [NSString stringWithFormat:
+            @"Module scan incomplete: %@",
+            MBLinkStringFromCString(
+                mblink_mercedes_module_scan_result_name(result))];
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
+    [self updateMercedesModuleFaultEvidenceInProgress];
     [self beginCurrentMercedesModuleScanCommand];
+}
+
+- (void)updateMercedesModuleFaultEvidenceInProgress
+{
+    NSMutableArray<NSString *> *faults = [[NSMutableArray alloc] init];
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    const size_t totalFaults =
+        mblink_mercedes_module_scan_total_dtc_count(&_mercedesModuleScan);
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL) continue;
+        NSString *name = MBLinkStringFromCString(
+            mblink_mercedes_module_scan_module_name(module));
+        NSString *address = module->extended_id
+            ? [NSString stringWithFormat:@"0x%08X → 0x%08X",
+                (unsigned int)module->tx_can_id,
+                (unsigned int)module->rx_can_id]
+            : [NSString stringWithFormat:@"0x%03X → 0x%03X",
+                (unsigned int)module->tx_can_id,
+                (unsigned int)module->rx_can_id];
+        for (size_t dtcIndex = 0U;
+             dtcIndex < module->dtcs.count; ++dtcIndex) {
+            char code[7];
+            if (!mblink_uds_dtc_format_hex(
+                    module->dtcs.records[dtcIndex].code,
+                    code, sizeof(code))) {
+                continue;
+            }
+            [faults addObject:[NSString stringWithFormat:
+                @"%@ · %@ · %@ · status 0x%02X",
+                name, address, MBLinkStringFromCString(code),
+                (unsigned int)module->dtcs.records[dtcIndex].status]];
+        }
+    }
+
+    self.mercedesUDSFaults = [faults copy];
+    self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
+        @"Scanning · %zu responding modules · %zu Mercedes factory fault record%@ captured",
+        count, totalFaults, totalFaults == 1U ? @"" : @"s"];
+    [self notifyDelegate];
 }
 
 - (void)updateMercedesModuleScanSummary
