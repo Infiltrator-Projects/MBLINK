@@ -354,7 +354,8 @@ private extension DiagnosticParameter {
     var brandGroup: MBParameterGroup {
         if id.contains(".dpf.") || id.contains(".aftertreatment.") { return .aftertreatment }
         if id.contains(".diesel.egr") { return .egr }
-        if id.contains(".diesel.rail_pressure") || id.contains(".fuel_rate") { return .fuel }
+        if id.contains(".diesel.rail_pressure") || id.contains(".fuel_rate") ||
+            id.contains(".fuel.") { return .fuel }
         if id.contains(".electrical.") { return .electrical }
         if id.contains(".engine.map") || id.contains(".barometric_pressure") ||
             id.contains(".engine.maf") || id.contains(".intake_air") || id.contains(".environment.") {
@@ -1051,8 +1052,8 @@ private struct MBDashboardView: View {
 
     private let defaultKeys = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
-        "obd2.diesel.rail_pressure", "obd2.dpf.bank1_delta_pressure",
-        "obd2.aftertreatment.egt_b1s1"
+        "obd2.diesel.rail_pressure", "obd2.fuel.tank_level",
+        "obd2.dpf.bank1_delta_pressure", "obd2.aftertreatment.egt_b1s1"
     ]
 
     private var displayed: [DiagnosticParameter] {
@@ -1223,10 +1224,18 @@ private struct MBEvidenceView: View {
                             Button {
                                 connection.prepareCSVExport()
                             } label: {
-                                Label("Prepare diagnostic evidence CSV", systemImage: "doc.badge.gearshape")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(MBBrand.silverBright)
+                                HStack(spacing: 8) {
+                                    if connection.isPreparingCSV {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                    Label("Prepare diagnostic evidence CSV",
+                                          systemImage: "doc.badge.gearshape")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(MBBrand.silverBright)
                             }
+                            .disabled(connection.isPreparingCSV)
                             if let exportURL = connection.csvExportURL {
                                 ShareLink(item: exportURL) {
                                     Label("Share diagnostic evidence", systemImage: "square.and.arrow.up")

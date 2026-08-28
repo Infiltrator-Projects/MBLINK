@@ -123,6 +123,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var recordedSampleCount = 0
     @Published private(set) var csvExportURL: URL?
+    @Published private(set) var isPreparingCSV = false
 
     private let controller = MBLinkDiagnosticsController()
 
@@ -132,7 +133,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         "obd2.diesel.rail_pressure", "obd2.engine.throttle",
         "obd2.driver.accelerator_pedal_d",
         "obd2.driver.accelerator_pedal_e",
-        "obd2.environment.ambient_air"
+        "obd2.environment.ambient_air",
+        "obd2.fuel.tank_level"
     ]
 
     var obdFaultScanComplete: Bool {
@@ -240,18 +242,33 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func prepareCSVExport() {
-        guard let csv = controller.csvSnapshot(), let data = csv.data(using: .utf8) else {
-            clearPreparedExport()
-            return
-        }
-        clearPreparedExport()
+        guard !isPreparingCSV else { return }
+        /*
+         * Snapshot the recorder's mutable bytes on the main actor, then move
+         * UTF-8/file-system work away from CoreBluetooth and the 100 ms
+         * diagnostic-session tick. Preparing evidence must never stop polling.
+         */
+        guard let data = controller.csvDataSnapshot() else { return }
+
         let filename = "MBLINK-diagnostic-evidence-\(UUID().uuidString).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        do {
-            try data.write(to: url, options: .atomic)
-            csvExportURL = url
-        } catch {
-            csvExportURL = nil
+        isPreparingCSV = true
+
+        Task { [weak self] in
+            do {
+                try await Task.detached(priority: .utility) {
+                    try data.write(to: url, options: .atomic)
+                }.value
+                guard let self else {
+                    try? FileManager.default.removeItem(at: url)
+                    return
+                }
+                self.clearPreparedExport()
+                self.csvExportURL = url
+            } catch {
+                try? FileManager.default.removeItem(at: url)
+            }
+            self?.isPreparingCSV = false
         }
     }
 

@@ -150,7 +150,8 @@ static void initialise_polling_policy(MblinkLinuxContext *context)
 {
     static const uint8_t default_pids[] = {
         UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
-        UINT8_C(0x11), UINT8_C(0x49), UINT8_C(0x4a), UINT8_C(0x46)
+        UINT8_C(0x11), UINT8_C(0x49), UINT8_C(0x4a), UINT8_C(0x46),
+        UINT8_C(0x2f)
     };
     size_t index;
     if (context == NULL) return;
@@ -839,8 +840,8 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
 {
     static const char *keys[] = {
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
-        "obd2.diesel.rail_pressure", "obd2.dpf.bank1_delta_pressure",
-        "obd2.aftertreatment.egt_b1s1"
+        "obd2.diesel.rail_pressure", "obd2.fuel.tank_level",
+        "obd2.dpf.bank1_delta_pressure", "obd2.aftertreatment.egt_b1s1"
     };
     GtkWidget *card = link_gtk_card_new("AT-A-GLANCE", "Powertrain dashboard");
     size_t index;
