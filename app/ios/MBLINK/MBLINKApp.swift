@@ -1116,11 +1116,17 @@ private struct MBDieselView: View {
                     MBPanel {
                         VStack(alignment: .leading, spacing: 10) {
                             MBSectionHeader(title: "Manufacturer targets", kicker: "Evidence-gated")
-                            ForEach(connection.mercedesTargetSignals.prefix(12)) { signal in
+                            Text("Verified Mercedes / Delphi factory values take priority over equivalent SAE OBD-II values. Unmapped factory targets remain visible but are never polled using guessed DIDs or scaling.")
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                            ForEach(connection.mercedesTargetSignals) { signal in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(signal.title)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(MBBrand.silverBright)
+                                    Text("Mercedes / Delphi · \(signal.category.uppercased())")
+                                        .font(.caption2.monospaced().weight(.bold))
+                                        .foregroundStyle(MBBrand.silver)
                                     Text(signal.status.uppercased())
                                         .font(.caption2.monospaced().weight(.bold))
                                         .foregroundStyle(MBBrand.warning)

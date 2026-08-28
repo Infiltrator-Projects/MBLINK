@@ -26,7 +26,11 @@ typedef enum {
     MBLINK_MERCEDES_OM651_CATEGORY_FUEL,
     MBLINK_MERCEDES_OM651_CATEGORY_AIR,
     MBLINK_MERCEDES_OM651_CATEGORY_EGR,
-    MBLINK_MERCEDES_OM651_CATEGORY_INJECTOR
+    MBLINK_MERCEDES_OM651_CATEGORY_INJECTOR,
+    MBLINK_MERCEDES_OM651_CATEGORY_ENGINE,
+    MBLINK_MERCEDES_OM651_CATEGORY_DRIVER,
+    MBLINK_MERCEDES_OM651_CATEGORY_ENVIRONMENT,
+    MBLINK_MERCEDES_OM651_CATEGORY_ELECTRICAL
 } MblinkMercedesOm651SignalCategory;
 
 typedef enum {
@@ -56,6 +60,10 @@ static inline const char *mblink_mercedes_om651_signal_category_name(
     case MBLINK_MERCEDES_OM651_CATEGORY_AIR: return "air";
     case MBLINK_MERCEDES_OM651_CATEGORY_EGR: return "egr";
     case MBLINK_MERCEDES_OM651_CATEGORY_INJECTOR: return "injector";
+    case MBLINK_MERCEDES_OM651_CATEGORY_ENGINE: return "engine";
+    case MBLINK_MERCEDES_OM651_CATEGORY_DRIVER: return "driver";
+    case MBLINK_MERCEDES_OM651_CATEGORY_ENVIRONMENT: return "environment";
+    case MBLINK_MERCEDES_OM651_CATEGORY_ELECTRICAL: return "electrical";
     }
     return "unknown";
 }
@@ -240,6 +248,106 @@ mblink_mercedes_om651_signal_definitions(size_t *count)
             MBLINK_MERCEDES_OM651_CATEGORY_INJECTOR,
             MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED,
             provenance
+        },
+        {
+            "mercedes.om651.environment.ambient_temperature", "Ambient temperature",
+            MBLINK_MERCEDES_OM651_CATEGORY_ENVIRONMENT,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.electrical.battery_voltage", "Battery voltage",
+            MBLINK_MERCEDES_OM651_CATEGORY_ELECTRICAL,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.engine.speed", "Engine speed",
+            MBLINK_MERCEDES_OM651_CATEGORY_ENGINE,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.engine.coolant_temperature", "Coolant temperature",
+            MBLINK_MERCEDES_OM651_CATEGORY_ENGINE,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.engine.oil_temperature", "Oil temperature",
+            MBLINK_MERCEDES_OM651_CATEGORY_ENGINE,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.engine.intake_air_temperature", "Intake air temperature",
+            MBLINK_MERCEDES_OM651_CATEGORY_AIR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.engine.fuel_temperature", "Fuel temperature",
+            MBLINK_MERCEDES_OM651_CATEGORY_FUEL,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.environment.barometric_pressure", "Barometric pressure",
+            MBLINK_MERCEDES_OM651_CATEGORY_ENVIRONMENT,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.driver.accelerator_pedal.sensor1", "Accelerator pedal position sensor 1",
+            MBLINK_MERCEDES_OM651_CATEGORY_DRIVER,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.driver.accelerator_pedal.sensor2", "Accelerator pedal position sensor 2",
+            MBLINK_MERCEDES_OM651_CATEGORY_DRIVER,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.air.throttle_valve", "Throttle valve",
+            MBLINK_MERCEDES_OM651_CATEGORY_AIR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.fuel.injection_quantity", "Injection quantity",
+            MBLINK_MERCEDES_OM651_CATEGORY_FUEL,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.fuel.rail_pressure_regulation_status", "Fuel rail pressure regulation status",
+            MBLINK_MERCEDES_OM651_CATEGORY_FUEL,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.air.mass_air_per_cylinder", "Mass air flow per cylinder",
+            MBLINK_MERCEDES_OM651_CATEGORY_AIR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.egr.valve_position", "EGR valve",
+            MBLINK_MERCEDES_OM651_CATEGORY_EGR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.egr.cooler_bypass_valve", "EGR cooler bypass valve",
+            MBLINK_MERCEDES_OM651_CATEGORY_EGR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.air.air_filter_downstream_pressure", "Air filter downstream pressure",
+            MBLINK_MERCEDES_OM651_CATEGORY_AIR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.air.boost_pressure_control_flap", "Boost pressure control flap",
+            MBLINK_MERCEDES_OM651_CATEGORY_AIR,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.driver.torque_request", "Driver torque request",
+            MBLINK_MERCEDES_OM651_CATEGORY_DRIVER,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+        },
+        {
+            "mercedes.om651.fuel.tank_level", "Fuel tank level",
+            MBLINK_MERCEDES_OM651_CATEGORY_FUEL,
+            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
         }
     };
 

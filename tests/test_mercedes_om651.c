@@ -15,7 +15,7 @@ static int test_catalogue(void)
         mblink_mercedes_om651_signal_definitions(&count);
 
     CHECK(definitions != NULL);
-    CHECK(count == 23U);
+    CHECK(count == 43U);
     CHECK(mblink_mercedes_om651_signal_count() == count);
     CHECK(mblink_mercedes_om651_catalog_count() == count);
     for (size_t index = 0U; index < count; ++index) {
@@ -71,7 +71,12 @@ static int test_priority_groups_exist(void)
         "mercedes.om651.air.boost_pressure",
         "mercedes.om651.egr.command_or_rate",
         "mercedes.om651.injector.smooth_running.cylinder1",
-        "mercedes.om651.injector.correction.cylinder4"
+        "mercedes.om651.injector.correction.cylinder4",
+        "mercedes.om651.environment.ambient_temperature",
+        "mercedes.om651.driver.accelerator_pedal.sensor1",
+        "mercedes.om651.driver.accelerator_pedal.sensor2",
+        "mercedes.om651.air.throttle_valve",
+        "mercedes.om651.air.boost_pressure_control_flap"
     };
 
     for (size_t index = 0U; index < sizeof(keys) / sizeof(keys[0]); ++index) {
