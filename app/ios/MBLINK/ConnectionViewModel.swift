@@ -3,6 +3,19 @@ import Combine
 import Foundation
 import UIKit
 
+enum MBLINKUnitProfile: String, CaseIterable, Identifiable {
+    case metric
+    case usCustomary = "us"
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .metric: return "Metric"
+        case .usCustomary: return "US customary"
+        }
+    }
+}
+
 struct DiagnosticParameter: Identifiable {
     let id: String
     let protocolName: String
@@ -14,6 +27,7 @@ struct DiagnosticParameter: Identifiable {
     let formattedValue: String
     let value: Double?
     let favourite: Bool
+    let pollingEnabled: Bool
     let history: [Double]
 
     var isAvailable: Bool { value != nil }
@@ -112,6 +126,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private let controller = MBLinkDiagnosticsController()
 
+    private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
+    private static let defaultPollingStableKeys: Set<String> = [
+        "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
+        "obd2.diesel.rail_pressure", "obd2.engine.throttle",
+        "obd2.driver.accelerator_pedal_d",
+        "obd2.driver.accelerator_pedal_e",
+        "obd2.environment.ambient_air"
+    ]
+
     var obdFaultScanComplete: Bool {
         faultScanStatusText.hasPrefix("Complete ·") || faultScanStatusText == "Complete"
     }
@@ -123,6 +146,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     override init() {
         super.init()
+        applyStoredPollingPolicy()
         controller.delegate = self
         mercedesTargetSignals = loadMercedesTargetSignals()
         refresh()
@@ -184,6 +208,23 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         refresh()
     }
 
+    func setPolling(_ enabled: Bool, stableKey: String) {
+        let pid: UInt8? = stableKey.withCString { key in
+            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else { return nil }
+            return UInt8(exactly: definition.pointee.key.identifier)
+        }
+        guard let pid else { return }
+        var enabledKeys = storedPollingKeys()
+        if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
+        UserDefaults.standard.set(Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)
+        controller.setPollingEnabled(enabled, forPID: pid)
+        refresh()
+    }
+
+    func refreshPresentation() {
+        diagnosticParameters = loadDiagnosticParameters()
+    }
+
     func udsStatusText(_ status: UInt8) -> String {
         var buffer = [CChar](repeating: 0, count: Int(LINK_DTC_STATUS_TEXT_LENGTH))
         let success = buffer.withUnsafeMutableBufferPointer { storage in
@@ -242,6 +283,35 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         csvExportURL = nil
     }
 
+    private func storedPollingKeys() -> Set<String> {
+        let defaults = UserDefaults.standard
+        if let values = defaults.array(forKey: Self.pollingDefaultsKey) as? [String] {
+            return Set(values)
+        }
+        let initial = Self.defaultPollingStableKeys
+        defaults.set(Array(initial).sorted(), forKey: Self.pollingDefaultsKey)
+        return initial
+    }
+
+    private func applyStoredPollingPolicy() {
+        let enabled = storedPollingKeys()
+        let count = mblink_parameter_obd2_definition_count()
+        guard count > 0 else { return }
+        for index in 0..<count {
+            guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
+            let metadata = definition.pointee
+            guard let pid = UInt8(exactly: metadata.key.identifier) else { continue }
+            let stableKey = string(from: metadata.stable_key)
+            controller.setPollingEnabled(enabled.contains(stableKey), forPID: pid)
+        }
+    }
+
+    private var unitProfile: MBLINKUnitProfile {
+        let stored = UserDefaults.standard.string(forKey: "mblink.units") ??
+            MBLINKUnitProfile.metric.rawValue
+        return MBLINKUnitProfile(rawValue: stored) ?? .metric
+    }
+
     private func string(from cString: UnsafePointer<CChar>?) -> String {
         guard let cString else { return "" }
         return String(cString: cString)
@@ -295,13 +365,54 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         codes.map { resolveFault($0, state: state) }
     }
 
+    private func displayScalar(
+        definition: UnsafePointer<MblinkParameterDefinition>,
+        rawValue: Double
+    ) -> Double {
+        guard unitProfile == .usCustomary else { return rawValue }
+        switch string(from: definition.pointee.suffix) {
+        case " °C": return rawValue * 9.0 / 5.0 + 32.0
+        case " km/h": return rawValue * 0.621371192237334
+        case " kPa": return rawValue * 0.14503773773020923
+        case " L/h": return rawValue * 0.2641720523581484
+        default: return rawValue
+        }
+    }
+
+    private func displaySuffix(
+        definition: UnsafePointer<MblinkParameterDefinition>
+    ) -> String {
+        guard unitProfile == .usCustomary else { return string(from: definition.pointee.suffix) }
+        switch string(from: definition.pointee.suffix) {
+        case " °C": return " °F"
+        case " km/h": return " mph"
+        case " kPa": return " psi"
+        case " L/h": return " US gal/h"
+        default: return string(from: definition.pointee.suffix)
+        }
+    }
+
     private func formattedValue(
         definition: UnsafePointer<MblinkParameterDefinition>,
         value: Double?
     ) -> String {
+        guard let value else { return "N/A" }
+        if unitProfile == .usCustomary {
+            let displayed = displayScalar(definition: definition, rawValue: value)
+            let suffix = displaySuffix(definition: definition)
+            switch suffix {
+            case " °F", " mph": return String(format: "%.1f%@", displayed, suffix)
+            case " psi":
+                return abs(displayed) < 10.0
+                    ? String(format: "%.2f%@", displayed, suffix)
+                    : String(format: "%.1f%@", displayed, suffix)
+            case " US gal/h": return String(format: "%.2f%@", displayed, suffix)
+            default: break
+            }
+        }
         var buffer = [CChar](repeating: 0, count: 96)
         let success = buffer.withUnsafeMutableBufferPointer { storage in
-            mblink_parameter_format_value(definition, value != nil, value ?? 0.0,
+            mblink_parameter_format_value(definition, true, value,
                                           storage.baseAddress, storage.count)
         }
         guard success else { return "N/A" }
@@ -321,8 +432,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
             let metadata = definition.pointee
             guard let pid = UInt8(exactly: metadata.key.identifier) else { continue }
-            let history = controller.recentValues(forPID: pid, limit: 60).map(\.doubleValue)
-            let value = history.last
+            let rawHistory = controller.recentValues(forPID: pid, limit: 60).map(\.doubleValue)
+            let rawValue = rawHistory.last
+            let history = rawHistory.map { displayScalar(definition: definition, rawValue: $0) }
+            let value = rawValue.map { displayScalar(definition: definition, rawValue: $0) }
             let stableKey = string(from: metadata.stable_key)
             guard !stableKey.isEmpty else { continue }
             result.append(DiagnosticParameter(
@@ -332,10 +445,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 parameterIdentifier: metadata.key.identifier,
                 shortName: string(from: metadata.short_name),
                 title: string(from: metadata.name),
-                suffix: string(from: metadata.suffix),
-                formattedValue: formattedValue(definition: definition, value: value),
+                suffix: displaySuffix(definition: definition),
+                formattedValue: formattedValue(definition: definition, value: rawValue),
                 value: value,
                 favourite: controller.favourite(forPID: pid),
+                pollingEnabled: controller.pollingEnabled(forPID: pid),
                 history: history))
         }
         return result

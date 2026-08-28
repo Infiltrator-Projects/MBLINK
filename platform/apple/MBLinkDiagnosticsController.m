@@ -334,6 +334,16 @@ static bool MBLinkSimulatorResponder(
     [_shared setFavourite:favourite forPID:pid];
 }
 
+- (BOOL)pollingEnabledForPID:(uint8_t)pid
+{
+    return [_shared pollingEnabledForPID:pid];
+}
+
+- (void)setPollingEnabled:(BOOL)enabled forPID:(uint8_t)pid
+{
+    [_shared setPollingEnabled:enabled forPID:pid];
+}
+
 - (nullable NSString *)csvSnapshot
 {
     return [_shared csvSnapshot];

@@ -39,6 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
                                       limit:(NSUInteger)limit;
 - (BOOL)favouriteForPID:(uint8_t)pid;
 - (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid;
+- (BOOL)pollingEnabledForPID:(uint8_t)pid;
+- (void)setPollingEnabled:(BOOL)enabled forPID:(uint8_t)pid;
 - (nullable NSString *)csvSnapshot;
 
 @end

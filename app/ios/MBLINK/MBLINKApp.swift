@@ -295,10 +295,10 @@ private struct MBMetricTile: View {
                     .foregroundStyle(MBBrand.muted)
             }
 
-            Text(parameter.formattedValue)
+            Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
 
@@ -366,6 +366,11 @@ private extension DiagnosticParameter {
     var brandPidText: String {
         let value = String(parameterIdentifier, radix: 16, uppercase: true)
         return "0x" + (value.count < 2 ? "0\(value)" : value)
+    }
+
+    var brandSourceText: String {
+        id.hasPrefix("obd2.") ? "SAE OBD-II · \(brandPidText)" :
+            "\(protocolName.uppercased()) · \(brandPidText)"
     }
 }
 
@@ -969,14 +974,23 @@ private struct MBLiveDataView: View {
                 Text(LocalizedStringKey(parameter.title))
                     .font(.subheadline)
                     .foregroundStyle(MBBrand.silverBright)
-                Text("\(parameter.shortName) · \(parameter.brandPidText)")
+                Text("\(parameter.shortName) · \(parameter.brandSourceText)")
                     .font(.caption.monospaced())
                     .foregroundStyle(MBBrand.muted)
             }
             Spacer()
-            Text(parameter.formattedValue)
+            Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+            Text("Poll")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(MBBrand.muted)
+            Toggle("", isOn: Binding(
+                get: { parameter.pollingEnabled },
+                set: { connection.setPolling($0, stableKey: parameter.id) }
+            ))
+            .labelsHidden()
+            .tint(MBBrand.silverBright)
             Button {
                 connection.toggleFavourite(stableKey: parameter.id)
             } label: {
@@ -1015,9 +1029,9 @@ private struct MBDataTableView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Spacer()
-                                Text(parameter.formattedValue)
+                                Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
                                     .font(.subheadline.monospacedDigit().weight(.semibold))
-                                    .foregroundStyle(parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                                    .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
                             }
                             .padding(.vertical, 9)
                             if parameter.id != sorted.last?.id { Divider().overlay(MBBrand.line) }
@@ -1042,7 +1056,7 @@ private struct MBDashboardView: View {
     ]
 
     private var displayed: [DiagnosticParameter] {
-        let available = connection.diagnosticParameters.filter(\.isAvailable)
+        let available = connection.diagnosticParameters.filter { $0.pollingEnabled && $0.isAvailable }
         let favourites = available.filter(\.favourite)
         if preferFavouriteSignals && !favourites.isEmpty { return Array(favourites.prefix(8)) }
         let preferred = defaultKeys.compactMap { key in available.first { $0.id == key } }
@@ -1126,7 +1140,7 @@ private struct MBGraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     private var graphed: [DiagnosticParameter] {
-        let withHistory = connection.diagnosticParameters.filter { !$0.history.isEmpty }
+        let withHistory = connection.diagnosticParameters.filter { $0.pollingEnabled && !$0.history.isEmpty }
         let favourites = withHistory.filter(\.favourite)
         return Array((favourites.isEmpty ? withHistory : favourites).prefix(4))
     }
@@ -1229,6 +1243,7 @@ private struct MBSettingsView: View {
     @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
     @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
     @AppStorage("mblink.language") private var language = "en"
+    @AppStorage("mblink.units") private var units = MBLINKUnitProfile.metric.rawValue
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -1272,6 +1287,24 @@ private struct MBSettingsView: View {
                         .buttonStyle(.plain)
                     }
                     MBPanel {
+                        HStack(spacing: 12) {
+                            Image(systemName: "ruler")
+                                .font(.title3)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("Unit system")
+                                .font(.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Spacer()
+                            Picker("Unit system", selection: $units) {
+                                ForEach(MBLINKUnitProfile.allCases) { profile in
+                                    Text(LocalizedStringKey(profile.displayName)).tag(profile.rawValue)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(MBBrand.silverBright)
+                        }
+                    }
+                    MBPanel {
                         VStack(alignment: .leading, spacing: 14) {
                             Toggle("Prefer favourites on Dashboard and Graphs", isOn: $preferFavouriteSignals)
                                 .tint(MBBrand.silverBright)
@@ -1286,6 +1319,7 @@ private struct MBSettingsView: View {
                 .padding(16)
             }
         }
+        .onChange(of: units) { _, _ in connection.refreshPresentation() }
         .mbDiagnosticScreen("Settings")
     }
 }
