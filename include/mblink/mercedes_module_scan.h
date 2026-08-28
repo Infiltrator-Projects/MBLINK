@@ -6,13 +6,12 @@
  * The scan never sends coding, programming, security-access, routine-control,
  * reset or clear-DTC services. It probes physical diagnostic endpoints using
  * TesterPresent, ReadDTCInformation and ReadDataByIdentifier only, then reads
- * each responding ECU's DTC memory. The automatic C207 pass is deliberately
- * uses the standard 11-bit EOBD physical range first, then the complete
- * ISO 15765 normal-fixed 29-bit logical target space routed through the
- * Mercedes central gateway. An explicit user-requested full sweep consumes
- * the Mercedes-owned target
- * plan from mblink_discover_full_sweep_plan(); LINK defines the plan contract
- * and generic transport/safety machinery, while MBLINK owns the actual map.
+ * each responding ECU's DTC memory. The automatic iPhone quick pass is bounded
+ * to the standard 11-bit EOBD physical range. Gateway discovery and the
+ * complete Mercedes-owned 11/29-bit target plan are explicit wider scopes;
+ * they are never silently substituted for the mobile quick pass. A requested
+ * full sweep consumes mblink_discover_full_sweep_plan(); LINK defines the plan
+ * contract and generic transport/safety machinery, while MBLINK owns the map.
  */
 #ifndef MBLINK_MERCEDES_MODULE_SCAN_H
 #define MBLINK_MERCEDES_MODULE_SCAN_H

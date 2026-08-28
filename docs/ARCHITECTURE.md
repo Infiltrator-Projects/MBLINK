@@ -75,7 +75,7 @@ SwiftUI / Objective-C                  GTK4 / C
 
 Objective-C owns Apple framework integration such as CoreBluetooth lifecycle and write/notification mechanics. SwiftUI owns iPhone presentation. Neither layer may carry an alternate ELM327/OBD/ISO-TP/UDS implementation or a separate fault-code lookup database.
 
-The Linux shell is C/GTK4 and renders the same portable workspace and Mercedes profile. A future Linux BLE/serial/SocketCAN provider remains a transport-edge concern rather than a protocol or manufacturer layer.
+The Linux shell is C/GTK4 and renders the same portable workspace and Mercedes profile. Linux BLE/serial and native OpenPort 2.0 providers already live at LINK's transport edge; a future SocketCAN provider belongs at that same edge rather than in a protocol or manufacturer layer.
 
 Windows Discover is a branded target over LINK's shared scanner shell. If Discover later gains Linux or Apple specialist shells, they should follow the same rule: presentation/provider code at the platform edge, manufacturer knowledge in MBLINK, generic scanner behaviour in LINK.
 

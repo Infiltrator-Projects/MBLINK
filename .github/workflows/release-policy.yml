@@ -24,6 +24,13 @@ jobs:
           grep -Fq 'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"' "$ci"
           grep -Fq 'Release tag $TAG already exists; published releases are immutable.' "$ci"
           grep -Fq 'Release $TAG already exists; published releases are immutable.' "$ci"
+          grep -Fq 'gh release create "$TAG" --target "$GITHUB_SHA" --draft' "$ci"
+          grep -Fq 'gh release upload "$TAG" release-assets/* --clobber' "$ci"
+          grep -Fq 'gh release edit "$TAG" --draft=false' "$ci"
+          if grep -Fq 'git push origin "$TAG"' "$ci"; then
+            echo 'MBLINK must not expose an immutable tag before every asset is verified.' >&2
+            exit 1
+          fi
           if grep -Eq '^  pull_request:|^  merge_group:' "$ci"; then
             echo 'MBLINK CI must use main only; PR/merge branches are forbidden.' >&2
             exit 1

@@ -52,8 +52,11 @@ jobs:
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -q 'link_telemetry_recorder_continue' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'LinkProbeTimeoutSeconds = 5.0' src/link/platform/apple/LinkBLETransport.m
           grep -q 'src/core/diagnostic_flow.c' src/core/mblink.c
           ! grep -q 'MBLinkDiagnosticsPhase' platform/apple/MBLinkDiagnosticsController.m
+          test "$(grep -Fc '[self loadSavedVehicleProfileForVIN:self.mercedesVINText];' platform/apple/MBLinkDiagnosticsController.m)" -ge 2
           test "$(wc -c < src/obd2/obd2.c)" -lt 1024
           test "$(wc -c < src/uds/uds.c)" -lt 2048
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -76,7 +79,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
   linux-app:
-    name: Linux / GTK4 + DEB + RUN
+    name: Linux / GTK4 app
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -361,7 +364,7 @@ jobs:
           rsync -a --exclude='.git' --exclude='release-assets' ./ "$staging/"
           (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
           (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
-      - name: Create exact tag and publish all assets
+      - name: Stage complete draft and publish exact immutable release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -377,15 +380,21 @@ jobs:
             echo "Release tag $TAG already exists; published releases are immutable." >&2
             exit 1
           fi
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; published releases are immutable." >&2
-            exit 1
+          release_state="$(gh release view "$TAG" \
+            --json isDraft,targetCommitish --jq '[.isDraft, .targetCommitish] | @tsv' \
+            2>/dev/null || true)"
+          if [[ -n "$release_state" ]]; then
+            IFS=$'\t' read -r is_draft target_commitish <<<"$release_state"
+            if [[ "$is_draft" != "true" || "$target_commitish" != "$GITHUB_SHA" ]]; then
+              echo "Release $TAG already exists; published releases are immutable." >&2
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft \
+              --title "MBLINK $VERSION" \
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION, with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS/CAN-FD engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
           fi
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
-          gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" \
-            --title "MBLINK $VERSION" \
-            --notes "MBLINK $VERSION: complete launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION, with the shared C11 diagnostic-flow controller and Mercedes extension hook, shared OBD-II/UDS/CAN-FD engines, shared Windows Discover shell, static Windows runtime and canonical MBLINK AppIcon branding."
+          gh release upload "$TAG" release-assets/* --clobber
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for expected in \
             "MBLINK-${VERSION}-unsigned.ipa" \
@@ -396,3 +405,6 @@ jobs:
             "SHA256SUMS.txt"; do
             grep -Fxq "$expected" <<<"$assets"
           done
+          gh release edit "$TAG" --draft=false
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$GITHUB_SHA"

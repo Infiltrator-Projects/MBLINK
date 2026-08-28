@@ -238,6 +238,17 @@ static int test_telemetry(void)
     CHECK(strstr(stream.data, "sample,") != NULL);
     CHECK(strstr(stream.data, "transcript,,2000,") != NULL);
     CHECK(strstr(stream.data, "# session_ended_epoch_ms,9000\n") != NULL);
+    mblink_telemetry_recorder_init(&recorder);
+    CHECK(mblink_telemetry_recorder_continue(
+              &recorder, &metadata, text_sink, &stream));
+    CHECK(mblink_telemetry_recorder_record_response(
+              &recorder, 3000U, "ATI", &response));
+    CHECK(mblink_telemetry_recorder_finish(&recorder, 10000U));
+    const char *stream_header = strstr(
+        stream.data, "# mblink_session_stream_version,1\n");
+    CHECK(stream_header != NULL);
+    CHECK(strstr(stream_header + 1,
+                 "# mblink_session_stream_version,1\n") == NULL);
 
     FailingTextBuffer failing = { .fail_on_write = SIZE_MAX };
     mblink_telemetry_recorder_init(&recorder);

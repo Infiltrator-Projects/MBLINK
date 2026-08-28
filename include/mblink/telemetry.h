@@ -44,6 +44,7 @@ typedef LinkTelemetryRecorder MblinkTelemetryRecorder;
 bool mblink_telemetry_store_record(MblinkTelemetryStore *store, uint64_t timestamp_ms, const MblinkObd2Sample *measurement);
 bool mblink_telemetry_store_record_transcript(MblinkTelemetryStore *store, uint64_t timestamp_ms, const char *command, const MblinkElm327Response *response);
 bool mblink_telemetry_recorder_begin(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);
+bool mblink_telemetry_recorder_continue(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);
 bool mblink_telemetry_recorder_record_sample(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySample *sample, bool favourite);
 bool mblink_telemetry_recorder_record_response(MblinkTelemetryRecorder *recorder, uint64_t timestamp_ms, const char *command, const MblinkElm327Response *response);
 bool mblink_telemetry_export_csv(const MblinkTelemetryStore *store, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);

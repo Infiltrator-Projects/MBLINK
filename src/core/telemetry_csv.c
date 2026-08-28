@@ -21,6 +21,16 @@ bool mblink_telemetry_recorder_begin(
         recorder, metadata, "mblink", sink, context);
 }
 
+bool mblink_telemetry_recorder_continue(
+    MblinkTelemetryRecorder *recorder,
+    const MblinkTelemetrySessionMetadata *metadata,
+    MblinkTelemetryTextSink sink,
+    void *context)
+{
+    return link_telemetry_recorder_continue(
+        recorder, metadata, "mblink", sink, context);
+}
+
 bool mblink_telemetry_recorder_record_sample(
     MblinkTelemetryRecorder *recorder,
     const MblinkTelemetrySample *sample,

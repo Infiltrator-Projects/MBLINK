@@ -1140,6 +1140,7 @@ static bool MBLinkSimulatorResponder(
     if (_mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE && _mercedesProbe.vin[0] != '\0') {
         self.mercedesVINText = MBLinkStringFromCString(_mercedesProbe.vin);
         [_shared setVehicleIdentifier:_mercedesProbe.vin];
+        [self loadSavedVehicleProfileForVIN:self.mercedesVINText];
         vinSummary = [NSString stringWithFormat:@"VIN %@", self.mercedesVINText];
     } else {
         self.mercedesVINText = nil;
