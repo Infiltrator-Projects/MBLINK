@@ -25,7 +25,7 @@ ELM initialization
   → normal live-data polling
 ```
 
-The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.23 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
+The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.24 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
@@ -47,3 +47,12 @@ CI builds Debug and Release simulator configurations and an unsigned physical-de
 Live-data rows expose a real per-PID Poll switch. The preference is persisted by stable parameter key and applied to LINK's scheduler before the first live request after reconnect. The first-run core set is intentionally small so capability discovery can remain comprehensive without continuously loading the BLE/ELM channel with every available measurement.
 
 Interface language and unit profile are separate settings. Metric remains the default regardless of selected English variant. US customary converts temperatures, speed, pressure and volumetric fuel rate only for presentation; diagnostic evidence remains canonical.
+
+
+## Evidence export continuity
+
+Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple controller copies the in-memory recorder bytes and MBLINK performs the atomic file write on a utility task, away from CoreBluetooth callbacks and LINK's 100 ms session tick. Live diagnostic polling is expected to continue while evidence is prepared.
+
+## Fuel level
+
+LINK 0.14.24 adds SAE PID `0x2F` Fuel Level Input. MBLINK enables it in the bounded first-run polling set and includes it on the dashboard when the vehicle advertises the PID. The standard value is a percentage of nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred when its factory mapping is available.

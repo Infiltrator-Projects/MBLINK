@@ -76,3 +76,8 @@ The current iPhone bridge keeps its stream in memory for sharing. Evidence begin
 The schedule table defines the maximum default cadence for a supported, enabled PID. It does not mean every advertised PID must run simultaneously. Product faces can disable individual PIDs at runtime; LINK then skips those scheduler items entirely. Re-enabling a PID resumes its configured cadence without requiring a vehicle reconnect.
 
 This runtime policy is distinct from favourites, visibility and unit formatting. A favourite can be off, a non-favourite can be polled, and language/unit choices never change which diagnostic requests are transmitted.
+
+
+## Evidence snapshots while live
+
+CSV preparation must not change diagnostic state. Apple products take an immutable recorder-byte snapshot and perform file-system writing asynchronously. This keeps Bluetooth callbacks, ELM327 session timeouts and scheduler ticks responsive even when a long session has accumulated a large evidence file.

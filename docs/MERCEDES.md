@@ -6,7 +6,7 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manuf
 
 ## Shared Apple session architecture
 
-The iPhone face uses LINK 0.14.23's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses LINK 0.14.24's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
 
 This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
 
@@ -216,3 +216,12 @@ No unverified Mercedes manufacturer live-data formula is currently promoted into
 MBLINK treats Mercedes/Delphi factory actual values as the preferred diagnostic source whenever the request, payload layout, scaling and meaning have been verified. Standard SAE OBD-II remains a trustworthy fallback and cross-check; it is not relabelled as factory data.
 
 The OM651/CDID3 target catalogue now also records factory-observed ambient temperature, battery voltage, engine speed, coolant/oil/intake/fuel temperatures, barometric pressure, accelerator-pedal sensors 1 and 2, throttle valve, injection quantity, rail-pressure regulation state, mass air per cylinder, EGR valve and cooler-bypass valve, air-filter downstream pressure, boost-pressure control flap, driver torque request and fuel-tank level. These targets remain `corroborated-unmapped` until exact protocol evidence exists. Their presence in the catalogue therefore improves completeness without causing speculative requests on the vehicle bus.
+
+
+## Fuel evidence on the C207 / OM651
+
+The captured C207 supported-PID map advertises SAE PID `0x2F` Fuel Level Input, so MBLINK can read a real standard fuel-gauge percentage immediately. The same captured `0x40` capability block does not advertise SAE PID `0x5E` Engine Fuel Rate, so MBLINK must not pretend that an SAE fuel-flow value exists on this vehicle.
+
+Public OM651 CDID3/Delphi diagnostic data confirms that the factory ECU exposes fuel tank level in litres and injection quantity in mg/stroke. Those are retained as Mercedes/Delphi targets until their exact request, payload and scaling are mapped. This is also the likely path to the vehicle's own instantaneous consumption display: factory fuel accounting/injection data combined with vehicle speed rather than SAE PID `0x5E`.
+
+Unknown factory values may be identified by correlation, but only after a candidate request is source-backed. MBLINK can compare a candidate's time series with known values such as SAE speed, RPM, coolant, rail pressure, ambient temperature or control-module voltage. Matching shape, scale, offset, response timing and physical behaviour can promote a candidate from corroborated-unmapped to vehicle-verified; correlation alone never invents the request address.

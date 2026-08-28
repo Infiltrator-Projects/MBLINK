@@ -98,3 +98,8 @@ Capability discovery and runtime polling are intentionally separate. A vehicle m
 MBLINK's first-run mobile/Linux core set is deliberately bounded to RPM, speed, coolant temperature, fuel-rail pressure, absolute throttle-valve position, accelerator-pedal positions D/E and ambient temperature. Unsupported entries simply never enter the schedule. Users can then enable additional advertised PIDs individually.
 
 PID `46` ambient temperature is displayed to one decimal place for visual consistency with the vehicle display. SAE PID `46` itself has whole-degree-Celsius source resolution, so a value such as `18.0 °C` does not claim a measured tenth. A future verified Mercedes factory ambient-temperature mapping can provide its own native precision.
+
+
+## Fuel Level Input (PID 0x2F)
+
+PID `0x2F` is decoded as one byte using `A × 100 / 255` percent and is scheduled at a deliberately low cadence because tank level changes slowly. It is independent of fuel-rate PID `0x5E`. A vehicle may support fuel level while not supporting standard engine fuel rate, as seen in the C207 capture.
