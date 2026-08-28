@@ -4,10 +4,12 @@
  * @brief Mercedes-Benz manufacturer-definition validation and lookup.
  */
 #include "mblink/mercedes.h"
+#include "mblink/mercedes_did_lab.h"
 #include "mblink/mercedes_om651_api.h"
 
 #include "infiltratr/core.h"
 
+#include <math.h>
 #include <string.h>
 
 static bool mercedes_text_valid(const char *text)
@@ -391,4 +393,457 @@ bool mblink_mercedes_profile_is_crd3_candidate(
 {
     return mblink_mercedes_vehicle_profile_is_valid(profile) &&
            strcmp(profile->engine_family, "OM651") == 0;
+}
+
+
+/* ------------------------------------------------------------------------- */
+/* Offline Mercedes / Delphi DID research catalogue and correlation engine.   */
+/* ------------------------------------------------------------------------- */
+
+static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
+    {
+        "mercedes.om651.electrical.battery_voltage", "Battery voltage",
+        "Delphi CRD3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_SOURCE_BACKED_CANDIDATE,
+        true, UINT16_C(0x2007), 2U,
+        MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0078125, 0.0, "V",
+        "obd2.electrical.control_module_voltage",
+        "CaesarSuite CRD3::DT_2007_IN_Battery_voltage documents UDS DID 0x2007, two-byte big-endian data, factor 0.0078125 and offset 0 V; vehicle verification pending.",
+        "https://github.com/jglim/CaesarSuite/discussions/1"
+    },
+    {
+        "mercedes.om651.engine.speed", "Engine speed",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "rpm", "obd2.engine.rpm",
+        "Independent OM651 CDID3 actual-value catalogues expose engine speed. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.vehicle.speed", "Vehicle speed",
+        "Mercedes diagnostic network", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "km/h", "obd2.vehicle.speed",
+        "Mercedes diagnostic records expose vehicle-speed actual values; exact CRD3 source DID remains unmapped.",
+        "Mercedes diagnostic actual-value records"
+    },
+    {
+        "mercedes.om651.fuel.tank_level", "Fuel tank level",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "L", "obd2.fuel.tank_level",
+        "Independent OM651 CDID3 actual-value catalogues expose fuel tank level in litres. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.fuel.injection_quantity", "Injection quantity",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "mg/stroke", NULL,
+        "Independent OM651 CDID3 actual-value catalogues expose injection quantity in mg/stroke; priority candidate for factory fuel-consumption reconstruction.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.fuel.rail_pressure", "Fuel rail pressure",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "bar", "obd2.diesel.rail_pressure",
+        "Independent OM651 CDID3 actual-value catalogues expose fuel rail pressure. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.driver.accelerator_pedal.sensor1",
+        "Accelerator pedal position sensor 1",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "%", "obd2.driver.accelerator_pedal_d",
+        "Independent OM651 CDID3 actual-value catalogues expose accelerator-pedal position. Redundant pedal channels remain separate discovery targets.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.driver.accelerator_pedal.sensor2",
+        "Accelerator pedal position sensor 2",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "%", "obd2.driver.accelerator_pedal_e",
+        "The OM651 catalogue retains the second pedal channel as a separate discovery target.",
+        "MBLINK OM651 target catalogue"
+    },
+    {
+        "mercedes.om651.air.throttle_valve", "Throttle valve",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "%", "obd2.engine.throttle",
+        "Factory throttle-valve position remains separate from accelerator-pedal demand. DID and encoding remain unmapped.",
+        "MBLINK OM651 target catalogue plus C207 field correlation"
+    },
+    {
+        "mercedes.om651.engine.coolant_temperature", "Coolant temperature",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", "obd2.engine.coolant",
+        "Independent OM651 CDID3 actual-value catalogues expose coolant temperature. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.engine.oil_temperature", "Oil temperature",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", "obd2.engine.oil_temperature",
+        "Independent OM651 CDID3 actual-value catalogues expose engine-oil temperature. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.engine.intake_air_temperature",
+        "Intake air temperature",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", "obd2.engine.intake_air",
+        "Independent OM651 CDID3 actual-value catalogues expose intake-air temperature. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.om651.environment.ambient_temperature",
+        "Ambient temperature",
+        "Mercedes vehicle network / OM651 context", MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", "obd2.environment.ambient_air",
+        "Mercedes exposes finer ambient-temperature presentation than SAE PID 0x46 on the development vehicle. Exact factory source remains unmapped.",
+        "Vehicle display observation plus MBLINK field evidence"
+    },
+    {
+        "mercedes.om651.environment.barometric_pressure",
+        "Barometric pressure",
+        "Delphi CDID3 / OM651", MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "bar", "obd2.engine.barometric_pressure",
+        "Independent OM651 CDID3 actual-value catalogues expose barometric pressure. DID and encoding remain unmapped.",
+        "ScanDoc OM651 CDID3 actual-value catalogue"
+    }
+};
+
+static bool mercedes_did_lab_definition_valid(
+    const MblinkMercedesDidLabDefinition *definition)
+{
+    if (definition == NULL || !mercedes_text_valid(definition->stable_key) ||
+        !mercedes_text_valid(definition->name) ||
+        !mercedes_text_valid(definition->ecu_family) ||
+        !mercedes_module_valid(definition->module) ||
+        !mercedes_text_valid(definition->unit) ||
+        !mercedes_text_valid(definition->provenance) ||
+        !mercedes_text_valid(definition->source_locator)) return false;
+    if (!definition->identifier_known) return definition->raw_length == 0U;
+    return definition->raw_length >= 1U && definition->raw_length <= 4U &&
+           definition->factor != 0.0;
+}
+
+const char *mblink_mercedes_did_lab_status_name(MblinkMercedesDidLabStatus status)
+{
+    switch (status) {
+    case MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY:
+        return "corroborated-unmapped";
+    case MBLINK_MERCEDES_DID_LAB_SOURCE_BACKED_CANDIDATE:
+        return "source-backed-candidate";
+    case MBLINK_MERCEDES_DID_LAB_VEHICLE_VERIFIED:
+        return "vehicle-verified";
+    }
+    return "unknown";
+}
+
+const char *mblink_mercedes_did_lab_decode_result_name(
+    MblinkMercedesDidLabDecodeResult result)
+{
+    switch (result) {
+    case MBLINK_MERCEDES_DID_LAB_DECODE_OK: return "ok";
+    case MBLINK_MERCEDES_DID_LAB_DECODE_INVALID_ARGUMENT:
+        return "invalid-argument";
+    case MBLINK_MERCEDES_DID_LAB_DECODE_UNMAPPED: return "unmapped";
+    case MBLINK_MERCEDES_DID_LAB_DECODE_MALFORMED: return "malformed";
+    case MBLINK_MERCEDES_DID_LAB_DECODE_UNEXPECTED_RESPONSE:
+        return "unexpected-response";
+    }
+    return "unknown";
+}
+
+size_t mblink_mercedes_did_lab_count(void)
+{
+    return sizeof(mercedes_did_lab) / sizeof(mercedes_did_lab[0]);
+}
+
+const MblinkMercedesDidLabDefinition *mblink_mercedes_did_lab_at(size_t index)
+{
+    return index < mblink_mercedes_did_lab_count()
+        ? &mercedes_did_lab[index] : NULL;
+}
+
+const MblinkMercedesDidLabDefinition *mblink_mercedes_did_lab_find_key(
+    const char *stable_key)
+{
+    size_t index;
+    if (!mercedes_text_valid(stable_key)) return NULL;
+    for (index = 0U; index < mblink_mercedes_did_lab_count(); ++index) {
+        if (strcmp(mercedes_did_lab[index].stable_key, stable_key) == 0)
+            return &mercedes_did_lab[index];
+    }
+    return NULL;
+}
+
+const MblinkMercedesDidLabDefinition *mblink_mercedes_did_lab_find_identifier(
+    uint16_t identifier)
+{
+    size_t index;
+    for (index = 0U; index < mblink_mercedes_did_lab_count(); ++index) {
+        if (mercedes_did_lab[index].identifier_known &&
+            mercedes_did_lab[index].identifier == identifier)
+            return &mercedes_did_lab[index];
+    }
+    return NULL;
+}
+
+bool mblink_mercedes_did_lab_can_auto_poll(
+    const MblinkMercedesDidLabDefinition *definition)
+{
+    return mercedes_did_lab_definition_valid(definition) &&
+           definition->identifier_known &&
+           definition->status == MBLINK_MERCEDES_DID_LAB_VEHICLE_VERIFIED;
+}
+
+static uint32_t mercedes_did_lab_read_unsigned(
+    const uint8_t *data, size_t length, bool little_endian)
+{
+    uint32_t raw = 0U;
+    size_t index;
+    if (little_endian) {
+        for (index = 0U; index < length; ++index)
+            raw |= ((uint32_t)data[index]) << (8U * index);
+    } else {
+        for (index = 0U; index < length; ++index)
+            raw = (raw << 8U) | data[index];
+    }
+    return raw;
+}
+
+MblinkMercedesDidLabDecodeResult mblink_mercedes_did_lab_decode_response(
+    const MblinkMercedesDidLabDefinition *definition,
+    const uint8_t *pdu, size_t pdu_length, double *value)
+{
+    bool little_endian, signed_value;
+    uint32_t raw;
+    if (!mercedes_did_lab_definition_valid(definition) ||
+        pdu == NULL || value == NULL)
+        return MBLINK_MERCEDES_DID_LAB_DECODE_INVALID_ARGUMENT;
+    if (!definition->identifier_known)
+        return MBLINK_MERCEDES_DID_LAB_DECODE_UNMAPPED;
+    if (pdu_length < 3U + definition->raw_length)
+        return MBLINK_MERCEDES_DID_LAB_DECODE_MALFORMED;
+    if (pdu[0] != 0x62U ||
+        pdu[1] != (uint8_t)(definition->identifier >> 8U) ||
+        pdu[2] != (uint8_t)(definition->identifier & 0xffU))
+        return MBLINK_MERCEDES_DID_LAB_DECODE_UNEXPECTED_RESPONSE;
+
+    little_endian =
+        definition->encoding == MBLINK_MERCEDES_DID_LAB_UNSIGNED_LITTLE_ENDIAN ||
+        definition->encoding == MBLINK_MERCEDES_DID_LAB_SIGNED_LITTLE_ENDIAN;
+    signed_value =
+        definition->encoding == MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN ||
+        definition->encoding == MBLINK_MERCEDES_DID_LAB_SIGNED_LITTLE_ENDIAN;
+    raw = mercedes_did_lab_read_unsigned(
+        &pdu[3], definition->raw_length, little_endian);
+    if (signed_value) {
+        const unsigned int bits = (unsigned int)(definition->raw_length * 8U);
+        int64_t signed_raw;
+        if ((raw & (UINT32_C(1) << (bits - 1U))) != 0U) {
+            const uint64_t full = UINT64_C(1) << bits;
+            signed_raw = (int64_t)((uint64_t)raw - full);
+        } else signed_raw = (int64_t)raw;
+        *value = (double)signed_raw * definition->factor + definition->offset;
+    } else {
+        *value = (double)raw * definition->factor + definition->offset;
+    }
+    return MBLINK_MERCEDES_DID_LAB_DECODE_OK;
+}
+
+static bool signal_series_valid(const MblinkSignalPoint *points, size_t count)
+{
+    size_t index;
+    if (points == NULL || count < 2U) return false;
+    for (index = 0U; index < count; ++index) {
+        if (!isfinite(points[index].value)) return false;
+        if (index != 0U &&
+            points[index].timestamp_ms < points[index - 1U].timestamp_ms)
+            return false;
+    }
+    return true;
+}
+
+static uint64_t signal_time_distance(uint64_t left, uint64_t right)
+{
+    return left >= right ? left - right : right - left;
+}
+
+static bool signal_target_time(uint64_t candidate_time, int64_t lag_ms,
+                               uint64_t *target)
+{
+    if (target == NULL) return false;
+    if (lag_ms >= 0) {
+        const uint64_t lag = (uint64_t)lag_ms;
+        if (candidate_time < lag) return false;
+        *target = candidate_time - lag;
+        return true;
+    }
+    {
+        const uint64_t lag = (uint64_t)(-(lag_ms + 1)) + UINT64_C(1);
+        if (candidate_time > UINT64_MAX - lag) return false;
+        *target = candidate_time + lag;
+        return true;
+    }
+}
+
+static bool signal_correlation_for_lag(
+    const MblinkSignalPoint *reference, size_t reference_count,
+    const MblinkSignalPoint *candidate, size_t candidate_count,
+    int64_t lag_ms, uint64_t pair_tolerance_ms,
+    MblinkSignalCorrelationResult *result)
+{
+    size_t ci, ri = 0U, pairs = 0U;
+    double sx = 0.0, sy = 0.0, sxx = 0.0, syy = 0.0, sxy = 0.0;
+    double min_y = 0.0, max_y = 0.0;
+    double n, var_x, var_y, covariance, denominator, slope, intercept, sse;
+    MblinkSignalCorrelationResult computed;
+
+    if (result == NULL) return false;
+    for (ci = 0U; ci < candidate_count; ++ci) {
+        uint64_t target, distance;
+        size_t chosen;
+        double x, y;
+        if (!signal_target_time(candidate[ci].timestamp_ms, lag_ms, &target))
+            continue;
+        while (ri + 1U < reference_count &&
+               reference[ri + 1U].timestamp_ms <= target) ++ri;
+        chosen = ri;
+        distance = signal_time_distance(reference[chosen].timestamp_ms, target);
+        if (chosen + 1U < reference_count) {
+            const uint64_t next_distance =
+                signal_time_distance(reference[chosen + 1U].timestamp_ms, target);
+            if (next_distance < distance) {
+                ++chosen; distance = next_distance;
+            }
+        }
+        if (distance > pair_tolerance_ms) continue;
+        x = reference[chosen].value; y = candidate[ci].value;
+        if (pairs == 0U) min_y = max_y = y;
+        else { if (y < min_y) min_y = y; if (y > max_y) max_y = y; }
+        ++pairs;
+        sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+    }
+    if (pairs < 3U) return false;
+    n = (double)pairs;
+    var_x = n * sxx - sx * sx;
+    var_y = n * syy - sy * sy;
+    covariance = n * sxy - sx * sy;
+    if (var_x <= 1.0e-12 || var_y <= 1.0e-12) return false;
+    denominator = sqrt(var_x * var_y);
+    if (denominator <= 1.0e-12) return false;
+    computed.pearson_r = covariance / denominator;
+    if (computed.pearson_r > 1.0) computed.pearson_r = 1.0;
+    if (computed.pearson_r < -1.0) computed.pearson_r = -1.0;
+    slope = covariance / var_x;
+    intercept = (sy - slope * sx) / n;
+    sse = syy + slope * slope * sxx + n * intercept * intercept -
+          2.0 * slope * sxy - 2.0 * intercept * sy +
+          2.0 * slope * intercept * sx;
+    if (sse < 0.0 && sse > -1.0e-8) sse = 0.0;
+    if (sse < 0.0) return false;
+
+    computed.pair_count = pairs;
+    computed.lag_ms = lag_ms;
+    computed.slope = slope;
+    computed.intercept = intercept;
+    computed.rmse = sqrt(sse / n);
+    {
+        const double range_y = max_y - min_y;
+        const double coverage = pairs >= 20U ? 1.0 : (double)pairs / 20.0;
+        double fit_penalty;
+        computed.normalized_rmse =
+            range_y > 1.0e-12 ? computed.rmse / range_y : computed.rmse;
+        fit_penalty = 1.0 - computed.normalized_rmse;
+        if (fit_penalty < 0.0) fit_penalty = 0.0;
+        if (fit_penalty > 1.0) fit_penalty = 1.0;
+        computed.score = fabs(computed.pearson_r) * coverage * fit_penalty;
+    }
+    *result = computed;
+    return true;
+}
+
+bool mblink_signal_correlation_best_linear(
+    const MblinkSignalPoint *reference, size_t reference_count,
+    const MblinkSignalPoint *candidate, size_t candidate_count,
+    uint64_t max_lag_ms, uint64_t lag_step_ms,
+    uint64_t pair_tolerance_ms, MblinkSignalCorrelationResult *result)
+{
+    int64_t lag, max_lag;
+    bool found = false;
+    MblinkSignalCorrelationResult best;
+    if (result == NULL ||
+        !signal_series_valid(reference, reference_count) ||
+        !signal_series_valid(candidate, candidate_count) ||
+        lag_step_ms == 0U || max_lag_ms > (uint64_t)INT64_MAX ||
+        lag_step_ms > (uint64_t)INT64_MAX) return false;
+
+    max_lag = (int64_t)max_lag_ms;
+    lag = -max_lag;
+    for (;;) {
+        MblinkSignalCorrelationResult current;
+        if (signal_correlation_for_lag(
+                reference, reference_count, candidate, candidate_count,
+                lag, pair_tolerance_ms, &current)) {
+            const uint64_t ca = current.lag_ms >= 0
+                ? (uint64_t)current.lag_ms
+                : (uint64_t)(-(current.lag_ms + 1)) + UINT64_C(1);
+            uint64_t ba = 0U;
+            if (found) ba = best.lag_ms >= 0
+                ? (uint64_t)best.lag_ms
+                : (uint64_t)(-(best.lag_ms + 1)) + UINT64_C(1);
+            if (!found || current.score > best.score + 1.0e-12 ||
+                (fabs(current.score - best.score) <= 1.0e-12 &&
+                 (current.pair_count > best.pair_count ||
+                  (current.pair_count == best.pair_count && ca < ba)))) {
+                best = current; found = true;
+            }
+        }
+        if (lag >= max_lag) break;
+        if ((uint64_t)(max_lag - lag) <= lag_step_ms) lag = max_lag;
+        else lag += (int64_t)lag_step_ms;
+    }
+    if (!found) return false;
+    *result = best;
+    return true;
+}
+
+const char *mblink_signal_correlation_strength(
+    const MblinkSignalCorrelationResult *result)
+{
+    double correlation;
+    if (result == NULL || result->pair_count < 3U) return "insufficient";
+    correlation = fabs(result->pearson_r);
+    if (result->pair_count >= 20U && correlation >= 0.995 &&
+        result->normalized_rmse <= 0.05) return "very-strong";
+    if (result->pair_count >= 10U && correlation >= 0.98 &&
+        result->normalized_rmse <= 0.10) return "strong";
+    if (correlation >= 0.90) return "moderate";
+    return "weak";
 }
