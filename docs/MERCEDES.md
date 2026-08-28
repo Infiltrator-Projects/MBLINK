@@ -6,7 +6,7 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manuf
 
 ## Shared Apple session architecture
 
-The iPhone face uses LINK 0.14.22's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses LINK 0.14.23's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
 
 This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
 
@@ -209,3 +209,10 @@ SwiftUI remains a view layer. Mercedes protocol state, CRD3 decoding, UDS fault 
 An endpoint, DID, DTC definition or scaling rule may move to a stronger evidence status only when its provenance is defensible. Vehicle-specific promotion requires a reproducible capture tied to the relevant vehicle/ECU/adapter conditions and regression fixture where the definition depends on observed protocol behaviour.
 
 No unverified Mercedes manufacturer live-data formula is currently promoted into the C207/OM651 profile. The work can continue without hardware; hardware is required only for final promotion from corroborated/candidate protocol definitions to exact C207/OM651 vehicle-verified mappings.
+
+
+## Factory-source precedence and expanded CRD3 target catalogue
+
+MBLINK treats Mercedes/Delphi factory actual values as the preferred diagnostic source whenever the request, payload layout, scaling and meaning have been verified. Standard SAE OBD-II remains a trustworthy fallback and cross-check; it is not relabelled as factory data.
+
+The OM651/CDID3 target catalogue now also records factory-observed ambient temperature, battery voltage, engine speed, coolant/oil/intake/fuel temperatures, barometric pressure, accelerator-pedal sensors 1 and 2, throttle valve, injection quantity, rail-pressure regulation state, mass air per cylinder, EGR valve and cooler-bypass valve, air-filter downstream pressure, boost-pressure control flap, driver torque request and fuel-tank level. These targets remain `corroborated-unmapped` until exact protocol evidence exists. Their presence in the catalogue therefore improves completeness without causing speculative requests on the vehicle bus.
