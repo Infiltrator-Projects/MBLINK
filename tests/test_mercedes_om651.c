@@ -18,6 +18,7 @@ static int test_catalogue(void)
     CHECK(count == 43U);
     CHECK(mblink_mercedes_om651_signal_count() == count);
     CHECK(mblink_mercedes_om651_catalog_count() == count);
+    size_t mapping_candidates = 0U;
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesOm651SignalDefinition *at =
             mblink_mercedes_om651_signal_at(index);
@@ -34,11 +35,21 @@ static int test_catalogue(void)
         CHECK(definitions[index].provenance != NULL);
         CHECK(definitions[index].provenance[0] != '\0');
         CHECK(definitions[index].status ==
-              MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED);
+                  MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED ||
+              definitions[index].status ==
+                  MBLINK_MERCEDES_OM651_SIGNAL_MAPPING_CANDIDATE);
+        if (definitions[index].status ==
+            MBLINK_MERCEDES_OM651_SIGNAL_MAPPING_CANDIDATE) {
+            ++mapping_candidates;
+        }
         for (size_t earlier = 0U; earlier < index; ++earlier) {
             CHECK(strcmp(definitions[earlier].key, definitions[index].key) != 0);
         }
     }
+    CHECK(mapping_candidates == 1U);
+    CHECK(mblink_mercedes_om651_find_signal(
+              "mercedes.om651.electrical.battery_voltage")->status ==
+          MBLINK_MERCEDES_OM651_SIGNAL_MAPPING_CANDIDATE);
     CHECK(mblink_mercedes_om651_signal_at(count) == NULL);
     CHECK(mblink_mercedes_om651_catalog_at(count) == NULL);
     return 0;

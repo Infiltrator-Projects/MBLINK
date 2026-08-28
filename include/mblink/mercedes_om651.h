@@ -257,7 +257,8 @@ mblink_mercedes_om651_signal_definitions(size_t *count)
         {
             "mercedes.om651.electrical.battery_voltage", "Battery voltage",
             MBLINK_MERCEDES_OM651_CATEGORY_ELECTRICAL,
-            MBLINK_MERCEDES_OM651_SIGNAL_CORROBORATED_UNMAPPED, provenance
+            MBLINK_MERCEDES_OM651_SIGNAL_MAPPING_CANDIDATE,
+            "CaesarSuite CRD3::DT_2007_IN_Battery_voltage documents DID 0x2007, two-byte big-endian value, factor 0.0078125 and offset 0 V; vehicle verification pending"
         },
         {
             "mercedes.om651.engine.speed", "Engine speed",
