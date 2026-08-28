@@ -41,6 +41,28 @@ struct MercedesTargetSignal: Identifiable {
     let provenance: String
 }
 
+/// Structured, presentation-ready facts decoded directly from a Mercedes VIN.
+/// Raw diagnostic evidence remains in `mercedesIdentityResults`; the Vehicle
+/// screen uses this model so protocol delimiters never leak into the UI.
+struct MercedesVehicleIdentity: Equatable {
+    let vin: String
+    let manufacturer: String
+    let model: String?
+    let chassis: String?
+    let bodyStyle: String?
+    let baumuster: String?
+    let productionYears: String?
+    let engineCode: String?
+    let engineFamily: String?
+    let displacementCC: UInt32?
+    let ratedPowerKW: UInt32?
+    let fuel: String?
+    let plant: String?
+    let country: String?
+    let steering: String?
+    let serialNumber: String?
+}
+
 private func mblinkLocalized(_ key: String) -> String {
     let stored = UserDefaults.standard.string(forKey: "mblink.language") ?? "en-AU"
     let language: String
@@ -65,6 +87,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var mercedesProbeStatusText = "Not attempted"
     @Published private(set) var mercedesProbeEndpointText = "Source-corroborated endpoint not selected"
     @Published private(set) var mercedesVINText = "Not captured"
+    @Published private(set) var vehicleIdentity: MercedesVehicleIdentity?
     @Published private(set) var mercedesIdentitySummaryText = "Not attempted"
     @Published private(set) var mercedesIdentityResults = [String]()
     @Published private(set) var mercedesCrd3SummaryText = "Not attempted"
@@ -338,13 +361,61 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return result
     }
 
+    private func decodeVehicleIdentity(vin: String?) -> MercedesVehicleIdentity? {
+        guard let vin, !vin.isEmpty else { return nil }
+
+        var decoded = MblinkMercedesVinDecode()
+        let succeeded = vin.withCString { rawVIN in
+            mblink_mercedes_vin_decode(rawVIN, &decoded)
+        }
+        guard succeeded else { return nil }
+
+        let definition = decoded.baumuster_definition?.pointee
+        let plant = decoded.plant_definition?.pointee
+        let wmi = decoded.wmi_definition?.pointee
+        let baumuster = decoded.baumuster_available
+            ? stringFromFixedCString(decoded.baumuster) : ""
+        let serial = stringFromFixedCString(decoded.serial_number)
+        let steering = string(from: mblink_mercedes_steering_name(decoded.steering))
+
+        func nonempty(_ value: String) -> String? {
+            value.isEmpty || value == "unknown" ? nil : value
+        }
+
+        return MercedesVehicleIdentity(
+            vin: stringFromFixedCString(decoded.vin),
+            manufacturer: nonempty(string(from: wmi?.manufacturer)) ?? "Mercedes-Benz",
+            model: definition.map { nonempty(string(from: $0.model)) ?? "Mercedes-Benz" },
+            chassis: definition.flatMap { nonempty(string(from: $0.chassis_family)) },
+            bodyStyle: definition.flatMap { nonempty(string(from: $0.body_style)) },
+            baumuster: nonempty(baumuster),
+            productionYears: definition.flatMap { nonempty(string(from: $0.production_years)) },
+            engineCode: definition.flatMap { nonempty(string(from: $0.engine_code)) },
+            engineFamily: definition.flatMap { nonempty(string(from: $0.engine_family)) },
+            displacementCC: definition.flatMap { $0.displacement_cc == 0 ? nil : $0.displacement_cc },
+            ratedPowerKW: definition.flatMap { $0.rated_power_kw == 0 ? nil : $0.rated_power_kw },
+            fuel: definition.flatMap {
+                nonempty(string(from: mblink_mercedes_fuel_type_name($0.fuel))).map {
+                    $0.prefix(1).uppercased() + $0.dropFirst()
+                }
+            },
+            plant: plant.flatMap { nonempty(string(from: $0.plant)) },
+            country: plant.flatMap { nonempty(string(from: $0.country)) },
+            steering: nonempty(steering).map {
+                $0.prefix(1).uppercased() + $0.dropFirst()
+            },
+            serialNumber: nonempty(serial))
+    }
+
     private func refresh() {
         statusText = controller.statusText
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
         mercedesProbeStatusText = controller.mercedesProbeStatusText
         mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
-        mercedesVINText = controller.mercedesVINText ?? "Not captured"
+        let capturedVIN = controller.mercedesVINText
+        mercedesVINText = capturedVIN ?? "Not captured"
+        vehicleIdentity = decodeVehicleIdentity(vin: capturedVIN)
         mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
         mercedesIdentityResults = controller.mercedesIdentityResults
         mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText

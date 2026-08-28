@@ -13,7 +13,7 @@ body:
     attributes:
       label: MBLINK version or commit
       description: Release number, tag, or commit SHA.
-      placeholder: "0.7.75 or an exact commit SHA"
+      placeholder: "0.7.76 or an exact commit SHA"
     validations:
       required: true
 

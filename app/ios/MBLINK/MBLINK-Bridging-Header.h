@@ -2,5 +2,6 @@
 #import "MBLinkDiagnosticsController.h"
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
+#include "mblink/mercedes_vin.h"
 #include "mblink/mercedes_om651_api.h"
 #include "link/i18n.h"

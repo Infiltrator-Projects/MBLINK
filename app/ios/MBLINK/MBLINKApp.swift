@@ -133,6 +133,59 @@ private struct MBInfoRow: View {
     }
 }
 
+private struct MBVehicleFact: Identifiable {
+    let label: String
+    let value: String
+    var monospaced = false
+
+    var id: String { label }
+}
+
+private struct MBVehicleFactTile: View {
+    let fact: MBVehicleFact
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(LocalizedStringKey(fact.label)).textCase(.uppercase)
+                .font(.caption2.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(MBBrand.muted)
+            Text(fact.value)
+                .font(fact.monospaced ? .subheadline.monospaced() : .subheadline.weight(.semibold))
+                .foregroundStyle(MBBrand.silverBright)
+                .lineLimit(3)
+                .minimumScaleFactor(0.8)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(MBBrand.panelRaised)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(MBBrand.line.opacity(0.75), lineWidth: 1)
+        )
+    }
+}
+
+private struct MBVehicleFactGrid: View {
+    let facts: [MBVehicleFact]
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 132, maximum: 260), spacing: 10)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+            ForEach(facts) { fact in
+                MBVehicleFactTile(fact: fact)
+            }
+        }
+    }
+}
+
 private struct MBHomeTile<Destination: View>: View {
     let title: String
     let subtitle: String
@@ -515,12 +568,44 @@ private struct MBVehicleView: View {
             connection.pendingDTCs.count + connection.permanentDTCs.count
     }
 
-    private var decodedVehicleIdentity: [String] {
-        connection.mercedesIdentityResults.filter {
-            $0.hasPrefix("VIN ·") ||
-            $0.hasPrefix("ENGINE ·") ||
-            $0.hasPrefix("BUILD ·")
-        }
+    private var identityFacts: [MBVehicleFact] {
+        guard let identity = connection.vehicleIdentity else { return [] }
+        return [
+            identity.chassis.map { MBVehicleFact(label: "Chassis", value: $0) },
+            identity.bodyStyle.map { MBVehicleFact(label: "Body", value: $0) },
+            identity.baumuster.map { MBVehicleFact(label: "Baumuster", value: formattedBaumuster($0), monospaced: true) },
+            identity.productionYears.map { MBVehicleFact(label: "Production", value: $0) }
+        ].compactMap { $0 }
+    }
+
+    private var engineFacts: [MBVehicleFact] {
+        guard let identity = connection.vehicleIdentity else { return [] }
+        return [
+            identity.engineCode.map { MBVehicleFact(label: "Engine", value: $0, monospaced: true) },
+            identity.engineFamily.map { MBVehicleFact(label: "Family", value: $0, monospaced: true) },
+            identity.displacementCC.map { MBVehicleFact(label: "Capacity", value: formattedNumber($0) + " cc") },
+            identity.ratedPowerKW.map { MBVehicleFact(label: "Factory output", value: "\($0) kW") },
+            identity.fuel.map { MBVehicleFact(label: "Fuel", value: $0) }
+        ].compactMap { $0 }
+    }
+
+    private var buildFacts: [MBVehicleFact] {
+        guard let identity = connection.vehicleIdentity else { return [] }
+        return [
+            identity.plant.map { MBVehicleFact(label: "Assembly plant", value: $0) },
+            identity.country.map { MBVehicleFact(label: "Country", value: $0) },
+            identity.steering.map { MBVehicleFact(label: "Steering", value: $0) },
+            identity.serialNumber.map { MBVehicleFact(label: "Production serial", value: $0, monospaced: true) }
+        ].compactMap { $0 }
+    }
+
+    private func formattedBaumuster(_ value: String) -> String {
+        guard value.count == 6 else { return value }
+        return String(value.prefix(3)) + "." + String(value.suffix(3))
+    }
+
+    private func formattedNumber(_ value: UInt32) -> String {
+        NumberFormatter.localizedString(from: NSNumber(value: value), number: .decimal)
     }
 
     var body: some View {
@@ -528,36 +613,41 @@ private struct MBVehicleView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "C207 E 250 CDI", kicker: "Vehicle")
+                    MBSectionHeader(title: "Vehicle identity", kicker: "Mercedes-Benz")
+                    vehicleHero
                     MBPanel {
-                        VStack(spacing: 4) {
-                            MBInfoRow(label: "VIN", value: connection.mercedesVINText, monospaced: true)
-                            MBInfoRow(label: "Engine", value: "OM651")
-                            MBInfoRow(label: "Engine ECU", value: "Delphi CRD3.x")
-                            MBInfoRow(label: "Connection", value: connection.statusText)
-                            MBInfoRow(label: "Vehicle profile", value: connection.vehicleProfileStatusText)
-                            MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
-                        }
-                    }
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 8) {
-                            MBSectionHeader(title: "Decoded VIN", kicker: "Vehicle identity")
-                            if decodedVehicleIdentity.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            MBSectionHeader(title: "Vehicle", kicker: "Decoded VIN")
+                            if identityFacts.isEmpty {
                                 Text("Decoded Mercedes vehicle details will appear here after VIN identification.")
                                     .font(.subheadline)
                                     .foregroundStyle(MBBrand.muted)
                             } else {
-                                ForEach(decodedVehicleIdentity, id: \.self) { detail in
-                                    Text(detail)
-                                        .font(.subheadline.monospaced())
-                                        .foregroundStyle(MBBrand.silverBright)
-                                        .textSelection(.enabled)
-                                }
+                                MBVehicleFactGrid(facts: identityFacts)
+                            }
+                        }
+                    }
+                    if !engineFacts.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                MBSectionHeader(title: "Powertrain", kicker: "Factory specification")
+                                MBVehicleFactGrid(facts: engineFacts)
+                            }
+                        }
+                    }
+                    if !buildFacts.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                MBSectionHeader(title: "Build", kicker: "Production identity")
+                                MBVehicleFactGrid(facts: buildFacts)
                             }
                         }
                     }
                     MBPanel {
                         VStack(spacing: 4) {
+                            MBInfoRow(label: "Connection", value: connection.statusText)
+                            MBInfoRow(label: "Vehicle profile", value: connection.vehicleProfileStatusText)
+                            MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
                             MBInfoRow(label: "Endpoint", value: connection.mercedesProbeEndpointText)
                             MBInfoRow(label: "CRD3 identity", value: connection.mercedesCrd3SummaryText)
                             MBInfoRow(label: "Identity sweep", value: connection.mercedesIdentitySummaryText)
@@ -569,6 +659,42 @@ private struct MBVehicleView: View {
             }
         }
         .mbDiagnosticScreen("Vehicle")
+    }
+
+    @ViewBuilder
+    private var vehicleHero: some View {
+        MBPanel {
+            if let identity = connection.vehicleIdentity {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "car.side.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(MBBrand.silverBright)
+                        .frame(width: 42, height: 42)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(identity.model ?? identity.manufacturer)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(MBBrand.silverBright)
+                        Text([identity.chassis, identity.bodyStyle, identity.engineFamily]
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(MBBrand.silver)
+                        Text(identity.vin)
+                            .font(.subheadline.monospaced().weight(.semibold))
+                            .foregroundStyle(MBBrand.silverBright)
+                            .textSelection(.enabled)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Waiting for vehicle VIN")
+                        .font(.headline)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text(connection.mercedesVINText)
+                        .font(.subheadline.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                }
+            }
+        }
     }
 }
 

@@ -64,6 +64,29 @@ static int test_c207_m274_data_card_vin(void)
     return 0;
 }
 
+static int test_c207_e250_cdi_identity_card_source(void)
+{
+    MblinkMercedesVinDecode decoded;
+
+    /* Synthetic serial; the model/plant/steering shape matches C207 evidence. */
+    CHECK(mblink_mercedes_vin_decode("WDD2073032F123456", &decoded));
+    CHECK(decoded.baumuster_definition != NULL);
+    CHECK(strcmp(decoded.baumuster, "207303") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->chassis_family, "C207") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->body_style, "Coupe") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->model, "E 250 CDI") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->engine_code, "OM651.911") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->engine_family, "OM651") == 0);
+    CHECK(decoded.baumuster_definition->displacement_cc == 2143U);
+    CHECK(decoded.baumuster_definition->rated_power_kw == 150U);
+    CHECK(decoded.baumuster_definition->fuel == MBLINK_MERCEDES_FUEL_DIESEL);
+    CHECK(decoded.steering == MBLINK_MERCEDES_STEERING_RIGHT_HAND_DRIVE);
+    CHECK(decoded.plant_definition != NULL);
+    CHECK(strcmp(decoded.plant_definition->plant, "Bremen") == 0);
+    CHECK(strcmp(decoded.plant_definition->country, "Germany") == 0);
+    return 0;
+}
+
 static int test_unknown_baumuster_still_decodes_structure(void)
 {
     MblinkMercedesVinDecode decoded;
@@ -95,6 +118,7 @@ int main(void)
     if (test_official_fin_shape() != 0) return 1;
     if (test_c207_petrol_data_card_vin() != 0) return 1;
     if (test_c207_m274_data_card_vin() != 0) return 1;
+    if (test_c207_e250_cdi_identity_card_source() != 0) return 1;
     if (test_unknown_baumuster_still_decodes_structure() != 0) return 1;
     if (test_rejects_invalid_input() != 0) return 1;
     CHECK(mblink_mercedes_baumuster_count() >= 23U);

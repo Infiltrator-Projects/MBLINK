@@ -29,6 +29,8 @@ The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rat
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
+The Vehicle screen decodes the captured VIN into a structured identity model and presents separate vehicle, powertrain and build cards. Raw controller strings and protocol delimiters remain evidence data; they are not used as the customer-facing VIN layout. The displayed facts include the catalogue-backed model, chassis, body style, Baumuster, production period, engine, displacement, rated output, fuel type, assembly plant, steering configuration and production serial when those fields are available.
+
 ## CoreBluetooth provider
 
 The LINK-owned provider discovers services and characteristics dynamically, validates candidate write/notify pairs with an ELM-style `ATI` exchange, subscribes before application traffic, respects CoreBluetooth write limits/backpressure and bounds asynchronous recovery. No Vgate GATT UUID is hard-coded as a product assumption.
