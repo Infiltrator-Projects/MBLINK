@@ -25,7 +25,7 @@ ELM initialization
   → normal live-data polling
 ```
 
-The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.24 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
+The broad forensic 11-bit/29-bit FULL SWEEP remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.25 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
@@ -55,4 +55,11 @@ Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple c
 
 ## Fuel level
 
-LINK 0.14.24 adds SAE PID `0x2F` Fuel Level Input. MBLINK enables it in the bounded first-run polling set and includes it on the dashboard when the vehicle advertises the PID. The standard value is a percentage of nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred when its factory mapping is available.
+LINK 0.14.25 adds SAE PID `0x2F` Fuel Level Input. MBLINK enables it in the bounded first-run polling set and includes it on the dashboard when the vehicle advertises the PID. The standard value is a percentage of nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred when its factory mapping is available.
+
+
+## Recoverable live-request timeouts
+
+The 0.7.79 C207/Vgate field capture showed that a standard live request can time out while CoreBluetooth remains physically connected. LINK 0.14.25 distinguishes those states. During a live timeout the Apple controller immediately drops diagnostic readiness, requests a fresh ELM prompt, abandons only the timed-out PID after successful resynchronisation, defers that PID by one interval and resumes the existing live scheduler. A successful sample clears the consecutive-timeout counter.
+
+Up to three consecutive live timeouts are recovered this way. Persistent failure still stops diagnostics and asks for a reconnect. This also prevents the command-centre status indicator from remaining green after the diagnostic flow has actually failed.

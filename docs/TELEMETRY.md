@@ -10,33 +10,34 @@ Scheduling, canonical sample state and session formatting live in portable C. Ap
 
 | PID | Value | Interval | Priority |
 | --- | --- | ---: | --- |
-| `0C` | RPM | 250 ms | Critical |
-| `0D` | Speed | 500 ms | High |
-| `0B` | MAP | 500 ms | High |
-| `23` | Fuel rail gauge pressure | 500 ms | High |
-| `49` | Accelerator pedal D | 500 ms | High |
-| `4A` | Accelerator pedal E | 500 ms | High |
-| `4C` | Commanded throttle actuator | 500 ms | High |
-| `7A` | DPF differential pressure | 750 ms | High |
-| `7C` | DPF inlet temperature | 1000 ms | High |
-| `11` | Absolute throttle valve position | 500 ms | High |
-| `04` | Load | 750 ms | Normal |
-| `10` | MAF | 750 ms | Normal |
-| `2C` | Commanded EGR | 750 ms | Normal |
-| `2D` | EGR error | 1000 ms | Normal |
-| `45` | Relative throttle position | 750 ms | Normal |
-| `47` | Absolute throttle B | 750 ms | Normal |
-| `48` | Absolute throttle C | 750 ms | Normal |
-| `4B` | Accelerator pedal F | 750 ms | Normal |
-| `5E` | Engine fuel rate | 1000 ms | Normal |
-| `78` | Exhaust-gas temperature | 1000 ms | Normal |
-| `3C` | Catalyst temperature | 1500 ms | Normal |
-| `05` | Coolant | 1500 ms | Low |
-| `0F` | Intake air | 1500 ms | Low |
-| `33` | Barometric pressure | 2000 ms | Low |
-| `42` | Control-module voltage | 2000 ms | Low |
-| `46` | Ambient air | 3000 ms | Low |
-| `5C` | Engine oil temperature | 1500 ms | Low |
+| `0C` | RPM | 500 ms | Critical |
+| `0D` | Speed | 750 ms | High |
+| `0B` | MAP | 1000 ms | High |
+| `23` | Fuel rail gauge pressure | 1000 ms | High |
+| `2F` | Fuel tank level | 5000 ms | Low |
+| `49` | Accelerator pedal D | 1000 ms | High |
+| `4A` | Accelerator pedal E | 1000 ms | High |
+| `4C` | Commanded throttle actuator | 1000 ms | High |
+| `7A` | DPF differential pressure | 1500 ms | High |
+| `7C` | DPF inlet temperature | 2000 ms | High |
+| `11` | Absolute throttle valve position | 1000 ms | High |
+| `04` | Load | 1500 ms | Normal |
+| `10` | MAF | 1500 ms | Normal |
+| `2C` | Commanded EGR | 1500 ms | Normal |
+| `2D` | EGR error | 2000 ms | Normal |
+| `45` | Relative throttle position | 1500 ms | Normal |
+| `47` | Absolute throttle B | 1500 ms | Normal |
+| `48` | Absolute throttle C | 1500 ms | Normal |
+| `4B` | Accelerator pedal F | 1500 ms | Normal |
+| `5E` | Engine fuel rate | 1500 ms | Normal |
+| `78` | Exhaust-gas temperature | 2000 ms | Normal |
+| `3C` | Catalyst temperature | 3000 ms | Normal |
+| `05` | Coolant | 3000 ms | Low |
+| `0F` | Intake air | 3000 ms | Low |
+| `33` | Barometric pressure | 3000 ms | Low |
+| `42` | Control-module voltage | 3000 ms | Low |
+| `46` | Ambient air | 5000 ms | Low |
+| `5C` | Engine oil temperature | 3000 ms | Low |
 
 Only PIDs advertised by the vehicle are scheduled. These are software defaults, not guaranteed hardware sample rates.
 
@@ -81,3 +82,12 @@ This runtime policy is distinct from favourites, visibility and unit formatting.
 ## Evidence snapshots while live
 
 CSV preparation must not change diagnostic state. Apple products take an immutable recorder-byte snapshot and perform file-system writing asynchronously. This keeps Bluetooth callbacks, ELM327 session timeouts and scheduler ticks responsive even when a long session has accumulated a large evidence file.
+
+
+## C207 / Vgate field load evidence
+
+A real iPhone/Vgate/C207 capture from MBLINK 0.7.79 recorded 3,412 completed live PID exchanges across about 247 seconds of live polling, or roughly 13.8 completed requests per second. The previous cadence set kept the serial/BLE ELM path effectively continuously occupied: even the nominal 250 ms RPM request achieved only about 2.6 Hz because other due PIDs were constantly competing for the same single-command channel.
+
+LINK 0.14.25 therefore deliberately lowers the default live-data request budget. The scheduler remains capability-gated and each PID remains independently switchable; this change reduces background pressure rather than limiting what can be selected.
+
+The same evidence snapshot successfully contained 6,865 total records without a BLE-disconnect record. This separates CSV preparation from the later live-request timeout and supports the asynchronous snapshot/export design.

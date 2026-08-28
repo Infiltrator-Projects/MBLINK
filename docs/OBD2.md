@@ -103,3 +103,8 @@ PID `46` ambient temperature is displayed to one decimal place for visual consis
 ## Fuel Level Input (PID 0x2F)
 
 PID `0x2F` is decoded as one byte using `A × 100 / 255` percent and is scheduled at a deliberately low cadence because tank level changes slowly. It is independent of fuel-rate PID `0x5E`. A vehicle may support fuel level while not supporting standard engine fuel rate, as seen in the C207 capture.
+
+
+## C207 field validation of pedal and throttle semantics
+
+A real C207 drive capture showed accelerator-pedal positions D and E tracking one another closely while PID `11` absolute throttle-valve position followed a distinctly different trajectory. This is expected on the OM651 diesel and is treated as field evidence that the three values must remain separate rather than presenting PID `11` as accelerator demand.

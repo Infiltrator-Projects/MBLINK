@@ -6,7 +6,7 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manuf
 
 ## Shared Apple session architecture
 
-The iPhone face uses LINK 0.14.24's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses LINK 0.14.25's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
 
 This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
 
@@ -225,3 +225,10 @@ The captured C207 supported-PID map advertises SAE PID `0x2F` Fuel Level Input, 
 Public OM651 CDID3/Delphi diagnostic data confirms that the factory ECU exposes fuel tank level in litres and injection quantity in mg/stroke. Those are retained as Mercedes/Delphi targets until their exact request, payload and scaling are mapped. This is also the likely path to the vehicle's own instantaneous consumption display: factory fuel accounting/injection data combined with vehicle speed rather than SAE PID `0x5E`.
 
 Unknown factory values may be identified by correlation, but only after a candidate request is source-backed. MBLINK can compare a candidate's time series with known values such as SAE speed, RPM, coolant, rail pressure, ambient temperature or control-module voltage. Matching shape, scale, offset, response timing and physical behaviour can promote a candidate from corroborated-unmapped to vehicle-verified; correlation alone never invents the request address.
+
+
+## 0.7.79 C207 live-capture observations
+
+A de-identified C207/Vgate iPhone evidence run validated several interpretation decisions directly against vehicle behaviour. SAE fuel-level PID `2F` reported roughly 42 percent; ambient PID `46` moved through 16–18 °C; accelerator-pedal D and E closely tracked each other; and absolute throttle-valve PID `11` followed a materially different trajectory. That is consistent with PID `11` being the intake throttle valve rather than accelerator-pedal demand.
+
+The same run exposed the old default schedule as too aggressive for the ELM/BLE path, which is why LINK 0.14.25 lowers the default request cadences while retaining per-PID enable controls.
