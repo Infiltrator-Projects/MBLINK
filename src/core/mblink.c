@@ -31,7 +31,8 @@
  * implementation; LINK values must match the src/link gitlink exactly.
  */
 #ifndef MBLINK_IMPLEMENTATION_REVISION
-#define MBLINK_IMPLEMENTATION_REVISION "pending-main"
+#define MBLINK_IMPLEMENTATION_REVISION \
+    "afe9fd5055713f57dab7212ad230a6f4c2fde078"
 #endif
 #define MBLINK_EMBEDDED_LINK_VERSION "0.14.25"
 #define MBLINK_EMBEDDED_LINK_REVISION \
