@@ -89,3 +89,12 @@ Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in 
 ## Error policy
 
 The layer distinguishes invalid arguments, ELM errors, malformed payloads, unexpected service/PID responses, unsupported typed PIDs/sub-fields, bounded-buffer failure, DTC overflow and denied destructive requests. Adapter errors are never reinterpreted as OBD payload data.
+
+
+## Runtime polling policy
+
+Capability discovery and runtime polling are intentionally separate. A vehicle may advertise dozens of standard PIDs without MBLINK continuously requesting every one. The application keeps every supported definition visible, but each PID has an independent polling enable state backed by LINK's scheduler. Disabling a PID removes it from routine live dispatch rather than merely hiding its value.
+
+MBLINK's first-run mobile/Linux core set is deliberately bounded to RPM, speed, coolant temperature, fuel-rail pressure, absolute throttle-valve position, accelerator-pedal positions D/E and ambient temperature. Unsupported entries simply never enter the schedule. Users can then enable additional advertised PIDs individually.
+
+PID `46` ambient temperature is displayed to one decimal place for visual consistency with the vehicle display. SAE PID `46` itself has whole-degree-Celsius source resolution, so a value such as `18.0 °C` does not claim a measured tenth. A future verified Mercedes factory ambient-temperature mapping can provide its own native precision.

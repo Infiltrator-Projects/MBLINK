@@ -19,3 +19,10 @@ Definitions remain registered when sample history is cleared, and favourites are
 Scalar rendering deliberately reuses `infiltratr_format_scalar()` from the pinned Infiltratr Common library rather than maintaining another precision, clamping and unavailable-value formatter in MBLINK. LINK keeps canonical measurement units in the sample/evidence layer and may choose a clearer presentation unit; notably standard fuel-rail pressure remains kPa internally but displays as MPa once it reaches 1000 kPa. Stable-key comparison and total-count saturation also reuse Common primitives.
 
 This layer does not decode OBD-II or UDS and does not own polling. OBD-II formulas stay in `obd2.c`; UDS and Mercedes interpretation stay in their owning layers; the scheduler remains application diagnostic policy.
+
+
+## Source and presentation policy
+
+Language and measurement units are independent preferences. Selecting English (United States), for example, changes translated interface text but does not switch a Metric installation to US customary units. The unit profile is selected separately. Canonical telemetry and CSV evidence retain protocol-native values; conversions are presentation-only.
+
+When both sources are available for the same physical concept, a vehicle-verified Mercedes/Delphi factory definition has presentation priority over SAE OBD-II. A manufacturer target that is only corroborated but not protocol-mapped remains visible as a target and is never polled with a guessed DID, byte layout or scaling.

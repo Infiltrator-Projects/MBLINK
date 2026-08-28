@@ -69,3 +69,10 @@ Session start/end metadata uses Unix epoch milliseconds. Sample/transcript rows 
 The streaming CSV is the complete session mechanism. Snapshot export contains only retained recent history/transcript. CSV quoting and numeric formatting are owned by C.
 
 The current iPhone bridge keeps its stream in memory for sharing. Evidence begins before Bluetooth scanning, so adapter-not-found and other pre-ELM failures are retained. Manual disconnect/reconnect attempts append distinct, closed session boundaries to the same CSV stream for the lifetime of the controller, so a later successful connection does not erase an earlier failure. When adapter or VIN discovery completes, the current session header is rewritten with that identifier before export. Durable file-backed storage across application termination remains a later product hardening task, not a change to the portable recorder contract.
+
+
+## Link-load control
+
+The schedule table defines the maximum default cadence for a supported, enabled PID. It does not mean every advertised PID must run simultaneously. Product faces can disable individual PIDs at runtime; LINK then skips those scheduler items entirely. Re-enabling a PID resumes its configured cadence without requiring a vehicle reconnect.
+
+This runtime policy is distinct from favourites, visibility and unit formatting. A favourite can be off, a non-favourite can be polled, and language/unit choices never change which diagnostic requests are transmitted.
