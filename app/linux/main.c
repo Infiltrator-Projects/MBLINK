@@ -18,6 +18,11 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef enum MblinkLinuxUnitProfile {
+    MBLINK_LINUX_UNITS_METRIC = 0,
+    MBLINK_LINUX_UNITS_US_CUSTOMARY
+} MblinkLinuxUnitProfile;
+
 typedef struct MblinkLinuxContext {
     bool connected;
     bool replay_mode;
@@ -32,6 +37,8 @@ typedef struct MblinkLinuxContext {
     LinkDiagnosticFlow diagnostic;
     bool sample_valid[256];
     LinkObd2Sample samples[256];
+    bool polling_enabled[256];
+    MblinkLinuxUnitProfile units;
     LinkFuelEconomy fuel_economy;
     MblinkMercedesEngineScan manufacturer_scan;
     bool manufacturer_scan_started;
@@ -132,7 +139,58 @@ static const char *fuel_source_text(LinkFuelEconomySource source)
     return "Unavailable";
 }
 
+static bool effective_polling_enabled(
+    const MblinkLinuxContext *context, uint8_t pid)
+{
+    return context != NULL &&
+        (context->replay_mode || context->polling_enabled[pid]);
+}
+
+static void initialise_polling_policy(MblinkLinuxContext *context)
+{
+    static const uint8_t default_pids[] = {
+        UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
+        UINT8_C(0x11), UINT8_C(0x49), UINT8_C(0x4a), UINT8_C(0x46)
+    };
+    size_t index;
+    if (context == NULL) return;
+    memset(context->polling_enabled, 0, sizeof(context->polling_enabled));
+    for (index = 0U;
+         index < sizeof(default_pids) / sizeof(default_pids[0]); ++index) {
+        context->polling_enabled[default_pids[index]] = true;
+    }
+}
+
+static bool mblink_polling_enabled(uint8_t pid, void *opaque)
+{
+    return effective_polling_enabled(
+        (const MblinkLinuxContext *)opaque, pid);
+}
+
+static void polling_toggled(GtkCheckButton *button, gpointer opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    const guint pid = GPOINTER_TO_UINT(
+        g_object_get_data(G_OBJECT(button), "mblink-pid"));
+    if (context == NULL || pid > UINT8_MAX) return;
+    context->polling_enabled[pid] = gtk_check_button_get_active(button);
+}
+
+static void units_changed(GtkDropDown *dropdown,
+                          GParamSpec *spec,
+                          gpointer opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    const guint selected = gtk_drop_down_get_selected(dropdown);
+    (void)spec;
+    if (context == NULL) return;
+    context->units = selected == 1U
+        ? MBLINK_LINUX_UNITS_US_CUSTOMARY
+        : MBLINK_LINUX_UNITS_METRIC;
+}
+
 static void format_sample(const LinkObd2Sample *sample,
+                          const MblinkLinuxContext *context,
                           char *buffer,
                           size_t capacity)
 {
@@ -142,6 +200,34 @@ static void format_sample(const LinkObd2Sample *sample,
     if (sample == NULL) {
         (void)snprintf(buffer, capacity, "Waiting");
         return;
+    }
+
+    if (context != NULL &&
+        context->units == MBLINK_LINUX_UNITS_US_CUSTOMARY) {
+        switch (sample->unit) {
+        case LINK_OBD2_UNIT_CELSIUS:
+            (void)snprintf(buffer, capacity, "%.1f °F",
+                           sample->value * 9.0 / 5.0 + 32.0);
+            return;
+        case LINK_OBD2_UNIT_KMH:
+            (void)snprintf(buffer, capacity, "%.1f mph",
+                           sample->value * 0.621371192237334);
+            return;
+        case LINK_OBD2_UNIT_KPA: {
+            const double psi = sample->value * 0.14503773773020923;
+            (void)snprintf(
+                buffer, capacity,
+                psi < 10.0 && psi > -10.0 ? "%.2f psi" : "%.1f psi",
+                psi);
+            return;
+        }
+        case LINK_OBD2_UNIT_LITRES_PER_HOUR:
+            (void)snprintf(buffer, capacity, "%.2f US gal/h",
+                           sample->value * 0.2641720523581484);
+            return;
+        default:
+            break;
+        }
     }
 
     /*
@@ -644,7 +730,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 
 static void append_parameters(GtkWidget *body,
                               bool compact,
-                              const MblinkLinuxContext *context)
+                              MblinkLinuxContext *context)
 {
     GtkWidget *card = link_gtk_card_new(compact ? "PARAMETER TABLE" : "LIVE DATA CATALOGUE",
                                         compact ? "Real standard OBD-II samples" : "Available shared diagnostic parameters");
@@ -659,8 +745,10 @@ static void append_parameters(GtkWidget *body,
         pid = (uint8_t)definition->key.identifier;
         (void)snprintf(key, sizeof(key), "PID 0x%02X · %s",
                        (unsigned int)pid, definition->short_name);
-        if (context->sample_valid[pid]) {
-            format_sample(&context->samples[pid], value, sizeof(value));
+        if (!effective_polling_enabled(context, pid)) {
+            (void)snprintf(value, sizeof(value), "Polling off");
+        } else if (context->sample_valid[pid]) {
+            format_sample(&context->samples[pid], context, value, sizeof(value));
         } else if (context->diagnostic_valid &&
                    !link_obd2_pid_set_contains(&context->diagnostic.supported_pids, pid)) {
             (void)snprintf(value, sizeof(value), "Not supported by vehicle");
@@ -669,7 +757,30 @@ static void append_parameters(GtkWidget *body,
         } else {
             (void)snprintf(value, sizeof(value), "No live session");
         }
-        link_gtk_card_append_detail(card, compact ? key : definition->name, value);
+        if (compact) {
+            link_gtk_card_append_detail(card, key, value);
+        } else {
+            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+            GtkWidget *name =
+                link_gtk_left_label(definition->name, "link-detail-label");
+            GtkWidget *detail =
+                link_gtk_left_label(value, "link-detail-value");
+            GtkWidget *toggle = gtk_check_button_new_with_label("Poll");
+            gtk_widget_set_hexpand(name, TRUE);
+            gtk_label_set_xalign(GTK_LABEL(detail), 1.0F);
+            gtk_check_button_set_active(
+                GTK_CHECK_BUTTON(toggle),
+                effective_polling_enabled(context, pid));
+            g_object_set_data(
+                G_OBJECT(toggle), "mblink-pid",
+                GUINT_TO_POINTER((guint)pid));
+            g_signal_connect(
+                toggle, "toggled", G_CALLBACK(polling_toggled), context);
+            gtk_box_append(GTK_BOX(row), name);
+            gtk_box_append(GTK_BOX(row), detail);
+            gtk_box_append(GTK_BOX(row), toggle);
+            gtk_box_append(GTK_BOX(card), row);
+        }
     }
     gtk_box_append(GTK_BOX(body), card);
 }
@@ -741,7 +852,7 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
         char value[96];
         if (definition == NULL) continue;
         if (context->sample_valid[definition->key.identifier])
-            format_sample(&context->samples[definition->key.identifier], value, sizeof(value));
+            format_sample(&context->samples[definition->key.identifier], context, value, sizeof(value));
         else
             (void)snprintf(value, sizeof(value), "Waiting");
         link_gtk_card_append_detail(card, definition->name, value);
@@ -788,6 +899,25 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
         link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + Linux full forensic module sweep + evidence-backed module map + per-module UDS DTC inventory");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
+        {
+            const char *unit_names[] = { "Metric", "US customary", NULL };
+            GtkStringList *model = gtk_string_list_new(unit_names);
+            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+            GtkWidget *label =
+                link_gtk_left_label("Unit system", "link-detail-label");
+            GtkWidget *dropdown =
+                gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+            gtk_widget_set_hexpand(label, TRUE);
+            gtk_drop_down_set_selected(
+                GTK_DROP_DOWN(dropdown),
+                context->units == MBLINK_LINUX_UNITS_US_CUSTOMARY ? 1U : 0U);
+            g_signal_connect(
+                dropdown, "notify::selected", G_CALLBACK(units_changed), context);
+            gtk_box_append(GTK_BOX(row), label);
+            gtk_box_append(GTK_BOX(row), dropdown);
+            gtk_box_append(GTK_BOX(card), row);
+            g_object_unref(model);
+        }
         gtk_box_append(GTK_BOX(body), card);
         break;
     }
@@ -1091,6 +1221,8 @@ int main(int argc, char **argv)
 
     context.replay_mode = replay_mode;
     context.replay_verify = replay_verify;
+    context.units = MBLINK_LINUX_UNITS_METRIC;
+    initialise_polling_policy(&context);
     link_fuel_economy_init(&context.fuel_economy);
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
     descriptor.window_title = replay_mode
@@ -1107,6 +1239,7 @@ int main(int argc, char **argv)
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
+    descriptor.polling_enabled = mblink_polling_enabled;
     descriptor.diagnostic_restart_action_label = "DEEP RESCAN";
     descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;
