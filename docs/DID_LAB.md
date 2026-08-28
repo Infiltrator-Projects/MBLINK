@@ -16,13 +16,15 @@ It remains a source-backed candidate until a C207 capture verifies it.
 
 `data/mercedes/crd3-did-lab.json` is the machine-readable research manifest. It records stable keys, source state, known DIDs/scaling, units and the best OBD reference channel for correlation. Rows from a Delphi PDF can be imported here without changing the live scheduler.
 
+The development C207 now also contributes two explicit transmission discovery targets: transmission-fluid temperature and actual selected gear. Both remain unmapped. The vehicle display supplies useful ground truth, but MBLINK does not assign a VGS/EGS endpoint, DID or scale until diagnostic evidence proves it. The observed secondary `0x7E1/0x7E9` EOBD responder is therefore an investigation target, not a claimed transmission identity.
+
 ## Correlation
 
 The portable engine searches bounded time lag and calculates pair count, Pearson correlation, affine scale/offset, RMSE, normalized RMSE and an evidence score. The fitted relationship is:
 
 `candidate = slope × reference + intercept`
 
-A positive lag means the candidate arrives later than the reference. This can compare candidate factory speed with OBD speed, rail pressure with PID 0x23, battery voltage with PID 0x42, pedal channels with OBD D/E, and temperatures with their known references.
+A positive lag means the candidate arrives later than the reference. This can compare candidate factory speed with OBD speed, rail pressure with PID `0x23`, battery voltage with PID `0x42`, pedal channels with OBD D/E, and temperatures with their known references. Transmission temperature and actual gear can also use manually observed vehicle-display anchors until a machine-readable reference channel is available.
 
 Correlation is evidence, not identity; similar signals can track each other strongly, so a correlation score never promotes a DID by itself.
 
