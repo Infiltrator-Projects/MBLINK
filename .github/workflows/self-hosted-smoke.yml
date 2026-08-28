@@ -2,8 +2,6 @@
 name: MBLINK Self-Hosted Smoke
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

@@ -564,6 +564,7 @@ static bool MBLinkSimulatorResponder(
     MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
     if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
         [self updateMercedesProbeEvidenceSummary];
+        if ([self beginCachedVehicleProfileRefresh]) return;
         [self beginMercedesModuleScan];
         return;
     }
