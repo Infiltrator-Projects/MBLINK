@@ -229,6 +229,12 @@ static bool MBLinkSimulatorResponder(
     flowConfig.manufacturer_extension_after_pid_discovery = false;
     flowConfig.manufacturer_extension_after_standard_dtcs = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
+    /*
+     * Keep live EOBD responder CAN IDs in the raw evidence stream so
+     * simultaneous 7E8/7E9 replies remain attributable while the shared
+     * decoder continues to present the first matching standard value.
+     */
+    flowConfig.preserve_live_response_headers = true;
     _shared = [[LinkDiagnosticsController alloc]
         initWithProductSlug:@"mblink"
         flowConfig:flowConfig
