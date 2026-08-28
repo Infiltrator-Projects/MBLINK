@@ -13,11 +13,30 @@ Scheduling, canonical sample state and session formatting live in portable C. Ap
 | `0C` | RPM | 250 ms | Critical |
 | `0D` | Speed | 500 ms | High |
 | `0B` | MAP | 500 ms | High |
-| `11` | Throttle | 500 ms | High |
+| `23` | Fuel rail gauge pressure | 500 ms | High |
+| `49` | Accelerator pedal D | 500 ms | High |
+| `4A` | Accelerator pedal E | 500 ms | High |
+| `4C` | Commanded throttle actuator | 500 ms | High |
+| `7A` | DPF differential pressure | 750 ms | High |
+| `7C` | DPF inlet temperature | 1000 ms | High |
+| `11` | Absolute throttle valve position | 500 ms | High |
 | `04` | Load | 750 ms | Normal |
 | `10` | MAF | 750 ms | Normal |
+| `2C` | Commanded EGR | 750 ms | Normal |
+| `2D` | EGR error | 1000 ms | Normal |
+| `45` | Relative throttle position | 750 ms | Normal |
+| `47` | Absolute throttle B | 750 ms | Normal |
+| `48` | Absolute throttle C | 750 ms | Normal |
+| `4B` | Accelerator pedal F | 750 ms | Normal |
+| `5E` | Engine fuel rate | 1000 ms | Normal |
+| `78` | Exhaust-gas temperature | 1000 ms | Normal |
+| `3C` | Catalyst temperature | 1500 ms | Normal |
 | `05` | Coolant | 1500 ms | Low |
 | `0F` | Intake air | 1500 ms | Low |
+| `33` | Barometric pressure | 2000 ms | Low |
+| `42` | Control-module voltage | 2000 ms | Low |
+| `46` | Ambient air | 3000 ms | Low |
+| `5C` | Engine oil temperature | 1500 ms | Low |
 
 Only PIDs advertised by the vehicle are scheduled. These are software defaults, not guaranteed hardware sample rates.
 

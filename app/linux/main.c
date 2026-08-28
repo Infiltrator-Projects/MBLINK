@@ -136,12 +136,26 @@ static void format_sample(const LinkObd2Sample *sample,
                           char *buffer,
                           size_t capacity)
 {
+    MblinkParameterSample parameter;
     const char *unit;
     if (buffer == NULL || capacity == 0U) return;
     if (sample == NULL) {
         (void)snprintf(buffer, capacity, "Waiting");
         return;
     }
+
+    /*
+     * Prefer the shared LINK/MBLINK parameter formatter so Linux presents the
+     * same precision and human-readable unit scaling as the iPhone. Canonical
+     * telemetry remains unchanged; for example rail pressure stays kPa in the
+     * decoded sample/export while the UI may render a large value in MPa.
+     */
+    if (mblink_parameter_from_obd2(sample, 0U, &parameter) &&
+        mblink_parameter_format_sample(&parameter, buffer, capacity)) {
+        return;
+    }
+
+    /* Preserve a generic fallback for typed samples not yet in the catalogue. */
     unit = link_obd2_unit_name(sample->unit);
     if (unit == NULL || unit[0] == '\0' || sample->unit == LINK_OBD2_UNIT_NONE)
         (void)snprintf(buffer, capacity, "%.2f", sample->value);

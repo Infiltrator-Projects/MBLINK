@@ -15,14 +15,21 @@ The portable C OBD-II layer consumes normalized `MblinkElm327Response` values an
 | `0D` | Vehicle speed | `km/h` | `A` |
 | `0F` | Intake air temperature | `°C` | `A - 40` |
 | `10` | Mass air flow rate | `g/s` | `(256A + B) / 100` |
-| `11` | Throttle position | `%` | `A × 100 / 255` |
+| `11` | Absolute throttle valve position | `%` | `A × 100 / 255` |
 | `23` | Fuel rail gauge pressure | `kPa` | `(256A + B) × 10` |
 | `2C` | Commanded EGR | `%` | `A × 100 / 255` |
 | `2D` | EGR error | `%` | `(A - 128) × 100 / 128` |
 | `33` | Barometric pressure | `kPa` | `A` |
 | `3C` | Catalyst temperature B1S1 | `°C` | `(256A + B) / 10 - 40` |
 | `42` | Control-module voltage | `V` | `(256A + B) / 1000` |
+| `45` | Relative throttle position | `%` | `A × 100 / 255` |
 | `46` | Ambient air temperature | `°C` | `A - 40` |
+| `47` | Absolute throttle position B | `%` | `A × 100 / 255` |
+| `48` | Absolute throttle position C | `%` | `A × 100 / 255` |
+| `49` | Accelerator pedal position D | `%` | `A × 100 / 255` |
+| `4A` | Accelerator pedal position E | `%` | `A × 100 / 255` |
+| `4B` | Accelerator pedal position F | `%` | `A × 100 / 255` |
+| `4C` | Commanded throttle actuator | `%` | `A × 100 / 255` |
 | `5C` | Engine oil temperature | `°C` | `A - 40` |
 | `5E` | Engine fuel rate | `L/h` | `(256A + B) / 20` |
 | `78` | Exhaust-gas temperature B1S1 | `°C` | support bit for B1S1, then `(256B + C) / 10 - 40` |
@@ -30,6 +37,8 @@ The portable C OBD-II layer consumes normalized `MblinkElm327Response` values an
 | `7C` | DPF bank-1 inlet temperature | `°C` | support bit for bank-1 inlet temperature, then `(256B + C) / 10 - 40` |
 
 The aftertreatment PIDs contain their own sensor/support flags. MBLINK returns `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` rather than presenting a value when the PID exists but the selected sub-field is not advertised. Unknown typed PIDs also return `MBLINK_OBD2_RESULT_UNSUPPORTED_PID`; MBLINK does not invent formulas.
+
+PID `11` is the throttle-valve measurement, not accelerator-pedal demand. Pedal demand is kept as the distinct standard `49`/`4A`/`4B` channels and is only polled when the vehicle advertises those PIDs. Fuel-rail pressure remains canonical `kPa` in decoded samples and evidence exports; human-facing parameter formatting auto-scales values of at least 1000 kPa to MPa (for example, `123400 kPa` is shown as `123.4 MPa`).
 
 These are standard SAE OBD-II values. They are not manufacturer-specific Mercedes definitions. In particular, this layer does not claim OM651 soot load, regeneration state, ash load, injector corrections or other undocumented Mercedes values.
 

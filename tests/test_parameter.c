@@ -27,21 +27,40 @@ int main(void)
         mblink_parameter_obd2_definition(0x10U);
     const MblinkParameterDefinition *rail =
         mblink_parameter_obd2_definition(0x23U);
+    const MblinkParameterDefinition *throttle_valve =
+        mblink_parameter_obd2_definition(0x11U);
+    const MblinkParameterDefinition *pedal_d =
+        mblink_parameter_obd2_definition(0x49U);
+    const MblinkParameterDefinition *pedal_e =
+        mblink_parameter_obd2_definition(0x4aU);
     const MblinkParameterDefinition *dpf_pressure =
         mblink_parameter_obd2_definition(0x7aU);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 20U,
+    passed &= check(mblink_parameter_obd2_definition_count() == 27U,
                     "standard descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
-                    dpf_pressure != NULL,
+                    throttle_valve != NULL && pedal_d != NULL &&
+                    pedal_e != NULL && dpf_pressure != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(20U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(27U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
         "stable-key lookup mismatch");
+    passed &= check(
+        throttle_valve != NULL &&
+        strcmp(throttle_valve->name, "Absolute throttle valve position") == 0,
+        "PID 0x11 must be labelled as throttle valve, not accelerator pedal");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.driver.accelerator_pedal_d") == pedal_d,
+        "accelerator-pedal D stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.driver.accelerator_pedal_e") == pedal_e,
+        "accelerator-pedal E stable-key lookup mismatch");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key(
             "obd2.dpf.bank1_delta_pressure") == dpf_pressure,
@@ -94,8 +113,8 @@ int main(void)
     passed &= check(parameter.definition == rail &&
                     mblink_parameter_format_sample(
                         &parameter, buffer, sizeof(buffer)) &&
-                    strcmp(buffer, "123400 kPa") == 0,
-                    "rail-pressure formatting mismatch");
+                    strcmp(buffer, "123.4 MPa") == 0,
+                    "rail-pressure display auto-scaling mismatch");
 
     obd.pid = 0x7aU;
     obd.value = 2.34;
