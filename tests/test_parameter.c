@@ -35,16 +35,19 @@ int main(void)
         mblink_parameter_obd2_definition(0x4aU);
     const MblinkParameterDefinition *dpf_pressure =
         mblink_parameter_obd2_definition(0x7aU);
+    const MblinkParameterDefinition *fuel_level =
+        mblink_parameter_obd2_definition(0x2fU);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 27U,
+    passed &= check(mblink_parameter_obd2_definition_count() == 28U,
                     "standard descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
                     throttle_valve != NULL && pedal_d != NULL &&
-                    pedal_e != NULL && dpf_pressure != NULL,
+                    pedal_e != NULL && dpf_pressure != NULL &&
+                    fuel_level != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(27U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(28U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
@@ -65,6 +68,10 @@ int main(void)
         mblink_parameter_obd2_definition_for_stable_key(
             "obd2.dpf.bank1_delta_pressure") == dpf_pressure,
         "DPF stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.fuel.tank_level") == fuel_level,
+        "fuel-level stable-key lookup mismatch");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.missing") == NULL,
         "unknown stable key unexpectedly resolved");
