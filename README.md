@@ -61,6 +61,7 @@ The remaining fault-diagnostic completion work is deliberately ahead of addition
 - Product-prefixed access to LINK's complete 27-service UDS catalogue and codecs without duplicating implementations.
 - Shared generic DTC interpretation through LINK, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
 - Mercedes-specific diagnostic extension hook and ECU probing.
+- Offline Mercedes/Delphi DID Lab with source-state tracking, documented scaling decode and time-aligned signal correlation.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
 - Explicit FULL SWEEP controls on Linux and Windows for read-only forensic module discovery across the wider 11-bit diagnostic range and ISO 15765 normal-fixed 29-bit targets, with F197 identity evidence and address-preserving unknown-module labels.
@@ -159,7 +160,7 @@ Manually runnable build/smoke workflows are diagnostic helpers only and are not 
 
 ## Documentation
 
-See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/DISCOVER.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
+See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/DID_LAB.md`, `docs/DISCOVER.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
 
 ## Licence
 
