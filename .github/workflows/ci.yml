@@ -57,6 +57,8 @@ jobs:
           grep -q 'src/core/diagnostic_flow.c' src/core/mblink.c
           ! grep -q 'MBLinkDiagnosticsPhase' platform/apple/MBLinkDiagnosticsController.m
           test "$(grep -Fc 'if ([self beginCachedVehicleProfileRefresh]) return;' platform/apple/MBLinkDiagnosticsController.m)" -ge 2
+          grep -Fq 'standard OBD VIN %@ retained' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'link_obd2_is_negative_response' src/link/src/core/diagnostic_flow.c
           test "$(wc -c < src/obd2/obd2.c)" -lt 1024
           test "$(wc -c < src/uds/uds.c)" -lt 2048
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release

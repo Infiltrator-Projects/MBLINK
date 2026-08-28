@@ -1078,6 +1078,11 @@ static bool MBLinkSimulatorResponder(
 
 - (void)updateMercedesProbeEvidenceSummary
 {
+    NSString *standardOBDVIN = self.mercedesVINText;
+    NSArray<NSString *> *standardOBDIdentity = self.mercedesIdentityResults;
+    const BOOL mercedesVINAvailable =
+        _mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
+        _mercedesProbe.vin[0] != '\0';
     const unsigned int positive = MBLinkBitCount32(_mercedesProbe.identity_positive_mask);
     const unsigned int negative = MBLinkBitCount32(_mercedesProbe.identity_negative_mask);
     const unsigned int noResponse = MBLinkBitCount32(_mercedesProbe.identity_no_response_mask);
@@ -1088,6 +1093,15 @@ static bool MBLinkSimulatorResponder(
         positive, total, negative, noResponse, invalid];
 
     NSMutableArray<NSString *> *identityResults = [[NSMutableArray alloc] initWithCapacity:total];
+    if (!mercedesVINAvailable) {
+        for (NSString *line in standardOBDIdentity ?: @[]) {
+            if ([line hasPrefix:@"VIN ·"] ||
+                [line hasPrefix:@"ENGINE ·"] ||
+                [line hasPrefix:@"BUILD ·"]) {
+                [identityResults addObject:line];
+            }
+        }
+    }
     for (size_t index = 0U; index < total; ++index) {
         const uint32_t bit = (uint32_t)1U << index;
         const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
@@ -1099,9 +1113,7 @@ static bool MBLinkSimulatorResponder(
         else if ((_mercedesProbe.identity_invalid_mask & bit) != 0U) state = @"invalid response";
         [identityResults addObject:[NSString stringWithFormat:@"%04X · %@ · %@", (unsigned int)did, name, state]];
     }
-    if (_mercedesProbe.vin_result ==
-            MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
-        _mercedesProbe.vin[0] != '\0') {
+    if (mercedesVINAvailable) {
         MblinkMercedesVinDecode decoded;
         if (mblink_mercedes_vin_decode(_mercedesProbe.vin, &decoded)) {
             if (decoded.baumuster_definition != NULL) {
@@ -1138,22 +1150,33 @@ static bool MBLinkSimulatorResponder(
     self.mercedesIdentityResults = [identityResults copy];
 
     NSString *vinSummary = nil;
-    if (_mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE && _mercedesProbe.vin[0] != '\0') {
+    if (mercedesVINAvailable) {
         self.mercedesVINText = MBLinkStringFromCString(_mercedesProbe.vin);
         [_shared setVehicleIdentifier:_mercedesProbe.vin];
         [self loadSavedVehicleProfileForVIN:self.mercedesVINText];
-        vinSummary = [NSString stringWithFormat:@"VIN %@", self.mercedesVINText];
+        vinSummary = [NSString stringWithFormat:
+            @"Mercedes ECU VIN %@", self.mercedesVINText];
     } else {
-        self.mercedesVINText = nil;
         switch (_mercedesProbe.vin_result) {
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE: vinSummary = @"standard VIN not returned"; break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE:
+            vinSummary = @"Mercedes ECU VIN did not respond"; break;
         case MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE:
-            vinSummary = [NSString stringWithFormat:@"standard VIN negative response NRC 0x%02X",
+            vinSummary = [NSString stringWithFormat:@"Mercedes ECU VIN negative response NRC 0x%02X",
                 (unsigned int)_mercedesProbe.vin_negative_response_code]; break;
         case MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE:
-            vinSummary = @"standard VIN response was not a valid 17-character VIN"; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED: vinSummary = @"standard VIN was not attempted"; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE: vinSummary = @"standard VIN response was empty"; break;
+            vinSummary = @"Mercedes ECU VIN was not a valid 17-character VIN"; break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED:
+            vinSummary = @"Mercedes ECU VIN was not attempted"; break;
+        case MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE:
+            vinSummary = @"Mercedes ECU VIN response was empty"; break;
+        }
+        if (standardOBDVIN.length != 0U) {
+            self.mercedesVINText = standardOBDVIN;
+            vinSummary = [NSString stringWithFormat:
+                @"%@; standard OBD VIN %@ retained",
+                vinSummary, standardOBDVIN];
+        } else {
+            self.mercedesVINText = nil;
         }
     }
 

@@ -6,9 +6,10 @@
  * The PID-support replies below are copied from the 2026-08-27 vehicle
  * capture.  Indexed Mode 09 VIN framing and the dual-responder empty Mode 03
  * shape are derived from the 2026-08-28 C207/Vgate evidence; identifying VIN
- * digits are replaced with a synthetic fixture value.  Pending/permanent DTC
- * replies remain NO DATA controls.  The test proves that real empty stored-DTC
- * framing does not abort the shared flow before the Mercedes extension.
+ * digits are replaced with a synthetic fixture value. Pending DTC remains a
+ * NO DATA control; permanent DTC replays the captured `7F 0A 22` response.
+ * The test proves that neither real empty stored-DTC framing nor an unavailable
+ * optional Mode 0A inventory aborts before the Mercedes extension.
  */
 #include "link/diagnostic_flow.h"
 
@@ -131,7 +132,8 @@ int main(void)
      * The old MBLINK path jumped to the Mercedes extension here.  Current
      * behaviour must attempt standard VIN and all three standard DTC modes
      * first.  The captured VIN and stored-DTC framing are replayed below;
-     * pending and permanent modes remain explicit NO DATA controls.
+     * pending remains an explicit NO DATA control and permanent mode uses the
+     * exact captured negative-response shape.
      */
     CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
@@ -173,10 +175,14 @@ int main(void)
     CHECK(link_diagnostic_flow_next_action(&flow, 1100U, &action) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(strcmp(action.command, "0A") == 0);
+    response = ok_response("7F0A22", false);
     CHECK(link_diagnostic_flow_accept_response(
               &flow, &response, 1100U, &event) ==
           LINK_DIAGNOSTIC_FLOW_RESULT_OK);
     CHECK(event.dtc_kind == LINK_OBD2_DTC_PERMANENT);
+    CHECK(!event.dtc_response_available);
+    CHECK(event.dtc_negative_response);
+    CHECK(event.dtc_negative_response_code == UINT8_C(0x22));
     CHECK(flow.standard_dtc_inventory_complete);
     CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION);
 

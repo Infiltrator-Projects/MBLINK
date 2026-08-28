@@ -111,15 +111,15 @@ The native iPhone target must compile the same LINK implementation as CMake. Pro
 
 Current manufacturer-specific state:
 
-- the C207/OM651 profile carries one source-corroborated conventional 11-bit physical engine endpoint at `0x7E0 -> 0x7E8` and still requires the development vehicle for vehicle-verified promotion;
+- the C207/OM651 profile carries one source-corroborated conventional 11-bit physical engine endpoint at `0x7E0 -> 0x7E8`; a 2026-08-26 capture verified that route on one development C207 without generalising it to every family member;
 - the iPhone performs complete standard OBD capability discovery, read-only UDS TesterPresent, standard VIN/identity evidence collection, a bounded CRD3 fingerprint pass and one read-only Mercedes UDS fault-memory request before restoring normal OBD-II;
 - the CRD3 pass requests `F100`, `F154`, `F196`, `1001` and `1002`, decodes only corroborated identity fields and records every raw response without assigning unsupported physical meanings;
 - captured VIN, CRD3 identity, per-DID outcomes and Mercedes UDS faults are visible and preserved in the evidence transcript;
 - standard diesel/DPF values remain available where the vehicle advertises them;
-- no successful physical Mercedes exchange is claimed until the development vehicle actually provides the capture;
+- physical C207/Vgate captures have verified standard VIN and selected Mercedes UDS response shapes, while unobserved definitions remain explicitly unverified;
 - no manufacturer-specific soot-load, regeneration, injector-correction or other undocumented OM651 formula is claimed without vehicle evidence.
 
-The next evidence step remains physical: install the current test IPA, connect to the C207/OM651 and export diagnostic evidence. A reproducible CRD3/ECU fingerprint can then become a fixture and unlock genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
+The next evidence step is to turn each additional physical C207/OM651 result into a sanitised regression fixture. A reproducible CRD3/ECU fingerprint can then unlock genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
