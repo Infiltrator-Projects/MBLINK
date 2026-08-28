@@ -91,3 +91,8 @@ A real iPhone/Vgate/C207 capture from MBLINK 0.7.79 recorded 3,412 completed liv
 LINK 0.14.25 therefore deliberately lowers the default live-data request budget. The scheduler remains capability-gated and each PID remains independently switchable; this change reduces background pressure rather than limiting what can be selected.
 
 The same evidence snapshot successfully contained 6,865 total records without a BLE-disconnect record. This separates CSV preparation from the later live-request timeout and supports the asynchronous snapshot/export design.
+
+
+## Persistent opt-in selection
+
+Polling cadence and polling selection are separate. The scheduler contains the supported definitions and their maximum cadence, but MBLINK 0.7.81 starts a new user profile with every live PID disabled. The application persists the exact enabled stable-key set and reapplies it before the first live request after a later launch or reconnect.

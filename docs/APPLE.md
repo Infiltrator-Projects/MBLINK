@@ -63,3 +63,10 @@ LINK 0.14.25 adds SAE PID `0x2F` Fuel Level Input. MBLINK enables it in the boun
 The 0.7.79 C207/Vgate field capture showed that a standard live request can time out while CoreBluetooth remains physically connected. LINK 0.14.25 distinguishes those states. During a live timeout the Apple controller immediately drops diagnostic readiness, requests a fresh ELM prompt, abandons only the timed-out PID after successful resynchronisation, defers that PID by one interval and resumes the existing live scheduler. A successful sample clears the consecutive-timeout counter.
 
 Up to three consecutive live timeouts are recovered this way. Persistent failure still stops diagnostics and asks for a reconnect. This also prevents the command-centre status indicator from remaining green after the diagnostic flow has actually failed.
+
+
+## Remembered opt-in polling
+
+From MBLINK 0.7.81, live-data polling is explicit opt-in. A new installation starts with every selectable PID disabled, so capability discovery does not imply continuous live traffic. Each Poll switch is saved by stable parameter key and restored on the next launch and reconnect.
+
+The 0.7.80 automatic nine-PID starter set is migrated carefully: an untouched legacy default becomes an empty v2 selection, while a legacy set that differs from that built-in default is treated as a user choice and preserved.

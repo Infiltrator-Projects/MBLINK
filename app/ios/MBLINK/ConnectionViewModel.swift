@@ -127,8 +127,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private let controller = MBLinkDiagnosticsController()
 
-    private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
-    private static let defaultPollingStableKeys: Set<String> = [
+    /*
+     * v2 changes first-run policy from an automatic core set to explicit
+     * opt-in. Existing user choices are preserved, but the old untouched
+     * automatic default is recognised and migrated to an empty selection.
+     */
+    private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"
+    private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
+    private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
         "obd2.diesel.rail_pressure", "obd2.engine.throttle",
         "obd2.driver.accelerator_pedal_d",
@@ -302,10 +308,26 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private func storedPollingKeys() -> Set<String> {
         let defaults = UserDefaults.standard
+
         if let values = defaults.array(forKey: Self.pollingDefaultsKey) as? [String] {
             return Set(values)
         }
-        let initial = Self.defaultPollingStableKeys
+
+        /*
+         * Upgrade from the previous automatic-core policy. If v1 still holds
+         * exactly the old built-in set, it was never a meaningful user choice,
+         * so v2 starts empty. If the set differs, the user changed it and those
+         * explicit choices are preserved.
+         */
+        var initial = Set<String>()
+        if let legacyValues =
+            defaults.array(forKey: Self.legacyPollingDefaultsKey) as? [String] {
+            let legacy = Set(legacyValues)
+            if legacy != Self.legacyAutomaticPollingStableKeys {
+                initial = legacy
+            }
+        }
+
         defaults.set(Array(initial).sorted(), forKey: Self.pollingDefaultsKey)
         return initial
     }
