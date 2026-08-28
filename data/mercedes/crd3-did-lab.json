@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "purpose": "Offline Mercedes/Delphi DID discovery and correlation",
+    "automatic_polling_rule": "Only vehicle-verified mappings may enter automatic live polling",
+    "correlation_rule": "Correlation supports a mapping hypothesis but never promotes a DID by itself"
+  },
+  "entries": [
+    {"stable_key":"mercedes.om651.electrical.battery_voltage","name":"Battery voltage","status":"source-backed-candidate","service":"0x22","did":"0x2007","raw_length":2,"endianness":"big","signed":false,"factor":0.0078125,"offset":0.0,"unit":"V","correlation_reference":"obd2.electrical.control_module_voltage","source":"CaesarSuite discussion #1, CRD3::DT_2007_IN_Battery_voltage"},
+    {"stable_key":"mercedes.om651.engine.speed","name":"Engine speed","status":"corroborated-unmapped","did":null,"unit":"rpm","correlation_reference":"obd2.engine.rpm","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.vehicle.speed","name":"Vehicle speed","status":"corroborated-unmapped","did":null,"unit":"km/h","correlation_reference":"obd2.vehicle.speed","source":"Mercedes diagnostic actual-value records"},
+    {"stable_key":"mercedes.om651.fuel.tank_level","name":"Fuel tank level","status":"corroborated-unmapped","did":null,"unit":"L","correlation_reference":"obd2.fuel.tank_level","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.fuel.injection_quantity","name":"Injection quantity","status":"corroborated-unmapped","did":null,"unit":"mg/stroke","correlation_reference":null,"source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.fuel.rail_pressure","name":"Fuel rail pressure","status":"corroborated-unmapped","did":null,"unit":"bar","correlation_reference":"obd2.diesel.rail_pressure","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.driver.accelerator_pedal.sensor1","name":"Accelerator pedal position sensor 1","status":"corroborated-unmapped","did":null,"unit":"%","correlation_reference":"obd2.driver.accelerator_pedal_d","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.driver.accelerator_pedal.sensor2","name":"Accelerator pedal position sensor 2","status":"corroborated-unmapped","did":null,"unit":"%","correlation_reference":"obd2.driver.accelerator_pedal_e","source":"MBLINK OM651 target catalogue"},
+    {"stable_key":"mercedes.om651.air.throttle_valve","name":"Throttle valve","status":"corroborated-unmapped","did":null,"unit":"%","correlation_reference":"obd2.engine.throttle","source":"MBLINK OM651 target catalogue plus C207 field correlation"},
+    {"stable_key":"mercedes.om651.engine.coolant_temperature","name":"Coolant temperature","status":"corroborated-unmapped","did":null,"unit":"degC","correlation_reference":"obd2.engine.coolant","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.engine.oil_temperature","name":"Oil temperature","status":"corroborated-unmapped","did":null,"unit":"degC","correlation_reference":"obd2.engine.oil_temperature","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.engine.intake_air_temperature","name":"Intake air temperature","status":"corroborated-unmapped","did":null,"unit":"degC","correlation_reference":"obd2.engine.intake_air","source":"ScanDoc OM651 CDID3 actual-value catalogue"},
+    {"stable_key":"mercedes.om651.environment.ambient_temperature","name":"Ambient temperature","status":"corroborated-unmapped","did":null,"unit":"degC","correlation_reference":"obd2.environment.ambient_air","source":"Vehicle display observation plus MBLINK field evidence"},
+    {"stable_key":"mercedes.om651.environment.barometric_pressure","name":"Barometric pressure","status":"corroborated-unmapped","did":null,"unit":"bar","correlation_reference":"obd2.engine.barometric_pressure","source":"ScanDoc OM651 CDID3 actual-value catalogue"}
+  ]
+}
