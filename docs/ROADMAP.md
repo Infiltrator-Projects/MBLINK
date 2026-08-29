@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable. The exact current source version is `VERSION`; the exact shared-engine revision is the `src/link` gitlink.
 
-The active product milestone remains Mercedes-Benz C207 / OM651 engine diagnostics, with fault interpretation treated as the first completion track.
+The active product milestone remains Mercedes-Benz C207 / OM651 diagnostics, with fault interpretation treated as the first completion track.
 
 MBLINK is one manufacturer product family containing both the normal MBLINK diagnostic application and the specialist MBLINK Discover application. Discover is not a separate repository or future `MBLINK-Reader`; it is the existing branded ECU/module discovery and read-only evidence/dump target and should evolve in place.
 
@@ -42,7 +42,7 @@ Generic Discover mechanics belong in LINK. Mercedes topology, identities, probes
 | --- | --- |
 | 0.1 | Portable C11 core, public C API/transport ABI, pinned Infiltratr Common, strict CI |
 | 0.2 | ELM327 command/parser/init/session engine with deterministic mock tests |
-| 0.3 | Standard OBD-II PID discovery/decoding, VIN, readiness, freeze-frame and DTCs |
+| 0.3 | Standard OBD-II PID discovery/decoding, VIN, readiness, freeze-frame and DTC primitives |
 | 0.4 | Objective-C CoreBluetooth provider and native iPhone shell |
 | 0.5 | C-owned scheduler, telemetry/history, full-session recording and SwiftUI dashboard/export |
 | 0.6 | Reusable Classical-CAN ISO-TP TX/RX state machines independent of UDS/Mercedes |
@@ -51,10 +51,23 @@ Generic Discover mechanics belong in LINK. Mercedes topology, identities, probes
 | 0.7.1–0.7.4 | Common integration, parameter/history model, scheduler, ELM ISO 15765 channel and release hardening |
 | 0.7.5–0.7.9 | Read-only Mercedes endpoint probing, standardized identity sweep, About/branding and evidence export |
 | 0.7.10–0.7.12 | OBD fault inventory, diesel diagnostics, CRD3 fingerprinting, source-corroborated target and Mercedes UDS fault evidence |
-| 0.7.13+ | Official emblem/interface consolidation, LINK family consolidation and main-only release policy hardening |
-| current shared baseline | Exact pinned LINK release with generic DTC knowledge, CAN-FD/extended ISO-TP, complete 27-service UDS codecs and shared Discover engine |
+| later 0.7.x | VIN-keyed module profiles, cached route validation, wider read-only Mercedes module census, offline replay fixtures and asynchronous evidence export |
+| current shared baseline | Exact pinned LINK release with generic DTC knowledge, CAN-FD/extended ISO-TP, complete 27-service UDS codecs, shared CoreBluetooth engine, native OpenPort and shared Discover engine |
 
 Module contracts and limitations are documented in the corresponding files under `docs/`; this roadmap does not duplicate dependency version numbers that are already authoritative in the gitlinks.
+
+## Current field-hardening baseline
+
+Several problems seen during physical C207/Vgate testing are now represented by permanent architectural fixes rather than operator workarounds:
+
+- LINK's Apple Bluetooth transport remembers the last successfully probed CoreBluetooth peripheral and reuses it before falling back to a scan;
+- duplicate BLE advertisements remain enabled during discovery because dual-mode Vgate adapters can expose their usable local name only on a later advertisement;
+- scan/recovery attempts are bounded rather than requiring a manual disconnect/reconnect cycle;
+- CSV preparation snapshots recorder bytes and performs file I/O away from the Bluetooth/diagnostic execution path, so evidence export must not intentionally stop polling;
+- one controller lifetime retains distinct closed connection attempts in the evidence stream rather than erasing the first failed attempt when a later attempt succeeds;
+- live polling is explicit opt-in and persisted by stable parameter key, preventing the ELM/BLE link from being saturated by every supported PID by default.
+
+These fixes have regression/CI coverage where they can be simulated. Physical adapter behaviour remains field validation rather than something CI can manufacture.
 
 ## Fault-diagnosis completion track
 
@@ -67,34 +80,42 @@ Implemented:
 - unknown manufacturer-specific codes remain explicit unknowns;
 - MBLINK exposes the knowledge through compatibility APIs and the iPhone model;
 - standard OBD stored/pending/permanent inventory and Mercedes UDS fault evidence are captured;
+- scan state is preserved separately in the controller instead of deriving success from an empty list;
 - product facades expose LINK's CAN-FD and complete generic UDS service contracts without duplicating the implementation.
 
 Must still be finished before this product slice is complete:
 
-1. Refactor the Faults UI so **not scanned**, **scan failed**, **successful clean scan** and **faults present** are distinct states and rich cards consume structured records directly.
+1. Refactor the Faults presentation so **not scanned**, **scan failed**, **successful clean scan** and **faults present** remain visually distinct and rich cards consume structured records directly instead of showing an empty list as a green success unconditionally.
 2. Integrate OBD readiness into the shared diagnostic flow and investigation record.
 3. Integrate capability-driven Mode 02 freeze-frame context and clearly separate it from current live data.
 4. Build an evidence-backed Mercedes/CRD3/OM651 DTC knowledge catalogue in MBLINK with applicability and provenance; do not fabricate proprietary meanings.
 5. Continue evidence-led generic catalogue maintenance in LINK rather than copying definitions into MBLINK.
 
-## MBLINK Discover completion track
+## MBLINK Discover and module-discovery completion track
 
-Current baseline:
+Implemented baseline:
 
 - shared LINK Windows OpenPort/J2534 shell;
 - passive 500 kbit/s CAN capture;
 - bounded read-only standard OBD inventory;
 - deny-by-default request classification;
 - structured evidence export and operator annotations;
-- MBLINK branding and Mercedes product identity.
+- MBLINK branding and Mercedes product identity;
+- C207/OM651 conventional engine route represented at `0x7E0 -> 0x7E8` and vehicle-verified on the development car;
+- portable Mercedes engine fingerprint scan followed by a bounded module scan;
+- mobile first-VIN census capable of learning responding routes, including wider 11/29-bit read-only discovery;
+- VIN-keyed module profiles persisted on iPhone and validated on later connections instead of repeating full discovery every time;
+- invalid or changed saved profiles are discarded and rebuilt rather than silently trusted;
+- Linux normal census plus explicit `DEEP RESCAN` path;
+- captured-trace and offline C207 replay regression coverage, including a replayed ORC seatbelt/airbag fault becoming visible through the shared product path.
 
 Next work:
 
-1. Define a shared LINK module-discovery/result model capable of representing multiple networks, endpoints, identification results and raw evidence without assuming Mercedes topology.
-2. Feed MBLINK's Mercedes/C207 endpoint and module knowledge into that model rather than hard-coding it into the generic scanner.
-3. Expand from engine-only probing toward read-only discovery of additional Mercedes modules where evidence exists.
+1. Continue moving generic multi-network module-discovery/result behaviour into LINK while keeping Mercedes topology in MBLINK.
+2. Expand evidence-backed module identities and read-only requests beyond the routes already observed or corroborated.
+3. Turn each additional physical response into a sanitised regression fixture before promoting it to vehicle-verified.
 4. Add bounded identity/DID acquisition for documented or reproducibly verified Mercedes modules.
-5. Produce a structured Discover dump containing raw requests/responses, module identity, network path, result status, timestamps and product/profile provenance.
+5. Continue enriching structured dumps with raw requests/responses, module identity, network path, result status, timestamps and product/profile provenance.
 6. Keep reset, security access, routines, DTC clearing, coding, programming and firmware-write operations outside the Discover allowlist unless a separately reviewed product capability explicitly requires them.
 
 Discover remains part of this repository. A separate MBLINK Reader repository would duplicate the existing product boundary and is not part of the roadmap.
@@ -112,14 +133,19 @@ The native iPhone target must compile the same LINK implementation as CMake. Pro
 Current manufacturer-specific state:
 
 - the C207/OM651 profile carries one source-corroborated conventional 11-bit physical engine endpoint at `0x7E0 -> 0x7E8`; a 2026-08-26 capture verified that route on one development C207 without generalising it to every family member;
-- the iPhone performs complete standard OBD capability discovery, read-only UDS TesterPresent, standard VIN/identity evidence collection, a bounded CRD3 fingerprint pass and one read-only Mercedes UDS fault-memory request before restoring normal OBD-II;
+- the iPhone performs complete standard OBD capability discovery, read-only UDS TesterPresent, standard VIN/identity evidence collection, a bounded CRD3 fingerprint pass and read-only Mercedes fault/module work before restoring normal OBD-II;
 - the CRD3 pass requests `F100`, `F154`, `F196`, `1001` and `1002`, decodes only corroborated identity fields and records every raw response without assigning unsupported physical meanings;
-- captured VIN, CRD3 identity, per-DID outcomes and Mercedes UDS faults are visible and preserved in the evidence transcript;
+- captured VIN, CRD3 identity, per-DID outcomes, responding module routes and Mercedes fault records are visible and preserved in the evidence transcript;
+- a new VIN can perform the wider read-only mobile census once, save the learned module topology against that VIN and use a bounded cached validation path on future connections;
 - standard diesel/DPF values remain available where the vehicle advertises them;
-- physical C207/Vgate captures have verified standard VIN and selected Mercedes UDS response shapes, while unobserved definitions remain explicitly unverified;
-- no manufacturer-specific soot-load, regeneration, injector-correction or other undocumented OM651 formula is claimed without vehicle evidence.
+- physical C207/Vgate captures have verified standard VIN, selected Mercedes UDS response shapes and the conventional engine route, while unobserved definitions remain explicitly unverified;
+- captured live data distinguishes accelerator-pedal channels from absolute throttle-valve position rather than treating PID `0x11` as pedal demand;
+- the development C207 advertises SAE PID `0x2F` fuel level but not SAE PID `0x5E` engine fuel rate, so MBLINK exposes measured tank percentage while refusing to invent an SAE fuel-flow value;
+- no manufacturer-specific soot-load, regeneration, injector-correction, fuel-consumption or other undocumented OM651 formula is claimed without protocol and vehicle evidence.
 
-The next evidence step is to turn each additional physical C207/OM651 result into a sanitised regression fixture. A reproducible CRD3/ECU fingerprint can then unlock genuine OM651-specific DPF/injector definitions from observed vehicle behaviour rather than guesses.
+The DID Lab remains the promotion boundary for factory values. `corroborated-unmapped`, `source-backed-candidate` and `vehicle-verified` are separate states; correlation can support a candidate but cannot invent its request address or promote it by itself.
+
+The next evidence step is to turn each additional physical C207/OM651 result into a sanitised regression fixture. A reproducible CRD3/ECU/module fingerprint can then unlock genuine OM651-specific DPF, injector, fuel and transmission definitions from observed vehicle behaviour rather than guesses.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
@@ -127,11 +153,11 @@ Every undocumented Mercedes definition remains experimental until verified again
 
 ### Additional Mercedes modules
 
-Subject to real vehicle/network access: transmission, ABS/ESP, SRS, climate, instrument cluster and other discoverable ECUs. Begin in MBLINK Discover with identification, evidence and selected safe reads, then expose appropriate supported diagnostics in the main application once definitions are trustworthy.
+Continue transmission, ABS/ESP, SRS, climate, instrument-cluster and other module work from the existing read-only census/profile framework. Promote a module or request only when documentation or reproducible physical evidence supports it; begin with identification/evidence and expose normal diagnostics only after the definition is trustworthy.
 
 ### Adapter portability
 
-Formalise adapter capabilities/profiles, verified firmware quirks and additional ELM327-compatible transports. The Vgate reference adapter remains a validation target, not a `libmblink` dependency.
+The shared LINK adapter model already covers ELM/Vgate, native Tactrix OpenPort 2.0, STM32 CAN/FDCAN and the independently reconstructed Mercedes me native command layer. Remaining work is physical interoperability/quirk validation and, for the Mercedes me Adapter, completion of the authentication/session-establishment ordering rather than duplicating vehicle definitions per adapter.
 
 ### 1.0 release hardening
 
@@ -139,7 +165,7 @@ Formalise adapter capabilities/profiles, verified firmware quirks and additional
 - provenance for verified fixtures/definitions;
 - VIN-keyed iPhone vehicle/module profiles are implemented; broaden session persistence only where it remains useful;
 - accessibility, performance and battery review;
-- durable long-session storage;
+- durable long-session storage across application termination;
 - reproducible release process;
 - security/privacy review before telemetry can leave the device.
 
