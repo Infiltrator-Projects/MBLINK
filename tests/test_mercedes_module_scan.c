@@ -476,6 +476,40 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+            {
+                const MblinkMercedesModuleScanEntry *eis = &scan.modules[1];
+                CHECK(eis->tx_can_id == UINT32_C(0x612));
+                CHECK(eis->rx_can_id == UINT32_C(0x482));
+                CHECK(eis->definition != NULL);
+                CHECK(strcmp(eis->definition->key, "eis-ezs") == 0);
+                CHECK(eis->kind == MBLINK_MERCEDES_MODULE_BODY);
+            }
+
+            /*
+             * If the transient session itself stays silent, retain the same
+             * exact-route fallbacks and let F100/its negative response prove
+             * presence. EPS212 gives us a second independently published pair.
+             */
+            CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 178U));
+            CHECK(scan.candidate_tx == UINT32_C(0x6b2));
+            CHECK(scan.candidate_rx == UINT32_C(0x496));
+            scan.stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+            CHECK(send_ok(&scan, "ATCRA496") == 0);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
                   MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK);
             CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
@@ -488,15 +522,13 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(mblink_mercedes_module_scan_accept(
                       &scan, &uds_negative) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-            CHECK(scan.module_count >= 1U);
+            CHECK(scan.module_count == 3U);
             {
-                const MblinkMercedesModuleScanEntry *eis =
-                    &scan.modules[scan.module_count - 1U];
-                CHECK(eis->tx_can_id == UINT32_C(0x612));
-                CHECK(eis->rx_can_id == UINT32_C(0x482));
-                CHECK(eis->definition != NULL);
-                CHECK(strcmp(eis->definition->key, "eis-ezs") == 0);
-                CHECK(eis->kind == MBLINK_MERCEDES_MODULE_BODY);
+                const MblinkMercedesModuleScanEntry *eps = &scan.modules[2];
+                CHECK(eps->tx_can_id == UINT32_C(0x6b2));
+                CHECK(eps->rx_can_id == UINT32_C(0x496));
+                CHECK(eps->definition != NULL);
+                CHECK(strcmp(eps->definition->key, "steering-column") == 0);
             }
         }
 
