@@ -97,6 +97,7 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK,
@@ -182,6 +183,7 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return "discover-set-mask";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return "discover-lock-headers-off";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return "discover-set-receive";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return "discover-extended-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return "discover-tester-present";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK: return "discover-dtc-fallback";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return "discover-vin-fallback";
@@ -735,6 +737,7 @@ static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMerced
      */
     if (scan == NULL) return UINT64_C(4000);
     switch (scan->stage) {
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
@@ -778,6 +781,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return WRITE("ATCM000");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_mercedes_module_scan_format_can_command("ATCRA", scan->candidate_rx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return WRITE("1003");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return WRITE("3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return WRITE("1902FF");
@@ -946,12 +950,30 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
         /*
-         * A configured receive route has not yet proved that an ECU is
-         * present.  Always validate it with TesterPresent first.  If this
-         * stage was reached after legacy route-learning, the duplicate
-         * TesterPresent is harmless and keeps one consistent state machine.
+         * Public EIS_212/204 traces show the nonstandard 0x612 -> 0x482 route
+         * entering the standard UDS extended diagnostic session before
+         * variant/identity reads.  Negotiate that transient session only for
+         * source-corroborated Mercedes routes; ordinary sweep candidates stay
+         * in the default session.
          */
-        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        scan->stage = mblink_mercedes_module_scan_known_route(scan) != NULL
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
+        /*
+         * A positive or valid negative UDS response proves the exact route is
+         * alive.  Lack of a response is not fatal: continue with the bounded
+         * read-only presence probes because not every Mercedes ECU requires
+         * or accepts the same diagnostic-session transition.
+         */
+        present = mblink_mercedes_module_scan_decode_uds(
+            response, MBLINK_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+            pdu, sizeof(pdu), &pdu_length, &uds);
+        if (present)
+            (void)mblink_mercedes_module_scan_record_module(scan, false);
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
         if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
