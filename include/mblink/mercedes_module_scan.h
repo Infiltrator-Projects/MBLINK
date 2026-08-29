@@ -949,11 +949,29 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_mercedes_module_scan_format_can_command("ATCRA", scan->candidate_rx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return WRITE("1003");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return WRITE("3E00");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
+        return WRITE(mblink_mercedes_module_scan_candidate_protocol(scan) ==
+                         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                     ? "3E01" : "3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return WRITE("1902FF");
+        return WRITE(mblink_mercedes_module_scan_candidate_protocol(scan) ==
+                         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                     ? "1802FF00" : "1902FF");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ:
+        if (scan->dtc_index >= scan->module_count)
+            return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
+        module = &scan->modules[scan->dtc_index];
+        return WRITE(mblink_mercedes_module_scan_entry_protocol(module) ==
+                         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                     ? "1802FF00" : "1902FF");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION: return WRITE("1003");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE: return WRITE("3E00");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
+        if (scan->dtc_index >= scan->module_count)
+            return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
+        module = &scan->modules[scan->dtc_index];
+        return WRITE(mblink_mercedes_module_scan_entry_protocol(module) ==
+                         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                     ? "3E01" : "3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return WRITE("22F190");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return WRITE("22F100");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY: return WRITE("22F197");
@@ -1124,9 +1142,15 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
          * source-corroborated Mercedes routes; ordinary sweep candidates stay
          * in the default session.
          */
-        scan->stage = mblink_mercedes_module_scan_known_route(scan) != NULL
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        {
+            const MblinkMercedesKnownRoute *route =
+                mblink_mercedes_module_scan_known_route(scan);
+            scan->stage =
+                route != NULL &&
+                route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS
+                    ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION
+                    : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
         /*
@@ -1161,9 +1185,10 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             }
             break;
         }
-        present = mblink_mercedes_module_scan_decode_uds(
-            response, MBLINK_UDS_SERVICE_TESTER_PRESENT,
-            pdu, sizeof(pdu), &pdu_length, &uds);
+        present = mblink_mercedes_module_scan_decode_candidate(
+            scan, response,
+            MBLINK_UDS_SERVICE_TESTER_PRESENT,
+            MBLINK_KWP2000_SERVICE_TESTER_PRESENT);
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, true);
             scan->stage =
@@ -1198,15 +1223,27 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             }
             break;
         }
-        present = mblink_mercedes_module_scan_decode_uds(
-            response, MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
-            pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present) (void)mblink_mercedes_module_scan_record_module(scan, false);
+        present = mblink_mercedes_module_scan_decode_candidate(
+            scan, response,
+            MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
+            MBLINK_KWP2000_SERVICE_READ_DTC_BY_STATUS);
+        if (present)
+            (void)mblink_mercedes_module_scan_record_module(scan, false);
         module = mblink_mercedes_module_scan_find_candidate(scan);
-        if (module != NULL) mblink_mercedes_module_scan_capture_dtc(module, response);
-        scan->stage = module != NULL
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        if (module != NULL)
+            mblink_mercedes_module_scan_capture_dtc(module, response);
+        if (mblink_mercedes_module_scan_candidate_protocol(scan) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+            if (module != NULL)
+                mblink_mercedes_module_scan_advance_candidate(scan);
+            else
+                scan->stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK;
+        } else {
+            scan->stage = module != NULL
+                ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
+                : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+        }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
         if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
@@ -1240,13 +1277,19 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK:
-        present = mblink_mercedes_module_scan_decode_uds(
-            response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
-            pdu, sizeof(pdu), &pdu_length, &uds);
+        present = mblink_mercedes_module_scan_decode_candidate(
+            scan, response,
+            MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_COMMON_IDENTIFIER);
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, false);
-            scan->stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+            if (mblink_mercedes_module_scan_candidate_protocol(scan) ==
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+                mblink_mercedes_module_scan_advance_candidate(scan);
+            } else {
+                scan->stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+            }
         } else {
             mblink_mercedes_module_scan_advance_candidate(scan);
         }
@@ -1298,10 +1341,16 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
         if (scan->dtc_index >= scan->module_count) goto failed_state;
-        scan->stage = mblink_mercedes_module_scan_known_entry_route(
-                          &scan->modules[scan->dtc_index]) != NULL
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
+        {
+            const MblinkMercedesKnownRoute *route =
+                mblink_mercedes_module_scan_known_entry_route(
+                    &scan->modules[scan->dtc_index]);
+            scan->stage =
+                route != NULL &&
+                route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS
+                    ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION
+                    : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
+        }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
         if (scan->dtc_index >= scan->module_count) goto failed_state;
@@ -1315,9 +1364,10 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
         if (scan->dtc_index >= scan->module_count) goto failed_state;
-        present = mblink_mercedes_module_scan_decode_uds(
-            response, MBLINK_UDS_SERVICE_TESTER_PRESENT,
-            pdu, sizeof(pdu), &pdu_length, &uds);
+        present = mblink_mercedes_module_scan_decode_entry(
+            &scan->modules[scan->dtc_index], response,
+            MBLINK_UDS_SERVICE_TESTER_PRESENT,
+            MBLINK_KWP2000_SERVICE_TESTER_PRESENT);
         scan->modules[scan->dtc_index].tester_present_response = present;
         scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ;
         break;
@@ -1332,7 +1382,26 @@ failed_state: scan->failure = MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE; s
 
 static inline size_t mblink_mercedes_module_scan_module_count(const MblinkMercedesModuleScan *scan) { return scan != NULL ? scan->module_count : 0U; }
 static inline const MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_module_at(const MblinkMercedesModuleScan *scan, size_t index) { return scan != NULL && index < scan->module_count ? &scan->modules[index] : NULL; }
-static inline size_t mblink_mercedes_module_scan_total_dtc_count(const MblinkMercedesModuleScan *scan) { size_t total = 0U; if (scan == NULL) return 0U; for (size_t index = 0U; index < scan->module_count; ++index) total += scan->modules[index].dtcs.count; return total; }
+static inline size_t mblink_mercedes_module_scan_entry_dtc_count(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (module == NULL) return 0U;
+    return mblink_mercedes_module_scan_entry_protocol(module) ==
+               MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+        ? module->kwp_dtcs.count : module->dtcs.count;
+}
+
+static inline size_t mblink_mercedes_module_scan_total_dtc_count(
+    const MblinkMercedesModuleScan *scan)
+{
+    size_t total = 0U;
+    size_t index;
+    if (scan == NULL) return 0U;
+    for (index = 0U; index < scan->module_count; ++index)
+        total += mblink_mercedes_module_scan_entry_dtc_count(
+            &scan->modules[index]);
+    return total;
+}
 
 static inline size_t mblink_mercedes_module_scan_fresh_response_count(
     const MblinkMercedesModuleScan *scan)
