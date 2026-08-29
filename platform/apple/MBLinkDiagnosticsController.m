@@ -13,7 +13,7 @@
 
 static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
-static const NSInteger MBLinkVehicleProfileSchemaVersion = 2;
+static const NSInteger MBLinkVehicleProfileSchemaVersion = 3;
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
@@ -118,9 +118,13 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     NSNumber *tx = dictionary[@"tx"];
     NSNumber *rx = dictionary[@"rx"];
     NSNumber *extended = dictionary[@"extended"];
+    NSNumber *protocol = dictionary[@"protocol"];
     if (![tx isKindOfClass:[NSNumber class]] ||
         ![rx isKindOfClass:[NSNumber class]] ||
-        ![extended isKindOfClass:[NSNumber class]]) {
+        ![extended isKindOfClass:[NSNumber class]] ||
+        ![protocol isKindOfClass:[NSNumber class]] ||
+        protocol.unsignedIntegerValue >
+            (NSUInteger)MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         return NO;
     }
 
@@ -128,6 +132,8 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     entry->tx_can_id = tx.unsignedIntValue;
     entry->rx_can_id = rx.unsignedIntValue;
     entry->extended_id = extended.boolValue;
+    entry->protocol =
+        (MblinkMercedesDiagnosticProtocol)protocol.unsignedIntegerValue;
 
     NSNumber *kind = dictionary[@"kind"];
     entry->kind = [kind isKindOfClass:[NSNumber class]]
@@ -186,6 +192,40 @@ static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
             (unsigned int)list->records[index].status]];
     }
     return [values copy];
+}
+
+static void MBLinkAppendMercedesModuleFaultStrings(
+    NSMutableArray<NSString *> *faults,
+    const MblinkMercedesModuleScanEntry *module,
+    NSString *name,
+    NSString *address)
+{
+    if (faults == nil || module == NULL || name == nil || address == nil)
+        return;
+
+    if (mblink_mercedes_module_scan_entry_protocol(module) ==
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        for (size_t index = 0U; index < module->kwp_dtcs.count; ++index) {
+            [faults addObject:[NSString stringWithFormat:
+                @"%@ · %@ · %04X · KWP2000 status 0x%02X",
+                name, address,
+                (unsigned int)module->kwp_dtcs.entries[index].code,
+                (unsigned int)module->kwp_dtcs.entries[index].status]];
+        }
+        return;
+    }
+
+    for (size_t index = 0U; index < module->dtcs.count; ++index) {
+        char code[7];
+        if (!mblink_uds_dtc_format_hex(
+                module->dtcs.records[index].code, code, sizeof(code))) {
+            continue;
+        }
+        [faults addObject:[NSString stringWithFormat:
+            @"%@ · %@ · %@ · UDS status 0x%02X",
+            name, address, MBLinkStringFromCString(code),
+            (unsigned int)module->dtcs.records[index].status]];
+    }
 }
 
 static bool MBLinkSimulatorResponder(
@@ -748,19 +788,8 @@ static bool MBLinkSimulatorResponder(
             : [NSString stringWithFormat:@"0x%03X → 0x%03X",
                 (unsigned int)module->tx_can_id,
                 (unsigned int)module->rx_can_id];
-        for (size_t dtcIndex = 0U;
-             dtcIndex < module->dtcs.count; ++dtcIndex) {
-            char code[7];
-            if (!mblink_uds_dtc_format_hex(
-                    module->dtcs.records[dtcIndex].code,
-                    code, sizeof(code))) {
-                continue;
-            }
-            [faults addObject:[NSString stringWithFormat:
-                @"%@ · %@ · %@ · status 0x%02X",
-                name, address, MBLinkStringFromCString(code),
-                (unsigned int)module->dtcs.records[dtcIndex].status]];
-        }
+        MBLinkAppendMercedesModuleFaultStrings(
+            faults, module, name, address);
     }
 
     self.mercedesUDSFaults = [faults copy];
@@ -794,27 +823,38 @@ static bool MBLinkSimulatorResponder(
         NSString *address = module->extended_id
   ? [NSString stringWithFormat:@"0x%08X → 0x%08X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id]
   : [NSString stringWithFormat:@"0x%03X → 0x%03X", (unsigned int)module->tx_can_id, (unsigned int)module->rx_can_id];
+        const size_t moduleFaultCount =
+            mblink_mercedes_module_scan_entry_dtc_count(module);
+        NSString *protocol = MBLinkStringFromCString(
+            mblink_mercedes_diagnostic_protocol_name(
+                mblink_mercedes_module_scan_entry_protocol(module)));
         if (module->definition != NULL) {
             [identity addObject:[NSString stringWithFormat:
                 @"MODULE · %@ · %@ · %@ · %zu fault record%@",
                 name,
                 MBLinkStringFromCString(
                     module->definition->component_designation),
-                address, module->dtcs.count,
-                module->dtcs.count == 1U ? @"" : @"s"]];
+                address, moduleFaultCount,
+                moduleFaultCount == 1U ? @"" : @"s"]];
+            [identity addObject:[NSString stringWithFormat:
+                @"  PROTOCOL · %@", protocol]];
         } else if (module->kind != MBLINK_MERCEDES_MODULE_OTHER) {
             [identity addObject:[NSString stringWithFormat:
                 @"MODULE · %@ · %@ · %@ candidate · %zu fault record%@",
                 name, address,
                 MBLinkStringFromCString(
                     mblink_mercedes_module_kind_name(module->kind)),
-                module->dtcs.count,
-                module->dtcs.count == 1U ? @"" : @"s"]];
+                moduleFaultCount,
+                moduleFaultCount == 1U ? @"" : @"s"]];
+            [identity addObject:[NSString stringWithFormat:
+                @"  PROTOCOL · %@", protocol]];
         } else {
             [identity addObject:[NSString stringWithFormat:
                 @"MODULE · %@ · %@ · unresolved family · %zu fault record%@",
-                name, address, module->dtcs.count,
-                module->dtcs.count == 1U ? @"" : @"s"]];
+                name, address, moduleFaultCount,
+                moduleFaultCount == 1U ? @"" : @"s"]];
+            [identity addObject:[NSString stringWithFormat:
+                @"  PROTOCOL · %@", protocol]];
         }
         if (module->identity_available)
             [identity addObject:[NSString stringWithFormat:
@@ -831,13 +871,8 @@ static bool MBLinkSimulatorResponder(
             [identity addObject:[NSString stringWithFormat:
                 @"  HARDWARE · %@", MBLinkStringFromCString(
                     module->hardware_number)]];
-        for (size_t dtcIndex = 0U; dtcIndex < module->dtcs.count; ++dtcIndex) {
-  char code[7];
-  if (!mblink_uds_dtc_format_hex(module->dtcs.records[dtcIndex].code, code, sizeof(code))) continue;
-  [faults addObject:[NSString stringWithFormat:@"%@ · %@ · %@ · status 0x%02X",
-      name, address, MBLinkStringFromCString(code),
-      (unsigned int)module->dtcs.records[dtcIndex].status]];
-        }
+        MBLinkAppendMercedesModuleFaultStrings(
+            faults, module, name, address);
     }
     {
         const size_t classified =
@@ -991,6 +1026,8 @@ static bool MBLinkSimulatorResponder(
             @"tx": @(module->tx_can_id),
             @"rx": @(module->rx_can_id),
             @"extended": @(module->extended_id),
+            @"protocol": @((NSUInteger)
+                mblink_mercedes_module_scan_entry_protocol(module)),
             @"kind": @((NSUInteger)module->kind)
         } mutableCopy];
         if (module->identity_available)
