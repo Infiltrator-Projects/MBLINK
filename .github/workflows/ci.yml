@@ -259,7 +259,7 @@ jobs:
           ! grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS' include/mblink/mercedes_module_scan.h
           grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'MBLinkVehicleProfileSchemaVersion = 2' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'MBLinkVehicleProfileSchemaVersion = 3' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'Transmission ECU candidate (7E1/7E9 EOBD responder)' include/mblink/mercedes_module_scan.h
