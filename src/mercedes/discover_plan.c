@@ -17,6 +17,55 @@
 #define MBLINK_SWEEP_29_COUNT ((size_t)255U)
 #define MBLINK_SWEEP_TARGET_COUNT (MBLINK_SWEEP_11_COUNT + MBLINK_SWEEP_29_COUNT)
 
+/*
+ * Public Mercedes/Caesar traces prove that a number of 204/207/212-family
+ * diagnostic ECUs do not use the legislated-OBD request+8 response mapping.
+ * Vediamo/CAESAR stores CP_REQUEST_CANIDENTIFIER and
+ * CP_RESPONSE_CANIDENTIFIER independently for exactly this reason.
+ *
+ * Keep only routes whose two CAN identifiers and ECU family are directly
+ * published.  Unknown routes remain unknown rather than being extrapolated.
+ */
+static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
+    {
+        UINT32_C(0x612), UINT32_C(0x482),
+        "eis-ezs", "EIS_212 / EIS_204",
+        "CaesarSuite discussion #5: EIS trace 0x612 request, 0x482 response"
+    },
+    {
+        UINT32_C(0x632), UINT32_C(0x486),
+        "esp", "ABR2XT",
+        "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486"
+    },
+    {
+        UINT32_C(0x6b2), UINT32_C(0x496),
+        "steering-column", "EPS212",
+        "CaesarSuite discussion #5: EPS212 CP_REQUEST 0x6B2, CP_RESPONSE 0x496"
+    }
+};
+
+size_t mblink_mercedes_known_route_count(void)
+{
+    return sizeof(mercedes_known_routes) / sizeof(mercedes_known_routes[0]);
+}
+
+const MblinkMercedesKnownRoute *mblink_mercedes_known_route_at(size_t index)
+{
+    return index < mblink_mercedes_known_route_count()
+        ? &mercedes_known_routes[index] : NULL;
+}
+
+const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
+    uint32_t tx_can_id)
+{
+    size_t index;
+    for (index = 0U; index < mblink_mercedes_known_route_count(); ++index) {
+        if (mercedes_known_routes[index].tx_can_id == tx_can_id)
+            return &mercedes_known_routes[index];
+    }
+    return NULL;
+}
+
 static int mercedes_target_at(
     size_t index, link_discover_sweep_target *target)
 {
@@ -26,8 +75,11 @@ static int mercedes_target_at(
 
     if (index < MBLINK_SWEEP_11_COUNT) {
         const uint32_t tx = MBLINK_SWEEP_11_FIRST + (uint32_t)index;
+        const MblinkMercedesKnownRoute *known =
+            mblink_mercedes_known_route_for_tx(tx);
         target->tx_can_id = tx;
-        target->rx_can_id = tx + UINT32_C(8);
+        target->rx_can_id = known != NULL
+            ? known->rx_can_id : tx + UINT32_C(8);
         target->extended_id = false;
         return 1;
     }
@@ -92,6 +144,11 @@ static const char *mercedes_fallback_label(
     if (!target->extended_id &&
         target->tx_can_id == UINT32_C(0x7e1)) {
         return "Secondary EOBD powertrain ECU";
+    }
+    if (!target->extended_id) {
+        const MblinkMercedesKnownRoute *known =
+            mblink_mercedes_known_route_for_tx(target->tx_can_id);
+        if (known != NULL) return known->qualifier;
     }
     return "Unidentified Mercedes ECU";
 }
