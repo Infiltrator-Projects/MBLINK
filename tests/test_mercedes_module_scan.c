@@ -213,7 +213,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         const MblinkMercedesModuleDefinition *definition;
 
-        CHECK(mblink_mercedes_c207_module_definition_count() >= 16U);
+        CHECK(mblink_mercedes_c207_module_definition_count() >= 23U);
         definition =
             mblink_mercedes_c207_module_definition_for_identity(
                 "CRD3-651-WMA4BD3");
@@ -229,6 +229,37 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 "ORC_212");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "IC_204");
+        CHECK(definition != NULL);
+        CHECK(definition->kind ==
+              MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "HU_204");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "audio-headunit") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "RBTMFL_204");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "RBTMFR_204");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "SEATD_212");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "seat-driver") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "SEATP_204");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "seat-passenger") == 0);
         CHECK(mblink_mercedes_c207_module_definition_for_identity(
                   "TOTALLY_UNKNOWN_ECU") == NULL);
 
