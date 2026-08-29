@@ -486,21 +486,25 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, summary, "state-success");
         for (size_t index = 0U; index < context->module_scan.module_count; ++index) {
   const MblinkMercedesModuleScanEntry *module = &context->module_scan.modules[index];
-  char value[128];
+  const size_t fault_count =
+      mblink_mercedes_module_scan_entry_dtc_count(module);
+  const char *protocol = mblink_mercedes_diagnostic_protocol_name(
+      mblink_mercedes_module_scan_entry_protocol(module));
+  char value[160];
   if (module->extended_id) {
       (void)snprintf(value, sizeof(value),
-                     "0x%08X → 0x%08X · %zu fault record%s",
+                     "0x%08X → 0x%08X · %s · %zu fault record%s",
                      (unsigned int)module->tx_can_id,
                      (unsigned int)module->rx_can_id,
-                     module->dtcs.count,
-                     module->dtcs.count == 1U ? "" : "s");
+                     protocol, fault_count,
+                     fault_count == 1U ? "" : "s");
   } else {
       (void)snprintf(value, sizeof(value),
-                     "0x%03X → 0x%03X · %zu fault record%s",
+                     "0x%03X → 0x%03X · %s · %zu fault record%s",
                      (unsigned int)module->tx_can_id,
                      (unsigned int)module->rx_can_id,
-                     module->dtcs.count,
-                     module->dtcs.count == 1U ? "" : "s");
+                     protocol, fault_count,
+                     fault_count == 1U ? "" : "s");
   }
   link_gtk_card_append_detail(
       card, mblink_mercedes_module_scan_module_name(module), value);
@@ -527,7 +531,7 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(card, "MODULE SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(card,
-        "Normal discovery performs an 8-endpoint EOBD pass, then a gateway-routed ISO 15765 normal-fixed 29-bit census (263 total targets, tester address F1 excluded). Responders are read for F197/F187/F188/F191 identity evidence and matched only against the source-corroborated W212/C207 module catalogue. FULL SWEEP remains an explicit forensic fallback that also walks 0x600–0x7F7. Unknown responders remain unresolved rather than guessed.");
+        "Normal discovery uses the full Mercedes-owned 11/29-bit target plan with bounded probes. Source-backed routes select their real diagnostic protocol: UDS endpoints use UDS identity/fault reads while confirmed KW2C3PE/KWP2000 endpoints use only KWP read services. FULL SWEEP retains slower read-only fallbacks. Unknown responders remain unresolved rather than guessed.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
@@ -559,10 +563,14 @@ static void append_module_fault_rows(
         }
 
         if (module->dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE) {
+            const size_t fault_count =
+                mblink_mercedes_module_scan_entry_dtc_count(module);
             (void)snprintf(module_value, sizeof(module_value),
-                "%zu fault record%s",
-                module->dtcs.count,
-                module->dtcs.count == 1U ? "" : "s");
+                "%zu %s fault record%s",
+                fault_count,
+                mblink_mercedes_diagnostic_protocol_name(
+                    mblink_mercedes_module_scan_entry_protocol(module)),
+                fault_count == 1U ? "" : "s");
         } else if (module->dtc_result ==
                    MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE) {
             (void)snprintf(module_value, sizeof(module_value),
@@ -576,33 +584,52 @@ static void append_module_fault_rows(
         }
         link_gtk_card_append_detail(card, module_label, module_value);
 
-        for (size_t dtc_index = 0U;
-             dtc_index < module->dtcs.count;
-             ++dtc_index) {
-            char code[7];
-            char label[96];
-            char value[128];
-            if (!mblink_uds_dtc_format_hex(
-                    module->dtcs.records[dtc_index].code,
-                    code, sizeof(code))) {
-                (void)snprintf(code, sizeof(code), "??????");
+        if (mblink_mercedes_module_scan_entry_protocol(module) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+            for (size_t dtc_index = 0U;
+                 dtc_index < module->kwp_dtcs.count;
+                 ++dtc_index) {
+                char label[96];
+                char value[128];
+                (void)snprintf(label, sizeof(label),
+                    "  %s fault %zu",
+                    mblink_mercedes_module_scan_module_name(module),
+                    dtc_index + 1U);
+                (void)snprintf(value, sizeof(value),
+                    "%04X · KWP2000 status 0x%02X",
+                    (unsigned int)module->kwp_dtcs.entries[dtc_index].code,
+                    (unsigned int)module->kwp_dtcs.entries[dtc_index].status);
+                link_gtk_card_append_detail(card, label, value);
             }
-            (void)snprintf(label, sizeof(label),
-                "  %s fault %zu",
-                mblink_mercedes_module_scan_module_name(module),
-                dtc_index + 1U);
-            (void)snprintf(value, sizeof(value),
-                "%s · status 0x%02X",
-                code,
-                (unsigned int)module->dtcs.records[dtc_index].status);
-            link_gtk_card_append_detail(card, label, value);
+        } else {
+            for (size_t dtc_index = 0U;
+                 dtc_index < module->dtcs.count;
+                 ++dtc_index) {
+                char code[7];
+                char label[96];
+                char value[128];
+                if (!mblink_uds_dtc_format_hex(
+                        module->dtcs.records[dtc_index].code,
+                        code, sizeof(code))) {
+                    (void)snprintf(code, sizeof(code), "??????");
+                }
+                (void)snprintf(label, sizeof(label),
+                    "  %s fault %zu",
+                    mblink_mercedes_module_scan_module_name(module),
+                    dtc_index + 1U);
+                (void)snprintf(value, sizeof(value),
+                    "%s · UDS status 0x%02X",
+                    code,
+                    (unsigned int)module->dtcs.records[dtc_index].status);
+                link_gtk_card_append_detail(card, label, value);
 
-            if (context->replay_mode &&
-                module->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS) {
-                link_gtk_card_append_detail(
-                    card,
-                    "  REPLAY INJECTION",
-                    "Seatbelt / airbag restraint fault · synthetic test evidence");
+                if (context->replay_mode &&
+                    module->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS) {
+                    link_gtk_card_append_detail(
+                        card,
+                        "  REPLAY INJECTION",
+                        "Seatbelt / airbag restraint fault · synthetic test evidence");
+                }
             }
         }
     }
@@ -611,7 +638,7 @@ static void append_module_fault_rows(
 static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
 {
     GtkWidget *mercedes = link_gtk_card_new("MERCEDES FACTORY", "Engine ECU factory diagnostics");
-    GtkWidget *modules = link_gtk_card_new("ALL DISCOVERED MODULES", "Per-module Mercedes UDS fault memory");
+    GtkWidget *modules = link_gtk_card_new("ALL DISCOVERED MODULES", "Per-module Mercedes UDS/KWP2000 fault memory");
     GtkWidget *obd = link_gtk_card_new("STANDARD SAE OBD-II", "Stored, pending and permanent faults");
     char summary[160];
 
