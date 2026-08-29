@@ -114,7 +114,7 @@ int main(void)
     }
     {
         const InfiltratrProjectInfo *info = mblink_project_info();
-        if (!check(info != NULL && strcmp(info->source_id, "The-First-Infiltrator/MBLINK") == 0,
+        if (!check(info != NULL && strcmp(info->source_id, "Infiltrator-Projects/MBLINK") == 0,
                    "project source identity mismatch") ||
             !check(strcmp(info->build_profile, mblink_build_profile()) == 0,
                    "project build profile mismatch")) {

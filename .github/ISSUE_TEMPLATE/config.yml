@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security reports
-    url: https://github.com/The-First-Infiltrator/MBLINK/security
+    url: https://github.com/Infiltrator-Projects/MBLINK/security
     about: Please use the security policy for vulnerabilities or sensitive reports.

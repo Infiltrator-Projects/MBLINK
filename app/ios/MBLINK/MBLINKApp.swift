@@ -1424,7 +1424,7 @@ private struct MBLINKAboutView: View {
                             .foregroundStyle(MBBrand.muted)
                         Link(
                             "Project Website",
-                            destination: URL(string: "https://github.com/The-First-Infiltrator/MBLINK")!
+                            destination: URL(string: "https://github.com/Infiltrator-Projects/MBLINK")!
                         )
                         .font(.body.weight(.semibold))
                         .foregroundStyle(MBBrand.silverBright)

@@ -2,7 +2,7 @@
 
 # MBLINK
 
-[![MBLINK CI](https://github.com/The-First-Infiltrator/MBLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/The-First-Infiltrator/MBLINK/actions/workflows/ci.yml)
+[![MBLINK CI](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml)
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development target is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
 
@@ -84,7 +84,7 @@ As Discover gains manufacturer-aware depth, the boundary stays the same: reusabl
 ## Build and test
 
 ```bash
-git clone --recurse-submodules https://github.com/The-First-Infiltrator/MBLINK.git
+git clone --recurse-submodules https://github.com/Infiltrator-Projects/MBLINK.git
 cd MBLINK
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel

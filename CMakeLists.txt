@@ -126,7 +126,7 @@ if(MBLINK_BUILD_LINUX_APP)
     set(CPACK_PACKAGE_VENDOR "The First Infiltrator")
     set(CPACK_PACKAGE_CONTACT "Shannon Smith")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Portable Mercedes-oriented vehicle diagnostics")
-    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/The-First-Infiltrator/MBLINK")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Infiltrator-Projects/MBLINK")
     set(CPACK_PACKAGE_VERSION "${MBLINK_PACKAGE_VERSION}")
     set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -149,7 +149,7 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     endif()
     link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
         PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
-        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/The-First-Infiltrator/MBLINK"
+        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLINK"
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
         FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
     target_link_libraries(mblink-discover PRIVATE mblink)

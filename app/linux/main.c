@@ -1274,7 +1274,7 @@ int main(int argc, char **argv)
         ? "MERCEDES-BENZ · C207 / OM651 · OFFLINE REPLAY"
         : "MERCEDES-BENZ · C207 / OM651";
     descriptor.version = mblink_version();
-    descriptor.emblem_resource = "/com/github/The-First-Infiltrator/MBLINK/mblink-emblem.png";
+    descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
     descriptor.css = mblink_css;
     descriptor.render_section = render_section;
     descriptor.show_about = show_about;

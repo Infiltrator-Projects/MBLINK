@@ -40,7 +40,7 @@ void mblink_linux_show_about(GtkWindow *parent)
     GtkWidget *widget = gtk_about_dialog_new();
     GtkAboutDialog *about = GTK_ABOUT_DIALOG(widget);
     GdkTexture *logo = gdk_texture_new_from_resource(
-        "/com/github/The-First-Infiltrator/MBLINK/mblink-emblem.png");
+        "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png");
     char *comments = g_strdup_printf(
         "%s\n\nBuild: %s",
         info->comments,

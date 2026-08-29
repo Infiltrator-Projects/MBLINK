@@ -1,4 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [submodule "src/link"]
 	path = src/link
-	url = https://github.com/The-First-Infiltrator/LINK.git
+	url = https://github.com/Infiltrator-Projects/LINK.git

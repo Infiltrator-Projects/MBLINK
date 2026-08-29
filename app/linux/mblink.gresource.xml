@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/com/github/The-First-Infiltrator/MBLINK">
+  <gresource prefix="/com/github/Infiltrator-Projects/MBLINK">
     <file alias="mblink-emblem.png">assets/mblink-emblem.png</file>
   </gresource>
 </gresources>
