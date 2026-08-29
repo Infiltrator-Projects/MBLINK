@@ -61,7 +61,11 @@ For every responder MBLINK retains the physical route and reads read-only `F197`
 
 The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately.
 
-The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps the product-owned target plan's exact receive route active for each 11-bit probe. It does not open the entire CAN bus while waiting for one diagnostic reply.
+The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps an exact receive route active for each 11-bit probe instead of opening the whole CAN bus.
+
+That capture also disproved a second assumption: a Mercedes 11-bit diagnostic response is **not always request+8**. Public CAESAR/Vediamo traces publish independent `CP_REQUEST_CANIDENTIFIER` and `CP_RESPONSE_CANIDENTIFIER` values and give concrete 204/212-family examples: EIS `0x612 -> 0x482`, ABR2XT `0x632 -> 0x486` and EPS212 `0x6B2 -> 0x496`. MBLINK now treats those published pairs as source-corroborated routes and never extrapolates unobserved pairs from them.
+
+For an ordinary address whose response route is unknown, the existing bounded plan still uses the conventional request+8 candidate. For a source-corroborated nonstandard route, MBLINK keeps the published receive ID and, if TesterPresent is quiet, continues only through bounded read-only `19 02 FF`, `22 F190` and finally `22 F100` probes. A positive **or valid negative** UDS response proves a responder exists. No coding, reset, routine, security access, DTC clear or programming request is introduced by this route-aware census.
 
 A catalogue entry is not evidence that a module is fitted to a particular car. Optional equipment remains optional, petrol/diesel control-unit alternatives remain mutually dependent on the decoded vehicle configuration, and a discovered but unclassified responder remains unresolved. Conversely, an ECU becomes part of the live vehicle map only after it actually responds during the read-only scan.
 
