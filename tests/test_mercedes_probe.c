@@ -34,6 +34,14 @@ static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
         profile, "c207-om651-engine-eobd-11bit");
 }
 
+static const MblinkMercedesEcuEndpointDefinition *transmission_candidate_endpoint(void)
+{
+    const MblinkMercedesVehicleProfile *profile =
+        mblink_mercedes_c207_om651_profile();
+    return mblink_mercedes_profile_find_endpoint(
+        profile, "c207-om651-secondary-eobd-11bit");
+}
+
 static int advance_configuration(MblinkMercedesEcuProbe *probe)
 {
     static const char *commands[] = {
@@ -126,9 +134,17 @@ static int test_successful_read_only_identity_probe(void)
         "6210021122"
     };
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
+    const MblinkMercedesEcuEndpointDefinition *transmission =
+        transmission_candidate_endpoint();
     MblinkMercedesEcuProbe probe;
 
     CHECK(endpoint != NULL);
+    CHECK(transmission != NULL);
+    CHECK(transmission->module == MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    CHECK(transmission->address.tx_can_id == UINT32_C(0x7e1));
+    CHECK(transmission->address.rx_can_id == UINT32_C(0x7e9));
+    CHECK(transmission->status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     CHECK(mblink_mercedes_ecu_probe_identity_did_count() == 11U);
     CHECK(mblink_mercedes_ecu_probe_identity_did_at(0U) == 0xF18CU);
     CHECK(mblink_mercedes_ecu_probe_identity_did_at(5U) == 0xF197U);
