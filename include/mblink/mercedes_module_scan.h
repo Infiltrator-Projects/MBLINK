@@ -23,6 +23,7 @@
 #include "mblink/elm327_can.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_module_catalog.h"
+#include "mblink/kwp2000.h"
 #include "mblink/uds.h"
 #include "mblink/uds_dtc.h"
 
@@ -122,6 +123,7 @@ typedef struct MblinkMercedesModuleScanEntry {
     uint32_t tx_can_id;
     uint32_t rx_can_id;
     bool extended_id;
+    MblinkMercedesDiagnosticProtocol protocol;
     MblinkMercedesModuleKind kind;
     bool tester_present_response;
     bool identity_available;
@@ -136,8 +138,10 @@ typedef struct MblinkMercedesModuleScanEntry {
     MblinkMercedesDefinitionStatus identification_status;
     MblinkMercedesModuleDtcResult dtc_result;
     MblinkUdsResult dtc_uds_result;
+    MblinkKwp2000Result dtc_kwp_result;
     uint8_t dtc_negative_response_code;
     MblinkUdsDtcList dtcs;
+    MblinkKwp2000DtcList kwp_dtcs;
 } MblinkMercedesModuleScanEntry;
 
 typedef struct MblinkMercedesModuleScan {
@@ -365,6 +369,26 @@ mblink_mercedes_module_scan_known_entry_route(
         ? route : NULL;
 }
 
+static inline MblinkMercedesDiagnosticProtocol
+mblink_mercedes_module_scan_candidate_protocol(
+    const MblinkMercedesModuleScan *scan)
+{
+    const MblinkMercedesKnownRoute *route =
+        mblink_mercedes_module_scan_known_route(scan);
+    return route != NULL ? route->protocol : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+}
+
+static inline MblinkMercedesDiagnosticProtocol
+mblink_mercedes_module_scan_entry_protocol(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    const MblinkMercedesKnownRoute *route =
+        mblink_mercedes_module_scan_known_entry_route(module);
+    return route != NULL ? route->protocol
+                         : (module != NULL ? module->protocol
+                                           : MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+}
+
 static inline void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan)
 {
     size_t index;
@@ -493,6 +517,7 @@ static inline MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_record_
     module->tx_can_id = scan->candidate_tx;
     module->rx_can_id = scan->candidate_rx;
     module->extended_id = scan->candidate_extended;
+    module->protocol = mblink_mercedes_module_scan_candidate_protocol(scan);
     module->kind = mblink_mercedes_module_scan_kind(scan->candidate_tx, scan->candidate_extended);
     module->tester_present_response = tester_present;
     module->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
@@ -619,24 +644,135 @@ static inline bool mblink_mercedes_module_scan_decode_uds(const MblinkElm327Resp
     return result == MBLINK_UDS_RESULT_OK || result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE;
 }
 
+static inline bool mblink_mercedes_module_scan_decode_kwp(
+    const MblinkElm327Response *response,
+    uint8_t service)
+{
+    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    MblinkKwp2000Response decoded;
+    MblinkKwp2000Result result;
+
+    if (response == NULL || response->result != MBLINK_ELM327_RESULT_OK)
+        return false;
+    if (mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &pdu_length) !=
+        MBLINK_ELM327_CAN_RESULT_OK) {
+        return false;
+    }
+    result = mblink_kwp2000_decode_response(
+        service, pdu, pdu_length, &decoded);
+    return result == MBLINK_KWP2000_RESULT_OK ||
+           result == MBLINK_KWP2000_RESULT_NEGATIVE_RESPONSE;
+}
+
+static inline bool mblink_mercedes_module_scan_decode_candidate(
+    const MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *response,
+    uint8_t uds_service,
+    uint8_t kwp_service)
+{
+    if (mblink_mercedes_module_scan_candidate_protocol(scan) ==
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return mblink_mercedes_module_scan_decode_kwp(response, kwp_service);
+    }
+    {
+        uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+        size_t pdu_length = 0U;
+        MblinkUdsResponse uds;
+        return mblink_mercedes_module_scan_decode_uds(
+            response, uds_service, pdu, sizeof(pdu), &pdu_length, &uds);
+    }
+}
+
+static inline bool mblink_mercedes_module_scan_decode_entry(
+    const MblinkMercedesModuleScanEntry *module,
+    const MblinkElm327Response *response,
+    uint8_t uds_service,
+    uint8_t kwp_service)
+{
+    if (mblink_mercedes_module_scan_entry_protocol(module) ==
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return mblink_mercedes_module_scan_decode_kwp(response, kwp_service);
+    }
+    {
+        uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+        size_t pdu_length = 0U;
+        MblinkUdsResponse uds;
+        return mblink_mercedes_module_scan_decode_uds(
+            response, uds_service, pdu, sizeof(pdu), &pdu_length, &uds);
+    }
+}
+
 static inline void mblink_mercedes_module_scan_capture_dtc(MblinkMercedesModuleScanEntry *module, const MblinkElm327Response *response)
 {
     uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
     size_t pdu_length = 0U;
-    MblinkUdsResponse generic;
-    MblinkUdsResult result;
     if (module == NULL || response == NULL) return;
+
     memset(&module->dtcs, 0, sizeof(module->dtcs));
+    memset(&module->kwp_dtcs, 0, sizeof(module->kwp_dtcs));
     module->dtc_negative_response_code = 0U;
-    if (response->result != MBLINK_ELM327_RESULT_OK) { module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE; return; }
-    if (mblink_elm327_can_decode_pdu(response, pdu, sizeof(pdu), &pdu_length) != MBLINK_ELM327_CAN_RESULT_OK) { module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE; return; }
-    result = mblink_uds_decode_response(MBLINK_UDS_SERVICE_READ_DTC_INFORMATION, pdu, pdu_length, &generic);
-    module->dtc_uds_result = result;
-    if (result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) { module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE; module->dtc_negative_response_code = generic.negative_response_code; return; }
-    if (result != MBLINK_UDS_RESULT_OK) { module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE; return; }
-    result = mblink_uds_decode_report_dtcs_by_status_mask_response(pdu, pdu_length, &module->dtcs);
-    module->dtc_uds_result = result;
-    module->dtc_result = result == MBLINK_UDS_RESULT_OK ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE : MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+    if (response->result != MBLINK_ELM327_RESULT_OK) {
+        module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
+        return;
+    }
+    if (mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &pdu_length) !=
+        MBLINK_ELM327_CAN_RESULT_OK) {
+        module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+        return;
+    }
+
+    if (mblink_mercedes_module_scan_entry_protocol(module) ==
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        MblinkKwp2000Response generic;
+        MblinkKwp2000Result result = mblink_kwp2000_decode_response(
+            MBLINK_KWP2000_SERVICE_READ_DTC_BY_STATUS,
+            pdu, pdu_length, &generic);
+        module->dtc_kwp_result = result;
+        if (result == MBLINK_KWP2000_RESULT_NEGATIVE_RESPONSE) {
+            module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE;
+            module->dtc_negative_response_code = generic.negative_response_code;
+            return;
+        }
+        if (result != MBLINK_KWP2000_RESULT_OK) {
+            module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+            return;
+        }
+        result = mblink_kwp2000_decode_read_dtc_by_status_response(
+            pdu, pdu_length, &module->kwp_dtcs);
+        module->dtc_kwp_result = result;
+        module->dtc_result =
+            (result == MBLINK_KWP2000_RESULT_OK ||
+             result == MBLINK_KWP2000_RESULT_TRUNCATED)
+                ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE
+                : MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+        return;
+    }
+
+    {
+        MblinkUdsResponse generic;
+        MblinkUdsResult result = mblink_uds_decode_response(
+            MBLINK_UDS_SERVICE_READ_DTC_INFORMATION,
+            pdu, pdu_length, &generic);
+        module->dtc_uds_result = result;
+        if (result == MBLINK_UDS_RESULT_NEGATIVE_RESPONSE) {
+            module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE;
+            module->dtc_negative_response_code = generic.negative_response_code;
+            return;
+        }
+        if (result != MBLINK_UDS_RESULT_OK) {
+            module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+            return;
+        }
+        result = mblink_uds_decode_report_dtcs_by_status_mask_response(
+            pdu, pdu_length, &module->dtcs);
+        module->dtc_uds_result = result;
+        module->dtc_result = result == MBLINK_UDS_RESULT_OK
+            ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE
+            : MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE;
+    }
 }
 
 static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin(MblinkMercedesModuleScan *scan)
@@ -710,8 +846,25 @@ mblink_mercedes_module_scan_begin_cached(
         destination->tester_present_response = false;
         destination->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
         destination->dtc_uds_result = (MblinkUdsResult)0;
+        destination->dtc_kwp_result = (MblinkKwp2000Result)0;
         destination->dtc_negative_response_code = 0U;
         memset(&destination->dtcs, 0, sizeof(destination->dtcs));
+        memset(&destination->kwp_dtcs, 0, sizeof(destination->kwp_dtcs));
+        {
+            const MblinkMercedesKnownRoute *route =
+                mblink_mercedes_module_scan_known_entry_route(destination);
+            if (route != NULL) {
+                const MblinkMercedesModuleDefinition *definition =
+                    mblink_mercedes_c207_module_definition_for_key(
+                        route->module_key);
+                destination->protocol = route->protocol;
+                if (definition != NULL) {
+                    destination->definition = definition;
+                    destination->kind = definition->kind;
+                    destination->identification_status = definition->status;
+                }
+            }
+        }
         if (destination->identity_available)
             mblink_mercedes_module_scan_classify_identity(destination);
     }
