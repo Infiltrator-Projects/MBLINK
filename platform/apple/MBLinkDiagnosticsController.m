@@ -168,6 +168,21 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         &entry->hardware_number_available);
     if (entry->identity_available)
         mblink_mercedes_module_scan_classify_identity(entry);
+    if (!entry->extended_id) {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_known_route_for_tx(entry->tx_can_id);
+        if (route != NULL && route->rx_can_id == entry->rx_can_id) {
+            const MblinkMercedesModuleDefinition *definition =
+                mblink_mercedes_c207_module_definition_for_key(
+                    route->module_key);
+            entry->protocol = route->protocol;
+            if (definition != NULL) {
+                entry->definition = definition;
+                entry->kind = definition->kind;
+                entry->identification_status = definition->status;
+            }
+        }
+    }
 
     const uint32_t maxID = entry->extended_id
         ? UINT32_C(0x1fffffff) : UINT32_C(0x7ff);
@@ -806,6 +821,7 @@ static bool MBLinkSimulatorResponder(
         if ([line hasPrefix:@"MODULE ·"] ||
             [line hasPrefix:@"MODULE MAP ·"] ||
             [line hasPrefix:@"  SYSTEM ·"] ||
+            [line hasPrefix:@"  PROTOCOL ·"] ||
             [line hasPrefix:@"  PART ·"] ||
             [line hasPrefix:@"  SOFTWARE ·"] ||
             [line hasPrefix:@"  HARDWARE ·"]) {
