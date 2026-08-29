@@ -31,6 +31,23 @@ typedef link_evidence_writer mblink_evidence_writer;
 #define mblink_evidence_flush link_evidence_flush
 #define mblink_evidence_close link_evidence_close
 
+typedef struct MblinkMercedesKnownRoute {
+    uint32_t tx_can_id;
+    uint32_t rx_can_id;
+    const char *module_key;
+    const char *qualifier;
+    const char *provenance;
+} MblinkMercedesKnownRoute;
+
+/**
+ * Return source-corroborated Mercedes 11-bit diagnostic routes whose response
+ * identifier is not the generic request+8 mapping.
+ */
+size_t mblink_mercedes_known_route_count(void);
+const MblinkMercedesKnownRoute *mblink_mercedes_known_route_at(size_t index);
+const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
+    uint32_t tx_can_id);
+
 /*
  * Mercedes owns the address/probe strategy; LINK owns the sweep machinery.
  * Both Linux and Windows consume this same product plan.
