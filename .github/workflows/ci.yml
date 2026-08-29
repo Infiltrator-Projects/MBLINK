@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [linux-native, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,8 +66,8 @@ jobs:
       - run: ctest --test-dir build --build-config Release --output-on-failure
 
   sanitizers:
-    name: Ubuntu / ASan + UBSan
-    runs-on: ubuntu-latest
+    name: Local Linux / ASan + UBSan
+    runs-on: linux-native
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,14 +81,15 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
   linux-app:
-    name: Linux / GTK4 app
-    runs-on: ubuntu-latest
+    name: Local Linux / GTK4 app
+    runs-on: linux-native
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
-      - run: |
+      - if: runner.environment == 'github-hosted'
+        run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev pkg-config xvfb xauth
       - id: version
