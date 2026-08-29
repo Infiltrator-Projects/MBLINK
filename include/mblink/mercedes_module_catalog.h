@@ -279,6 +279,19 @@ static inline size_t mblink_mercedes_c207_module_definition_count(void)
     return count;
 }
 
+static inline const MblinkMercedesModuleDefinition *
+mblink_mercedes_c207_module_definition_for_key(const char *key)
+{
+    size_t index;
+    if (key == NULL || key[0] == '\0') return NULL;
+    for (index = 0U; ; ++index) {
+        const MblinkMercedesModuleDefinition *definition =
+            mblink_mercedes_c207_module_definition_at(index);
+        if (definition == NULL) return NULL;
+        if (strcmp(definition->key, key) == 0) return definition;
+    }
+}
+
 static inline bool mblink_mercedes_module_ascii_contains_case_insensitive(
     const char *text,
     const char *needle)
