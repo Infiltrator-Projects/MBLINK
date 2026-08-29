@@ -127,6 +127,65 @@ mblink_mercedes_c207_module_definition_at(size_t index)
             "Mercedes W212 service topology identifies A1 as the instrument cluster; IC_204/IC_212 are established diagnostic family names."
         },
         {
+            "audio-headunit", "Audio 20 / COMAND head unit", "A2",
+            "interior / telematics CAN", MBLINK_MERCEDES_MODULE_BODY,
+            MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
+            { "HU_204", "HU204", "AUDIO 20", "COMAND" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212/C207 diagnostic coverage and Mercedes service reports identify the A2 head unit as HU_204/Audio 20/COMAND."
+        },
+        {
+            "audio-controller", "Audio / COMAND operating unit", "A40/9",
+            "interior / telematics CAN", MBLINK_MERCEDES_MODULE_BODY,
+            MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
+            { "CTRLC_204", "CTRLC204", "CTRLC", "AUDIO/COMAND" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212/C207 diagnostic coverage identifies the Audio/COMAND operating unit as CTRLC_204."
+        },
+        {
+            "central-display", "Audio / COMAND central display", "A40/8",
+            "interior / telematics CAN", MBLINK_MERCEDES_MODULE_BODY,
+            MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
+            { "DISPC_204", "DISPC204", "DSPC_204", "ZAN" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212/C207 diagnostic coverage identifies the central information display as the 204-family DISP/DSPC/ZAN unit."
+        },
+        {
+            "belt-pretensioner-left", "PRE-SAFE reversible belt tensioner · front left",
+            "A76", "chassis / restraints CAN",
+            MBLINK_MERCEDES_MODULE_RESTRAINTS,
+            MBLINK_MERCEDES_MODULE_PRESENCE_OPTIONAL_EQUIPMENT,
+            { "RBTMFL_204", "RBTMFL", "PRETENSION FRONT LEFT", "BELTPRETENSIONER LEFT" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212/C207 diagnostic coverage and Mercedes PRE-SAFE service information identify the left reversible emergency tensioner family as RBTMFL_204."
+        },
+        {
+            "belt-pretensioner-right", "PRE-SAFE reversible belt tensioner · front right",
+            "A76/1", "chassis / restraints CAN",
+            MBLINK_MERCEDES_MODULE_RESTRAINTS,
+            MBLINK_MERCEDES_MODULE_PRESENCE_OPTIONAL_EQUIPMENT,
+            { "RBTMFR_204", "RBTMFR", "PRETENSION FRONT RIGHT", "BELTPRETENSIONER RIGHT" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212/C207 diagnostic coverage and Mercedes PRE-SAFE service information identify the right reversible emergency tensioner family as RBTMFR_204."
+        },
+        {
+            "seat-driver", "Driver seat adjustment control unit", "driver seat module",
+            "interior CAN", MBLINK_MERCEDES_MODULE_BODY,
+            MBLINK_MERCEDES_MODULE_PRESENCE_OPTIONAL_EQUIPMENT,
+            { "SEATD_212", "SEATD", "SSGF", "SEAT DRIVER" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "W212 diagnostic coverage identifies SEATD/SSGF as the front-left driver seat adjustment controller."
+        },
+        {
+            "seat-passenger", "Front passenger seat adjustment control unit",
+            "passenger seat module", "interior CAN",
+            MBLINK_MERCEDES_MODULE_BODY,
+            MBLINK_MERCEDES_MODULE_PRESENCE_OPTIONAL_EQUIPMENT,
+            { "SEATP_204", "SEATP", "SSGB", "SEAT PASSENGER" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "204/207/212-family diagnostic coverage identifies SEATP/SSGB as the front-right passenger seat adjustment controller."
+        },
+        {
             "central-gateway", "Central gateway (CGW)", "N93",
             "diagnostic CAN gateway",
             MBLINK_MERCEDES_MODULE_BODY,
