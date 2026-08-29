@@ -34,9 +34,9 @@
 #define MBLINK_IMPLEMENTATION_REVISION \
     "5f1cf098fcdc065462a57cd0c49cc6c42d5ba0a9"
 #endif
-#define MBLINK_EMBEDDED_LINK_VERSION "0.14.26"
+#define MBLINK_EMBEDDED_LINK_VERSION "0.14.28"
 #define MBLINK_EMBEDDED_LINK_REVISION \
-    "f22becdbea2bd597f1063d75d3635fca6986039b"
+    "1af30ec7ad86e9a8c48b9c368c9c2c7de85e7a88"
 
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native
@@ -63,6 +63,24 @@
 #include "../link/src/core/telemetry.c"
 #undef link_telemetry_recorder_begin
 #undef link_telemetry_recorder_continue
+
+/*
+ * telemetry.h was included while the two names above were macro-renamed, so
+ * restore explicit public prototypes before defining MBLINK's metadata
+ * wrappers. This keeps strict -Wmissing-prototypes Apple builds correct.
+ */
+bool link_telemetry_recorder_begin(
+    LinkTelemetryRecorder *recorder,
+    const LinkTelemetrySessionMetadata *metadata,
+    const char *product_slug,
+    LinkTelemetryTextSink sink,
+    void *context);
+bool link_telemetry_recorder_continue(
+    LinkTelemetryRecorder *recorder,
+    const LinkTelemetrySessionMetadata *metadata,
+    const char *product_slug,
+    LinkTelemetryTextSink sink,
+    void *context);
 
 static bool mblink_telemetry_emit_build_metadata(
     LinkTelemetryRecorder *recorder)
