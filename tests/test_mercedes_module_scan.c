@@ -316,7 +316,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
      * DTC memory, and never walks undiscovered addresses.
      */
     {
-        MblinkMercedesModuleScanEntry cached[2];
+        MblinkMercedesModuleScanEntry cached[3];
         memset(cached, 0, sizeof(cached));
         cached[0].tx_can_id = UINT32_C(0x7e0);
         cached[0].rx_can_id = UINT32_C(0x7e8);
@@ -330,11 +330,15 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         cached[1].extended_id = true;
         cached[1].kind = MBLINK_MERCEDES_MODULE_OTHER;
 
+        cached[2].tx_can_id = UINT32_C(0x612);
+        cached[2].rx_can_id = UINT32_C(0x482);
+        cached[2].kind = MBLINK_MERCEDES_MODULE_BODY;
+
         CHECK(mblink_mercedes_module_scan_begin_cached(
-                  &scan, cached, 2U) ==
+                  &scan, cached, 3U) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED);
-        CHECK(scan.module_count == 2U);
+        CHECK(scan.module_count == 3U);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11);
         CHECK(scan.modules[0].identity_available);
@@ -380,9 +384,42 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATSH612") == 0);
+        CHECK(send_ok(&scan, "ATCRA482") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1003") == 0);
+        {
+            MblinkElm327Response session_response =
+                response(MBLINK_ELM327_RESULT_OK, "5003001400C8", false);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &session_response) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        }
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E00") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.modules[2].tester_present_response);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
-        CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 1U);
+        CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 2U);
         CHECK(scan.modules[0].dtcs.count == 2U);
     }
 
