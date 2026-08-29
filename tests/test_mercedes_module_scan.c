@@ -443,13 +443,30 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
          * and any valid negative UDS reply proves that the ECU exists.
          */
         {
+            MblinkElm327Response session_response =
+                response(MBLINK_ELM327_RESULT_OK, "5003001400C8", false);
             MblinkElm327Response uds_negative =
                 response(MBLINK_ELM327_RESULT_OK, "7F2231", false);
             CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 18U));
             CHECK(scan.candidate_tx == UINT32_C(0x612));
             CHECK(scan.candidate_rx == UINT32_C(0x482));
+
             scan.stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+            CHECK(send_ok(&scan, "ATCRA482") == 0);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION);
+            CHECK(mblink_mercedes_module_scan_command(
+                      &scan, command, sizeof(command), &written) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(strcmp(command, "1003") == 0);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &session_response) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.module_count == 1U);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+
             CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(scan.stage ==
