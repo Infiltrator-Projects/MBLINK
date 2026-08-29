@@ -302,8 +302,8 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
         },
         {
             .key = "c207-om651-secondary-eobd-11bit",
-            .name = "Secondary EOBD powertrain ECU",
-            .module = MBLINK_MERCEDES_MODULE_OTHER,
+            .name = "Transmission control module (TCM / VGS) EOBD candidate",
+            .module = MBLINK_MERCEDES_MODULE_TRANSMISSION,
             .address = {
                 .tx_can_id = UINT32_C(0x7e1),
                 .rx_can_id = UINT32_C(0x7e9),
@@ -316,7 +316,7 @@ const MblinkMercedesVehicleProfile *mblink_mercedes_c207_om651_profile(void)
             },
             .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             .provenance =
-                "A 2026-08-26 C207/OM651 vehicle capture proved a UDS responder at 0x7E1/0x7E9. Its exact module identity is deliberately left unresolved and the evidence is not generalized to every C207."
+                "ISO 15765-4 assigns/recommends 0x7E1/0x7E9 for the TCM, W212/C207 service material identifies the VGS/EGS transmission-control family, and a 2026-08-26 C207/OM651 capture proved this physical responder. The exact VGS/EGS identity remains a candidate until returned ECU identity confirms it."
         }
     };
     static const MblinkMercedesVehicleProfile profile = {
