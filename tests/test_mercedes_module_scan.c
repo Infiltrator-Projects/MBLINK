@@ -316,7 +316,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
      * DTC memory, and never walks undiscovered addresses.
      */
     {
-        MblinkMercedesModuleScanEntry cached[3];
+        MblinkMercedesModuleScanEntry cached[4];
         memset(cached, 0, sizeof(cached));
         cached[0].tx_can_id = UINT32_C(0x7e0);
         cached[0].rx_can_id = UINT32_C(0x7e8);
@@ -334,11 +334,15 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         cached[2].rx_can_id = UINT32_C(0x482);
         cached[2].kind = MBLINK_MERCEDES_MODULE_BODY;
 
+        cached[3].tx_can_id = UINT32_C(0x64a);
+        cached[3].rx_can_id = UINT32_C(0x489);
+        cached[3].kind = MBLINK_MERCEDES_MODULE_RESTRAINTS;
+
         CHECK(mblink_mercedes_module_scan_begin_cached(
-                  &scan, cached, 3U) ==
+                  &scan, cached, 4U) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED);
-        CHECK(scan.module_count == 3U);
+        CHECK(scan.module_count == 4U);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11);
         CHECK(scan.modules[0].identity_available);
@@ -416,11 +420,49 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATSH64A") == 0);
+        CHECK(send_ok(&scan, "ATCRA489") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+        CHECK(scan.modules[3].protocol ==
+              MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+        CHECK(scan.modules[3].definition != NULL);
+        CHECK(strcmp(scan.modules[3].definition->key,
+                     "restraints-orc") == 0);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E01") == 0);
+        {
+            MblinkElm327Response kwp_tester =
+                response(MBLINK_ELM327_RESULT_OK, "7E", false);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &kwp_tester) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        }
+        CHECK(scan.modules[3].tester_present_response);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1802FF00") == 0);
+        {
+            MblinkElm327Response kwp_dtcs =
+                response(MBLINK_ELM327_RESULT_OK, "5801D6AA20", false);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &kwp_dtcs) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+        }
 
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
-        CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 2U);
+        CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 3U);
         CHECK(scan.modules[0].dtcs.count == 2U);
+        CHECK(scan.modules[3].kwp_dtcs.count == 1U);
+        CHECK(scan.modules[3].kwp_dtcs.entries[0].code ==
+              UINT16_C(0xd6aa));
+        CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 3U);
     }
 
     /*
@@ -524,6 +566,59 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             }
 
             /*
+             * ORC_212 is a source-backed KWP2000-over-CAN route, not UDS.
+             * It must use the exact 0x64A -> 0x489 pair, KWP TesterPresent
+             * response type 0x01 and the KWP DTC-by-status service.
+             */
+            {
+                MblinkElm327Response kwp_tester =
+                    response(MBLINK_ELM327_RESULT_OK, "7E", false);
+                MblinkElm327Response kwp_dtcs =
+                    response(MBLINK_ELM327_RESULT_OK,
+                             "5801D6AA20", false);
+
+                CHECK(mblink_mercedes_module_scan_set_full_target(
+                          &scan, 74U));
+                CHECK(scan.candidate_tx == UINT32_C(0x64a));
+                CHECK(scan.candidate_rx == UINT32_C(0x489));
+                CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+                      MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+
+                scan.stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+                CHECK(send_ok(&scan, "ATCRA489") == 0);
+                CHECK(scan.stage ==
+                      MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+                CHECK(mblink_mercedes_module_scan_command(
+                          &scan, command, sizeof(command), &written) ==
+                      MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                CHECK(strcmp(command, "3E01") == 0);
+                CHECK(mblink_mercedes_module_scan_accept(
+                          &scan, &kwp_tester) ==
+                      MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                CHECK(scan.module_count == 3U);
+                CHECK(scan.modules[2].protocol ==
+                      MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+                CHECK(scan.modules[2].definition != NULL);
+                CHECK(strcmp(scan.modules[2].definition->key,
+                             "restraints-orc") == 0);
+                CHECK(scan.modules[2].kind ==
+                      MBLINK_MERCEDES_MODULE_RESTRAINTS);
+                CHECK(scan.stage ==
+                      MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+                CHECK(mblink_mercedes_module_scan_command(
+                          &scan, command, sizeof(command), &written) ==
+                      MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                CHECK(strcmp(command, "1802FF00") == 0);
+                CHECK(mblink_mercedes_module_scan_accept(
+                          &scan, &kwp_dtcs) ==
+                      MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                CHECK(scan.modules[2].kwp_dtcs.count == 1U);
+                CHECK(scan.full_target_index == 75U);
+                CHECK(scan.candidate_tx == UINT32_C(0x64b));
+            }
+
+            /*
              * If the transient session itself stays silent, retain the same
              * exact-route fallbacks and let F100/its negative response prove
              * presence. EPS212 gives us a second independently published pair.
@@ -559,9 +654,9 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(mblink_mercedes_module_scan_accept(
                       &scan, &uds_negative) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-            CHECK(scan.module_count == 3U);
+            CHECK(scan.module_count == 4U);
             {
-                const MblinkMercedesModuleScanEntry *eps = &scan.modules[2];
+                const MblinkMercedesModuleScanEntry *eps = &scan.modules[3];
                 CHECK(eps->tx_can_id == UINT32_C(0x6b2));
                 CHECK(eps->rx_can_id == UINT32_C(0x496));
                 CHECK(eps->definition != NULL);
