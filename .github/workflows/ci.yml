@@ -267,6 +267,9 @@ jobs:
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
+          grep -Fq '#include "../link/src/core/mercedes_me_adapter.c"' src/core/mblink.c
+          grep -Fq '#define MBLINK_EMBEDDED_LINK_VERSION "0.14.34"' src/core/mblink.c
+          grep -Fq '"66697c0d3f92109f83066f56fce0347e103ade8d"' src/core/mblink.c
           grep -Fq 'docs/MERCEDES-ME-ADAPTER-INTEROP.md' src/link/README.md
           grep -Fq 'link_linux_serial_probe_adapter' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'native protocol capture' src/link/platform/linux/link-gtk-shell.c
