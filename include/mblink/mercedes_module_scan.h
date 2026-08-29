@@ -111,6 +111,7 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE,
@@ -197,6 +198,7 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL: return "fault-set-protocol";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER: return "fault-set-header";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE: return "fault-set-receive";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION: return "fault-extended-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE: return "validate-saved-module";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return "read-module-faults";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE: return "complete";
@@ -349,6 +351,17 @@ mblink_mercedes_module_scan_known_route(const MblinkMercedesModuleScan *scan)
     if (scan == NULL || scan->candidate_extended) return NULL;
     route = mblink_mercedes_known_route_for_tx(scan->candidate_tx);
     return route != NULL && route->rx_can_id == scan->candidate_rx
+        ? route : NULL;
+}
+
+static inline const MblinkMercedesKnownRoute *
+mblink_mercedes_module_scan_known_entry_route(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    const MblinkMercedesKnownRoute *route;
+    if (module == NULL || module->extended_id) return NULL;
+    route = mblink_mercedes_known_route_for_tx(module->tx_can_id);
+    return route != NULL && route->rx_can_id == module->rx_can_id
         ? route : NULL;
 }
 
@@ -747,6 +760,7 @@ static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMerced
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE:
         return UINT64_C(4000);
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
         return UINT64_C(4000);
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return UINT64_C(5000);
@@ -785,6 +799,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return WRITE("3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return WRITE("1902FF");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION: return WRITE("1003");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE: return WRITE("3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return WRITE("22F190");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return WRITE("22F100");
@@ -1127,7 +1142,24 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER; break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE; break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE:
+        if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
+        if (scan->dtc_index >= scan->module_count) goto failed_state;
+        scan->stage = mblink_mercedes_module_scan_known_entry_route(
+                          &scan->modules[scan->dtc_index]) != NULL
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
+        if (scan->dtc_index >= scan->module_count) goto failed_state;
+        /*
+         * Cached source-backed routes must recreate the same transient
+         * diagnostic-session context used when they were discovered.  Treat a
+         * timeout/negative response as non-fatal and let TesterPresent decide
+         * whether the saved route is still alive.
+         */
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
         if (scan->dtc_index >= scan->module_count) goto failed_state;
         present = mblink_mercedes_module_scan_decode_uds(
