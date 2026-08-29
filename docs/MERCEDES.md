@@ -284,7 +284,7 @@ remaining command vocabulary.
 The embedded DiagLogic protobuf schema separates requested ECU/device identity
 from the responding device address and defines typed measured values, DTC
 collections, VIN/vehicle configuration and adapter software version. The
-official framework also contains 115 exact diagnostic/live-data IDs, preserved
+official framework also contains 120 exact diagnostic/live-data IDs, preserved
 in LINK's `docs/MERCEDES-ME-DATA-IDS.md`. Important examples include
 `relativeAcceleratorPedalPosition`, `throttlePosition`,
 `engineReferenceThrottle`, `engineRpm`, `engineFuelRate`,
@@ -293,9 +293,34 @@ in LINK's `docs/MERCEDES-ME-DATA-IDS.md`. Important examples include
 identities and many trip-scoped lamp/brake/tire fault flags.
 
 These identifiers are an implementation checklist, not guessed CAN/UDS
-mappings. The remaining step needed to reproduce the original local native
-session is recovery of the command generator/decoder and SMK application from
-the native GDK/DiagLogic shared objects or from a physical byte capture.
+mappings. The native GDK/DiagLogic/Whisper shared objects have now also been
+recovered and analysed. LINK preserves the detailed binary evidence in
+`docs/MERCEDES-ME-NATIVE-BINARIES.md`.
+
+That native pass proves that the genuine adapter stack contains raw CAN and
+ISO-TP command classes, seed/key/passkey handling, a 32-byte Session Master Key
+with two 16-byte random values, SHA-256-based session-key derivation, AES-256
+and Base64 support, and a configuration-driven Whisper execution layer.
+
+The most important architectural result for MBLINK is that Whisper exposes
+configuration concepts for OBD/PDU transceive, raw CAN transmit, baud rate,
+P2*/P3 timing, service/request/result IDs, PDU bytes, response matching,
+CAN filtering, result extraction and formulas. This strongly indicates that
+the actual Mercedes ECU addresses, requests and scaling rules live in APK
+configuration assets rather than being inseparable from the genuine adapter.
+
+Accordingly, proved Mercedes vehicle-side definitions should be transport
+neutral. The same verified ECU/request/result/formula definition can be
+executed through Mercedes me, Tactrix/OpenPort, STM32 CAN or a capable ELM
+transport. Mercedes-me-specific Bluetooth/session/security remains in LINK's
+genuine-adapter provider; Mercedes ECU knowledge remains in MBLINK.
+
+The next highest-value evidence source is therefore the archived APK
+configuration set, including resources such as `config.properties`,
+`_configs`, `deviceproviders`, `actionproviders`,
+`activeconfiguration` and `vinmapping`. Until those files are recovered,
+MBLINK must continue to leave unknown Mercedes CAN IDs, DIDs, byte layouts and
+formulas unbound rather than infer them from the native engine's capability.
 
 ## iPhone evidence path
 
