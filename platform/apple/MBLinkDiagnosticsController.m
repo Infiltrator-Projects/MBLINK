@@ -134,6 +134,14 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         ? (MblinkMercedesModuleKind)kind.unsignedIntegerValue
         : mblink_mercedes_module_scan_kind(
             entry->tx_can_id, entry->extended_id);
+    /*
+     * Migrate VIN profiles saved before the 7E1/7E9 responder was recognised
+     * as the standardized TCM slot.  Do not override a stronger saved family.
+     */
+    if (entry->kind == MBLINK_MERCEDES_MODULE_OTHER) {
+        entry->kind = mblink_mercedes_module_scan_kind(
+            entry->tx_can_id, entry->extended_id);
+    }
     entry->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
     entry->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
 
@@ -788,6 +796,14 @@ static bool MBLinkSimulatorResponder(
                 MBLinkStringFromCString(
                     module->definition->component_designation),
                 address, module->dtcs.count,
+                module->dtcs.count == 1U ? @"" : @"s"]];
+        } else if (module->kind != MBLINK_MERCEDES_MODULE_OTHER) {
+            [identity addObject:[NSString stringWithFormat:
+                @"MODULE · %@ · %@ · %@ candidate · %zu fault record%@",
+                name, address,
+                MBLinkStringFromCString(
+                    mblink_mercedes_module_kind_name(module->kind)),
+                module->dtcs.count,
                 module->dtcs.count == 1U ? @"" : @"s"]];
         } else {
             [identity addObject:[NSString stringWithFormat:
