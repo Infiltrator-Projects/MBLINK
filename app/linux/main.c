@@ -50,6 +50,7 @@ typedef struct MblinkLinuxContext {
     bool module_scan_complete;
     bool module_scan_failed;
     bool module_scan_full;
+    bool full_sweep_requested;
 } MblinkLinuxContext;
 
 static const char mblink_css[] =
@@ -898,7 +899,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
         link_gtk_card_append_detail(card, "Linux transport", "LINK native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
         link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + Linux full forensic module sweep + evidence-backed module map + per-module UDS DTC inventory");
+        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + bounded full-range census; DEEP RESCAN enables forensic fallback probes");
         link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
         {
             const char *unit_names[] = { "Metric", "US customary", NULL };
@@ -937,16 +938,16 @@ static MblinkMercedesModuleScanResult begin_module_scan(
 {
     if (context == NULL)
         return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
-    return mblink_mercedes_module_scan_begin_full(&context->module_scan);
+    return context->module_scan_full
+        ? mblink_mercedes_module_scan_begin_full(&context->module_scan)
+        : mblink_mercedes_module_scan_begin_mobile_census(&context->module_scan);
 }
 
 static void request_full_sweep(void *opaque)
 {
-    /*
-     * The Linux workstation always owns the full forensic scan.  This callback
-     * is the shell's explicit restart hook; no extra mode flag is required.
-     */
-    (void)opaque;
+    MblinkLinuxContext *context = opaque;
+    if (context == NULL) return;
+    context->full_sweep_requested = true;
 }
 
 static bool manufacturer_begin(void *opaque)
@@ -954,8 +955,12 @@ static bool manufacturer_begin(void *opaque)
     MblinkLinuxContext *context = opaque;
     const MblinkMercedesEcuEndpointDefinition *endpoint = engine_endpoint();
     if (context == NULL || endpoint == NULL) return false;
-    reset_manufacturer_scan(context);
-    context->module_scan_full = true;
+    {
+        const bool full_sweep = context->full_sweep_requested;
+        reset_manufacturer_scan(context);
+        context->module_scan_full = full_sweep;
+        context->full_sweep_requested = false;
+    }
     context->manufacturer_scan_started = true;
     if (!mblink_mercedes_engine_scan_begin(&context->manufacturer_scan, endpoint)) {
         context->manufacturer_scan_failed = true;
