@@ -20,12 +20,12 @@ ELM initialization
   → standard VIN
   → stored / pending / permanent standard DTC inventory
   → Mercedes read-only engine identification
-  → first-VIN Mercedes gateway census (8 EOBD + 255 routed logical targets)
+  → first-VIN Mercedes mobile census (complete 11-bit/29-bit read-only target plan)
   → adapter restore
   → normal live-data polling
 ```
 
-On a new VIN, iPhone now performs the bounded 263-target gateway census once and caches every responding route against that VIN. Later connections validate and refresh only the saved module routes. The much broader 0x600–0x7F7 plus 29-bit forensic sweep remains a Linux/desktop function rather than an iPhone default. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.25 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
+On a new VIN, iPhone now walks the complete Mercedes-owned 0x600–0x7F7 plus 29-bit logical target plan once, but uses only a single read-only TesterPresent probe on dead addresses. Deeper DTC and identity reads run only after a responder is proven. Later connections validate and refresh only the saved module routes. Linux/desktop FULL keeps the slower fallback probes for unusually quiet ECUs. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.25 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
@@ -71,10 +71,10 @@ From MBLINK 0.7.81, live-data polling is explicit opt-in. A new installation sta
 
 The 0.7.80 automatic nine-PID starter set is migrated carefully: an untouched legacy default becomes an empty v2 selection, while a legacy set that differs from that built-in default is treated as a user choice and preserved.
 
-## VIN-keyed gateway census
+## VIN-keyed mobile census
 
 Earlier iPhone builds intentionally stopped Mercedes module discovery at the eight legislated EOBD physical endpoints. That made the engine and secondary powertrain responder visible but structurally prevented gateway-routed body, restraint, interior and multimedia modules from being learned on the phone.
 
-Vehicle-profile schema 2 fixes that design limitation. A VIN without a schema-2 profile runs the read-only gateway census once, covering the eight EOBD endpoints and all 255 ISO-TP normal-fixed logical targets except the tester address. Responding routes, identities, part/software/hardware identifiers and fault evidence are then persisted in the VIN profile. Existing schema-1 quick-scan profiles are deliberately invalidated so they are rebuilt with the wider topology rather than preserving an incomplete two-module map.
+Vehicle-profile schema 2 fixes that design limitation. A VIN without a schema-2 profile runs the read-only mobile census once across the same complete 11-bit/29-bit target plan used by forensic discovery. Dead addresses receive only TesterPresent; proven responders then receive DTC and identity reads. Responding routes, identities, part/software/hardware identifiers and fault evidence are persisted in the VIN profile. Existing schema-1 quick-scan profiles are deliberately invalidated so they are rebuilt with the wider topology rather than preserving an incomplete two-module map.
 
 The catalogue includes source-corroborated C207/W212 families for the instrument cluster, Audio 20/COMAND head unit and controller/display, ORC/SRS, left/right PRE-SAFE reversible belt tensioners, driver/passenger seat controllers, SAMs, EIS/EZS, steering-column module, climate control and other established module families. The catalogue classifies returned identities; it does not invent diagnostic addresses.
