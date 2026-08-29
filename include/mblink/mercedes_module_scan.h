@@ -1082,15 +1082,49 @@ static inline bool mblink_mercedes_module_scan_headered_11_route(
 
 static inline bool mblink_mercedes_module_scan_at_ok(const MblinkElm327Response *response) { return response != NULL && response->result == MBLINK_ELM327_RESULT_OK; }
 
+static inline bool mblink_mercedes_module_scan_accept_adapter_transition(
+    MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *response,
+    MblinkMercedesModuleScanStage next_stage)
+{
+    if (!mblink_mercedes_module_scan_at_ok(response)) {
+        return false;
+    }
+    scan->stage = next_stage;
+    return true;
+}
+
 static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(MblinkMercedesModuleScan *scan, const MblinkElm327Response *response)
 {
     uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY]; size_t pdu_length = 0U; MblinkUdsResponse uds; MblinkMercedesModuleScanEntry *module; bool present;
     if (scan == NULL || response == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
     switch (scan->stage) {
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT; break;
+    /* Adapter-control commands are strict: continuing after a rejected setup
+     * command would make every following ECU result ambiguous. */
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_FLOW_CONTROL:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT))
+            goto adapter_failure;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
         if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED) {
@@ -1336,8 +1370,18 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER; break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER: if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure; scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE; break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE))
+            goto adapter_failure;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
         if (scan->dtc_index >= scan->module_count) goto failed_state;
@@ -1371,7 +1415,16 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         scan->modules[scan->dtc_index].tester_present_response = present;
         scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ;
         break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: if (scan->dtc_index >= scan->module_count) goto failed_state; mblink_mercedes_module_scan_capture_dtc(&scan->modules[scan->dtc_index], response); ++scan->dtc_index; scan->stage = scan->dtc_index >= scan->module_count ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL; break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ:
+        if (scan->dtc_index >= scan->module_count)
+            goto failed_state;
+        mblink_mercedes_module_scan_capture_dtc(
+            &scan->modules[scan->dtc_index], response);
+        ++scan->dtc_index;
+        scan->stage = scan->dtc_index >= scan->module_count
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE: return MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED: return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     }

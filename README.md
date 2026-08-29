@@ -160,7 +160,14 @@ Manually runnable build/smoke workflows are diagnostic helpers only and are not 
 
 ## Documentation
 
-See `docs/FAULT_DIAGNOSTICS.md`, `docs/ARCHITECTURE.md`, `docs/MERCEDES.md`, `docs/DID_LAB.md`, `docs/DISCOVER.md`, `docs/APPLE.md` and `docs/ROADMAP.md`.
+Use the smallest document that owns the question:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) owns repository boundaries and engineering rules.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) owns completion status and priorities; it does not redefine dependency versions.
+- [`docs/FAULT_DIAGNOSTICS.md`](docs/FAULT_DIAGNOSTICS.md) owns the end-to-end fault requirement.
+- [`docs/MERCEDES.md`](docs/MERCEDES.md), [`docs/DID_LAB.md`](docs/DID_LAB.md), [`docs/DISCOVER.md`](docs/DISCOVER.md) and [`docs/APPLE.md`](docs/APPLE.md) are scoped implementation/evidence notes. They do not override the three documents above or LINK's shared contracts.
+
+The committed gitlinks and `VERSION` files remain the sole authorities for dependency and source versions.
 
 ## Licence
 

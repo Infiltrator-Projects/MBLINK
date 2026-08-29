@@ -135,6 +135,9 @@ bool mblink_mercedes_vehicle_profile_is_valid(
         for (size_t earlier = 0U; earlier < index; ++earlier) {
             const MblinkMercedesEcuEndpointDefinition *previous =
                 &profile->endpoints[earlier];
+            /* A key or physical route must identify exactly one ECU.  Keeping
+             * ambiguity out of the catalogue prevents a valid response from
+             * being attributed to whichever duplicate happened to be first. */
             if (infiltratr_string_equal(previous->key, endpoint->key) ||
                 mercedes_address_equal(&previous->address,
                                        &endpoint->address)) {
@@ -241,6 +244,8 @@ static const MblinkMercedesEcuEndpointDefinition mercedes_generic_engine_endpoin
         .rx_address_extension = 0U
     },
     .status = MBLINK_MERCEDES_DEFINITION_CANDIDATE,
+    /* This route is deliberately only a candidate.  Generic 7E0/7E8 traffic
+     * may establish identity, but it cannot prove a Mercedes ECU variant. */
     .provenance =
         "Generic read-only Mercedes/SAE physical engine-ECU discovery candidate. It is used only to acquire VIN, standard ECU identity and fault evidence before a manufacturer/engine family is selected."
 };
