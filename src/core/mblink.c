@@ -24,19 +24,13 @@
 #endif
 
 /*
- * Evidence exported by the native iPhone build must identify the exact source
- * stack that produced it.  Keep these pinned values beside the compatibility
- * boundary so a field CSV can never again leave the MBLINK/LINK revision
- * ambiguous.  MBLINK_IMPLEMENTATION_REVISION is advanced with each release
- * implementation; LINK values must match the src/link gitlink exactly.
+ * The product commit cannot truthfully contain its own Git SHA because changing
+ * that literal changes the commit. Product revision therefore comes from the
+ * build system. The dependency SHA is safe to embed because it identifies an
+ * external immutable LINK commit and is checked against the gitlink in CI.
  */
-#ifndef MBLINK_IMPLEMENTATION_REVISION
-#define MBLINK_IMPLEMENTATION_REVISION \
-    "3491c9902186637285d6a72be3df21daa9c859ca"
-#endif
-#define MBLINK_EMBEDDED_LINK_VERSION "0.14.36"
 #define MBLINK_EMBEDDED_LINK_REVISION \
-    "e25f1a8f91a8a72369af2274f4c6e3a37d7df2c7"
+    "b10ee3264904f9cf09af20f749b71315a1d6029a"
 
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native
@@ -47,83 +41,25 @@
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/core/workspace.c"
 #include "../link/src/core/fuel_economy.c"
+#include "../link/src/core/diagnostic_request.c"
 #include "../link/src/core/diagnostic_flow.c"
 #include "../link/src/core/parameter.c"
 #include "../link/src/core/scheduler.c"
 
 /*
- * Rename the two stream-start entry points while compiling LINK telemetry so
- * MBLINK can append product/build provenance to every session without forking
- * LINK's recorder or changing the stable telemetry ABI.
+ * Direct-source Apple builds do not execute LINK's CMake, so supply the exact
+ * pinned LINK revision while still using LINK's own authoritative version.h.
+ * Product version/profile/build revision are consumed directly by telemetry.c.
  */
-#define link_telemetry_recorder_begin \
-    mblink_link_telemetry_recorder_begin_without_build_metadata
-#define link_telemetry_recorder_continue \
-    mblink_link_telemetry_recorder_continue_without_build_metadata
+#ifndef LINK_SOURCE_REVISION
+#define LINK_SOURCE_REVISION MBLINK_EMBEDDED_LINK_REVISION
+#define MBLINK_DEFINED_LINK_SOURCE_REVISION 1
+#endif
 #include "../link/src/core/telemetry.c"
-#undef link_telemetry_recorder_begin
-#undef link_telemetry_recorder_continue
-
-/*
- * telemetry.h was included while the two names above were macro-renamed, so
- * restore explicit public prototypes before defining MBLINK's metadata
- * wrappers. This keeps strict -Wmissing-prototypes Apple builds correct.
- */
-bool link_telemetry_recorder_begin(
-    LinkTelemetryRecorder *recorder,
-    const LinkTelemetrySessionMetadata *metadata,
-    const char *product_slug,
-    LinkTelemetryTextSink sink,
-    void *context);
-bool link_telemetry_recorder_continue(
-    LinkTelemetryRecorder *recorder,
-    const LinkTelemetrySessionMetadata *metadata,
-    const char *product_slug,
-    LinkTelemetryTextSink sink,
-    void *context);
-
-static bool mblink_telemetry_emit_build_metadata(
-    LinkTelemetryRecorder *recorder)
-{
-    return recorder != NULL && recorder->started && !recorder->failed &&
-           emit_metadata(recorder->sink, recorder->context,
-                         "mblink_version", MBLINK_VERSION) &&
-           emit_metadata(recorder->sink, recorder->context,
-                         "mblink_implementation_revision",
-                         MBLINK_IMPLEMENTATION_REVISION) &&
-           emit_metadata(recorder->sink, recorder->context,
-                         "link_version", MBLINK_EMBEDDED_LINK_VERSION) &&
-           emit_metadata(recorder->sink, recorder->context,
-                         "link_revision", MBLINK_EMBEDDED_LINK_REVISION);
-}
-
-bool link_telemetry_recorder_begin(
-    LinkTelemetryRecorder *recorder,
-    const LinkTelemetrySessionMetadata *metadata,
-    const char *product_slug,
-    LinkTelemetryTextSink sink,
-    void *context)
-{
-    if (!mblink_link_telemetry_recorder_begin_without_build_metadata(
-            recorder, metadata, product_slug, sink, context)) {
-        return false;
-    }
-    return mblink_telemetry_emit_build_metadata(recorder);
-}
-
-bool link_telemetry_recorder_continue(
-    LinkTelemetryRecorder *recorder,
-    const LinkTelemetrySessionMetadata *metadata,
-    const char *product_slug,
-    LinkTelemetryTextSink sink,
-    void *context)
-{
-    if (!mblink_link_telemetry_recorder_continue_without_build_metadata(
-            recorder, metadata, product_slug, sink, context)) {
-        return false;
-    }
-    return mblink_telemetry_emit_build_metadata(recorder);
-}
+#ifdef MBLINK_DEFINED_LINK_SOURCE_REVISION
+#undef MBLINK_DEFINED_LINK_SOURCE_REVISION
+#undef LINK_SOURCE_REVISION
+#endif
 
 #include "../link/src/core/mercedes_me_adapter.c"
 /*
@@ -137,6 +73,7 @@ bool link_telemetry_recorder_continue(
 #include "../link/src/core/mercedes_me_native_protocol.c"
 #undef read_u16_be
 #undef write_u16_be
+#include "../link/src/core/mercedes_me_diagnostic.c"
 #include "../link/src/core/mercedes_me_data_ids.c"
 #include "../link/src/core/mercedes_me_diaglogic.c"
 #include "../link/src/core/mercedes_me_whisper.c"

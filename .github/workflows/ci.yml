@@ -263,7 +263,7 @@ jobs:
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.36"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.37"
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
@@ -272,8 +272,15 @@ jobs:
           grep -Fq '#include "../link/src/core/mercedes_me_data_ids.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diaglogic.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_whisper.c"' src/core/mblink.c
-          grep -Fq '#define MBLINK_EMBEDDED_LINK_VERSION "0.14.36"' src/core/mblink.c
-          grep -Fq '"e25f1a8f91a8a72369af2274f4c6e3a37d7df2c7"' src/core/mblink.c
+          ! grep -Fq 'MBLINK_IMPLEMENTATION_REVISION' src/core/mblink.c
+          ! grep -Fq 'MBLINK_EMBEDDED_LINK_VERSION' src/core/mblink.c
+          grep -Fq '#define MBLINK_EMBEDDED_LINK_REVISION' src/core/mblink.c
+          grep -Fq '"b10ee3264904f9cf09af20f749b71315a1d6029a"' src/core/mblink.c
+          grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
+          grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
+          grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
+          ! grep -Fq 'LINK_TELEMETRY_LINK_VERSION' src/link/src/core/telemetry.c
+          ! grep -Fq '"0.14.26"' src/link/src/core/telemetry.c
           grep -Fq 'docs/MERCEDES-ME-ADAPTER-INTEROP.md' src/link/README.md
           grep -Fq 'link_linux_serial_probe_adapter' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'native protocol capture' src/link/platform/linux/link-gtk-shell.c
@@ -299,7 +306,7 @@ jobs:
           xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
             -configuration "${{ matrix.configuration }}" -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
-            MARKETING_VERSION="$VERSION" build
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
 
   iphone-device-ipa:
     name: iPhone / unsigned device IPA
@@ -324,7 +331,7 @@ jobs:
           xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$derived" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
-            MARKETING_VERSION="$VERSION" build
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
           mkdir -p "$RUNNER_TEMP/package/Payload"
           ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" "$RUNNER_TEMP/package/Payload/MBLINK.app"
           (cd "$RUNNER_TEMP/package" && zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)

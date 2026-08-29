@@ -52,7 +52,18 @@ if(NOT MBLINK_LINK_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "Pinned LINK VERSION is not semantic: ${MBLINK_LINK_VERSION}")
 endif()
 find_program(MBLINK_GIT_EXECUTABLE git)
+set(MBLINK_SOURCE_REVISION "")
 if(MBLINK_GIT_EXECUTABLE)
+    execute_process(
+        COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}" rev-parse HEAD
+        OUTPUT_VARIABLE MBLINK_SOURCE_REVISION_CANDIDATE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE MBLINK_SOURCE_REVISION_RESULT)
+    if(MBLINK_SOURCE_REVISION_RESULT EQUAL 0 AND
+       MBLINK_SOURCE_REVISION_CANDIDATE MATCHES "^[0-9a-fA-F]{40}$")
+        set(MBLINK_SOURCE_REVISION "${MBLINK_SOURCE_REVISION_CANDIDATE}")
+    endif()
     execute_process(COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}" ls-tree HEAD src/link OUTPUT_VARIABLE MBLINK_LINK_GITLINK OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE MBLINK_LINK_GITLINK_RESULT)
     execute_process(COMMAND "${MBLINK_GIT_EXECUTABLE}" -C "${MBLINK_LINK_DIR}" rev-parse HEAD OUTPUT_VARIABLE MBLINK_LINK_FOUND_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE MBLINK_LINK_COMMIT_RESULT)
     if(MBLINK_LINK_GITLINK_RESULT EQUAL 0 AND MBLINK_LINK_COMMIT_RESULT EQUAL 0)
@@ -67,6 +78,15 @@ if(MBLINK_GIT_EXECUTABLE)
     endif()
 endif()
 add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE_FROM_ALL)
+if(TARGET link-core)
+    target_compile_definitions(link-core PRIVATE
+        MBLINK_VERSION="\"${PROJECT_VERSION}\""
+        MBLINK_BUILD_PROFILE="\"${MBLINK_BUILD_PROFILE}\"")
+    if(MBLINK_SOURCE_REVISION)
+        target_compile_definitions(link-core PRIVATE
+            MBLINK_BUILD_REVISION="\"${MBLINK_SOURCE_REVISION}\"")
+    endif()
+endif()
 add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
@@ -74,6 +94,10 @@ add_library(mblink STATIC
     src/mercedes/probe.c src/mercedes/discover_plan.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
+if(MBLINK_SOURCE_REVISION)
+    target_compile_definitions(mblink PRIVATE
+        MBLINK_BUILD_REVISION="\"${MBLINK_SOURCE_REVISION}\"")
+endif()
 target_link_libraries(mblink PUBLIC LINK::Core)
 if(UNIX)
     target_link_libraries(mblink PUBLIC m)
