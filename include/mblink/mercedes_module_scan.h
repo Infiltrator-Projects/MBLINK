@@ -327,7 +327,14 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_tx = target.tx_can_id;
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
-    scan->candidate_route_locked = target.extended_id;
+    /*
+     * The product-owned sweep plan defines both sides of every physical
+     * route.  Keep that route locked from the outset.  Widening the ELM receive
+     * mask on a live Mercedes CAN bus admits normal broadcast traffic and can
+     * flood the single-command ELM parser before the requested UDS reply
+     * arrives.
+     */
+    scan->candidate_route_locked = true;
     return true;
 }
 
@@ -436,9 +443,7 @@ static inline void mblink_mercedes_module_scan_advance_candidate(
                 : MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
             return;
         }
-        scan->stage = scan->candidate_extended
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS;
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
     }
 }
 
@@ -780,10 +785,10 @@ static inline int mblink_mercedes_module_scan_hex_value(char value)
 }
 
 /*
- * FULL 11-bit discovery deliberately learns the actual response CAN ID before
- * locking a receive filter. ATH1 causes an ELM327 to prefix each accepted CAN
- * frame with its header; the parser below accepts both the normal single-frame
- * form (ID + PCI length + UDS payload) and an assembled/direct UDS payload.
+ * Legacy 11-bit route-learning support. The production C207 sweep now uses
+ * the explicit TX/RX pair in the product-owned target plan so it can keep an
+ * exact ELM receive filter throughout discovery. This parser remains available
+ * for controlled evidence/replay work where an unknown route must be learned.
  */
 static inline bool mblink_mercedes_module_scan_headered_11_route(
     const MblinkElm327Response *response,
@@ -873,9 +878,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED) {
             scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
         } else {
-            scan->stage = (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) && !scan->candidate_extended)
-                ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS
-                : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+            scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
         }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29:
@@ -914,9 +917,13 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
-        scan->stage = (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) && !scan->candidate_extended && scan->candidate_route_locked)
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        /*
+         * A configured receive route has not yet proved that an ECU is
+         * present.  Always validate it with TesterPresent first.  If this
+         * stage was reached after legacy route-learning, the duplicate
+         * TesterPresent is harmless and keeps one consistent state machine.
+         */
+        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
         if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
