@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+# MBLINK versions before 0.7.61 used an unmanaged /usr/local installer.
+# Debian packages own /usr/bin and /usr/share; remove those obsolete project
+# paths so PATH and desktop-file precedence cannot launch the stale binary.
+case "${1:-configure}" in
+    configure|triggered)
+        rm -f \
+            /usr/local/bin/mblink-linux \
+            /usr/local/share/icons/hicolor/180x180/apps/mblink.png \
+            /usr/local/share/pixmaps/mblink.png \
+            /usr/local/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop
+        rm -rf /usr/local/share/doc/mblink
+        ;;
+esac
+
+exit 0
