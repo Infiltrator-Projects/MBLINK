@@ -746,9 +746,10 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   &scan, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST32") == 0);
-        CHECK(mblink_mercedes_module_scan_set_full_target(
-                  &scan, full_target_index_for_tx(UINT32_C(0x600))));
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
         CHECK(scan.candidate_route_locked);
+        CHECK(scan.candidate_tx == UINT32_C(0x612));
+        CHECK(scan.candidate_rx == UINT32_C(0x482));
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
 
         /* A responder can still supply F197 evidence that becomes its label. */
