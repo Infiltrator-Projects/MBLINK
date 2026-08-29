@@ -265,6 +265,38 @@ The archived application also proves that the adapter lifecycle is more than an 
 
 The first physical capture remains valuable, but it is no longer a blind transport-discovery exercise: LINK can now select the generation-specific Bluetooth path first and use the resulting byte stream to recover the remaining framing and vehicle-value decoder.
 
+### Native Mercedes me engine findings from the archived app
+
+A deeper clean-room pass over the archived 4.7.61 DEX files establishes that
+the Bluetooth layer is only the transport edge. The official Java framework
+loads a native `gdk` library for adapter state/session handling and a native
+`diaglogic` library for vehicle diagnosis. The native GDK interface returns
+explicit QoS, execution and failure ordinals and requests Session Master Keys
+through a Java callback taking the adapter ID and passkey.
+
+The Java/native bridge also proves the Bluetooth record contract: outbound GDK
+commands must end in CR (`0x0D`); inbound CR closes a normal record; inbound
+BEL (`0x07`) closes a special NACK record; the official receive accumulator
+is 700 bytes and clears an unterminated record at position 698. MBLINK/LINK can
+therefore frame native evidence deterministically without inventing the
+remaining command vocabulary.
+
+The embedded DiagLogic protobuf schema separates requested ECU/device identity
+from the responding device address and defines typed measured values, DTC
+collections, VIN/vehicle configuration and adapter software version. The
+official framework also contains 115 exact diagnostic/live-data IDs, preserved
+in LINK's `docs/MERCEDES-ME-DATA-IDS.md`. Important examples include
+`relativeAcceleratorPedalPosition`, `throttlePosition`,
+`engineReferenceThrottle`, `engineRpm`, `engineFuelRate`,
+`fuelVolume`, `fuelLevelMin`, `fuelPressure`, `mileage`,
+`tankRange`, `vehicleSpeed`, maintenance/service values, ECU fingerprint
+identities and many trip-scoped lamp/brake/tire fault flags.
+
+These identifiers are an implementation checklist, not guessed CAN/UDS
+mappings. The remaining step needed to reproduce the original local native
+session is recovery of the command generator/decoder and SMK application from
+the native GDK/DiagLogic shared objects or from a physical byte capture.
+
 ## iPhone evidence path
 
 The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.
