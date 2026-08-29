@@ -80,11 +80,11 @@ endif()
 add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE_FROM_ALL)
 if(TARGET link-core)
     target_compile_definitions(link-core PRIVATE
-        MBLINK_VERSION="\"${PROJECT_VERSION}\""
-        MBLINK_BUILD_PROFILE="\"${MBLINK_BUILD_PROFILE}\"")
+        MBLINK_VERSION="${PROJECT_VERSION}"
+        MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
     if(MBLINK_SOURCE_REVISION)
         target_compile_definitions(link-core PRIVATE
-            MBLINK_BUILD_REVISION="\"${MBLINK_SOURCE_REVISION}\"")
+            MBLINK_BUILD_REVISION="${MBLINK_SOURCE_REVISION}")
     endif()
 endif()
 add_library(mblink STATIC
@@ -96,7 +96,7 @@ target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
 if(MBLINK_SOURCE_REVISION)
     target_compile_definitions(mblink PRIVATE
-        MBLINK_BUILD_REVISION="\"${MBLINK_SOURCE_REVISION}\"")
+        MBLINK_BUILD_REVISION="${MBLINK_SOURCE_REVISION}")
 endif()
 target_link_libraries(mblink PUBLIC LINK::Core)
 if(UNIX)
