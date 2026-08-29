@@ -81,15 +81,14 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
   linux-app:
-    name: Local Linux / GTK4 app
-    runs-on: linux-native
+    name: Linux / GTK4 app
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
-      - if: runner.environment == 'github-hosted'
-        run: |
+      - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev pkg-config xvfb xauth
       - id: version
