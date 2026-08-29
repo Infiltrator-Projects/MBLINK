@@ -255,12 +255,16 @@ jobs:
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'didReceiveFlowEvent' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
-          ! grep -Fq 'mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
+          ! grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'MBLinkVehicleProfileSchemaVersion = 2' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'Transmission ECU candidate (7E1/7E9 EOBD responder)' include/mblink/mercedes_module_scan.h
+          grep -Fq '"audio-headunit", "Audio 20 / COMAND head unit"' include/mblink/mercedes_module_catalog.h
+          grep -Fq '"belt-pretensioner-left"' include/mblink/mercedes_module_catalog.h
+          grep -Fq '"seat-driver"' include/mblink/mercedes_module_catalog.h
           grep -Fq 'vehicleProfileStatusText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MercedesVehicleIdentity' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MBVehicleFactGrid' app/ios/MBLINK/MBLINKApp.swift
