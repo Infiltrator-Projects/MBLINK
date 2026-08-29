@@ -322,6 +322,82 @@ configuration set, including resources such as `config.properties`,
 MBLINK must continue to leave unknown Mercedes CAN IDs, DIDs, byte layouts and
 formulas unbound rather than infer them from the native engine's capability.
 
+### Native secure protocol now reproduced independently
+
+The subsequent native-library pass went beyond architecture names and recovered
+the local secure record format. LINK now independently implements the proved
+wire codec without embedding the proprietary Android libraries or any fixed
+application challenge key.
+
+The session key is 32 bytes and is derived as:
+
+`SHA-256(SMK || random_argument_1 || random_argument_2)`
+
+where the Session Master Key is 32 bytes and each random argument is 16 bytes.
+The exact app-random/adapter-random direction of those two arguments remains
+evidence-gated until the complete authentication sequence is reconstructed.
+
+The secure inner frame is a six-byte header followed by plaintext and zero
+padding:
+
+- 16-bit big-endian plaintext length;
+- 16-bit big-endian CRC-16/CCITT-XMODEM over the plaintext;
+- two reserved zero bytes;
+- plaintext;
+- zero padding to the observed AES boundary.
+
+The result is AES-256-ECB encrypted, Base64 encoded and wrapped as
+`a<Base64(ciphertext)>CR`. The native implementation caps ciphertext at 512
+bytes, which gives an effective maximum plaintext of 505 bytes.
+
+LINK also now has pure, bounded builders for the native commands whose complete
+syntax is proved: CAN open/close, adapter status, hardware information,
+GetPasskey, GetSeed, SetKey, baud ordinal and X read/write. These functions are
+**not** automatically transmitted. Raw-CAN and ISO-TP command payload layouts
+remain disabled until their full builders are recovered.
+
+### Shared native acquisition policy
+
+The native DiagLogic engine contains acquisition/sanity policy that belongs
+above any one adapter. LINK now exposes those exact reference values so MBLINK
+can apply the same evidence to Vgate/ELM, Tactrix/OpenPort, STM32 and genuine
+Mercedes-me transports.
+
+Recovered defaults include 1500 ms live-data reads, 5000 ms availability
+reads, a 10-second minimum ignition-read delay, 30-second to 5-minute mileage
+read spacing, 12.2/13.2 V ignition-off thresholds, 60-second live-status age,
+90-second run-cycle age, and the native fuel/mileage sanity thresholds. Where
+a binary symbol does not itself prove the physical unit of a speed/distance
+threshold, MBLINK preserves the number without inventing a unit.
+
+DiagLogic also explicitly separates raw measurements from post-processed
+vehicle state through components such as `UnplausibleFuelVolumeFilter`,
+`MileageAdjustingVehicleStatusUpdater`,
+`TripAverageSpeedVehicleStatusUpdater`,
+`IrregularObdResponseVehicleStatusUpdater` and
+`TripWarningLampVehicleStatusUpdater`. MBLINK should therefore retain raw
+samples/provenance even when presenting filtered or derived values.
+
+### Whisper response and DTC vocabulary
+
+LINK now preserves the exact Whisper response-selection strategies
+`SELECT_FIRST`, `SELECT_LOWEST_CANID_CACHED`, `SELECT_MAXIMUM` and
+`MERGE_ELIMINATE_DUPLICATES`. This reinforces MBLINK's existing requirement
+to retain ECU/source attribution for simultaneous OBD responders instead of
+flattening them into an anonymous duplicate value.
+
+Whisper also identifies DTC presentation families
+`SAEDTC_KWP_DAI`, `SAEDTC_KWP_VW`, `SAEDTC_UDS_DAI`,
+`SAEDTC_UDS_VW` and `SAEDTC_OBD`. These are evidence labels only until
+their individual byte decoders are independently reconstructed.
+
+The configuration engine contains ZIP decompression, revision/cache/blacklist
+handling and active-configuration/VIN-mapping logic. The missing Mercedes
+definition set may therefore be a compressed configuration bundle rather than
+a simple directory of plaintext property files. That possibility must be
+included when extracting the remaining APK assets.
+
+
 ## iPhone evidence path
 
 The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.
