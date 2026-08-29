@@ -386,6 +386,66 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.modules[0].dtcs.count == 2U);
     }
 
+    /*
+     * The iPhone first-VIN census uses the complete target plan but only one
+     * TesterPresent probe on dead addresses.  This keeps full address reach
+     * without paying FULL's DTC/VIN fallback cost for every miss.
+     */
+    {
+        const link_discover_sweep_plan *plan =
+            mblink_discover_full_sweep_plan();
+        MblinkElm327Response headered_tester =
+            response(MBLINK_ELM327_RESULT_OK, "608027E00", false);
+
+        CHECK(link_discover_sweep_plan_is_valid(plan));
+        CHECK(mblink_mercedes_module_scan_begin_mobile_census(&scan) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS);
+        CHECK(mblink_mercedes_module_scan_planned_target_count(scan.scope) ==
+              plan->target_count);
+        CHECK(scan.candidate_tx == UINT32_C(0x600));
+        CHECK(scan.candidate_rx == UINT32_C(0x608));
+
+        scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT;
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "ATST20") == 0);
+
+        /* A dead 11-bit address advances after TesterPresent alone. */
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.full_target_index == 1U);
+        CHECK(scan.candidate_tx == UINT32_C(0x601));
+        CHECK(scan.module_count == 0U);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS);
+
+        /* A real response learns its actual RX route and gets deeper reads. */
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &headered_tester) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.module_count == 1U);
+        CHECK(scan.modules[0].tx_can_id == UINT32_C(0x600));
+        CHECK(scan.modules[0].rx_can_id == UINT32_C(0x608));
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF);
+
+        /* A dead 29-bit logical target also advances after one presence probe. */
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 504U));
+        CHECK(scan.candidate_extended);
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.full_target_index == 505U);
+    }
+
     /* Explicit FULL consumes the one Mercedes-owned plan. */
     {
         const link_discover_sweep_plan *plan =
