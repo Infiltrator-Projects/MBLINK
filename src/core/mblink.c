@@ -34,9 +34,9 @@
 #define MBLINK_IMPLEMENTATION_REVISION \
     "3491c9902186637285d6a72be3df21daa9c859ca"
 #endif
-#define MBLINK_EMBEDDED_LINK_VERSION "0.14.35"
+#define MBLINK_EMBEDDED_LINK_VERSION "0.14.36"
 #define MBLINK_EMBEDDED_LINK_REVISION \
-    "c23dcddbf4fcce1f95dd28c4c1c0e3a9cf51501c"
+    "e25f1a8f91a8a72369af2274f4c6e3a37d7df2c7"
 
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native
