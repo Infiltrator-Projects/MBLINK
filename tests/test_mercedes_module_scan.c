@@ -394,8 +394,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         const link_discover_sweep_plan *plan =
             mblink_discover_full_sweep_plan();
-        MblinkElm327Response headered_tester =
-            response(MBLINK_ELM327_RESULT_OK, "608027E00", false);
+        MblinkElm327Response tester_response =
+            response(MBLINK_ELM327_RESULT_OK, "7E00", false);
 
         CHECK(link_discover_sweep_plan_is_valid(plan));
         CHECK(mblink_mercedes_module_scan_begin_mobile_census(&scan) ==
@@ -422,19 +422,19 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.candidate_tx == UINT32_C(0x601));
         CHECK(scan.module_count == 0U);
         CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS);
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
 
-        /* A real response learns its actual RX route and gets deeper reads. */
+        /* A real response on the plan-defined RX route gets deeper reads. */
         CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
         scan.stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &headered_tester) ==
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester_response) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.module_count == 1U);
         CHECK(scan.modules[0].tx_can_id == UINT32_C(0x600));
         CHECK(scan.modules[0].rx_can_id == UINT32_C(0x608));
         CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF);
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
 
         /* A dead 29-bit logical target also advances after one presence probe. */
         CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 504U));
@@ -467,8 +467,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST32") == 0);
         CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
-        /* Route learning itself is covered by the captured deep-scan replay. */
-        scan.candidate_route_locked = true;
+        CHECK(scan.candidate_route_locked);
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
 
         /* A responder can still supply F197 evidence that becomes its label. */
