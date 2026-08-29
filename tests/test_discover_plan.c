@@ -24,6 +24,24 @@ int main(void)
     CHECK(target.rx_can_id == UINT32_C(0x608));
     CHECK(target.bitrate == 500000U);
 
+    CHECK(mblink_mercedes_known_route_count() >= 3U);
+    {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_known_route_for_tx(UINT32_C(0x612));
+        CHECK(route != NULL);
+        CHECK(route->rx_can_id == UINT32_C(0x482));
+        CHECK(strcmp(route->module_key, "eis-ezs") == 0);
+    }
+    CHECK(link_discover_sweep_plan_target_at(plan, 18U, &target));
+    CHECK(target.tx_can_id == UINT32_C(0x612));
+    CHECK(target.rx_can_id == UINT32_C(0x482));
+    CHECK(link_discover_sweep_plan_target_at(plan, 50U, &target));
+    CHECK(target.tx_can_id == UINT32_C(0x632));
+    CHECK(target.rx_can_id == UINT32_C(0x486));
+    CHECK(link_discover_sweep_plan_target_at(plan, 178U, &target));
+    CHECK(target.tx_can_id == UINT32_C(0x6b2));
+    CHECK(target.rx_can_id == UINT32_C(0x496));
+
     CHECK(link_discover_sweep_plan_target_at(plan, 503U, &target));
     CHECK(target.tx_can_id == UINT32_C(0x7f7));
     CHECK(target.rx_can_id == UINT32_C(0x7ff));
