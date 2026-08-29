@@ -59,7 +59,7 @@ The deeper discovery path uses the one Mercedes-owned full target plan. On a new
 
 For every responder MBLINK retains the physical route and reads read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number where supported. It classifies a module only when returned identity text or a standards-defined functional route supports that classification, and reads that responder's UDS DTC memory independently with `19 02 FF`.
 
-The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately.
+The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately. DEEP RESCAN is an in-session manufacturer rescan: LINK lets any in-flight live PID request finish, pauses live polling, runs the full Mercedes extension on the existing Bluetooth/USB transport, restores the normal ELM channel and resumes the existing live scheduler. It does not disconnect/reconnect the adapter or repeat standard PID/VIN discovery.
 
 The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps an exact receive route active for each 11-bit probe instead of opening the whole CAN bus.
 
