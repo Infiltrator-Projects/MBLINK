@@ -29,16 +29,25 @@
 static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
     {
         UINT32_C(0x612), UINT32_C(0x482),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         "eis-ezs", "EIS_212 / EIS_204",
         "CaesarSuite discussion #5: EIS trace 0x612 request, 0x482 response"
     },
     {
         UINT32_C(0x632), UINT32_C(0x486),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         "esp", "ABR2XT",
         "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486"
     },
     {
+        UINT32_C(0x64a), UINT32_C(0x489),
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "restraints-orc", "ORC_212",
+        "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489"
+    },
+    {
         UINT32_C(0x6b2), UINT32_C(0x496),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         "steering-column", "EPS212",
         "CaesarSuite discussion #5: EPS212 CP_REQUEST 0x6B2, CP_RESPONSE 0x496"
     }
@@ -153,6 +162,57 @@ static const char *mercedes_fallback_label(
     return "Unidentified Mercedes ECU";
 }
 
+static int mercedes_target_probes(
+    const link_discover_sweep_target *target,
+    const link_discover_sweep_probe **presence_probes,
+    size_t *presence_probe_count,
+    const link_discover_sweep_probe **identity_probe,
+    link_discover_sweep_decode_identity_fn *decode_identity)
+{
+    static const link_discover_sweep_probe kwp_presence_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x01)},
+            2U,
+            "Mercedes KWP2000 TesterPresent (response required)"
+        },
+        {
+            {UINT8_C(0x18), UINT8_C(0x02), UINT8_C(0xff), UINT8_C(0x00)},
+            4U,
+            "Mercedes KWP2000 ReadDiagnosticTroubleCodesByStatus"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0x00)},
+            3U,
+            "Mercedes KWP2000 common-identifier presence fallback"
+        }
+    };
+    const MblinkMercedesKnownRoute *route;
+
+    if (target == NULL || presence_probes == NULL ||
+        presence_probe_count == NULL || identity_probe == NULL ||
+        decode_identity == NULL) {
+        return 0;
+    }
+    if (target->extended_id) return 1;
+
+    route = mblink_mercedes_known_route_for_tx(target->tx_can_id);
+    if (route == NULL || route->rx_can_id != target->rx_can_id ||
+        route->protocol != MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return 1;
+    }
+
+    *presence_probes = kwp_presence_probes;
+    *presence_probe_count =
+        sizeof(kwp_presence_probes) / sizeof(kwp_presence_probes[0]);
+    /*
+     * Do not apply UDS F197 identity semantics to a KWP endpoint. Exact
+     * KWP-family identity options remain product evidence-gated.
+     */
+    *identity_probe = NULL;
+    *decode_identity = NULL;
+    return 1;
+}
+
 const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void)
 {
     static const link_discover_sweep_probe presence_probes[] = {
@@ -185,7 +245,8 @@ const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void)
         sizeof(presence_probes) / sizeof(presence_probes[0]),
         &identity_probe,
         mercedes_decode_f197,
-        mercedes_fallback_label
+        mercedes_fallback_label,
+        mercedes_target_probes
     };
     return &plan;
 }
