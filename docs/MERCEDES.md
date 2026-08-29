@@ -55,16 +55,13 @@ Mercedes' W212 introduction material documents diagnostic CAN (CAN D) terminatin
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
-The deeper gateway discovery path uses a gateway census. The iPhone's initial connection no longer runs this 263-target census inline; it performs the eight-target EOBD quick scan so VIN, standard faults and live data become usable promptly. The Linux workstation can run the deeper gateway/full discovery path:
+The deeper discovery path uses the one Mercedes-owned full target plan. On a new VIN, iPhone performs a bounded **mobile census** across the `0x600–0x7F7` 11-bit range plus all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`. Linux uses the same bounded census for a normal connection. Dead targets receive only a read-only TesterPresent; deeper reads run only after a responder is proved.
 
-1. probe the eight standard 11-bit EOBD physical endpoints `0x7E0–0x7E7`;
-2. switch to ISO 15765 normal-fixed 29-bit physical addressing;
-3. walk logical target addresses `00–FF`, excluding tester address `F1`;
-4. for each responder, retain read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number;
-5. classify the responder only when returned identity text matches a source-corroborated Mercedes module family;
-6. read that responder's UDS DTC memory independently with `19 02 FF`.
+For every responder MBLINK retains the physical route and reads read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number where supported. It classifies a module only when returned identity text or a standards-defined functional route supports that classification, and reads that responder's UDS DTC memory independently with `19 02 FF`.
 
-That automatic census is 263 targets rather than the previous forensic plan's 759 targets. The explicit FULL SWEEP remains available and still walks the broader `0x600–0x7F7` 11-bit range plus every normal-fixed 29-bit target for cases where the gateway census is insufficient. For 11-bit FULL SWEEP targets MBLINK no longer assumes that the response address is request+8: it enables response headers, temporarily widens the receive filter, learns the actual responding CAN ID from UDS evidence, then locks subsequent DTC/identity traffic to that learned route. Normal mobile discovery and known 29-bit normal-fixed routing remain exact and bounded.
+The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately.
+
+The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps the product-owned target plan's exact receive route active for each 11-bit probe. It does not open the entire CAN bus while waiting for one diagnostic reply.
 
 A catalogue entry is not evidence that a module is fitted to a particular car. Optional equipment remains optional, petrol/diesel control-unit alternatives remain mutually dependent on the decoded vehicle configuration, and a discovered but unclassified responder remains unresolved. Conversely, an ECU becomes part of the live vehicle map only after it actually responds during the read-only scan.
 
