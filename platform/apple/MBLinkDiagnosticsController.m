@@ -630,7 +630,7 @@ static bool MBLinkSimulatorResponder(
         return;
     }
     MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan);
+        mblink_mercedes_module_scan_begin_mobile_census(&_mercedesModuleScan);
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
         self.mercedesProbeStatusText = @"Mercedes module discovery could not start";
         [self finishMercedesExtensionRestoringAdapter:YES];
@@ -638,18 +638,18 @@ static bool MBLinkSimulatorResponder(
     }
     _moduleScanActive = YES;
     /*
-     * A new VIN gets one read-only gateway census so MBLINK can learn the
-     * vehicle's real module topology instead of caching only the legislated
-     * 7E0-7E7 powertrain endpoints.  The resulting routes are saved against
-     * the VIN and future connections use the bounded cached refresh path.
+     * A new VIN gets one read-only mobile census so MBLINK can learn the
+     * vehicle's real module topology instead of caching only legislated OBD
+     * powertrain endpoints.  The census covers the complete Mercedes-owned
+     * 11/29-bit target plan but sends only TesterPresent to dead addresses.
+     * Deeper DTC/identity reads happen only after a responder is proven.
      *
-     * This is intentionally the gateway scope rather than the much larger
-     * workstation forensic sweep: it covers the standard EOBD endpoints plus
-     * every ISO-TP normal-fixed logical target without turning every iPhone
-     * connection into a multi-thousand-command brute-force scan.
+     * The resulting routes are saved against the VIN and future connections
+     * use the bounded cached refresh path, so this wider discovery cost is a
+     * first-VIN learning operation rather than an every-connect penalty.
      */
     self.mercedesProbeStatusText =
-        @"Mercedes first-VIN gateway census · 263 read-only diagnostic targets";
+        @"Mercedes first-VIN mobile census · full 11/29-bit read-only discovery";
     self.mercedesUDSFaultStatusText =
         @"Learning complete Mercedes module topology for this VIN";
     [self notifyDelegate];
@@ -1013,7 +1013,7 @@ static bool MBLinkSimulatorResponder(
         @"schema": @(MBLinkVehicleProfileSchemaVersion),
         @"vin": self.mercedesVINText,
         @"updatedAt": @([[NSDate date] timeIntervalSince1970]),
-        @"discoveryScope": @(MBLINK_MERCEDES_MODULE_SCAN_GATEWAY),
+        @"discoveryScope": @(MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS),
         @"modules": [modules copy]
     } mutableCopy];
     if (self.mercedesProbeEndpointText.length != 0U)
