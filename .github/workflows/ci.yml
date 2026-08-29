@@ -255,8 +255,9 @@ jobs:
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'didReceiveFlowEvent' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'mblink_mercedes_module_scan_begin_mobile_census(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS' include/mblink/mercedes_module_scan.h
           grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'MBLinkVehicleProfileSchemaVersion = 2' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
