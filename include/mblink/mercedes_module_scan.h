@@ -6,11 +6,13 @@
  * The scan never sends coding, programming, security-access, routine-control,
  * reset or clear-DTC services. It probes physical diagnostic endpoints using
  * TesterPresent, ReadDTCInformation and ReadDataByIdentifier only, then reads
- * each responding ECU's DTC memory. The automatic iPhone quick pass is bounded
- * to the standard 11-bit EOBD physical range. Gateway discovery and the
- * complete Mercedes-owned 11/29-bit target plan are explicit wider scopes;
- * they are never silently substituted for the mobile quick pass. A requested
- * full sweep consumes mblink_discover_full_sweep_plan(); LINK defines the plan
+ * each responding ECU's DTC memory. The iPhone first-VIN mobile census walks
+ * the complete Mercedes-owned 11/29-bit target plan with a single read-only
+ * TesterPresent on misses, then performs deeper identity/fault reads only for
+ * responders. QUICK and GATEWAY remain bounded compatibility scopes, while the
+ * workstation FULL scope retains slower fallback probes for unusually quiet
+ * ECUs. Both mobile and full discovery consume mblink_discover_full_sweep_plan();
+ * LINK defines the plan
  * contract and generic transport/safety machinery, while MBLINK owns the map.
  */
 #ifndef MBLINK_MERCEDES_MODULE_SCAN_H
@@ -57,6 +59,7 @@ typedef enum MblinkMercedesModuleDtcResult {
 typedef enum MblinkMercedesModuleScanScope {
     MBLINK_MERCEDES_MODULE_SCAN_QUICK = 0,
     MBLINK_MERCEDES_MODULE_SCAN_GATEWAY,
+    MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS,
     MBLINK_MERCEDES_MODULE_SCAN_FULL,
     MBLINK_MERCEDES_MODULE_SCAN_CACHED
 } MblinkMercedesModuleScanScope;
@@ -67,10 +70,18 @@ static inline const char *mblink_mercedes_module_scan_scope_name(
     switch (scope) {
     case MBLINK_MERCEDES_MODULE_SCAN_QUICK: return "quick";
     case MBLINK_MERCEDES_MODULE_SCAN_GATEWAY: return "gateway-census";
+    case MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS: return "mobile-census";
     case MBLINK_MERCEDES_MODULE_SCAN_FULL: return "full-forensic";
     case MBLINK_MERCEDES_MODULE_SCAN_CACHED: return "saved-profile";
     }
     return "unknown";
+}
+
+static inline bool mblink_mercedes_module_scan_uses_full_target_plan(
+    MblinkMercedesModuleScanScope scope)
+{
+    return scope == MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS ||
+           scope == MBLINK_MERCEDES_MODULE_SCAN_FULL;
 }
 
 typedef enum MblinkMercedesModuleScanStage {
@@ -286,6 +297,7 @@ static inline size_t mblink_mercedes_module_scan_planned_target_count(
     case MBLINK_MERCEDES_MODULE_SCAN_GATEWAY:
         /* 8 EOBD endpoints plus 256 logical targets minus tester address F1. */
         return 263U;
+    case MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS:
     case MBLINK_MERCEDES_MODULE_SCAN_FULL: {
         const link_discover_sweep_plan *plan =
             mblink_discover_full_sweep_plan();
@@ -604,6 +616,27 @@ mblink_mercedes_module_scan_begin_gateway(MblinkMercedesModuleScan *scan)
 }
 
 static inline MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_mobile_census(
+    MblinkMercedesModuleScan *scan)
+{
+    const link_discover_sweep_plan *plan;
+    if (scan == NULL)
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
+    plan = mblink_discover_full_sweep_plan();
+    if (!link_discover_sweep_plan_is_valid(plan))
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
+
+    memset(scan, 0, sizeof(*scan));
+    scan->scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
+    if (!mblink_mercedes_module_scan_set_full_target(scan, 0U))
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
+    scan->stage = scan->candidate_extended
+        ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29
+        : MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
+    return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
+}
+
+static inline MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_begin_cached(
     MblinkMercedesModuleScan *scan,
     const MblinkMercedesModuleScanEntry *modules,
@@ -840,7 +873,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED) {
             scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
         } else {
-            scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended)
+            scan->stage = (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) && !scan->candidate_extended)
                 ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS
                 : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
         }
@@ -859,7 +892,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
-        scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended && !scan->candidate_route_locked)
+        scan->stage = (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) && !scan->candidate_extended && !scan->candidate_route_locked)
             ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
         break;
@@ -881,12 +914,12 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
-        scan->stage = (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL && !scan->candidate_extended && scan->candidate_route_locked)
+        scan->stage = (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) && !scan->candidate_extended && scan->candidate_route_locked)
             ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
-        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+        if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
             !scan->candidate_extended && !scan->candidate_route_locked) {
             uint32_t learned_rx = 0U;
             if (mblink_mercedes_module_scan_headered_11_route(
@@ -895,6 +928,9 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                 scan->candidate_route_locked = true;
                 (void)mblink_mercedes_module_scan_record_module(scan, true);
                 scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
+            } else if (scan->scope ==
+                       MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS) {
+                mblink_mercedes_module_scan_advance_candidate(scan);
             } else {
                 scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
             }
@@ -903,11 +939,20 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         present = mblink_mercedes_module_scan_decode_uds(
             response, MBLINK_UDS_SERVICE_TESTER_PRESENT,
             pdu, sizeof(pdu), &pdu_length, &uds);
-        if (present) (void)mblink_mercedes_module_scan_record_module(scan, true);
-        scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+        if (present) {
+            (void)mblink_mercedes_module_scan_record_module(scan, true);
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+        } else if (scan->scope ==
+                   MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS) {
+            mblink_mercedes_module_scan_advance_candidate(scan);
+        } else {
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+        }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
-        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+        if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
             !scan->candidate_extended && !scan->candidate_route_locked) {
             uint32_t learned_rx = 0U;
             if (mblink_mercedes_module_scan_headered_11_route(
@@ -932,7 +977,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
-        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL &&
+        if (mblink_mercedes_module_scan_uses_full_target_plan(scan->scope) &&
             !scan->candidate_extended && !scan->candidate_route_locked) {
             uint32_t learned_rx = 0U;
             if (mblink_mercedes_module_scan_headered_11_route(
