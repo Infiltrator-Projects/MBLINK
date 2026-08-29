@@ -387,9 +387,10 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     }
 
     /*
-     * The iPhone first-VIN census uses the complete target plan but only one
-     * TesterPresent probe on dead addresses.  This keeps full address reach
-     * without paying FULL's DTC/VIN fallback cost for every miss.
+     * The first-VIN census uses one TesterPresent on ordinary dead addresses.
+     * Source-corroborated Mercedes nonstandard routes get bounded read-only
+     * fallback probes because their independently published RX identifier is
+     * stronger evidence than the generic request+8 assumption.
      */
     {
         const link_discover_sweep_plan *plan =
@@ -435,6 +436,50 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.modules[0].rx_can_id == UINT32_C(0x608));
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+
+        /*
+         * Published EIS_212 route evidence overrides request+8. Even when
+         * TesterPresent is quiet, the bounded read-only fallbacks are retained
+         * and any valid negative UDS reply proves that the ECU exists.
+         */
+        {
+            MblinkElm327Response uds_negative =
+                response(MBLINK_ELM327_RESULT_OK, "7F2231", false);
+            CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 18U));
+            CHECK(scan.candidate_tx == UINT32_C(0x612));
+            CHECK(scan.candidate_rx == UINT32_C(0x482));
+            scan.stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK);
+            CHECK(mblink_mercedes_module_scan_command(
+                      &scan, command, sizeof(command), &written) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(strcmp(command, "22F100") == 0);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &uds_negative) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.module_count >= 1U);
+            {
+                const MblinkMercedesModuleScanEntry *eis =
+                    &scan.modules[scan.module_count - 1U];
+                CHECK(eis->tx_can_id == UINT32_C(0x612));
+                CHECK(eis->rx_can_id == UINT32_C(0x482));
+                CHECK(eis->definition != NULL);
+                CHECK(strcmp(eis->definition->key, "eis-ezs") == 0);
+                CHECK(eis->kind == MBLINK_MERCEDES_MODULE_BODY);
+            }
+        }
 
         /* A dead 29-bit logical target also advances after one presence probe. */
         CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 504U));
