@@ -196,7 +196,8 @@ static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMe
     if (module->definition != NULL) return module->definition->display_name;
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e0)) return "Engine ECU";
     if (module->identity_available && module->identity[0] != '\0') return module->identity;
-    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1)) return "Secondary EOBD powertrain ECU";
+    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1))
+        return "Transmission ECU candidate (7E1/7E9 EOBD responder)";
     switch (module->kind) {
     case MBLINK_MERCEDES_MODULE_ENGINE: return "Engine ECU";
     case MBLINK_MERCEDES_MODULE_TRANSMISSION: return "Transmission ECU";
@@ -212,8 +213,16 @@ static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMe
 
 static inline MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t tx_can_id, bool extended_id)
 {
-    if (!extended_id && tx_can_id == UINT32_C(0x7e0)) return MBLINK_MERCEDES_MODULE_ENGINE;
-    if (!extended_id && tx_can_id == UINT32_C(0x7e1)) return MBLINK_MERCEDES_MODULE_OTHER;
+    if (!extended_id && tx_can_id == UINT32_C(0x7e0))
+        return MBLINK_MERCEDES_MODULE_ENGINE;
+    /*
+     * ISO 15765-4 assigns/recommends the second legislated-OBD physical slot
+     * 0x7E1/0x7E9 to the transmission control module.  A live response on this
+     * route therefore classifies the responder as a transmission candidate;
+     * exact Mercedes VGS/EGS identity still requires returned ECU identity.
+     */
+    if (!extended_id && tx_can_id == UINT32_C(0x7e1))
+        return MBLINK_MERCEDES_MODULE_TRANSMISSION;
     return MBLINK_MERCEDES_MODULE_OTHER;
 }
 
@@ -1035,7 +1044,17 @@ static inline size_t mblink_mercedes_module_scan_classified_count(
     size_t index;
     if (scan == NULL) return 0U;
     for (index = 0U; index < scan->module_count; ++index) {
-        if (scan->modules[index].definition != NULL) ++count;
+        const MblinkMercedesModuleScanEntry *module = &scan->modules[index];
+        /*
+         * A returned textual identity is the strongest classifier, but a
+         * standardized live EOBD role such as 7E0/7E8 ECM or 7E1/7E9 TCM is
+         * still a useful functional classification.  It remains a candidate
+         * until Mercedes identity evidence names the exact family.
+         */
+        if (module->definition != NULL ||
+            module->kind != MBLINK_MERCEDES_MODULE_OTHER) {
+            ++count;
+        }
     }
     return count;
 }
