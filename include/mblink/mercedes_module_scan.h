@@ -100,6 +100,7 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE,
@@ -184,6 +185,7 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return "discover-tester-present";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK: return "discover-dtc-fallback";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return "discover-vin-fallback";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return "discover-variant-fallback";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY: return "discover-system-name";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return "discover-spare-part";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
@@ -338,6 +340,16 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
     return true;
 }
 
+static inline const MblinkMercedesKnownRoute *
+mblink_mercedes_module_scan_known_route(const MblinkMercedesModuleScan *scan)
+{
+    const MblinkMercedesKnownRoute *route;
+    if (scan == NULL || scan->candidate_extended) return NULL;
+    route = mblink_mercedes_known_route_for_tx(scan->candidate_tx);
+    return route != NULL && route->rx_can_id == scan->candidate_rx
+        ? route : NULL;
+}
+
 static inline void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan)
 {
     size_t index;
@@ -470,6 +482,20 @@ static inline MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_record_
     module->tester_present_response = tester_present;
     module->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
     module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
+    {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_module_scan_known_route(scan);
+        if (route != NULL) {
+            const MblinkMercedesModuleDefinition *definition =
+                mblink_mercedes_c207_module_definition_for_key(
+                    route->module_key);
+            if (definition != NULL) {
+                module->definition = definition;
+                module->kind = definition->kind;
+                module->identification_status = definition->status;
+            }
+        }
+    }
     return module;
 }
 
@@ -712,6 +738,7 @@ static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMerced
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
@@ -756,6 +783,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return WRITE("1902FF");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE: return WRITE("3E00");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return WRITE("22F190");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return WRITE("22F100");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY: return WRITE("22F197");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return WRITE("22F187");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return WRITE("22F188");
@@ -951,9 +979,16 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             scan->stage =
                 MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
         } else if (scan->scope ==
-                   MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS) {
+                       MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS &&
+                   mblink_mercedes_module_scan_known_route(scan) == NULL) {
             mblink_mercedes_module_scan_advance_candidate(scan);
         } else {
+            /*
+             * Source-corroborated Mercedes body/chassis routes may stay quiet
+             * to TesterPresent in the default diagnostic session.  On those
+             * few routes continue with read-only DTC/identity probes instead
+             * of throwing away the independently known response CAN ID.
+             */
             scan->stage =
                 MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
         }
@@ -1002,6 +1037,26 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, false);
             scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+        } else if (mblink_mercedes_module_scan_known_route(scan) != NULL) {
+            /*
+             * F100 is the CAESAR/Vediamo active-diagnostic-information /
+             * variant DID shown in published EIS_212 traces.  It is a
+             * read-only final presence probe for known non-+8 routes.
+             */
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK;
+        } else {
+            mblink_mercedes_module_scan_advance_candidate(scan);
+        }
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK:
+        present = mblink_mercedes_module_scan_decode_uds(
+            response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
+            pdu, sizeof(pdu), &pdu_length, &uds);
+        if (present) {
+            (void)mblink_mercedes_module_scan_record_module(scan, false);
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
         } else {
             mblink_mercedes_module_scan_advance_candidate(scan);
         }
