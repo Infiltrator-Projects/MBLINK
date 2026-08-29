@@ -34,9 +34,9 @@
 #define MBLINK_IMPLEMENTATION_REVISION \
     "3491c9902186637285d6a72be3df21daa9c859ca"
 #endif
-#define MBLINK_EMBEDDED_LINK_VERSION "0.14.34"
+#define MBLINK_EMBEDDED_LINK_VERSION "0.14.35"
 #define MBLINK_EMBEDDED_LINK_REVISION \
-    "66697c0d3f92109f83066f56fce0347e103ade8d"
+    "c23dcddbf4fcce1f95dd28c4c1c0e3a9cf51501c"
 
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native
@@ -126,6 +126,10 @@ bool link_telemetry_recorder_continue(
 }
 
 #include "../link/src/core/mercedes_me_adapter.c"
+#include "../link/src/core/mercedes_me_native_protocol.c"
+#include "../link/src/core/mercedes_me_data_ids.c"
+#include "../link/src/core/mercedes_me_diaglogic.c"
+#include "../link/src/core/mercedes_me_whisper.c"
 #include "../link/src/core/transport.c"
 #include "../link/src/elm327/elm327.c"
 #include "../link/src/elm327/can.c"
