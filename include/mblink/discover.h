@@ -31,9 +31,25 @@ typedef link_evidence_writer mblink_evidence_writer;
 #define mblink_evidence_flush link_evidence_flush
 #define mblink_evidence_close link_evidence_close
 
+typedef enum MblinkMercedesDiagnosticProtocol {
+    MBLINK_MERCEDES_DIAGNOSTIC_UDS = 0,
+    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+} MblinkMercedesDiagnosticProtocol;
+
+static inline const char *mblink_mercedes_diagnostic_protocol_name(
+    MblinkMercedesDiagnosticProtocol protocol)
+{
+    switch (protocol) {
+    case MBLINK_MERCEDES_DIAGNOSTIC_UDS: return "UDS";
+    case MBLINK_MERCEDES_DIAGNOSTIC_KWP2000: return "KWP2000";
+    }
+    return "unknown";
+}
+
 typedef struct MblinkMercedesKnownRoute {
     uint32_t tx_can_id;
     uint32_t rx_can_id;
+    MblinkMercedesDiagnosticProtocol protocol;
     const char *module_key;
     const char *qualifier;
     const char *provenance;
