@@ -463,7 +463,9 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             CHECK(mblink_mercedes_module_scan_accept(
                       &scan, &session_response) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-            CHECK(scan.module_count == 1U);
+            CHECK(scan.module_count == 2U);
+            CHECK(scan.modules[1].tx_can_id == UINT32_C(0x612));
+            CHECK(scan.modules[1].rx_can_id == UINT32_C(0x482));
             CHECK(scan.stage ==
                   MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
 
