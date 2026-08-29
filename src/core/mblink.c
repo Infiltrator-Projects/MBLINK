@@ -126,7 +126,17 @@ bool link_telemetry_recorder_continue(
 }
 
 #include "../link/src/core/mercedes_me_adapter.c"
+/*
+ * This Apple compatibility target intentionally amalgamates several LINK C
+ * sources into one translation unit. Keep file-local helpers from the native
+ * protocol module private to that include so they cannot collide with static
+ * helpers in later LINK sources such as discover/ecu_probe.c.
+ */
+#define read_u16_be mblink_mercedes_me_native_read_u16_be
+#define write_u16_be mblink_mercedes_me_native_write_u16_be
 #include "../link/src/core/mercedes_me_native_protocol.c"
+#undef read_u16_be
+#undef write_u16_be
 #include "../link/src/core/mercedes_me_data_ids.c"
 #include "../link/src/core/mercedes_me_diaglogic.c"
 #include "../link/src/core/mercedes_me_whisper.c"
