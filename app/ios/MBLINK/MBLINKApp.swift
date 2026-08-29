@@ -997,7 +997,7 @@ private struct MBLiveDataView: View {
                 set: { connection.setPolling($0, stableKey: parameter.id) }
             ))
             .labelsHidden()
-            .tint(MBBrand.silverBright)
+            .tint(MBBrand.success)
             Button {
                 connection.toggleFavourite(stableKey: parameter.id)
             } label: {
