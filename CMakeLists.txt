@@ -70,7 +70,7 @@ add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE
 add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
-    src/obd2/obd2.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
+    src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
     src/mercedes/probe.c src/mercedes/discover_plan.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
