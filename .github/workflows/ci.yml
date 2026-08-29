@@ -262,6 +262,12 @@ jobs:
           grep -Fq 'MBLinkVehicleProfileSchemaVersion = 3' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
+          grep -Fq 'link_linux_serial_probe_adapter' src/link/platform/linux/link-gtk-shell.c
+          grep -Fq 'native protocol capture' src/link/platform/linux/link-gtk-shell.c
+          grep -Fq 'transport.isNativeAdapter' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'NATIVE_RX' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'MERCEDES ME ADAPTER · NATIVE' app/linux/main.c
           grep -Fq 'Transmission ECU candidate (7E1/7E9 EOBD responder)' include/mblink/mercedes_module_scan.h
           grep -Fq '"audio-headunit", "Audio 20 / COMAND head unit"' include/mblink/mercedes_module_catalog.h
           grep -Fq '"belt-pretensioner-left"' include/mblink/mercedes_module_catalog.h
