@@ -234,9 +234,36 @@ evidence stream rather than being collapsed into anonymous duplicate values.
 
 Mercedes part A2138203202 / approval 10R-042695 is a genuine Mercedes me Adapter intended for compatible Series 207 vehicles. Mercedes setup material documents Bluetooth pairing under a local name in the form `MB-xxxx`.
 
-MBLINK treats this adapter as a **native Mercedes telemetry transport**, not as an ELM327. LINK may discover and connect its Bluetooth RFCOMM/GATT byte channel and MBLINK may preserve passive incoming frames as evidence, but no ELM `ATI`, `ATZ` or guessed proprietary Mercedes me application command is transmitted merely to establish identity. On Linux this appears as a connected native protocol-capture session; on Apple a CoreBluetooth-visible `MB-xxxx` adapter follows the same passive path.
+A preserved official Mercedes me Adapter **4.7.61** Android build (`com.daimler.mbfa.android`) now gives MBLINK substantially stronger interoperability evidence. The analysed transport implementation is in the archived app's T-Systems/Daimler framework code, principally `classes3.dex` (local SHA-256 `83cd980cac55e517926469f165cdd83f55eddec7c45e1590c45b6686c5685ae0`). LINK keeps the full evidence ledger in `docs/MERCEDES-ME-ADAPTER-INTEROP.md`.
 
-The adapter's original application framing is still evidence-gated. The first physical capture should record the Bluetooth service/channel details and any unsolicited/native RX bytes. Those observations can then be promoted into a deterministic read-only decoder without conflating Mercedes me telemetry with the separate ELM/UDS/KWP diagnostic path.
+The official application's default adapter-name families are:
+
+| Official-app role | Default Bluetooth-name pattern |
+| --- | --- |
+| BLE adapter | `^MB-[189].*` |
+| first-generation adapter | `^MB-[2346].*` |
+| second-generation adapter | `^MB-[57].*` |
+| adapter for other apps | `^VAN-.*` |
+
+A separate literal `^MB-[02-46].*` exists but its role is not yet strong enough to bind behaviour, so MBLINK records it without using it as a routing rule.
+
+For Bluetooth Classic, the official `BluetoothObdAdapterDevice` uses the standard SPP UUID `00001101-0000-1000-8000-00805F9B34FB` and Android's insecure RFCOMM SPP socket path. Its static reference timing is a 44,000 ms connect timeout and a 6,000 ms minimum connection duration.
+
+For BLE, the official `BleObdAdapterDevice` uses Nordic UART Service:
+
+- service `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`;
+- RX/write `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`;
+- TX/notify `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`;
+- CCCD `00002902-0000-1000-8000-00805F9B34FB`;
+- requested Android MTU 512.
+
+The app also carries Toshiba SPP-over-BLE identifiers `e079c6a0-aa8b-11e3-a903-0002a5d5c51b` (service) and `b38312c0-aa89-11e3-9cef-0002a5d5c51b` (characteristic). Those are retained as a known fallback candidate rather than assumed to apply to every generation.
+
+MBLINK treats the adapter as a **native Mercedes telemetry transport**, not as an ELM327. LINK may discover and connect the evidence-backed RFCOMM/GATT channel and MBLINK may preserve native frames, but no ELM `ATI`, `ATZ` or guessed Mercedes me command is transmitted merely to establish identity.
+
+The archived application also proves that the adapter lifecycle is more than an unauthenticated serial stream. It contains `setupObdAdapter`, `readObdAdapterData`, `deactivateSppServerMode`, Session Master Key classes/states and a backend SMK resource `POST tenants/{tenantId}/obdAdapters/{obdAdapterId}/v2/smk`. Those names are evidence of a commissioned/keyed session model; they do **not** yet reveal a safe local SMK algorithm or wire frame. MBLINK therefore keeps setup/read command bytes evidence-gated until the framing is independently recovered or captured from the physical adapter.
+
+The first physical capture remains valuable, but it is no longer a blind transport-discovery exercise: LINK can now select the generation-specific Bluetooth path first and use the resulting byte stream to recover the remaining framing and vehicle-value decoder.
 
 ## iPhone evidence path
 
