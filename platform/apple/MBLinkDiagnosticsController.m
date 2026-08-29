@@ -13,7 +13,7 @@
 
 static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
-static const NSInteger MBLinkVehicleProfileSchemaVersion = 1;
+static const NSInteger MBLinkVehicleProfileSchemaVersion = 2;
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
@@ -630,7 +630,7 @@ static bool MBLinkSimulatorResponder(
         return;
     }
     MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin(&_mercedesModuleScan);
+        mblink_mercedes_module_scan_begin_gateway(&_mercedesModuleScan);
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) {
         self.mercedesProbeStatusText = @"Mercedes module discovery could not start";
         [self finishMercedesExtensionRestoringAdapter:YES];
@@ -638,15 +638,20 @@ static bool MBLinkSimulatorResponder(
     }
     _moduleScanActive = YES;
     /*
-     * Initial iPhone connection deliberately uses only the eight standard
-     * EOBD physical endpoints.  A 263-target gateway census must not hold the
-     * connection hostage before VIN, faults and live OBD data reach the UI.
-     * Deeper gateway/forensic discovery remains a separate workstation task.
+     * A new VIN gets one read-only gateway census so MBLINK can learn the
+     * vehicle's real module topology instead of caching only the legislated
+     * 7E0-7E7 powertrain endpoints.  The resulting routes are saved against
+     * the VIN and future connections use the bounded cached refresh path.
+     *
+     * This is intentionally the gateway scope rather than the much larger
+     * workstation forensic sweep: it covers the standard EOBD endpoints plus
+     * every ISO-TP normal-fixed logical target without turning every iPhone
+     * connection into a multi-thousand-command brute-force scan.
      */
     self.mercedesProbeStatusText =
-        @"Mercedes quick module scan · eight EOBD physical targets (read-only)";
+        @"Mercedes first-VIN gateway census · 263 read-only diagnostic targets";
     self.mercedesUDSFaultStatusText =
-        @"Quick EOBD module discovery in progress";
+        @"Learning complete Mercedes module topology for this VIN";
     [self notifyDelegate];
     [self beginCurrentMercedesModuleScanCommand];
 }
@@ -1008,6 +1013,7 @@ static bool MBLinkSimulatorResponder(
         @"schema": @(MBLinkVehicleProfileSchemaVersion),
         @"vin": self.mercedesVINText,
         @"updatedAt": @([[NSDate date] timeIntervalSince1970]),
+        @"discoveryScope": @(MBLINK_MERCEDES_MODULE_SCAN_GATEWAY),
         @"modules": [modules copy]
     } mutableCopy];
     if (self.mercedesProbeEndpointText.length != 0U)
