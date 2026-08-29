@@ -166,7 +166,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         let alert = UIAlertController(
             title: mblinkLocalized("Connection Test"),
-            message: mblinkLocalized("Real Adapter uses Bluetooth. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator."),
+            message: mblinkLocalized("Real Adapter supports ELM/Vgate diagnostics and genuine MB-xxxx Mercedes me native Bluetooth capture. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator."),
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: mblinkLocalized("Real Adapter"), style: .default) { [weak self] _ in

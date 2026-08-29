@@ -230,6 +230,14 @@ it. Live Apple OBD polling enables `ATH1` after manufacturer discovery so
 simultaneous `0x7E8` and `0x7E9` replies remain attributable in the raw
 evidence stream rather than being collapsed into anonymous duplicate values.
 
+## Genuine Mercedes me Adapter transport
+
+Mercedes part A2138203202 / approval 10R-042695 is a genuine Mercedes me Adapter intended for compatible Series 207 vehicles. Mercedes setup material documents Bluetooth pairing under a local name in the form `MB-xxxx`.
+
+MBLINK treats this adapter as a **native Mercedes telemetry transport**, not as an ELM327. LINK may discover and connect its Bluetooth RFCOMM/GATT byte channel and MBLINK may preserve passive incoming frames as evidence, but no ELM `ATI`, `ATZ` or guessed proprietary Mercedes me application command is transmitted merely to establish identity. On Linux this appears as a connected native protocol-capture session; on Apple a CoreBluetooth-visible `MB-xxxx` adapter follows the same passive path.
+
+The adapter's original application framing is still evidence-gated. The first physical capture should record the Bluetooth service/channel details and any unsolicited/native RX bytes. Those observations can then be promoted into a deterministic read-only decoder without conflating Mercedes me telemetry with the separate ELM/UDS/KWP diagnostic path.
+
 ## iPhone evidence path
 
 The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.

@@ -29,6 +29,7 @@ typedef struct MblinkLinuxContext {
     bool replay_verify;
     bool replay_verify_emitted;
     bool manufacturer_ui_dirty;
+    bool native_adapter_mode;
     char adapter_identity[160];
     LinkTransport transport;
     bool diagnostic_valid;
@@ -112,12 +113,16 @@ static const char *connection_text(const MblinkLinuxContext *context)
 {
     if (context->connected && context->replay_mode)
         return "OFFLINE REPLAY · ELM327/VGATE CAPTURE";
+    if (context->connected && context->native_adapter_mode)
+        return "LINKED · MERCEDES ME ADAPTER · NATIVE";
     return context->connected ? "LINKED · DIAGNOSTIC ADAPTER VERIFIED" : "NOT LINKED";
 }
 
 static const char *diagnostic_text(const MblinkLinuxContext *context)
 {
     if (!context->connected) return "LINK OFFLINE";
+    if (context->native_adapter_mode)
+        return "MERCEDES ME NATIVE CAPTURE · PROTOCOL LEARNING";
     if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
     if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) return "DIAGNOSTIC SESSION FAILED";
     if (context->module_scan_active && context->module_scan_full) return "MERCEDES FULL SWEEP ACTIVE";
@@ -1193,6 +1198,9 @@ static void connection_changed(LinkTransport *transport,
     context->transport = *transport;
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
+    context->native_adapter_mode =
+        connected && adapter_identity != NULL &&
+        strstr(adapter_identity, "Mercedes me Adapter") != NULL;
     reset_manufacturer_scan(context);
     if (connected)
         link_fuel_economy_reset_trip(&context->fuel_economy, monotonic_ms());
