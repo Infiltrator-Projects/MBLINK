@@ -2,6 +2,7 @@
 import Charts
 import Foundation
 import SwiftUI
+import UIKit
 
 private enum MBBrand {
     static let background = Color(red: 0.018, green: 0.020, blue: 0.024)
@@ -405,6 +406,7 @@ private struct MBInterfaceLanguage: Identifiable, Hashable {
 
 @main
 struct MBLINKApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var connection = ConnectionViewModel()
     @State private var showingAbout = false
     @AppStorage("mblink.language") private var language = "en-AU"
@@ -418,6 +420,10 @@ struct MBLINKApp: App {
                 .onAppear {
                     let canonical = MBInterfaceLanguage.canonical(language)
                     if language != canonical { language = canonical }
+                    UIApplication.shared.isIdleTimerDisabled = true
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    UIApplication.shared.isIdleTimerDisabled = (phase == .active)
                 }
                 .preferredColorScheme(.dark)
                 .tint(MBBrand.silverBright)
