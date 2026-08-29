@@ -51,11 +51,27 @@ Physical hardware is a validation gate, not a development gate. MBLINK continues
 
 MBLINK now separates the **expected platform roster** from the **observed vehicle map**.
 
-Mercedes' W212 introduction material documents diagnostic CAN (CAN D) terminating at the central-gateway/front-SAM assembly, with the gateway bridging diagnostic requests onto the drivetrain, chassis, interior and other vehicle networks. W212/C207 service information independently lists the principal control-unit families, including engine CDI/ME, VGS/EGS transmission, selector/DIRECT SELECT, ESP, restraints, instrument cluster, central gateway/front SAM, rear SAM, EIS/EZS, steering-column, climate, AIRmatic/ADS, DISTRONIC and headlamp-range modules.
+Mercedes' Series 207/212 introduction and component documentation shows that the central gateway is integrated into the N10/1 front-SAM housing. The housing contains two microprocessors: the SAM processor and a separate central-gateway processor, each with its own CAN interface, and Mercedes states that the two processors can be diagnosed separately. Diagnostic CAN (CAN D) reaches that integrated gateway processor, which bridges diagnostic traffic to the drivetrain, chassis, interior and other vehicle networks.
+
+MBLINK therefore models **CGW and SAMF as separate logical diagnostic controllers that share the N10/1 physical housing**. It does not assume that a proprietary "open N93 route" command is required before ordinary ECU diagnosis. The strongest public CAESAR/Monaco evidence instead shows ECU definitions carrying independently defined physical request and response CAN identifiers, with the integrated gateway providing the cross-network path.
+
+### Source-backed priority routes
+
+The following physical routes have both endpoints and protocol family independently published. They are attempted before the generic census, and then omitted from the generic 11-bit pass so they are not probed twice.
+
+| ECU family | Request | Response | Protocol | Evidence basis |
+| --- | ---: | ---: | --- | --- |
+| EIS_212 / EIS_204 | `0x612` | `0x482` | UDS | Public CAESAR trace / communication parameters |
+| ABR2XT / ESP | `0x632` | `0x486` | UDS | Public CAESAR communication parameters |
+| ORC_212 / SRS | `0x64A` | `0x489` | KWP2000 / KW2C3PE | Public Monaco trace |
+| HU_204 / COMAND | `0x652` | `0x48A` | KWP2000 / KW2C3PE | Public HU_204 Monaco trace |
+| EPS212 | `0x6B2` | `0x496` | UDS | Public CAESAR communication parameters |
+
+IC_204, SAMF_212, SAMR_212 and HVAC_212 are independently corroborated as real 204/207/212 diagnostic families, and public material establishes UDS/HSCAN operation for several of them, but MBLINK still leaves their physical TX/RX pairs unbound until an equally defensible trace or CBF/CAESAR parameter source is found.
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
-The deeper discovery path uses the one Mercedes-owned full target plan. On a new VIN, iPhone performs a bounded **mobile census** across the `0x600–0x7F7` 11-bit range plus all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`. Linux uses the same bounded census for a normal connection. Dead targets receive only a read-only TesterPresent; deeper reads run only after a responder is proved.
+The deeper discovery path uses the one Mercedes-owned full target plan. On a new VIN, iPhone first probes the source-backed physical routes above, then performs a bounded **mobile census** across the remainder of the `0x600–0x7F7` 11-bit range plus all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`. Linux uses the same ordered census for a normal connection. Dead targets receive only a read-only TesterPresent; deeper reads run only after a responder is proved.
 
 For every responder MBLINK retains the physical route and reads read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number where supported. It classifies a module only when returned identity text or a standards-defined functional route supports that classification, and reads that responder's UDS DTC memory independently with `19 02 FF`.
 

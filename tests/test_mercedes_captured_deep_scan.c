@@ -88,6 +88,23 @@ static int prepare_full_11_candidate(MblinkMercedesModuleScan *scan,
     return 0;
 }
 
+static size_t full_target_index_for_tx(uint32_t tx)
+{
+    const link_discover_sweep_plan *plan =
+        mblink_discover_full_sweep_plan();
+    link_discover_sweep_target target;
+    size_t index;
+
+    if (!link_discover_sweep_plan_is_valid(plan)) return (size_t)-1;
+    for (index = 0U; index < plan->target_count; ++index) {
+        if (link_discover_sweep_plan_target_at(plan, index, &target) &&
+            !target.extended_id && target.tx_can_id == tx) {
+            return index;
+        }
+    }
+    return (size_t)-1;
+}
+
 static int replay_captured_full_scan_misses(void)
 {
     MblinkMercedesModuleScan scan;
@@ -97,7 +114,13 @@ static int replay_captured_full_scan_misses(void)
     CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
-    CHECK(scan.candidate_tx == UINT32_C(0x600));
+    CHECK(scan.candidate_tx == UINT32_C(0x612));
+    {
+        const size_t index600 = full_target_index_for_tx(UINT32_C(0x600));
+        CHECK(index600 != (size_t)-1);
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, index600));
+        CHECK(scan.candidate_tx == UINT32_C(0x600));
+    }
 
     CHECK(accept_expected_ok(&scan, "ATSP6") == 0);
     CHECK(accept_expected_ok(&scan, "ATH0") == 0);
@@ -115,7 +138,8 @@ static int replay_captured_full_scan_misses(void)
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
-    CHECK(scan.full_target_index == 1U);
+    CHECK(scan.full_target_index ==
+          full_target_index_for_tx(UINT32_C(0x601)));
     CHECK(scan.candidate_tx == UINT32_C(0x601));
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
@@ -124,7 +148,8 @@ static int replay_captured_full_scan_misses(void)
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
-    CHECK(scan.full_target_index == 2U);
+    CHECK(scan.full_target_index ==
+          full_target_index_for_tx(UINT32_C(0x602)));
     CHECK(scan.candidate_tx == UINT32_C(0x602));
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
@@ -141,7 +166,8 @@ static int replay_captured_negative_tester_present(void)
 
     CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 481U));
+    CHECK(mblink_mercedes_module_scan_set_full_target(
+              &scan, full_target_index_for_tx(UINT32_C(0x7e1))));
     CHECK(scan.candidate_tx == UINT32_C(0x7e1));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
 
@@ -169,7 +195,8 @@ static int reject_promiscuous_11_bit_capture(void)
 
     CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 48U));
+    CHECK(mblink_mercedes_module_scan_set_full_target(
+              &scan, full_target_index_for_tx(UINT32_C(0x630))));
     CHECK(scan.candidate_tx == UINT32_C(0x630));
     CHECK(scan.candidate_rx == UINT32_C(0x638));
     CHECK(scan.candidate_route_locked);

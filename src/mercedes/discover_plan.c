@@ -46,6 +46,12 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489"
     },
     {
+        UINT32_C(0x652), UINT32_C(0x48a),
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "audio-headunit", "HU_204",
+        "Public HU_204 Monaco trace: HSCAN_KW2C3PE_500, tester 0x652, response 0x48A"
+    },
+    {
         UINT32_C(0x6b2), UINT32_C(0x496),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         "steering-column", "EPS212",
@@ -75,20 +81,64 @@ const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
     return NULL;
 }
 
+static bool mercedes_tx_is_known(uint32_t tx)
+{
+    return mblink_mercedes_known_route_for_tx(tx) != NULL;
+}
+
+static int mercedes_generic_11_tx_at(size_t index, uint32_t *tx)
+{
+    uint32_t candidate;
+    size_t seen = 0U;
+
+    if (tx == NULL) return 0;
+    for (candidate = MBLINK_SWEEP_11_FIRST;
+         candidate <= MBLINK_SWEEP_11_LAST;
+         ++candidate) {
+        if (mercedes_tx_is_known(candidate)) continue;
+        if (seen == index) {
+            *tx = candidate;
+            return 1;
+        }
+        ++seen;
+    }
+    return 0;
+}
+
 static int mercedes_target_at(
     size_t index, link_discover_sweep_target *target)
 {
-    if (target == NULL || index >= MBLINK_SWEEP_TARGET_COUNT) return 0;
+    const size_t known_count = mblink_mercedes_known_route_count();
+
+    if (target == NULL || index >= MBLINK_SWEEP_TARGET_COUNT ||
+        known_count > MBLINK_SWEEP_11_COUNT) {
+        return 0;
+    }
     memset(target, 0, sizeof(*target));
     target->bitrate = 500000U;
 
-    if (index < MBLINK_SWEEP_11_COUNT) {
-        const uint32_t tx = MBLINK_SWEEP_11_FIRST + (uint32_t)index;
+    /*
+     * Probe published Mercedes physical routes first.  These are the highest
+     * value targets because their independent request/response identifiers and
+     * protocol families are source-backed.  The remainder of the 11-bit sweep
+     * follows afterwards, skipping those TX identifiers so no ECU is probed
+     * twice.  The overall target count and 29-bit portion remain unchanged.
+     */
+    if (index < known_count) {
         const MblinkMercedesKnownRoute *known =
-            mblink_mercedes_known_route_for_tx(tx);
+            mblink_mercedes_known_route_at(index);
+        if (known == NULL) return 0;
+        target->tx_can_id = known->tx_can_id;
+        target->rx_can_id = known->rx_can_id;
+        target->extended_id = false;
+        return 1;
+    }
+
+    if (index < MBLINK_SWEEP_11_COUNT) {
+        uint32_t tx = 0U;
+        if (!mercedes_generic_11_tx_at(index - known_count, &tx)) return 0;
         target->tx_can_id = tx;
-        target->rx_can_id = known != NULL
-            ? known->rx_can_id : tx + UINT32_C(8);
+        target->rx_can_id = tx + UINT32_C(8);
         target->extended_id = false;
         return 1;
     }

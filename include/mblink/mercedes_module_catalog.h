@@ -132,7 +132,7 @@ mblink_mercedes_c207_module_definition_at(size_t index)
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
             { "HU_204", "HU204", "AUDIO 20", "COMAND" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-            "W212/C207 diagnostic coverage and Mercedes service reports identify the A2 head unit as HU_204/Audio 20/COMAND."
+            "W212/C207 diagnostic coverage identifies the A2 head unit as HU_204/Audio 20/COMAND; a public HU_204 HSCAN_KW2C3PE_500 trace proves tester 0x652 and response 0x48A."
         },
         {
             "audio-controller", "Audio / COMAND operating unit", "A40/9",
@@ -186,29 +186,30 @@ mblink_mercedes_c207_module_definition_at(size_t index)
             "204/207/212-family diagnostic coverage identifies SEATP/SSGB as the front-right passenger seat adjustment controller."
         },
         {
-            "central-gateway", "Central gateway (CGW)", "N93",
-            "diagnostic CAN gateway",
+            "central-gateway", "Central gateway (CGW)",
+            "N93 / CGW processor in N10/1",
+            "integrated diagnostic CAN gateway",
             MBLINK_MERCEDES_MODULE_BODY,
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
-            { "CGW", "ZGW", "CENTRAL GATEWAY", "GATEWAY" },
+            { "CGW_212", "CGW", "ZGW", "CENTRAL GATEWAY" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-            "Mercedes W212 introduction material documents N93 central-gateway functionality integrated with the front SAM housing and bridging diagnostic CAN to vehicle networks."
+            "Mercedes Series 207/212 documentation places a second, separately diagnosable central-gateway microprocessor inside the N10/1 front-SAM housing; it bridges diagnostic CAN to the vehicle subnetworks."
         },
         {
             "front-sam", "Front SAM control unit", "N10/1",
             "multi-CAN gateway / body",
             MBLINK_MERCEDES_MODULE_BODY,
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
-            { "SAMF", "SAM-F", "FRONT SAM", "SAM_FRONT" },
+            { "SAMF_212", "SAMF", "SAM-F", "FRONT SAM" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-            "Mercedes models 204/207/212 service information identifies N10/1 as the front SAM; W212 introduction material documents its gateway housing."
+            "Mercedes Series 207/212 service information identifies N10/1 as the front SAM; its SAM processor shares the housing with, but is separately diagnosable from, the integrated CGW processor."
         },
         {
             "rear-sam", "Rear SAM control unit", "N10/2",
             "interior CAN",
             MBLINK_MERCEDES_MODULE_BODY,
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
-            { "SAMR", "SAM-R", "REAR SAM", "SAM_REAR" },
+            { "SAMR_212", "SAMR", "SAM-R", "REAR SAM" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             "Mercedes 204/207/212 service information identifies N10/2 as the rear SAM."
         },
@@ -235,7 +236,7 @@ mblink_mercedes_c207_module_definition_at(size_t index)
             "interior CAN",
             MBLINK_MERCEDES_MODULE_CLIMATE,
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
-            { "KLA", "AAC", "KLA_212", "AAC_212" },
+            { "HVAC_212", "KLA_212", "AAC_212", "KLA" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             "W212/C207 wiring/service information identifies the automatic climate control unit; Mercedes parts literature uses KLA."
         },

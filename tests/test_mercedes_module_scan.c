@@ -24,6 +24,23 @@ static MblinkElm327Response response(MblinkElm327Result result,
     return value;
 }
 
+static size_t full_target_index_for_tx(uint32_t tx)
+{
+    const link_discover_sweep_plan *plan =
+        mblink_discover_full_sweep_plan();
+    link_discover_sweep_target target;
+    size_t index;
+
+    if (!link_discover_sweep_plan_is_valid(plan)) return (size_t)-1;
+    for (index = 0U; index < plan->target_count; ++index) {
+        if (link_discover_sweep_plan_target_at(plan, index, &target) &&
+            !target.extended_id && target.tx_can_id == tx) {
+            return index;
+        }
+    }
+    return (size_t)-1;
+}
+
 static int send_ok(MblinkMercedesModuleScan *scan, const char *expected)
 {
     char command[32];
@@ -209,7 +226,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
 
-    /* Normal product scan: EOBD first, then gateway-routed 29-bit targets. */
+    /* Normal product scan: source-backed routes first, then the full census. */
     {
         const MblinkMercedesModuleDefinition *definition;
 
@@ -240,6 +257,26 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 "HU_204");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "audio-headunit") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "CGW_212");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "central-gateway") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "SAMF_212");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "front-sam") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "SAMR_212");
+        CHECK(definition != NULL);
+        CHECK(strcmp(definition->key, "rear-sam") == 0);
+        definition =
+            mblink_mercedes_c207_module_definition_for_identity(
+                "HVAC_212");
+        CHECK(definition != NULL);
+        CHECK(definition->kind == MBLINK_MERCEDES_MODULE_CLIMATE);
         definition =
             mblink_mercedes_c207_module_definition_for_identity(
                 "RBTMFL_204");
@@ -483,8 +520,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS);
         CHECK(mblink_mercedes_module_scan_planned_target_count(scan.scope) ==
               plan->target_count);
-        CHECK(scan.candidate_tx == UINT32_C(0x600));
-        CHECK(scan.candidate_rx == UINT32_C(0x608));
+        CHECK(scan.candidate_tx == UINT32_C(0x612));
+        CHECK(scan.candidate_rx == UINT32_C(0x482));
 
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT;
         CHECK(mblink_mercedes_module_scan_command(
@@ -493,19 +530,22 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST20") == 0);
 
         /* A dead 11-bit address advances after TesterPresent alone. */
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, full_target_index_for_tx(UINT32_C(0x600))));
         scan.stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.full_target_index == 1U);
+        CHECK(scan.full_target_index ==
+              full_target_index_for_tx(UINT32_C(0x601)));
         CHECK(scan.candidate_tx == UINT32_C(0x601));
         CHECK(scan.module_count == 0U);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
 
         /* A real response on the plan-defined RX route gets deeper reads. */
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, full_target_index_for_tx(UINT32_C(0x600))));
         scan.stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         CHECK(mblink_mercedes_module_scan_accept(&scan, &tester_response) ==
@@ -526,7 +566,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 response(MBLINK_ELM327_RESULT_OK, "5003001400C8", false);
             MblinkElm327Response uds_negative =
                 response(MBLINK_ELM327_RESULT_OK, "7F2231", false);
-            CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 18U));
+            CHECK(mblink_mercedes_module_scan_set_full_target(
+                      &scan, full_target_index_for_tx(UINT32_C(0x612))));
             CHECK(scan.candidate_tx == UINT32_C(0x612));
             CHECK(scan.candidate_rx == UINT32_C(0x482));
 
@@ -578,7 +619,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                              "5801D6AA20", false);
 
                 CHECK(mblink_mercedes_module_scan_set_full_target(
-                          &scan, 74U));
+                          &scan, full_target_index_for_tx(UINT32_C(0x64a))));
                 CHECK(scan.candidate_tx == UINT32_C(0x64a));
                 CHECK(scan.candidate_rx == UINT32_C(0x489));
                 CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
@@ -614,8 +655,18 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                           &scan, &kwp_dtcs) ==
                       MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 CHECK(scan.modules[2].kwp_dtcs.count == 1U);
-                CHECK(scan.full_target_index == 75U);
-                CHECK(scan.candidate_tx == UINT32_C(0x64b));
+                CHECK(scan.full_target_index ==
+                      full_target_index_for_tx(UINT32_C(0x652)));
+                CHECK(scan.candidate_tx == UINT32_C(0x652));
+                CHECK(scan.candidate_rx == UINT32_C(0x48a));
+                CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+                      MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+                scan.stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+                CHECK(mblink_mercedes_module_scan_command(
+                          &scan, command, sizeof(command), &written) ==
+                      MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                CHECK(strcmp(command, "3E01") == 0);
             }
 
             /*
@@ -623,7 +674,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
              * exact-route fallbacks and let F100/its negative response prove
              * presence. EPS212 gives us a second independently published pair.
              */
-            CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 178U));
+            CHECK(mblink_mercedes_module_scan_set_full_target(
+                      &scan, full_target_index_for_tx(UINT32_C(0x6b2))));
             CHECK(scan.candidate_tx == UINT32_C(0x6b2));
             CHECK(scan.candidate_rx == UINT32_C(0x496));
             scan.stage =
@@ -685,8 +737,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
         CHECK(scan.full_target_index == 0U);
-        CHECK(scan.candidate_tx == UINT32_C(0x600));
-        CHECK(scan.candidate_rx == UINT32_C(0x608));
+        CHECK(scan.candidate_tx == UINT32_C(0x612));
+        CHECK(scan.candidate_rx == UINT32_C(0x482));
 
         /* Full forensic discovery gets the deliberately longer ELM timeout. */
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT;
@@ -694,7 +746,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   &scan, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST32") == 0);
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 0U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, full_target_index_for_tx(UINT32_C(0x600))));
         CHECK(scan.candidate_route_locked);
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
 
@@ -730,7 +783,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(accept_identity_metadata(
                   &scan, &no_data, &no_data, &no_data) == 0);
         CHECK(scan.full_target_index == 1U);
-        CHECK(scan.candidate_tx == UINT32_C(0x601));
+        CHECK(scan.candidate_tx == UINT32_C(0x632));
+        CHECK(scan.candidate_rx == UINT32_C(0x486));
 
         /* The plan itself controls the 11-bit to 29-bit transition. */
         memset(&scan, 0, sizeof(scan));
