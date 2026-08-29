@@ -198,6 +198,21 @@ MBLINK therefore separates **fitment evidence**, **capability evidence**, **prot
 
 The same principle applies to Mercedes DTC descriptions: MBLINK should be comprehensive, but comprehensiveness must come from sourced definitions rather than fabricated interpretations.
 
+## Secondary EOBD responder and TCM candidate
+
+ISO 15765-4 defines the 11-bit legislated OBD physical slots and recommends
+`0x7E0/0x7E8` for the engine control module and `0x7E1/0x7E9` for the
+transmission control module. The development C207/OM651 has independently
+returned traffic on both responder slots. MBLINK therefore treats a live
+`0x7E9` response as evidence for a **transmission-control candidate** on the
+`0x7E1 → 0x7E9` route.
+
+This is functional classification, not guessed Mercedes identity. The exact
+VGS/EGS family remains a candidate until returned Mercedes ECU identity names
+it. Live Apple OBD polling enables `ATH1` after manufacturer discovery so
+simultaneous `0x7E8` and `0x7E9` replies remain attributable in the raw
+evidence stream rather than being collapsed into anonymous duplicate values.
+
 ## iPhone evidence path
 
 The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.
