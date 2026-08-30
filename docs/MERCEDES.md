@@ -215,6 +215,17 @@ Generic UDS status interpretation belongs in LINK. Mercedes-specific DTC definit
 
 The Faults workspace is expected to present Mercedes faults as diagnostic records, not just hexadecimal rows. A useful record includes at least the raw DTC, resolved title when known, module, status, subsystem/category and source/provenance. A successful clean scan, an unperformed scan and a failed scan must remain visibly distinct.
 
+### Archived official-app fault vocabulary
+
+The supplied archived Mercedes me Adapter `libdiaglogic.so` exposes
+`diaglogic.api.Dtc`, `diaglogic.api.DtcCollection`, DTC flags named
+`STATIC` and `SPORADIC`, and a `storedObdDtcs` data identifier. This
+corroborates a structured DTC/state model in the original product.
+
+It does not establish a raw KWP/UDS-status-bit mapping. MBLINK therefore does
+not translate the captured ORC status `E0` into static/sporadic semantics.
+That byte remains raw evidence until the mapping is independently recovered.
+
 ## Offline trace replay
 
 The test suite contains a deterministic ELM trace-replay harness. A fixture is an ordered list of expected adapter commands and responses. The replay fails if command order changes, an unexpected request appears or a response no longer decodes through the portable layers.

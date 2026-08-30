@@ -86,14 +86,14 @@ The generic diagnostic-knowledge layer is implemented in the exact LINK revision
 - Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte;
 - OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
 
-The remaining major gap in this vertical slice is now manufacturer knowledge depth:
+The broad fault-investigation vertical slice is now functionally complete. Ongoing work is manufacturer knowledge depth rather than missing scan-state/readiness/freeze-frame plumbing:
 
-1. the Faults UI distinguishes scan-not-run/in-progress, failed/incomplete, verified-clean and faults-present states, and standard OBD fault cards consume structured diagnostic knowledge;
+1. the Faults UI distinguishes scan-not-run/in-progress, failed/incomplete, verified-clean and faults-present states, and standard OBD fault cards consume structured diagnostic knowledge. A regression-tested presentation-state classifier prevents an empty unrun or failed scan from becoming a clean result;
 2. readiness and capability-driven Mode 02 frame-zero freeze-frame context are integrated into the shared fault workflow and surfaced separately from current live data;
-3. the initial evidence-backed Mercedes manufacturer table still needs expansion beyond the verified ORC record, including CRD3/OM651 definitions, without inventing proprietary meanings;
+3. the Mercedes manufacturer table is module-scoped and carries subsystem, explicit applicability, evidence status and provenance for the captured ORC definition. Catalogue breadth still needs expansion, including CRD3/OM651 definitions, without inventing proprietary meanings;
 4. standards-backed generic diagnostic knowledge continues to be maintained in LINK.
 
-This remains a completion track, not optional polish. Additional dashboard work is not a substitute for these remaining items.
+Additional manufacturer definitions remain important, but they are catalogue expansion rather than a missing end-to-end fault workflow.
 
 ## Required standard OBD fault workflow
 
@@ -138,6 +138,23 @@ After standard stored/pending/permanent fault inventory, LINK attempts Mode 01 P
 
 Unsupported, malformed or absent values remain unavailable rather than being invented. Raw requests/responses remain in the evidence trace, while Linux investigation JSON also carries the structured readiness/freeze-frame snapshot.
 
+## Archived official-app DTC model evidence
+
+The archived Mercedes me Adapter application binary supplied for interoperability
+analysis contains a concrete diagnostic object model in `libdiaglogic.so`.
+Recovered symbol/protobuf identities include `diaglogic.api.Dtc`,
+`diaglogic.api.DtcCollection`, DTC flags named `STATIC` and `SPORADIC`,
+and the application data identifier `storedObdDtcs`. The same binary exposes
+fault/warning state identifiers including `brakeControlWarnings`,
+`irregularObdResponse` and numerous lamp/brake/tire fault states.
+
+That is useful evidence that the original product distinguished DTC collections
+and fault state instead of treating faults as plain text. It does **not** prove
+how a Mercedes KWP/UDS raw status byte maps to `STATIC` or `SPORADIC`.
+MBLINK therefore keeps raw status bytes authoritative and does not label
+`0xE0`, or any other raw status value, as static/sporadic until a defensible
+wire-level mapping is recovered.
+
 ## UI requirement
 
 The Faults workspace is expected to become an investigation surface, not a raw-code list. At minimum each fault card/row should expose:
@@ -158,9 +175,9 @@ The UI may correlate a fault with current/freeze-frame measurements, but must di
 Fault diagnostics are not considered feature-complete until all of the following are true:
 
 - LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
-- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **implemented for the initial ORC definition; catalogue expansion continues**;
+- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with applicability and provenance — **implemented for the initial ORC definition; catalogue expansion continues**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
-- the app distinguishes not-scanned, failed, clean and faults-present states — **implemented on iPhone and Linux fault-investigation surfaces**;
+- the app distinguishes not-scanned, failed, clean and faults-present states — **implemented on iPhone and Linux fault-investigation surfaces, with product regression coverage proving that unrun/failed empty scans cannot become clean**;
 - stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD and the initial module-scoped KWP definition are implemented; Mercedes coverage remains incomplete**;
 - freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **implemented in the shared flow and surfaced on iPhone/Linux; physical ECU availability remains capability-dependent**;
 - unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;

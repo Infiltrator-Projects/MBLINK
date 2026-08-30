@@ -88,10 +88,10 @@ Current completion state:
 1. **Implemented:** the iPhone and Linux Faults presentations distinguish not-scanned/in-progress, failed/incomplete, verified-clean and faults-present states. Standard OBD rows consume structured LINK diagnostic knowledge and preserve raw codes; unknown definitions remain explicit.
 2. **Implemented:** standards-defined OBD readiness is now part of LINK's standard fault-investigation flow, retained in the investigation model and shown by MBLINK rather than remaining a dormant decoder.
 3. **Implemented:** capability-gated Mode 02 frame-zero freeze-frame acquisition follows stored SAE fault inventory. Captured values are retained as diagnostic context and are explicitly separated from current Live Data. Unsupported/missing values remain unavailable rather than being inferred.
-4. **Implemented baseline, expansion remains:** MBLINK's module-scoped Mercedes KWP table carries definition status and provenance; the vehicle-captured ORC `9B51` record resolves through that table while preserving raw status. Additional CRD3/OM651/module definitions still require defensible documentation or reproducible physical evidence before promotion.
+4. **Implemented baseline, expansion remains:** MBLINK's module-scoped Mercedes KWP table carries subsystem, explicit applicability, definition status and provenance; the vehicle-captured ORC `9B51` record resolves through that table while preserving raw status. Additional CRD3/OM651/module definitions still require defensible documentation or reproducible physical evidence before promotion.
 5. Generic catalogue maintenance continues in LINK rather than being copied into MBLINK.
 
-The remaining work in this slice is therefore evidence-backed expansion of Mercedes/CRD3/OM651 manufacturer knowledge and further physical module fixtures, not the standard scan-state/readiness/freeze-frame plumbing.
+The end-to-end fault-investigation slice is therefore complete. Evidence-backed expansion of Mercedes/CRD3/OM651 manufacturer knowledge and further physical module fixtures continues as a narrower catalogue/coverage track, not as missing standard scan-state/readiness/freeze-frame plumbing.
 
 ## MBLINK Discover and module-discovery completion track
 
