@@ -119,18 +119,41 @@ private struct MBInfoRow: View {
     let value: String
     var monospaced = false
 
+    private var valueText: some View {
+        Text(LocalizedStringKey(value))
+            .font(monospaced
+                  ? .subheadline.monospaced()
+                  : .subheadline.weight(.medium))
+            .foregroundStyle(MBBrand.silverBright)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+    }
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Text(LocalizedStringKey(label))
-                .font(.subheadline)
-                .foregroundStyle(MBBrand.muted)
-            Spacer(minLength: 16)
-            Text(LocalizedStringKey(value))
-                .font(monospaced ? .subheadline.monospaced() : .subheadline.weight(.medium))
-                .foregroundStyle(MBBrand.silverBright)
-                .multilineTextAlignment(.trailing)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                Text(LocalizedStringKey(label))
+                    .font(.subheadline)
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 12)
+                valueText
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 250, alignment: .trailing)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(LocalizedStringKey(label))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(MBBrand.muted)
+                    .textCase(.uppercase)
+                    .tracking(0.45)
+                valueText
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
     }
 }
 
@@ -1384,37 +1407,58 @@ private struct MBLiveDataView: View {
     }
 
     private func liveRow(_ parameter: DiagnosticParameter) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(LocalizedStringKey(parameter.title))
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(MBBrand.silverBright)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 10)
+                Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
+                    .font(.subheadline.monospacedDigit().weight(.bold))
+                    .foregroundStyle(
+                        parameter.pollingEnabled && parameter.isAvailable
+                            ? MBBrand.silverBright : MBBrand.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .layoutPriority(2)
+            }
+
+            HStack(spacing: 10) {
                 Text("\(parameter.shortName) · \(parameter.brandSourceText)")
                     .font(.caption.monospaced())
                     .foregroundStyle(MBBrand.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Spacer(minLength: 8)
+
+                Text("Poll")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(MBBrand.muted)
+
+                Toggle("", isOn: Binding(
+                    get: { parameter.pollingEnabled },
+                    set: { connection.setPolling($0, stableKey: parameter.id) }
+                ))
+                .labelsHidden()
+                .tint(MBBrand.success)
+                .controlSize(.small)
+
+                Button {
+                    connection.toggleFavourite(stableKey: parameter.id)
+                } label: {
+                    Image(systemName: parameter.favourite ? "star.fill" : "star")
+                        .font(.title3)
+                        .foregroundStyle(
+                            parameter.favourite
+                                ? MBBrand.silverBright : MBBrand.muted)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
             }
-            Spacer()
-            Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
-            Text("Poll")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(MBBrand.muted)
-            Toggle("", isOn: Binding(
-                get: { parameter.pollingEnabled },
-                set: { connection.setPolling($0, stableKey: parameter.id) }
-            ))
-            .labelsHidden()
-            .tint(MBBrand.success)
-            Button {
-                connection.toggleFavourite(stableKey: parameter.id)
-            } label: {
-                Image(systemName: parameter.favourite ? "star.fill" : "star")
-                    .foregroundStyle(parameter.favourite ? MBBrand.silverBright : MBBrand.muted)
-            }
-            .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 }
 
