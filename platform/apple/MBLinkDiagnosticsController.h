@@ -75,6 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid;
 - (BOOL)pollingEnabledForPID:(uint8_t)pid;
 - (void)setPollingEnabled:(BOOL)enabled forPID:(uint8_t)pid;
+- (BOOL)supportsPID:(uint8_t)pid;
 - (nullable NSData *)csvDataSnapshot;
 - (nullable NSString *)csvSnapshot;
 

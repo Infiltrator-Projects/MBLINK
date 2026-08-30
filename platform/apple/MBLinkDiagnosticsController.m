@@ -745,6 +745,13 @@ static bool MBLinkSimulatorResponder(
     [_shared setPollingEnabled:enabled forPID:pid];
 }
 
+- (BOOL)supportsPID:(uint8_t)pid
+{
+    const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
+    return flow != NULL &&
+        link_obd2_pid_set_contains(&flow->supported_pids, pid);
+}
+
 - (nullable NSData *)csvDataSnapshot
 {
     return [_shared csvDataSnapshot];

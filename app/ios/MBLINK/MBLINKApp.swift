@@ -1321,7 +1321,7 @@ private struct MBLiveDataView: View {
         connection.diagnosticParameters.filter { parameter in
             let scopeMatches: Bool
             switch scope {
-            case .available: scopeMatches = parameter.isAvailable
+            case .available: scopeMatches = parameter.isSupported
             case .favourites: scopeMatches = parameter.favourite
             case .all: scopeMatches = true
             }
@@ -1392,7 +1392,9 @@ private struct MBLiveDataView: View {
                     if filtered.isEmpty {
                         MBPanel {
                             Text(scope == .available
-                                 ? "Connect to the vehicle to populate live values."
+                                 ? (connection.isActive
+                                    ? "No decoded parameters are advertised by the current vehicle."
+                                    : "Connect to the vehicle to discover supported parameters.")
                                  : "No matching parameters.")
                                 .font(.subheadline)
                                 .foregroundStyle(MBBrand.silver)
@@ -1425,9 +1427,10 @@ private struct MBLiveDataView: View {
             }
 
             HStack(spacing: 10) {
-                Text("\(parameter.shortName) · \(parameter.brandSourceText)")
+                Text("\(parameter.shortName) · \(parameter.brandSourceText)" +
+                     (parameter.isSupported ? "" : " · not advertised"))
                     .font(.caption.monospaced())
-                    .foregroundStyle(MBBrand.muted)
+                    .foregroundStyle(parameter.isSupported ? MBBrand.muted : MBBrand.warning)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
 

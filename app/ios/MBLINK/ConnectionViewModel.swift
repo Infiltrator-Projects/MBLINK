@@ -26,6 +26,7 @@ struct DiagnosticParameter: Identifiable {
     let suffix: String
     let formattedValue: String
     let value: Double?
+    let vehicleSupported: Bool
     let favourite: Bool
     let pollingEnabled: Bool
     let history: [Double]
@@ -33,6 +34,7 @@ struct DiagnosticParameter: Identifiable {
     let qualityNote: String?
 
     var isAvailable: Bool { value != nil }
+    var isSupported: Bool { vehicleSupported }
 }
 
 struct DiagnosticModule: Identifiable {
@@ -588,6 +590,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             let value = rawValue.map { displayScalar(definition: definition, rawValue: $0) }
             let stableKey = string(from: metadata.stable_key)
             guard !stableKey.isEmpty else { continue }
+            let vehicleSupported: Bool
+            if let responderCANIdentifier {
+                vehicleSupported = controller.observedPIDs(
+                    forResponderCANIdentifier: responderCANIdentifier,
+                    extendedID: extendedID).contains { $0.uint8Value == pid }
+            } else {
+                vehicleSupported = controller.supportsPID(pid)
+            }
+
             let qualityNote: String?
             if responderCANIdentifier != nil && pid == 0x2F,
                let rawValue, rawValue >= 99.5 {
@@ -605,6 +616,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 suffix: displaySuffix(definition: definition),
                 formattedValue: formattedValue(definition: definition, value: rawValue),
                 value: value,
+                vehicleSupported: vehicleSupported,
                 favourite: controller.favourite(forPID: pid),
                 pollingEnabled: controller.pollingEnabled(forPID: pid),
                 history: history,
