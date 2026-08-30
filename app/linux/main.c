@@ -1960,6 +1960,33 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     }
 }
 
+static void append_session_state_json(GString *json, void *opaque)
+{
+    const MblinkLinuxContext *context = opaque;
+    if (json == NULL || context == NULL) return;
+
+    g_string_append_printf(
+        json,
+        "{\"replay_mode\":%s,"
+        "\"manufacturer_scan\":{"
+        "\"started\":%s,\"active\":%s,\"complete\":%s,\"failed\":%s,"
+        "\"engine_fault_records\":%zu},"
+        "\"module_scan\":{"
+        "\"active\":%s,\"complete\":%s,\"failed\":%s,"
+        "\"modules_found\":%zu,\"fault_records\":%zu}}",
+        context->replay_mode ? "true" : "false",
+        context->manufacturer_scan_started ? "true" : "false",
+        context->manufacturer_scan_active ? "true" : "false",
+        context->manufacturer_scan_complete ? "true" : "false",
+        context->manufacturer_scan_failed ? "true" : "false",
+        context->manufacturer_scan.dtcs.count,
+        context->module_scan_active ? "true" : "false",
+        context->module_scan_complete ? "true" : "false",
+        context->module_scan_failed ? "true" : "false",
+        context->module_scan.module_count,
+        mblink_mercedes_module_scan_total_dtc_count(&context->module_scan));
+}
+
 static bool verify_display_preferences(void)
 {
     MblinkLinuxContext context = {0};
@@ -2070,6 +2097,7 @@ int main(int argc, char **argv)
     descriptor.diagnostic_changed = diagnostic_changed;
     descriptor.polling_enabled = mblink_polling_enabled;
     descriptor.presentation_revision = mblink_presentation_revision;
+    descriptor.append_session_state_json = append_session_state_json;
     descriptor.diagnostic_restart_action_label = "DEEP RESCAN";
     descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;

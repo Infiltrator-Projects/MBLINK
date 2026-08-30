@@ -86,12 +86,12 @@ The generic diagnostic-knowledge layer is implemented in the exact LINK revision
 - Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte;
 - OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
 
-The remaining major gaps in this vertical slice are explicit:
+The remaining major gap in this vertical slice is now manufacturer knowledge depth:
 
-1. complete the Faults UI refactor so scan-not-run, failed, clean and faults-present states are visually distinct and rich fault cards consume the structured model directly;
-2. integrate capability-driven freeze-frame and readiness context into the fault workflow instead of leaving those decoders as dormant primitives;
-3. expand the initial evidence-backed Mercedes manufacturer table beyond the verified ORC record, including CRD3/OM651 definitions, without inventing proprietary meanings;
-4. continue maintaining and expanding standards-backed generic diagnostic knowledge in LINK.
+1. the Faults UI distinguishes scan-not-run/in-progress, failed/incomplete, verified-clean and faults-present states, and standard OBD fault cards consume structured diagnostic knowledge;
+2. readiness and capability-driven Mode 02 frame-zero freeze-frame context are integrated into the shared fault workflow and surfaced separately from current live data;
+3. the initial evidence-backed Mercedes manufacturer table still needs expansion beyond the verified ORC record, including CRD3/OM651 definitions, without inventing proprietary meanings;
+4. standards-backed generic diagnostic knowledge continues to be maintained in LINK.
 
 This remains a completion track, not optional polish. Additional dashboard work is not a substitute for these remaining items.
 
@@ -132,11 +132,11 @@ A positive UDS DTC response without a known manufacturer definition must still b
 
 ## Freeze-frame and readiness are diagnostic features
 
-The existing OBD freeze-frame and readiness decoders must not remain dormant library features.
+The OBD freeze-frame and readiness decoders are now active diagnostic-flow features.
 
-The fault workflow should collect and expose standards-defined freeze-frame values when the ECU supports them, including useful values such as RPM, vehicle speed, load, coolant temperature, MAP/MAF and other supported PIDs. Readiness state should be visible as diagnostic information rather than hidden protocol state.
+After standard stored/pending/permanent fault inventory, LINK attempts Mode 01 PID 01 readiness and retains the standards-defined monitor state. When a stored SAE fault exists, LINK then attempts a bounded capability-gated set of Mode 02 frame-zero values such as load, coolant temperature, MAP, RPM, speed, intake temperature, MAF and throttle when the ECU advertised the corresponding PID family. MBLINK presents those values as captured fault context, never as current Live Data.
 
-The exact set must be capability-driven: unsupported values remain unavailable rather than being invented.
+Unsupported, malformed or absent values remain unavailable rather than being invented. Raw requests/responses remain in the evidence trace, while Linux investigation JSON also carries the structured readiness/freeze-frame snapshot.
 
 ## UI requirement
 
@@ -160,9 +160,9 @@ Fault diagnostics are not considered feature-complete until all of the following
 - LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
 - MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **implemented for the initial ORC definition; catalogue expansion continues**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
-- the app distinguishes not-scanned, failed, clean and faults-present states — **controller state exists; Faults UI correction remains**;
+- the app distinguishes not-scanned, failed, clean and faults-present states — **implemented on iPhone and Linux fault-investigation surfaces**;
 - stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD and the initial module-scoped KWP definition are implemented; Mercedes coverage remains incomplete**;
-- freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **not yet complete**;
+- freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **implemented in the shared flow and surfaced on iPhone/Linux; physical ECU availability remains capability-dependent**;
 - unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;
 - the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared LINK API implemented; additional platform consumers remain**.
 

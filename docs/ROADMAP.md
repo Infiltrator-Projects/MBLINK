@@ -83,13 +83,15 @@ Implemented:
 - scan state is preserved separately in the controller instead of deriving success from an empty list;
 - product facades expose LINK's CAN-FD and complete generic UDS service contracts without duplicating the implementation.
 
-Must still be finished before this product slice is complete:
+Current completion state:
 
-1. Refactor the Faults presentation so **not scanned**, **scan failed**, **successful clean scan** and **faults present** remain visually distinct and rich cards consume structured records directly instead of showing an empty list as a green success unconditionally.
-2. Integrate OBD readiness into the shared diagnostic flow and investigation record.
-3. Integrate capability-driven Mode 02 freeze-frame context and clearly separate it from current live data.
-4. Build an evidence-backed Mercedes/CRD3/OM651 DTC knowledge catalogue in MBLINK with applicability and provenance; do not fabricate proprietary meanings.
-5. Continue evidence-led generic catalogue maintenance in LINK rather than copying definitions into MBLINK.
+1. **Implemented:** the iPhone and Linux Faults presentations distinguish not-scanned/in-progress, failed/incomplete, verified-clean and faults-present states. Standard OBD rows consume structured LINK diagnostic knowledge and preserve raw codes; unknown definitions remain explicit.
+2. **Implemented:** standards-defined OBD readiness is now part of LINK's standard fault-investigation flow, retained in the investigation model and shown by MBLINK rather than remaining a dormant decoder.
+3. **Implemented:** capability-gated Mode 02 frame-zero freeze-frame acquisition follows stored SAE fault inventory. Captured values are retained as diagnostic context and are explicitly separated from current Live Data. Unsupported/missing values remain unavailable rather than being inferred.
+4. **Implemented baseline, expansion remains:** MBLINK's module-scoped Mercedes KWP table carries definition status and provenance; the vehicle-captured ORC `9B51` record resolves through that table while preserving raw status. Additional CRD3/OM651/module definitions still require defensible documentation or reproducible physical evidence before promotion.
+5. Generic catalogue maintenance continues in LINK rather than being copied into MBLINK.
+
+The remaining work in this slice is therefore evidence-backed expansion of Mercedes/CRD3/OM651 manufacturer knowledge and further physical module fixtures, not the standard scan-state/readiness/freeze-frame plumbing.
 
 ## MBLINK Discover and module-discovery completion track
 

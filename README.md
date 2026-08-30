@@ -52,12 +52,13 @@ Fault diagnosis is a first-class product function. Acquiring and printing a raw 
 
 MBLINK consumes LINK's shared generic DTC knowledge layer. Standard OBD fault records can be translated into a human-readable definition, system/category and generic/manufacturer classification while preserving the raw code. The iPhone model carries structured `DiagnosticFault` records and the existing Faults presentation receives translated `CODE — description` text for known definitions. Unknown manufacturer-specific codes remain explicitly unmapped rather than receiving invented meanings.
 
-The iPhone presentation now distinguishes not-scanned, failed/incomplete and
-verified-clean results instead of treating an empty list as proof of no faults.
-Remaining fault-diagnostic completion work is deliberately ahead of additional
-dashboard polish: freeze-frame/readiness context integration and the
-evidence-backed Mercedes/CRD3/OM651 DTC knowledge layer. See
-`docs/FAULT_DIAGNOSTICS.md`.
+The iPhone and Linux fault-investigation surfaces distinguish not-scanned or
+in-progress, failed/incomplete, verified-clean and faults-present results instead
+of treating an empty list as proof of no faults. Standards-defined readiness and
+capability-gated Mode 02 frame-zero freeze-frame context are now integrated into
+the shared diagnostic flow and shown separately from current live data. Remaining
+fault-diagnostic work is evidence-backed expansion of the Mercedes/CRD3/OM651
+manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 
 ## Capabilities
 
