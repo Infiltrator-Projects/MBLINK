@@ -114,6 +114,14 @@ jobs:
           log="$RUNNER_TEMP/c207-replay.log"
           timeout 20s xvfb-run -a ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
           grep -Fq 'MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible' "$log"
+      - name: Stress disconnected sidebar navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/navigation-stress.log"
+          timeout 20s xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
+          grep -Fq 'LINK GTK navigation stress verified:' "$log"
+          grep -Fq 'sidebar selections while disconnected' "$log"
       - name: Verify Linux About and branding
         shell: bash
         run: |
@@ -287,7 +295,7 @@ jobs:
           ! grep -Fq 'MBLINK_IMPLEMENTATION_REVISION' src/core/mblink.c
           ! grep -Fq 'MBLINK_EMBEDDED_LINK_VERSION' src/core/mblink.c
           grep -Fq '#define MBLINK_EMBEDDED_LINK_REVISION' src/core/mblink.c
-          grep -Fq '"cc0a56936a587a3a7d5c297a0e4b10237c0fd055"' src/core/mblink.c
+          grep -Fq '"5fc11473ffc97a992ff8b96564567131e4a6e4a8"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
