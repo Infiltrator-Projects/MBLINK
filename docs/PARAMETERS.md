@@ -10,7 +10,7 @@ The shared descriptor set currently covers 27 standard OBD-II values used by the
 
 The iPhone front end reads this descriptor catalog through the C bridge. Live Data, Table, Dashboard and Graphs iterate the catalog instead of maintaining a second Swift table of PID names, units and formatting rules. Recent values still come from the established OBD telemetry store during the migration; that compatibility path is temporary rather than a second parameter definition source.
 
-MBLINK 0.7.96 also consumes LINK's responder-attributed Mode 01 history. When a
+MBLINK 0.7.97 also consumes LINK's responder-attributed Mode 01 history. When a
 functional request receives replies from more than one ECU, the ordinary live
 screens retain their compatible preferred value while the Modules workspace
 keeps every decoded value under its exact response CAN identifier. This is
