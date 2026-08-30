@@ -9,6 +9,7 @@
 #include "mblink/mblink.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_engine_scan.h"
+#include "mblink/fault_investigation.h"
 #include "mblink/mercedes_module_scan.h"
 #include "mblink/parameter.h"
 
@@ -1210,30 +1211,57 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
     link_gtk_card_append_note(modules,
         "Each responding ECU is queried independently with UDS ReadDTCInformation 0x19/0x02/0xFF. Fault memory is read only; MBLINK does not clear or alter any module.");
 
-    if (!context->connected) {
-        link_gtk_card_append_status(obd, "NOT SCANNED · LINK OFFLINE", "state-warning");
-    } else if (!context->diagnostic_valid) {
-        link_gtk_card_append_status(obd, "STARTING SCAN", "state-warning");
-    } else if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) {
-        link_gtk_card_append_status(obd, "SCAN FAILED · RECONNECT TO RETRY", "state-warning");
-    } else if (link_diagnostic_flow_standard_context_complete(
-                   &context->diagnostic)) {
-        (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu stored · %zu pending · %zu permanent",
-             context->diagnostic.stored_dtcs.count, context->diagnostic.pending_dtcs.count,
-             context->diagnostic.permanent_dtcs.count);
-        link_gtk_card_append_status(
-            obd, summary,
-            context->diagnostic.stored_dtcs.count == 0U &&
-            context->diagnostic.pending_dtcs.count == 0U &&
-            context->diagnostic.permanent_dtcs.count == 0U
-                ? "state-success" : "state-warning");
-        append_dtc_list(obd, "Stored", &context->diagnostic.stored_dtcs);
-        append_dtc_list(obd, "Pending", &context->diagnostic.pending_dtcs);
-        append_dtc_list(obd, "Permanent", &context->diagnostic.permanent_dtcs);
-    } else {
-        (void)snprintf(summary, sizeof(summary), "SCAN IN PROGRESS · %s",
-             link_diagnostic_flow_stage_name(context->diagnostic.stage));
-        link_gtk_card_append_status(obd, summary, "state-warning");
+    {
+        const size_t standard_fault_count =
+            context->diagnostic.stored_dtcs.count +
+            context->diagnostic.pending_dtcs.count +
+            context->diagnostic.permanent_dtcs.count;
+        const MblinkFaultScanPresentationState scan_state =
+            mblink_fault_scan_presentation_state(
+                context->diagnostic_valid,
+                context->diagnostic_active,
+                context->diagnostic_valid &&
+                    link_diagnostic_flow_standard_context_complete(
+                        &context->diagnostic),
+                context->diagnostic_valid &&
+                    context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED,
+                standard_fault_count);
+
+        switch (scan_state) {
+        case MBLINK_FAULT_SCAN_NOT_SCANNED:
+            link_gtk_card_append_status(
+                obd,
+                context->connected ? "NOT SCANNED" : "NOT SCANNED · LINK OFFLINE",
+                "state-warning");
+            break;
+        case MBLINK_FAULT_SCAN_IN_PROGRESS:
+            (void)snprintf(summary, sizeof(summary), "SCAN IN PROGRESS · %s",
+                context->diagnostic_valid
+                    ? link_diagnostic_flow_stage_name(context->diagnostic.stage)
+                    : "starting");
+            link_gtk_card_append_status(obd, summary, "state-warning");
+            break;
+        case MBLINK_FAULT_SCAN_FAILED:
+            link_gtk_card_append_status(
+                obd, "SCAN FAILED · RECONNECT TO RETRY", "state-warning");
+            break;
+        case MBLINK_FAULT_SCAN_CLEAN:
+        case MBLINK_FAULT_SCAN_FAULTS_PRESENT:
+            (void)snprintf(
+                summary, sizeof(summary),
+                "COMPLETE · %zu stored · %zu pending · %zu permanent",
+                context->diagnostic.stored_dtcs.count,
+                context->diagnostic.pending_dtcs.count,
+                context->diagnostic.permanent_dtcs.count);
+            link_gtk_card_append_status(
+                obd, summary,
+                scan_state == MBLINK_FAULT_SCAN_CLEAN
+                    ? "state-success" : "state-warning");
+            append_dtc_list(obd, "Stored", &context->diagnostic.stored_dtcs);
+            append_dtc_list(obd, "Pending", &context->diagnostic.pending_dtcs);
+            append_dtc_list(obd, "Permanent", &context->diagnostic.permanent_dtcs);
+            break;
+        }
     }
 
     gtk_box_append(GTK_BOX(body), mercedes);

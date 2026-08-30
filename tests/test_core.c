@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "mblink/fault_investigation.h"
 #include "mblink/mblink.h"
 #include "mblink/project_info.h"
 #include "mblink/transport.h"
@@ -99,6 +100,63 @@ static bool check_workspace(void)
     return passed;
 }
 
+static bool check_fault_scan_states(void)
+{
+    bool passed = true;
+
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                false, false, false, false, 0U) ==
+                MBLINK_FAULT_SCAN_NOT_SCANNED,
+            "unstarted empty scan must remain not-scanned")) {
+        passed = false;
+    }
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                true, true, false, false, 0U) ==
+                MBLINK_FAULT_SCAN_IN_PROGRESS,
+            "active empty scan must remain in-progress")) {
+        passed = false;
+    }
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                true, false, false, true, 0U) ==
+                MBLINK_FAULT_SCAN_FAILED,
+            "failed empty scan must never become clean")) {
+        passed = false;
+    }
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                true, false, true, false, 0U) ==
+                MBLINK_FAULT_SCAN_CLEAN,
+            "only a completed empty scan may become clean")) {
+        passed = false;
+    }
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                true, false, true, false, 2U) ==
+                MBLINK_FAULT_SCAN_FAULTS_PRESENT,
+            "completed scan with faults must report faults-present")) {
+        passed = false;
+    }
+    if (!check(
+            mblink_fault_scan_presentation_state(
+                true, false, false, true, 2U) ==
+                MBLINK_FAULT_SCAN_FAILED,
+            "failure must remain explicit even after partial fault capture")) {
+        passed = false;
+    }
+    if (!check(
+            strcmp(
+                mblink_fault_scan_presentation_state_name(
+                    MBLINK_FAULT_SCAN_CLEAN),
+                "clean") == 0,
+            "fault scan state names must remain stable")) {
+        passed = false;
+    }
+    return passed;
+}
+
 int main(void)
 {
     bool passed = true;
@@ -122,6 +180,9 @@ int main(void)
         }
     }
     if (!check_workspace()) {
+        passed = false;
+    }
+    if (!check_fault_scan_states()) {
         passed = false;
     }
     if (!check(!mblink_transport_is_valid(&transport),
