@@ -263,6 +263,12 @@ static int test_kwp_dtc_lookup(void)
     CHECK(strstr(definition->description, "Driver seat-belt buckle") != NULL);
     CHECK(strstr(definition->description, "short to positive") != NULL);
     CHECK(strstr(definition->description, "open circuit") != NULL);
+    CHECK(mblink_mercedes_kwp_dtc_definition_is_valid(definition));
+    CHECK(definition->subsystem != NULL &&
+          strstr(definition->subsystem, "driver seat-belt buckle") != NULL);
+    CHECK(definition->applicability != NULL &&
+          strstr(definition->applicability, "ORC_212") != NULL &&
+          strstr(definition->applicability, "0x64A -> 0x489") != NULL);
     CHECK(definition->status ==
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     CHECK(definition->provenance != NULL && definition->provenance[0] != '\0');

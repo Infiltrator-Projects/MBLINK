@@ -258,13 +258,15 @@ static void MBLinkAppendMercedesModuleFaultStrings(
                 mblink_mercedes_kwp_dtc_find(module_key, record->code);
             if (definition != NULL) {
                 [faults addObject:[NSString stringWithFormat:
-                    @"%@ · %@ · %04X — %@ · KWP2000 status 0x%02X · %@ · %@",
+                    @"%@ · %@ · %04X — %@ · %@ · KWP2000 status 0x%02X · %@ · applies: %@ · source: %@",
                     name, address, (unsigned int)record->code,
                     MBLinkStringFromCString(definition->description),
+                    MBLinkStringFromCString(definition->subsystem),
                     (unsigned int)record->status,
                     MBLinkStringFromCString(
                         mblink_mercedes_definition_status_name(
                             definition->status)),
+                    MBLinkStringFromCString(definition->applicability),
                     MBLinkStringFromCString(definition->provenance)]];
             } else {
                 [faults addObject:[NSString stringWithFormat:

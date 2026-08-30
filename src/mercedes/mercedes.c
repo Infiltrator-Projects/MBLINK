@@ -53,6 +53,10 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
         .code = UINT16_C(0x9b51),
         .description =
             "Driver seat-belt buckle circuit: short to positive or open circuit",
+        .subsystem = "Occupant restraint · driver seat-belt buckle",
+        .applicability =
+            "ORC_212 / restraints-orc KWP2000 namespace on the source-backed "
+            "0x64A -> 0x489 C207/W212-family diagnostic route",
         .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
         .provenance =
             "Meaning corroborated by independent Mercedes diagnostic-tool "
@@ -60,6 +64,19 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
             "C207 test vehicle on 2026-08-30."
     }
 };
+
+bool mblink_mercedes_kwp_dtc_definition_is_valid(
+    const MblinkMercedesKwpDtcDefinition *definition)
+{
+    return definition != NULL &&
+           mercedes_text_valid(definition->module_key) &&
+           definition->code != UINT16_C(0x0000) &&
+           mercedes_text_valid(definition->description) &&
+           mercedes_text_valid(definition->subsystem) &&
+           mercedes_text_valid(definition->applicability) &&
+           mercedes_status_valid(definition->status) &&
+           mercedes_text_valid(definition->provenance);
+}
 
 size_t mblink_mercedes_kwp_dtc_count(void)
 {
@@ -82,7 +99,8 @@ const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
          index < mblink_mercedes_kwp_dtc_count(); ++index) {
         const MblinkMercedesKwpDtcDefinition *definition =
             &mercedes_kwp_dtcs[index];
-        if (definition->code == code &&
+        if (mblink_mercedes_kwp_dtc_definition_is_valid(definition) &&
+            definition->code == code &&
             infiltratr_string_equal(definition->module_key, module_key)) {
             return definition;
         }

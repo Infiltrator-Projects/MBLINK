@@ -1070,7 +1070,21 @@ static void append_module_fault_rows(
                         (unsigned int)record->status);
                 }
                 link_gtk_card_append_detail(card, label, value);
-                if (definition != NULL && definition->provenance != NULL) {
+                if (definition != NULL) {
+                    (void)snprintf(
+                        label, sizeof(label),
+                        "  %s %04X subsystem",
+                        mblink_mercedes_module_scan_module_name(module),
+                        (unsigned int)record->code);
+                    link_gtk_card_append_detail(
+                        card, label, definition->subsystem);
+                    (void)snprintf(
+                        label, sizeof(label),
+                        "  %s %04X applicability",
+                        mblink_mercedes_module_scan_module_name(module),
+                        (unsigned int)record->code);
+                    link_gtk_card_append_detail(
+                        card, label, definition->applicability);
                     (void)snprintf(
                         label, sizeof(label),
                         "  %s %04X provenance",

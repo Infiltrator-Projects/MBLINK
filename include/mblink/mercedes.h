@@ -55,6 +55,14 @@ typedef struct {
     const char *module_key;
     uint16_t code;
     const char *description;
+    /** Human-readable subsystem/component scope inside the named module. */
+    const char *subsystem;
+    /**
+     * Explicit applicability boundary.  This is deliberately separate from
+     * provenance: a source can corroborate a meaning without proving that the
+     * definition applies outside the named ECU/protocol family.
+     */
+    const char *applicability;
     MblinkMercedesDefinitionStatus status;
     const char *provenance;
 } MblinkMercedesKwpDtcDefinition;
@@ -107,6 +115,9 @@ const MblinkMercedesDidDefinition *mblink_mercedes_profile_find_did(
     const MblinkMercedesVehicleProfile *profile,
     MblinkMercedesModuleKind module,
     uint16_t identifier);
+
+bool mblink_mercedes_kwp_dtc_definition_is_valid(
+    const MblinkMercedesKwpDtcDefinition *definition);
 
 /** Find a Mercedes KWP2000 fault by its module-scoped raw identifier. */
 const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
