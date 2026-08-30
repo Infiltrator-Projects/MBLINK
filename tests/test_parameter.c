@@ -37,17 +37,24 @@ int main(void)
         mblink_parameter_obd2_definition(0x7aU);
     const MblinkParameterDefinition *fuel_level =
         mblink_parameter_obd2_definition(0x2fU);
+    const MblinkParameterDefinition *engine_runtime =
+        mblink_parameter_obd2_definition(0x1fU);
+    const MblinkParameterDefinition *distance_since_clear =
+        mblink_parameter_obd2_definition(0x31U);
+    const MblinkParameterDefinition *mil_runtime =
+        mblink_parameter_obd2_definition(0x4dU);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 28U,
+    passed &= check(mblink_parameter_obd2_definition_count() == 35U,
                     "standard descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
                     throttle_valve != NULL && pedal_d != NULL &&
                     pedal_e != NULL && dpf_pressure != NULL &&
-                    fuel_level != NULL,
+                    fuel_level != NULL && engine_runtime != NULL &&
+                    distance_since_clear != NULL && mil_runtime != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(28U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(35U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
@@ -72,6 +79,18 @@ int main(void)
         mblink_parameter_obd2_definition_for_stable_key(
             "obd2.fuel.tank_level") == fuel_level,
         "fuel-level stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.engine.runtime") == engine_runtime,
+        "engine-runtime stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.maintenance.distance_since_clear") == distance_since_clear,
+        "distance-since-clear stable-key lookup mismatch");
+    passed &= check(
+        mblink_parameter_obd2_definition_for_stable_key(
+            "obd2.emissions.mil_runtime") == mil_runtime,
+        "MIL-runtime stable-key lookup mismatch");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.missing") == NULL,
         "unknown stable key unexpectedly resolved");
