@@ -52,6 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *pendingDTCs;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *permanentDTCs;
+@property(nonatomic, copy, readonly) NSString *readinessStatusText;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *readinessMonitorStatus;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *freezeFrameContext;
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 @property(nonatomic, readonly) NSUInteger recordedSampleCount;

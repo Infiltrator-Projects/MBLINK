@@ -500,6 +500,15 @@ static bool MBLinkSimulatorResponder(
 - (NSArray<NSString *> *)storedDTCs { return _shared.storedDTCs; }
 - (NSArray<NSString *> *)pendingDTCs { return _shared.pendingDTCs; }
 - (NSArray<NSString *> *)permanentDTCs { return _shared.permanentDTCs; }
+- (NSString *)readinessStatusText { return _shared.readinessStatusText; }
+- (NSArray<NSString *> *)readinessMonitorStatus
+{
+    return _shared.readinessMonitorStatus;
+}
+- (NSArray<NSString *> *)freezeFrameContext
+{
+    return _shared.freezeFrameContext;
+}
 - (BOOL)isActive { return _shared.isActive; }
 - (BOOL)isReady { return _shared.isReady; }
 - (NSUInteger)recordedSampleCount { return _shared.recordedSampleCount; }
