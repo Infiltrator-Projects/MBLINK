@@ -153,6 +153,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var storedFaults = [DiagnosticFault]()
     @Published private(set) var pendingFaults = [DiagnosticFault]()
     @Published private(set) var permanentFaults = [DiagnosticFault]()
+    @Published private(set) var readinessStatusText = "Not collected"
+    @Published private(set) var readinessMonitorStatus = [String]()
+    @Published private(set) var freezeFrameContext = [String]()
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
     @Published private(set) var isSimulationActive = false
@@ -750,6 +753,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         storedDTCs = storedFaults.map(\.displayText)
         pendingDTCs = pendingFaults.map(\.displayText)
         permanentDTCs = permanentFaults.map(\.displayText)
+        readinessStatusText = controller.readinessStatusText
+        readinessMonitorStatus = controller.readinessMonitorStatus
+        freezeFrameContext = controller.freezeFrameContext
 
         isActive = controller.isActive
         isReady = controller.isReady
