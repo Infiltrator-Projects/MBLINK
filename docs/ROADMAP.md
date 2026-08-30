@@ -108,6 +108,7 @@ Implemented baseline:
 - invalid or changed saved profiles are discarded and rebuilt rather than silently trusted;
 - Linux normal census plus explicit `DEEP RESCAN` path;
 - captured-trace and offline C207 replay regression coverage, including a replayed ORC seatbelt/airbag fault becoming visible through the shared product path.
+- structured iPhone module cards and detail screens, with live Mode 01 values attributed to their exact response CAN identifier instead of being collapsed into one generic OBD value.
 
 Next work:
 
@@ -137,6 +138,8 @@ Current manufacturer-specific state:
 - the CRD3 pass requests `F100`, `F154`, `F196`, `1001` and `1002`, decodes only corroborated identity fields and records every raw response without assigning unsupported physical meanings;
 - captured VIN, CRD3 identity, per-DID outcomes, responding module routes and Mercedes fault records are visible and preserved in the evidence transcript;
 - a new VIN can perform the wider read-only mobile census once, save the learned module topology against that VIN and use a bounded cached validation path on future connections;
+- VIN profiles retain responder-specific Mode 01 capabilities, so the Modules workspace can keep separate engine (`0x7E8`) and transmission-candidate (`0x7E9`) live-data pages even when a later manufacturer probe is quiet;
+- the 2026-08-30 C207 capture verifies the KWP routes `0x64A -> 0x489` (ORC, one raw DTC record) and `0x652 -> 0x48A` (head unit, valid clean inventory); the module-scoped Mercedes fault table resolves ORC `9B51` to the source-corroborated driver seat-belt buckle circuit description while retaining raw status `E0`; both exact response shapes are regression fixtures, while the truncated ESP DTC response remains explicitly incomplete;
 - standard diesel/DPF values remain available where the vehicle advertises them;
 - physical C207/Vgate captures have verified standard VIN, selected Mercedes UDS response shapes and the conventional engine route, while unobserved definitions remain explicitly unverified;
 - captured live data distinguishes accelerator-pedal channels from absolute throttle-valve position rather than treating PID `0x11` as pedal demand;

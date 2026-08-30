@@ -14,8 +14,12 @@
 #define MBLINK_SWEEP_11_FIRST UINT32_C(0x600)
 #define MBLINK_SWEEP_11_LAST  UINT32_C(0x7f7)
 #define MBLINK_SWEEP_11_COUNT ((size_t)(MBLINK_SWEEP_11_LAST - MBLINK_SWEEP_11_FIRST + 1U))
+#define MBLINK_SWEEP_11_EXTERNAL_COUNT ((size_t)1U)
+#define MBLINK_SWEEP_11_TARGET_COUNT \
+    (MBLINK_SWEEP_11_COUNT + MBLINK_SWEEP_11_EXTERNAL_COUNT)
 #define MBLINK_SWEEP_29_COUNT ((size_t)255U)
-#define MBLINK_SWEEP_TARGET_COUNT (MBLINK_SWEEP_11_COUNT + MBLINK_SWEEP_29_COUNT)
+#define MBLINK_SWEEP_TARGET_COUNT \
+    (MBLINK_SWEEP_11_TARGET_COUNT + MBLINK_SWEEP_29_COUNT)
 
 /*
  * Public Mercedes/Caesar traces prove that a number of 204/207/212-family
@@ -23,39 +27,67 @@
  * Vediamo/CAESAR stores CP_REQUEST_CANIDENTIFIER and
  * CP_RESPONSE_CANIDENTIFIER independently for exactly this reason.
  *
- * Keep only routes whose two CAN identifiers and ECU family are directly
- * published.  Unknown routes remain unknown rather than being extrapolated.
+ * Keep only routes whose request/response identifiers and protocol are
+ * directly evidenced. A route may remain deliberately unclassified when the
+ * production bootstrap proves connectivity but does not name the ECU family.
+ * Unknown routes remain unknown rather than being extrapolated.
  */
 static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
     {
         UINT32_C(0x612), UINT32_C(0x482),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
         "eis-ezs", "EIS_212 / EIS_204",
-        "CaesarSuite discussion #5: EIS trace 0x612 request, 0x482 response"
+        "Daimler production VIN cascade and CaesarSuite EIS trace: 0x612 -> 0x482, UDS 22 F1 A0"
     },
     {
         UINT32_C(0x632), UINT32_C(0x486),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
         "esp", "ABR2XT",
         "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486"
     },
     {
         UINT32_C(0x64a), UINT32_C(0x489),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_VIN_PROBE_NONE,
         "restraints-orc", "ORC_212",
         "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489"
     },
     {
         UINT32_C(0x652), UINT32_C(0x48a),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_VIN_PROBE_NONE,
         "audio-headunit", "HU_204",
         "Public HU_204 Monaco trace: HSCAN_KW2C3PE_500, tester 0x652, response 0x48A"
     },
     {
         UINT32_C(0x6b2), UINT32_C(0x496),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
         "steering-column", "EPS212",
         "CaesarSuite discussion #5: EPS212 CP_REQUEST 0x6B2, CP_RESPONSE 0x496"
+    },
+    {
+        UINT32_C(0x602), UINT32_C(0x480),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+        NULL, "Daimler VIN-cascade ECU 602",
+        "Daimler/T-Systems production MSA_VIN_cascade: Ecu602 0x602 -> 0x480, UDS 22 F1 A0"
+    },
+    {
+        UINT32_C(0x607), UINT32_C(0x587),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+        NULL, "Daimler VIN-cascade ECU 607",
+        "Daimler/T-Systems production MSA_VIN_cascade: Ecu607 0x607 -> 0x587, UDS 22 F1 A0"
+    },
+    {
+        UINT32_C(0x4e0), UINT32_C(0x5ff),
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_VIN_PROBE_KWP_2105,
+        NULL, "Daimler VIN-cascade ECU 4E0",
+        "Daimler/T-Systems production MSA_VIN_cascade: Ecu4e0 0x4E0 -> 0x5FF, KWP2000 21 05"
     }
 };
 
@@ -111,7 +143,7 @@ static int mercedes_target_at(
     const size_t known_count = mblink_mercedes_known_route_count();
 
     if (target == NULL || index >= MBLINK_SWEEP_TARGET_COUNT ||
-        known_count > MBLINK_SWEEP_11_COUNT) {
+        known_count > MBLINK_SWEEP_11_TARGET_COUNT) {
         return 0;
     }
     memset(target, 0, sizeof(*target));
@@ -122,7 +154,9 @@ static int mercedes_target_at(
      * value targets because their independent request/response identifiers and
      * protocol families are source-backed.  The remainder of the 11-bit sweep
      * follows afterwards, skipping those TX identifiers so no ECU is probed
-     * twice.  The overall target count and 29-bit portion remain unchanged.
+     * twice. The source-backed 0x4E0 route sits outside the generic 0x600..0x7F7
+     * range and therefore adds one target; the 29-bit portion remains
+     * unchanged.
      */
     if (index < known_count) {
         const MblinkMercedesKnownRoute *known =
@@ -134,7 +168,7 @@ static int mercedes_target_at(
         return 1;
     }
 
-    if (index < MBLINK_SWEEP_11_COUNT) {
+    if (index < MBLINK_SWEEP_11_TARGET_COUNT) {
         uint32_t tx = 0U;
         if (!mercedes_generic_11_tx_at(index - known_count, &tx)) return 0;
         target->tx_can_id = tx;
@@ -144,7 +178,7 @@ static int mercedes_target_at(
     }
 
     {
-        size_t normal_index = index - MBLINK_SWEEP_11_COUNT;
+        size_t normal_index = index - MBLINK_SWEEP_11_TARGET_COUNT;
         unsigned int diagnostic_target = (unsigned int)normal_index;
         if (diagnostic_target >= 0xf1U) ++diagnostic_target;
         target->tx_can_id =
@@ -229,11 +263,40 @@ static int mercedes_target_probes(
             {UINT8_C(0x18), UINT8_C(0x02), UINT8_C(0xff), UINT8_C(0x00)},
             4U,
             "Mercedes KWP2000 ReadDiagnosticTroubleCodesByStatus"
+        }
+    };
+    static const link_discover_sweep_probe kwp_2105_presence_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x01)},
+            2U,
+            "Mercedes KWP2000 TesterPresent (response required)"
         },
         {
-            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0x00)},
+            {UINT8_C(0x18), UINT8_C(0x02), UINT8_C(0xff), UINT8_C(0x00)},
+            4U,
+            "Mercedes KWP2000 ReadDiagnosticTroubleCodesByStatus"
+        },
+        {
+            {UINT8_C(0x21), UINT8_C(0x05)},
+            2U,
+            "Daimler MSA VIN cascade KWP2000 21 05"
+        }
+    };
+    static const link_discover_sweep_probe uds_f1a0_presence_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x00)},
+            2U,
+            "Mercedes UDS TesterPresent"
+        },
+        {
+            {UINT8_C(0x19), UINT8_C(0x02), UINT8_C(0xff)},
             3U,
-            "Mercedes KWP2000 common-identifier presence fallback"
+            "Mercedes UDS ReadDTCInformation"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0xa0)},
+            3U,
+            "Daimler MSA VIN cascade UDS F1A0"
         }
     };
     const MblinkMercedesKnownRoute *route;
@@ -246,14 +309,26 @@ static int mercedes_target_probes(
     if (target->extended_id) return 1;
 
     route = mblink_mercedes_known_route_for_tx(target->tx_can_id);
-    if (route == NULL || route->rx_can_id != target->rx_can_id ||
-        route->protocol != MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+    if (route == NULL || route->rx_can_id != target->rx_can_id) return 1;
+
+    if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0) {
+        *presence_probes = uds_f1a0_presence_probes;
+        *presence_probe_count = sizeof(uds_f1a0_presence_probes) /
+            sizeof(uds_f1a0_presence_probes[0]);
         return 1;
     }
 
-    *presence_probes = kwp_presence_probes;
-    *presence_probe_count =
-        sizeof(kwp_presence_probes) / sizeof(kwp_presence_probes[0]);
+    if (route->protocol != MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) return 1;
+
+    if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105) {
+        *presence_probes = kwp_2105_presence_probes;
+        *presence_probe_count = sizeof(kwp_2105_presence_probes) /
+            sizeof(kwp_2105_presence_probes[0]);
+    } else {
+        *presence_probes = kwp_presence_probes;
+        *presence_probe_count =
+            sizeof(kwp_presence_probes) / sizeof(kwp_presence_probes[0]);
+    }
     /*
      * Do not apply UDS F197 identity semantics to a KWP endpoint. Exact
      * KWP-family identity options remain product evidence-gated.

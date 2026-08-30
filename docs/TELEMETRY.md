@@ -63,6 +63,14 @@ A sink/write failure is terminal for that recorder instance. Once `failed` is se
 
 The stream records original normalized ELM responses rather than the shortened recent-transcript cache.
 
+Streaming schema v2 adds `responder_can_id` and `responder_extended` columns.
+When a functional Mode 01 request receives several replies, each decoded sample
+is written once with the exact CAN source that supplied it. Legacy samples remain
+valid with those columns empty, and transcript rows retain the full normalized
+response. This makes exported evidence directly usable for per-module live-data
+replay instead of requiring CAN addresses to be reconstructed from transcript
+text.
+
 ## Time domains and CSV
 
 Session start/end metadata uses Unix epoch milliseconds. Sample/transcript rows use monotonic elapsed milliseconds from the session start so wall-clock changes cannot distort drive-relative timing.

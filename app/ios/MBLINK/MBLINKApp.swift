@@ -307,8 +307,22 @@ private struct MBMetricTile: View {
                 .font(.caption)
                 .foregroundStyle(MBBrand.muted)
                 .lineLimit(2)
+            if let source = parameter.sourceLabel {
+                Label(source, systemImage: "cpu")
+                    .font(.caption2.monospaced().weight(.semibold))
+                    .foregroundStyle(MBBrand.silver)
+                    .lineLimit(2)
+            }
+            if let qualityNote = parameter.qualityNote {
+                Text(qualityNote)
+                    .font(.caption2)
+                    .foregroundStyle(MBBrand.warning)
+                    .lineLimit(2)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+        .frame(maxWidth: .infinity,
+               minHeight: parameter.sourceLabel == nil ? 112 : 142,
+               alignment: .leading)
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -473,6 +487,9 @@ private struct MBCommandCentreView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         header
+                        if connection.isActive && !connection.isReady {
+                            connectionProgress
+                        }
                         tileGrid
                     }
                     .padding(.horizontal, 20)
@@ -481,6 +498,16 @@ private struct MBCommandCentreView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .alert("Adapter transport unavailable",
+                   isPresented: Binding(
+                       get: { connection.connectionAlertText != nil },
+                       set: { visible in
+                           if !visible { connection.dismissConnectionAlert() }
+                       })) {
+                Button("OK") { connection.dismissConnectionAlert() }
+            } message: {
+                Text(connection.connectionAlertText ?? "")
+            }
         }
     }
 
@@ -555,6 +582,26 @@ private struct MBCommandCentreView: View {
 
             MBHomeTile("Settings", "Adapter and app details", "gearshape.fill") {
                 MBSettingsView()
+            }
+        }
+    }
+
+    private var connectionProgress: some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 7) {
+                Label(connection.connectionPhaseTitle,
+                      systemImage: "dot.radiowaves.left.and.right")
+                    .font(.headline)
+                    .foregroundStyle(MBBrand.silverBright)
+                Text(connection.statusText)
+                    .font(.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !connection.diagnosticModules.isEmpty {
+                    Text("\(connection.diagnosticModules.count) responding control units retained so far")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                }
             }
         }
     }
@@ -713,10 +760,6 @@ private struct MBVehicleView: View {
 private struct MBModulesView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
-    private var observedModules: [String] {
-        connection.mercedesIdentityResults.filter { $0.hasPrefix("MODULE ·") }
-    }
-
     var body: some View {
         ZStack {
             MBBackground()
@@ -729,19 +772,29 @@ private struct MBModulesView: View {
                             MBInfoRow(label: "Module state", value: connection.mercedesProbeStatusText)
                         }
                     }
-                    if !observedModules.isEmpty {
+
+                    MBSectionHeader(
+                        title: "Observed modules",
+                        kicker: "\(connection.diagnosticModules.count) responding")
+                    if connection.diagnosticModules.isEmpty {
                         MBPanel {
-                            VStack(alignment: .leading, spacing: 9) {
-                                MBSectionHeader(title: "Observed modules", kicker: "Saved + live verification")
-                                ForEach(observedModules, id: \.self) { module in
-                                    Text(module)
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(MBBrand.silverBright)
-                                        .textSelection(.enabled)
-                                }
+                            Text(connection.isActive
+                                 ? "Mercedes module census is in progress. Responding control units will appear here and remain attached to the VIN profile."
+                                 : "Connect to the vehicle to discover its control units.")
+                                .font(.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                        }
+                    } else {
+                        ForEach(connection.diagnosticModules) { module in
+                            NavigationLink {
+                                MBModuleDetailView(moduleID: module.id)
+                            } label: {
+                                moduleCard(module)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
+
                     MBPanel {
                         VStack(alignment: .leading, spacing: 11) {
                             capability("Standard OBD-II engine diagnostics", "waveform.path.ecg")
@@ -776,6 +829,49 @@ private struct MBModulesView: View {
         .mbDiagnosticScreen("Modules")
     }
 
+    private func moduleCard(_ module: DiagnosticModule) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: module.symbol)
+                .font(.title2)
+                .foregroundStyle(MBBrand.silverBright)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(module.name)
+                    .font(.headline)
+                    .foregroundStyle(MBBrand.silverBright)
+                    .multilineTextAlignment(.leading)
+                if !module.designation.isEmpty {
+                    Text(module.designation)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(MBBrand.silver)
+                }
+                Text("\(module.addressText) · \(module.protocolName)")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(MBBrand.muted)
+                HStack(spacing: 8) {
+                    Label("\(module.livePIDCount) live PIDs", systemImage: "waveform.path.ecg")
+                    Label(module.faultCountLabel, systemImage: "exclamationmark.triangle")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(MBBrand.silver)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .foregroundStyle(MBBrand.muted)
+                .padding(.top, 8)
+        }
+        .padding(15)
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(MBBrand.panel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(MBBrand.line, lineWidth: 1)
+        )
+    }
+
     private func capability(_ text: String, _ symbol: String) -> some View {
         HStack(spacing: 11) {
             Image(systemName: symbol)
@@ -789,12 +885,173 @@ private struct MBModulesView: View {
     }
 }
 
+private extension DiagnosticModule {
+    var symbol: String {
+        let value = kind.lowercased()
+        if value.contains("engine") { return "engine.combustion.fill" }
+        if value.contains("transmission") { return "gearshape.2.fill" }
+        if value.contains("abs") || value.contains("esp") { return "car.side.rear.and.collision.and.car.side.front" }
+        if value.contains("restraint") { return "airbag.fill" }
+        if value.contains("climate") { return "fan.fill" }
+        if value.contains("instrument") { return "gauge.with.dots.needle.67percent" }
+        if value.contains("body") { return "car.fill" }
+        return "cpu.fill"
+    }
+}
+
+private struct MBModuleDetailView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+    let moduleID: String
+
+    private var module: DiagnosticModule? {
+        connection.diagnosticModule(id: moduleID)
+    }
+
+    private var parameters: [DiagnosticParameter] {
+        connection.moduleParameters(moduleID: moduleID).filter(\.isAvailable)
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                if let module {
+                    VStack(alignment: .leading, spacing: 15) {
+                        MBSectionHeader(title: module.name, kicker: module.kind.uppercased())
+
+                        MBPanel {
+                            VStack(spacing: 4) {
+                                MBInfoRow(label: "CAN route", value: module.addressText)
+                                MBInfoRow(label: "Protocol", value: module.protocolName)
+                                if !module.designation.isEmpty {
+                                    MBInfoRow(label: "Designation", value: module.designation)
+                                }
+                                if !module.network.isEmpty {
+                                    MBInfoRow(label: "Network", value: module.network)
+                                }
+                                if let identity = module.identityText {
+                                    MBInfoRow(label: "Identity", value: identity)
+                                }
+                                if let part = module.partNumber {
+                                    MBInfoRow(label: "Part number", value: part)
+                                }
+                                if let software = module.softwareNumber {
+                                    MBInfoRow(label: "Software", value: software)
+                                }
+                                if let hardware = module.hardwareNumber {
+                                    MBInfoRow(label: "Hardware", value: hardware)
+                                }
+                            }
+                        }
+
+                        if !module.evidenceDetails.isEmpty {
+                            MBSectionHeader(
+                                title: "ECU evidence",
+                                kicker: "Captured read-only identity")
+                            MBPanel {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(module.evidenceDetails, id: \.self) { detail in
+                                        Text(detail)
+                                            .font(.caption.monospaced())
+                                            .foregroundStyle(MBBrand.silverBright)
+                                            .textSelection(.enabled)
+                                    }
+                                }
+                            }
+                        }
+
+                        MBSectionHeader(
+                            title: "Live data",
+                            kicker: "\(parameters.count) values from response \(module.responseAddressText)")
+                        if parameters.isEmpty {
+                            MBPanel {
+                                Text("This control unit is responding, but no source-attributed live parameter has been captured from it yet. Identity and fault evidence remain available without assigning guessed DIDs.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                            }
+                        } else {
+                            ForEach(MBParameterGroup.allCases) { group in
+                                let grouped = parameters.filter { $0.brandGroup == group }
+                                if !grouped.isEmpty {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
+                                            .font(.headline)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                        LazyVGrid(columns: mbDashboardColumns, spacing: 10) {
+                                            ForEach(grouped) { parameter in
+                                                MBMetricTile(parameter: parameter)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            MBPanel {
+                                Text("These are standard Mode 01 values returned by this exact CAN responder. They are kept separate from the same PID returned by another module.")
+                                    .font(.caption)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                            MBPanel {
+                                Text("State-dependent values are shown exactly as returned. MBLINK does not smooth, substitute or silently correct shutdown and stale ECU readings.")
+                                    .font(.caption)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+
+                        MBSectionHeader(title: "Fault memory", kicker: module.faultStatus)
+                        MBPanel {
+                            if module.faults.isEmpty {
+                                Text(module.faultStatus)
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(module.faults, id: \.self) { fault in
+                                        Text(fault)
+                                            .font(.caption.monospaced())
+                                            .foregroundStyle(MBBrand.silverBright)
+                                            .textSelection(.enabled)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(16)
+                } else {
+                    MBPanel {
+                        Text("The module is no longer present in the active vehicle profile.")
+                            .foregroundStyle(MBBrand.silver)
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .mbDiagnosticScreen(module?.name ?? "Module")
+    }
+}
+
+private extension DiagnosticModule {
+    var responseAddressText: String {
+        extendedID
+            ? String(format: "0x%08X", responseCANIdentifier)
+            : String(format: "0x%03X", responseCANIdentifier)
+    }
+}
+
 private struct MBFaultsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     private var total: Int {
         connection.mercedesUDSFaults.count + connection.storedFaults.count +
             connection.pendingFaults.count + connection.permanentFaults.count
+    }
+
+    private var allScansComplete: Bool {
+        connection.obdFaultScanComplete && connection.mercedesFaultScanComplete
+    }
+
+    private var headlineColour: Color {
+        if total > 0 { return MBBrand.fault }
+        return allScansComplete ? MBBrand.success : MBBrand.warning
     }
 
     var body: some View {
@@ -807,7 +1064,7 @@ private struct MBFaultsView: View {
                         Spacer()
                         Text("\(total)")
                             .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(total == 0 ? MBBrand.success : MBBrand.fault)
+                            .foregroundStyle(headlineColour)
                     }
 
                     MBPanel {
@@ -817,7 +1074,19 @@ private struct MBFaultsView: View {
                                 .font(.caption)
                                 .foregroundStyle(MBBrand.muted)
                             if connection.mercedesUDSFaults.isEmpty {
-                                emptyFaults("No Mercedes module UDS fault records captured")
+                                if connection.mercedesFaultScanComplete {
+                                    statusRow("Mercedes module scan completed clean",
+                                              symbol: "checkmark.circle.fill",
+                                              colour: MBBrand.success)
+                                } else if connection.mercedesFaultScanFailed {
+                                    statusRow("Mercedes module scan is partial or incomplete",
+                                              symbol: "exclamationmark.triangle.fill",
+                                              colour: MBBrand.warning)
+                                } else {
+                                    statusRow("Mercedes module fault scan not complete",
+                                              symbol: "clock.fill",
+                                              colour: MBBrand.muted)
+                                }
                             } else {
                                 ForEach(connection.mercedesUDSFaults, id: \.self) { fault in
                                     Text(fault)
@@ -846,10 +1115,24 @@ private struct MBFaultsView: View {
                     Spacer()
                     Text("\(faults.count)")
                         .font(.title2.monospacedDigit().weight(.bold))
-                        .foregroundStyle(faults.isEmpty ? MBBrand.success : MBBrand.fault)
+                        .foregroundStyle(faults.isEmpty && connection.obdFaultScanComplete
+                                         ? MBBrand.success
+                                         : faults.isEmpty ? MBBrand.warning : MBBrand.fault)
                 }
                 if faults.isEmpty {
-                    emptyFaults("None reported")
+                    if connection.obdFaultScanComplete {
+                        statusRow("None reported",
+                                  symbol: "checkmark.circle.fill",
+                                  colour: MBBrand.success)
+                    } else if connection.obdFaultScanFailed {
+                        statusRow("Standard OBD fault scan failed",
+                                  symbol: "exclamationmark.triangle.fill",
+                                  colour: MBBrand.fault)
+                    } else {
+                        statusRow("Standard OBD fault scan not complete",
+                                  symbol: "clock.fill",
+                                  colour: MBBrand.muted)
+                    }
                 } else {
                     ForEach(faults) { fault in
                         VStack(alignment: .leading, spacing: 3) {
@@ -869,10 +1152,10 @@ private struct MBFaultsView: View {
         }
     }
 
-    private func emptyFaults(_ text: String) -> some View {
+    private func statusRow(_ text: String, symbol: String, colour: Color) -> some View {
         HStack(spacing: 9) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(MBBrand.success)
+            Image(systemName: symbol)
+                .foregroundStyle(colour)
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(MBBrand.silver)
@@ -1063,7 +1346,7 @@ private struct MBDashboardView: View {
     ]
 
     private var displayed: [DiagnosticParameter] {
-        let available = connection.diagnosticParameters.filter { $0.pollingEnabled && $0.isAvailable }
+        let available = connection.dashboardParameters.filter { $0.pollingEnabled && $0.isAvailable }
         let favourites = available.filter(\.favourite)
         if preferFavouriteSignals && !favourites.isEmpty { return Array(favourites.prefix(8)) }
         let preferred = defaultKeys.compactMap { key in available.first { $0.id == key } }
@@ -1075,9 +1358,26 @@ private struct MBDashboardView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if connection.isActive && !connection.isReady {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Label("Mercedes module census", systemImage: "dot.radiowaves.left.and.right")
+                                    .font(.headline)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text(connection.mercedesProbeStatusText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                Text("\(connection.diagnosticModules.count) responding control units found")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+                    }
                     if displayed.isEmpty {
                         MBPanel {
-                            Text("Connect to the vehicle to populate dashboard measurements.")
+                            Text(connection.isActive
+                                 ? "Live polling will begin when the read-only module and fault census finishes."
+                                 : "Connect to the vehicle to populate dashboard measurements.")
                                 .font(.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }

@@ -191,6 +191,39 @@ int main(void)
     CHECK(action.kind ==
           LINK_DIAGNOSTIC_FLOW_ACTION_MANUFACTURER_EXTENSION);
 
+    /*
+     * The 2026-08-30 drive capture proved that the functional live request is
+     * answered by both 7E8 and 7E9. Preserve both values and addresses so the
+     * product can present engine and transmission-candidate module pages.
+     */
+    {
+        LinkObd2ResponderSampleList responders;
+        response = ok_response(
+            "7E804410C0CF9\n"
+            "7E904410C0CFC", false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x0c), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 2U);
+        CHECK(responders.samples[0].responder_id == UINT32_C(0x7e8));
+        CHECK(responders.samples[0].sample.value == 830.25);
+        CHECK(responders.samples[1].responder_id == UINT32_C(0x7e9));
+        CHECK(responders.samples[1].sample.value == 831.0);
+
+        /* Same capture, same PID, independently different ECU voltage. */
+        response = ok_response(
+            "7E80441423827\n"
+            "7E90441423778", false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x42), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 2U);
+        CHECK(responders.samples[0].responder_id == UINT32_C(0x7e8));
+        CHECK(responders.samples[0].sample.value == 14.375);
+        CHECK(responders.samples[1].responder_id == UINT32_C(0x7e9));
+        CHECK(responders.samples[1].sample.value == 14.2);
+    }
+
     puts("Captured C207 OBD-flow replay tests passed");
     return 0;
 }

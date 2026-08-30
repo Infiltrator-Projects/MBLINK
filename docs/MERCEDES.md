@@ -57,11 +57,18 @@ MBLINK therefore models **CGW and SAMF as separate logical diagnostic controller
 
 ### Source-backed priority routes
 
-The following physical routes have both endpoints and protocol family independently published. They are attempted before the generic census, and then omitted from the generic 11-bit pass so they are not probed twice.
+The following physical routes have independently evidenced endpoints and
+protocols. They are attempted before the generic census, and then omitted from
+the generic 11-bit pass so they are not probed twice. Rows labelled as Daimler
+production bootstrap evidence come from the recovered MSA/Whisper VIN cascade;
+that proves the route and probe, but does not by itself identify the ECU family.
 
 | ECU family | Request | Response | Protocol | Evidence basis |
 | --- | ---: | ---: | --- | --- |
-| EIS_212 / EIS_204 | `0x612` | `0x482` | UDS | Public CAESAR trace / communication parameters |
+| Unclassified production route | `0x602` | `0x480` | UDS, VIN `22 F1 A0` | Daimler production VIN bootstrap |
+| Unclassified production route | `0x607` | `0x587` | UDS, VIN `22 F1 A0` | Daimler production VIN bootstrap |
+| Unclassified production route | `0x4E0` | `0x5FF` | KWP2000, local ID `21 05` | Daimler production VIN bootstrap |
+| EIS_212 / EIS_204 | `0x612` | `0x482` | UDS, VIN `22 F1 A0` | Daimler production VIN bootstrap plus public CAESAR trace |
 | ABR2XT / ESP | `0x632` | `0x486` | UDS | Public CAESAR communication parameters |
 | ORC_212 / SRS | `0x64A` | `0x489` | KWP2000 / KW2C3PE | Public Monaco trace |
 | HU_204 / COMAND | `0x652` | `0x48A` | KWP2000 / KW2C3PE | Public HU_204 Monaco trace |
@@ -71,9 +78,21 @@ IC_204, SAMF_212, SAMR_212 and HVAC_212 are independently corroborated as real 2
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
-The deeper discovery path uses the one Mercedes-owned full target plan. On a new VIN, iPhone first probes the source-backed physical routes above, then performs a bounded **mobile census** across the remainder of the `0x600–0x7F7` 11-bit range plus all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`. Linux uses the same ordered census for a normal connection. Dead targets receive only a read-only TesterPresent; deeper reads run only after a responder is proved.
+The deeper discovery path uses the one Mercedes-owned full target plan. On a
+new VIN, iPhone first probes the source-backed physical routes above, including
+the exact `0x4E0` route outside the generic range, then performs a bounded
+**mobile census** across the remainder of the `0x600–0x7F7` 11-bit range plus
+all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`.
+Linux uses the same ordered census for a normal connection. Dead targets
+receive only bounded read-only presence probes; deeper reads run only after a
+responder is proved.
 
-For every responder MBLINK retains the physical route and reads read-only `F197` system name plus `F187` spare-part number, `F188` software number and `F191` hardware number where supported. It classifies a module only when returned identity text or a standards-defined functional route supports that classification, and reads that responder's UDS DTC memory independently with `19 02 FF`.
+For UDS responders MBLINK retains the physical route and reads read-only `F197`
+system name plus `F187` spare-part number, `F188` software number and `F191`
+hardware number where supported. It classifies a module only when returned
+identity text or a standards-defined functional route supports that
+classification, and reads each responder's protocol-appropriate DTC memory.
+KWP routes are retained without applying UDS identity semantics to them.
 
 The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately. DEEP RESCAN is an in-session manufacturer rescan: LINK lets any in-flight live PID request finish, pauses live polling, runs the full Mercedes extension on the existing Bluetooth/USB transport, restores the normal ELM channel and resumes the existing live scheduler. It does not disconnect/reconnect the adapter or repeat standard PID/VIN discovery.
 
@@ -81,7 +100,19 @@ The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive
 
 That capture also disproved a second assumption: a Mercedes 11-bit diagnostic response is **not always request+8**. Public CAESAR/Vediamo traces publish independent `CP_REQUEST_CANIDENTIFIER` and `CP_RESPONSE_CANIDENTIFIER` values and give concrete 204/212-family examples: EIS `0x612 -> 0x482`, ABR2XT `0x632 -> 0x486` and EPS212 `0x6B2 -> 0x496`. MBLINK now treats those published pairs as source-corroborated routes and never extrapolates unobserved pairs from them.
 
-For an ordinary address whose response route is unknown, the existing bounded plan still uses the conventional request+8 candidate. For a source-corroborated nonstandard route, MBLINK keeps the published receive ID and first performs the same transient UDS extended-session handshake (`10 03`) shown by the public EIS_212/EIS_204 CAESAR and DTS traces. That session change is non-persistent and is used only to make the ECU's diagnostic read services available; it does not alter coding or stored vehicle data. MBLINK then uses bounded `3E 00`, `19 02 FF`, `22 F190` and `22 F100` probes. A positive **or valid negative** UDS response proves a responder exists. No reset, security access, routine control, communication/DTC-setting change, DTC clear, coding, data write or programming request is introduced by this route-aware census.
+For an ordinary address whose response route is unknown, the existing bounded
+plan still uses the conventional request+8 candidate. For a source-corroborated
+UDS route, MBLINK keeps the published receive ID and first performs the same
+transient extended-session handshake (`10 03`) shown by the public
+EIS_212/EIS_204 CAESAR and DTS traces. That session change is non-persistent and
+is used only to make diagnostic read services available; it does not alter
+coding or stored vehicle data. The primary recovered VIN probes are route
+specific: `22 F1 A0` for `0x602`, `0x607` and `0x612`, and KWP `21 05` for
+`0x4E0`. Other UDS targets retain the bounded `22 F190` fallback. A positive
+**or valid negative** protocol response proves a responder exists. No reset,
+security access, routine control, communication/DTC-setting change, DTC clear,
+coding, data write or programming request is introduced by this route-aware
+census.
 
 A catalogue entry is not evidence that a module is fitted to a particular car. Optional equipment remains optional, petrol/diesel control-unit alternatives remain mutually dependent on the decoded vehicle configuration, and a discovered but unclassified responder remains unresolved. Conversely, an ECU becomes part of the live vehicle map only after it actually responds during the read-only scan.
 
@@ -315,12 +346,14 @@ executed through Mercedes me, Tactrix/OpenPort, STM32 CAN or a capable ELM
 transport. Mercedes-me-specific Bluetooth/session/security remains in LINK's
 genuine-adapter provider; Mercedes ECU knowledge remains in MBLINK.
 
-The next highest-value evidence source is therefore the archived APK
-configuration set, including resources such as `config.properties`,
-`_configs`, `deviceproviders`, `actionproviders`,
-`activeconfiguration` and `vinmapping`. Until those files are recovered,
-MBLINK must continue to leave unknown Mercedes CAN IDs, DIDs, byte layouts and
-formulas unbound rather than infer them from the native engine's capability.
+The archived APK inventory subsequently recovered the production
+`MSA_VIN_cascade` bootstrap. It proves the route-specific VIN requests now used
+by discovery: UDS `22 F1 A0`, KWP `21 05`, the alternate KWP `1A 90`, and the
+ordinary OBD `09 02` path. The implemented physical-route priorities use only
+the exact primary mappings above; the alternate KWP and passive VIN candidates
+remain evidence records rather than speculative extra traffic. The bootstrap
+is not the complete runtime diagnostic configuration, so unknown Mercedes CAN
+IDs, DIDs, byte layouts and formulas remain unbound.
 
 ### Native secure protocol now reproduced independently
 
@@ -334,17 +367,18 @@ The session key is 32 bytes and is derived as:
 `SHA-256(SMK || random_argument_1 || random_argument_2)`
 
 where the Session Master Key is 32 bytes and each random argument is 16 bytes.
-The exact app-random/adapter-random direction of those two arguments remains
-evidence-gated until the complete authentication sequence is reconstructed.
+The authenticated call flow establishes that the arguments are ordered as the
+device/adapter random followed by the application random.
 
-The secure inner frame is a six-byte header followed by plaintext and zero
-padding:
+The secure inner frame is a six-byte header followed by plaintext and bounded
+length-valued padding:
 
 - 16-bit big-endian plaintext length;
 - 16-bit big-endian CRC-16/CCITT-XMODEM over the plaintext;
 - two reserved zero bytes;
 - plaintext;
-- zero padding to the observed AES boundary.
+- padding to the observed AES boundary, with each byte equal to the padding
+  length.
 
 The result is AES-256-ECB encrypted, Base64 encoded and wrapped as
 `a<Base64(ciphertext)>CR`. The native implementation caps ciphertext at 512
@@ -402,6 +436,13 @@ included when extracting the remaining APK assets.
 
 The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.
 
+The Modules workspace now presents that census as structured, tappable control
+units rather than a flat transcript. Each detail view owns the module's CAN
+route, protocol, returned identity/part/software/hardware evidence, fault state
+and any live standard PIDs returned by that exact response CAN identifier.
+Modules without verified live mappings remain useful identity/fault cards and
+show no invented measurements.
+
 SwiftUI remains a view layer. Mercedes protocol state, CRD3 decoding, UDS fault parsing and Mercedes fault lookup/knowledge belong below the UI so the same evidence rules, definitions and replay tests can be used on other platforms.
 
 ## Evidence and promotion
@@ -430,5 +471,17 @@ Unknown factory values may be identified by correlation, but only after a candid
 ## 0.7.79 C207 live-capture observations
 
 A de-identified C207/Vgate iPhone evidence run validated several interpretation decisions directly against vehicle behaviour. SAE fuel-level PID `2F` reported roughly 42 percent; ambient PID `46` moved through 16–18 °C; accelerator-pedal D and E closely tracked each other; and absolute throttle-valve PID `11` followed a materially different trajectory. That is consistent with PID `11` being the intake throttle valve rather than accelerator-pedal demand.
+
+A later 0.7.94 C207/Vgate capture recorded 13,728 decoded samples and repeated
+the six-route mobile census twice. It proved simultaneous `0x7E8` and `0x7E9`
+Mode 01 replies for PIDs `04`, `05`, `0C`, `0D`, `42` and `49`. It also repeated
+the ORC `0x64A -> 0x489` KWP record `9B51 / E0`. MBLINK's module-scoped
+Mercedes fault table now resolves `9B51` as **driver seat-belt buckle circuit:
+short to positive or open circuit**. The meaning is source-corroborated; the
+exact raw code and route are vehicle-verified. The raw `E0` status remains
+visible because its bit-level meaning has not been independently verified. The
+same capture exposed an incomplete multi-frame ESP fault response. These shapes
+are regression evidence; `0x7E9` remains a transmission ECU candidate until
+returned Mercedes identity confirms VGS/EGS.
 
 The same run exposed the old default schedule as too aggressive for the ELM/BLE path, which is why LINK 0.14.25 lowers the default request cadences while retaining per-PID enable controls.

@@ -36,6 +36,14 @@ typedef enum MblinkMercedesDiagnosticProtocol {
     MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
 } MblinkMercedesDiagnosticProtocol;
 
+typedef enum MblinkMercedesVinProbe {
+    MBLINK_MERCEDES_VIN_PROBE_NONE = 0,
+    MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
+    MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+    MBLINK_MERCEDES_VIN_PROBE_KWP_1A90,
+    MBLINK_MERCEDES_VIN_PROBE_KWP_2105
+} MblinkMercedesVinProbe;
+
 static inline const char *mblink_mercedes_diagnostic_protocol_name(
     MblinkMercedesDiagnosticProtocol protocol)
 {
@@ -50,14 +58,16 @@ typedef struct MblinkMercedesKnownRoute {
     uint32_t tx_can_id;
     uint32_t rx_can_id;
     MblinkMercedesDiagnosticProtocol protocol;
+    MblinkMercedesVinProbe vin_probe;
     const char *module_key;
     const char *qualifier;
     const char *provenance;
 } MblinkMercedesKnownRoute;
 
 /**
- * Return source-corroborated Mercedes 11-bit diagnostic routes whose response
- * identifier is not the generic request+8 mapping.
+ * Return source-corroborated Mercedes 11-bit diagnostic routes. Most have a
+ * non-request+8 response identifier; the list may also contain a route outside
+ * the generic sweep range when Daimler's own parameterization names it.
  */
 size_t mblink_mercedes_known_route_count(void);
 const MblinkMercedesKnownRoute *mblink_mercedes_known_route_at(size_t index);

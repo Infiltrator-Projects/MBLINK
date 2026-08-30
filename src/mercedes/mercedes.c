@@ -44,6 +44,52 @@ static bool mercedes_address_equal(const MblinkIsoTpAddress *left,
            left->rx_address_extension == right->rx_address_extension;
 }
 
+/* Mercedes KWP fault identifiers are module scoped.  Keep this product-owned
+ * table separate from LINK's generic SAE/ISO OBD catalogue so an identical
+ * 16-bit value from another controller cannot acquire the ORC meaning. */
+static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
+    {
+        .module_key = "restraints-orc",
+        .code = UINT16_C(0x9b51),
+        .description =
+            "Driver seat-belt buckle circuit: short to positive or open circuit",
+        .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        .provenance =
+            "Meaning corroborated by independent Mercedes diagnostic-tool "
+            "reports; exact ORC 0x64A -> 0x489 raw code 9B51 captured on the "
+            "C207 test vehicle on 2026-08-30."
+    }
+};
+
+size_t mblink_mercedes_kwp_dtc_count(void)
+{
+    return sizeof(mercedes_kwp_dtcs) / sizeof(mercedes_kwp_dtcs[0]);
+}
+
+const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_at(
+    size_t index)
+{
+    return index < mblink_mercedes_kwp_dtc_count()
+        ? &mercedes_kwp_dtcs[index] : NULL;
+}
+
+const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
+    const char *module_key,
+    uint16_t code)
+{
+    if (!mercedes_text_valid(module_key)) return NULL;
+    for (size_t index = 0U;
+         index < mblink_mercedes_kwp_dtc_count(); ++index) {
+        const MblinkMercedesKwpDtcDefinition *definition =
+            &mercedes_kwp_dtcs[index];
+        if (definition->code == code &&
+            infiltratr_string_equal(definition->module_key, module_key)) {
+            return definition;
+        }
+    }
+    return NULL;
+}
+
 const char *mblink_mercedes_definition_status_name(
     MblinkMercedesDefinitionStatus status)
 {

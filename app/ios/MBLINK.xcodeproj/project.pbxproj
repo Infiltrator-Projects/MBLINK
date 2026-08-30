@@ -32,6 +32,7 @@
 		C3A42E37825A806839C66F16 /* probe.c in Sources */ = {isa = PBXBuildFile; fileRef = 41A80A01E9B823433E288953 /* probe.c */; };
 		B47CA2DF83F1AF99C4CFF1EC /* obd2.c in Sources */ = {isa = PBXBuildFile; fileRef = DCDEF808C26455A6B72E4784 /* obd2.c */; };
 		74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C1F571CC485203162805ADE /* CoreBluetooth.framework */; };
+		EAA100000000000000000001 /* ExternalAccessory.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EAA100000000000000000005 /* ExternalAccessory.framework */; };
 		B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D069509556BFAFFC25586CC3 /* libMBLINKCore.a */; };
 		C0A110000000000000000001 /* libInfiltratrCommonPortable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C0A110000000000000000005 /* libInfiltratrCommonPortable.a */; };
 		A1B2C3D4E5F60718293C0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293C0002 /* Assets.xcassets */; };
@@ -98,6 +99,7 @@
 		8BCD5BC4CDFDF0918087C782 /* MBLINK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MBLINK.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D069509556BFAFFC25586CC3 /* libMBLINKCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMBLINKCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C1F571CC485203162805ADE /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		EAA100000000000000000005 /* ExternalAccessory.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ExternalAccessory.framework; path = System/Library/Frameworks/ExternalAccessory.framework; sourceTree = SDKROOT; };
 		A1B2C3D4E5F60718293C0002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "MBLINK/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000008 /* link_i18n.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n.c; path = "../../src/link/src/core/i18n.c"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000009 /* link_i18n_platform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = link_i18n_platform.c; path = "../../src/link/src/core/i18n_platform.c"; sourceTree = SOURCE_ROOT; };
@@ -125,6 +127,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				74A786C37C0C4EB491E0D625 /* CoreBluetooth.framework in Frameworks */,
+				EAA100000000000000000001 /* ExternalAccessory.framework in Frameworks */,
 				B5652B9E233A8F3CD1A091F6 /* libMBLINKCore.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -223,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				4C1F571CC485203162805ADE /* CoreBluetooth.framework */,
+				EAA100000000000000000005 /* ExternalAccessory.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -479,7 +483,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.94;
+				MARKETING_VERSION = 0.7.95;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -513,7 +517,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.94;
+				MARKETING_VERSION = 0.7.95;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -557,7 +561,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.94;
+				MARKETING_VERSION = 0.7.95;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -594,7 +598,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.94;
+				MARKETING_VERSION = 0.7.95;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";

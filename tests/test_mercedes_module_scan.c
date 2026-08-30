@@ -716,14 +716,87 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             }
         }
 
+        /*
+         * Daimler's shipped MSA VIN cascade defines 0x602 -> 0x480 and the
+         * manufacturer VIN DID F1A0. A valid negative response still proves
+         * the exact physical route, matching the scanner's evidence policy.
+         */
+        memset(&scan, 0, sizeof(scan));
+        scan.scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, full_target_index_for_tx(UINT32_C(0x602))));
+        CHECK(scan.candidate_rx == UINT32_C(0x480));
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+        CHECK(send_ok(&scan, "ATCRA480") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "22F1A0") == 0);
+        {
+            MblinkElm327Response f1a0_negative =
+                response(MBLINK_ELM327_RESULT_OK, "7F2231", false);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &f1a0_negative) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        }
+        CHECK(scan.module_count == 1U);
+        CHECK(scan.modules[0].tx_can_id == UINT32_C(0x602));
+        CHECK(scan.modules[0].rx_can_id == UINT32_C(0x480));
+
+        /* The out-of-range 0x4E0 route uses Daimler's KWP 21 05 VIN read. */
+        {
+            MblinkElm327Response kwp_vin =
+                response(MBLINK_ELM327_RESULT_OK,
+                         "61055744443230373330333246313239313538",
+                         false);
+            memset(&scan, 0, sizeof(scan));
+            scan.scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
+            CHECK(mblink_mercedes_module_scan_set_full_target(
+                      &scan, full_target_index_for_tx(UINT32_C(0x4e0))));
+            CHECK(scan.candidate_rx == UINT32_C(0x5ff));
+            CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+                  MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+            scan.stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+            CHECK(send_ok(&scan, "ATCRA5FF") == 0);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK);
+            CHECK(mblink_mercedes_module_scan_command(
+                      &scan, command, sizeof(command), &written) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(strcmp(command, "2105") == 0);
+            CHECK(mblink_mercedes_module_scan_accept(&scan, &kwp_vin) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.module_count == 1U);
+            CHECK(scan.modules[0].tx_can_id == UINT32_C(0x4e0));
+            CHECK(scan.modules[0].rx_can_id == UINT32_C(0x5ff));
+            CHECK(scan.modules[0].protocol ==
+                  MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+        }
+
         /* A dead 29-bit logical target also advances after one presence probe. */
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 504U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 505U));
         CHECK(scan.candidate_extended);
         scan.stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.full_target_index == 505U);
+        CHECK(scan.full_target_index == 506U);
     }
 
     /* Explicit FULL consumes the one Mercedes-owned plan. */
@@ -791,11 +864,11 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         memset(&scan, 0, sizeof(scan));
         scan.scope = MBLINK_MERCEDES_MODULE_SCAN_FULL;
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 503U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 504U));
         CHECK(scan.candidate_tx == UINT32_C(0x7f7));
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.full_target_index == 504U);
+        CHECK(scan.full_target_index == 505U);
         CHECK(scan.candidate_extended);
         CHECK(scan.candidate_tx == UINT32_C(0x18da00f1));
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29);
@@ -803,11 +876,11 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         /* F1 is absent because the MBLINK plan skips the tester address. */
         scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
-        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 744U));
+        CHECK(mblink_mercedes_module_scan_set_full_target(&scan, 745U));
         CHECK(scan.candidate_tx == UINT32_C(0x18daf0f1));
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.full_target_index == 745U);
+        CHECK(scan.full_target_index == 746U);
         CHECK(scan.candidate_tx == UINT32_C(0x18daf2f1));
 
         /* The plan's final target ends discovery. */

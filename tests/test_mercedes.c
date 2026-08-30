@@ -249,6 +249,34 @@ static int test_decode_wrapper(void)
     return 0;
 }
 
+static int test_kwp_dtc_lookup(void)
+{
+    const MblinkMercedesKwpDtcDefinition *definition;
+
+    CHECK(mblink_mercedes_kwp_dtc_count() >= 1U);
+    definition = mblink_mercedes_kwp_dtc_find(
+        "restraints-orc", UINT16_C(0x9b51));
+    CHECK(definition != NULL);
+    CHECK(definition == mblink_mercedes_kwp_dtc_at(0U));
+    CHECK(definition->code == UINT16_C(0x9b51));
+    CHECK(strcmp(definition->module_key, "restraints-orc") == 0);
+    CHECK(strstr(definition->description, "Driver seat-belt buckle") != NULL);
+    CHECK(strstr(definition->description, "short to positive") != NULL);
+    CHECK(strstr(definition->description, "open circuit") != NULL);
+    CHECK(definition->status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    CHECK(definition->provenance != NULL && definition->provenance[0] != '\0');
+
+    /* The same numeric value must not leak into another module namespace. */
+    CHECK(mblink_mercedes_kwp_dtc_find(
+              "engine-crd3", UINT16_C(0x9b51)) == NULL);
+    CHECK(mblink_mercedes_kwp_dtc_find(
+              "restraints-orc", UINT16_C(0x9b52)) == NULL);
+    CHECK(mblink_mercedes_kwp_dtc_find(NULL, UINT16_C(0x9b51)) == NULL);
+    CHECK(mblink_mercedes_kwp_dtc_at(mblink_mercedes_kwp_dtc_count()) == NULL);
+    return 0;
+}
+
 int main(void)
 {
     if (test_development_profile() != 0) return 1;
@@ -256,5 +284,6 @@ int main(void)
     if (test_definition_validation() != 0) return 1;
     if (test_profile_lookup_and_duplicates() != 0) return 1;
     if (test_decode_wrapper() != 0) return 1;
+    if (test_kwp_dtc_lookup() != 0) return 1;
     return 0;
 }

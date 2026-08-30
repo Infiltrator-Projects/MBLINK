@@ -5,6 +5,28 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MBLinkDiagnosticsController;
 
+@interface MBLinkMercedesModuleSnapshot : NSObject
+
+@property(nonatomic, copy, readonly) NSString *identifier;
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, copy, readonly) NSString *designation;
+@property(nonatomic, copy, readonly) NSString *network;
+@property(nonatomic, copy, readonly) NSString *kind;
+@property(nonatomic, copy, readonly) NSString *protocolName;
+@property(nonatomic, readonly) uint32_t requestCANIdentifier;
+@property(nonatomic, readonly) uint32_t responseCANIdentifier;
+@property(nonatomic, readonly, getter=isExtendedID) BOOL extendedID;
+@property(nonatomic, copy, readonly, nullable) NSString *identityText;
+@property(nonatomic, copy, readonly, nullable) NSString *partNumber;
+@property(nonatomic, copy, readonly, nullable) NSString *softwareNumber;
+@property(nonatomic, copy, readonly, nullable) NSString *hardwareNumber;
+@property(nonatomic, copy, readonly) NSString *faultStatus;
+@property(nonatomic, readonly) NSUInteger faultCount;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *faults;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *evidenceDetails;
+
+@end
+
 @protocol MBLinkDiagnosticsControllerDelegate <NSObject>
 - (void)diagnosticsControllerDidUpdate:(MBLinkDiagnosticsController *)controller;
 @end
@@ -23,6 +45,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *mercedesCrd3SummaryText;
 @property(nonatomic, copy, readonly) NSString *mercedesUDSFaultStatusText;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *mercedesUDSFaults;
+@property(nonatomic, copy, readonly)
+    NSArray<MBLinkMercedesModuleSnapshot *> *mercedesModuleSnapshots;
 @property(nonatomic, copy, readonly) NSString *vehicleProfileStatusText;
 @property(nonatomic, copy, readonly) NSString *faultScanStatusText;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
@@ -37,6 +61,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)disconnect;
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                                       limit:(NSUInteger)limit;
+- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+                     responderCANIdentifier:(uint32_t)responderCANIdentifier
+                                  extendedID:(BOOL)extendedID
+                                       limit:(NSUInteger)limit;
+- (NSArray<NSNumber *> *)observedPIDsForResponderCANIdentifier:
+    (uint32_t)responderCANIdentifier
+                                                      extendedID:(BOOL)extendedID;
 - (BOOL)favouriteForPID:(uint8_t)pid;
 - (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid;
 - (BOOL)pollingEnabledForPID:(uint8_t)pid;

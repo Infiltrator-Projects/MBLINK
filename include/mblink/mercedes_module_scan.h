@@ -378,6 +378,22 @@ mblink_mercedes_module_scan_candidate_protocol(
     return route != NULL ? route->protocol : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
 }
 
+static inline const char *mblink_mercedes_module_scan_vin_command(
+    const MblinkMercedesModuleScan *scan)
+{
+    const MblinkMercedesKnownRoute *route =
+        mblink_mercedes_module_scan_known_route(scan);
+    if (route == NULL) return "22F190";
+    switch (route->vin_probe) {
+    case MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0: return "22F1A0";
+    case MBLINK_MERCEDES_VIN_PROBE_KWP_1A90: return "1A90";
+    case MBLINK_MERCEDES_VIN_PROBE_KWP_2105: return "2105";
+    case MBLINK_MERCEDES_VIN_PROBE_UDS_F190: return "22F190";
+    case MBLINK_MERCEDES_VIN_PROBE_NONE: return NULL;
+    }
+    return NULL;
+}
+
 static inline MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_entry_protocol(
     const MblinkMercedesModuleScanEntry *module)
@@ -685,6 +701,32 @@ static inline bool mblink_mercedes_module_scan_decode_candidate(
     }
 }
 
+static inline bool mblink_mercedes_module_scan_decode_vin_probe(
+    const MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *response)
+{
+    const MblinkMercedesKnownRoute *route =
+        mblink_mercedes_module_scan_known_route(scan);
+    if (route != NULL) {
+        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_1A90)
+            return mblink_mercedes_module_scan_decode_kwp(
+                response, UINT8_C(0x1a));
+        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105)
+            return mblink_mercedes_module_scan_decode_kwp(
+                response, UINT8_C(0x21));
+        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_NONE)
+            return false;
+    }
+    {
+        uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+        size_t pdu_length = 0U;
+        MblinkUdsResponse uds;
+        return mblink_mercedes_module_scan_decode_uds(
+            response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
+            pdu, sizeof(pdu), &pdu_length, &uds);
+    }
+}
+
 static inline bool mblink_mercedes_module_scan_decode_entry(
     const MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response,
@@ -972,7 +1014,13 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
         return WRITE(mblink_mercedes_module_scan_entry_protocol(module) ==
                          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
                      ? "3E01" : "3E00");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return WRITE("22F190");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: {
+        const char *vin_command =
+            mblink_mercedes_module_scan_vin_command(scan);
+        return vin_command != NULL
+            ? WRITE(vin_command)
+            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
+    }
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return WRITE("22F100");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY: return WRITE("22F197");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return WRITE("22F187");
@@ -1270,9 +1318,11 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
             if (module != NULL)
                 mblink_mercedes_module_scan_advance_candidate(scan);
-            else
+            else if (mblink_mercedes_module_scan_vin_command(scan) != NULL)
                 scan->stage =
-                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK;
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+            else
+                mblink_mercedes_module_scan_advance_candidate(scan);
         } else {
             scan->stage = module != NULL
                 ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
@@ -1294,11 +1344,19 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             }
             break;
         }
-        present = mblink_mercedes_module_scan_decode_uds(response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER, pdu, sizeof(pdu), &pdu_length, &uds);
+        present = mblink_mercedes_module_scan_decode_vin_probe(scan, response);
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, false);
-            scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
-        } else if (mblink_mercedes_module_scan_known_route(scan) != NULL) {
+            if (mblink_mercedes_module_scan_candidate_protocol(scan) ==
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+                mblink_mercedes_module_scan_advance_candidate(scan);
+            } else {
+                scan->stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+            }
+        } else if (mblink_mercedes_module_scan_known_route(scan) != NULL &&
+                   mblink_mercedes_module_scan_candidate_protocol(scan) ==
+                       MBLINK_MERCEDES_DIAGNOSTIC_UDS) {
             /*
              * F100 is the CAESAR/Vediamo active-diagnostic-information /
              * variant DID shown in published EIS_212 traces.  It is a

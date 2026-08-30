@@ -52,7 +52,12 @@ Fault diagnosis is a first-class product function. Acquiring and printing a raw 
 
 MBLINK consumes LINK's shared generic DTC knowledge layer. Standard OBD fault records can be translated into a human-readable definition, system/category and generic/manufacturer classification while preserving the raw code. The iPhone model carries structured `DiagnosticFault` records and the existing Faults presentation receives translated `CODE — description` text for known definitions. Unknown manufacturer-specific codes remain explicitly unmapped rather than receiving invented meanings.
 
-The remaining fault-diagnostic completion work is deliberately ahead of additional dashboard polish: rich fault-card presentation with correct not-scanned/failed/clean states, freeze-frame/readiness context integration, and the evidence-backed Mercedes/CRD3/OM651 DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
+The iPhone presentation now distinguishes not-scanned, failed/incomplete and
+verified-clean results instead of treating an empty list as proof of no faults.
+Remaining fault-diagnostic completion work is deliberately ahead of additional
+dashboard polish: freeze-frame/readiness context integration and the
+evidence-backed Mercedes/CRD3/OM651 DTC knowledge layer. See
+`docs/FAULT_DIAGNOSTICS.md`.
 
 ## Capabilities
 
@@ -61,6 +66,7 @@ The remaining fault-diagnostic completion work is deliberately ahead of addition
 - Product-prefixed access to LINK's complete 27-service UDS catalogue and codecs without duplicating implementations.
 - Shared generic DTC interpretation through LINK, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
 - Mercedes-specific diagnostic extension hook and ECU probing.
+- Responder-attributed iPhone module cards: each observed ECU keeps its CAN route, identity, fault evidence and live Mode 01 values separate from other responders.
 - Offline Mercedes/Delphi DID Lab with source-state tracking, documented scaling decode and time-aligned signal correlation.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.

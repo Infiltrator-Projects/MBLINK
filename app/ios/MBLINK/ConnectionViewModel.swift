@@ -29,8 +29,46 @@ struct DiagnosticParameter: Identifiable {
     let favourite: Bool
     let pollingEnabled: Bool
     let history: [Double]
+    let sourceLabel: String?
+    let qualityNote: String?
 
     var isAvailable: Bool { value != nil }
+}
+
+struct DiagnosticModule: Identifiable {
+    let id: String
+    let name: String
+    let designation: String
+    let network: String
+    let kind: String
+    let protocolName: String
+    let requestCANIdentifier: UInt32
+    let responseCANIdentifier: UInt32
+    let extendedID: Bool
+    let identityText: String?
+    let partNumber: String?
+    let softwareNumber: String?
+    let hardwareNumber: String?
+    let faultStatus: String
+    let faultCount: Int
+    let faults: [String]
+    let evidenceDetails: [String]
+    let livePIDCount: Int
+
+    var addressText: String {
+        if extendedID {
+            return String(format: "0x%08X → 0x%08X",
+                          requestCANIdentifier, responseCANIdentifier)
+        }
+        return String(format: "0x%03X → 0x%03X",
+                      requestCANIdentifier, responseCANIdentifier)
+    }
+
+    var faultCountLabel: String {
+        if faultCount > 0 { return "\(faultCount) fault\(faultCount == 1 ? "" : "s")" }
+        if faultStatus == "Checked · no faults" { return "0 faults" }
+        return "faults unknown"
+    }
 }
 
 struct DiagnosticFault: Identifiable {
@@ -118,14 +156,18 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
     @Published private(set) var isSimulationActive = false
+    @Published private(set) var connectionAlertText: String?
 
     @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
+    @Published private(set) var dashboardParameters = [DiagnosticParameter]()
+    @Published private(set) var diagnosticModules = [DiagnosticModule]()
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var recordedSampleCount = 0
     @Published private(set) var csvExportURL: URL?
     @Published private(set) var isPreparingCSV = false
 
     private let controller = MBLinkDiagnosticsController()
+    private var lastConnectionAlertText: String?
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -152,6 +194,39 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return value.contains("timed out") || value.contains("error") || value.contains("failed")
     }
 
+    var mercedesFaultScanComplete: Bool {
+        mercedesUDSFaultStatusText.hasPrefix("Complete ·")
+    }
+
+    var mercedesFaultScanFailed: Bool {
+        let value = mercedesUDSFaultStatusText.lowercased()
+        return value.contains("partial") || value.contains("interrupted") ||
+            value.contains("incomplete") || value.contains("failed")
+    }
+
+    var connectionPhaseTitle: String {
+        let value = statusText.lowercased()
+        if value.contains("retry") || value.contains("scanning") {
+            return "Finding Bluetooth adapter"
+        }
+        if value.contains("connecting") || value.contains("discovering") ||
+            value.contains("validating") {
+            return "Opening adapter channel"
+        }
+        if value.contains("initial") || value.contains("elm327") {
+            return "Initialising diagnostic adapter"
+        }
+        if value.contains("module") || value.contains("mercedes") ||
+            value.contains("probe") {
+            return "Reading Mercedes control units"
+        }
+        if value.contains("vin") || value.contains("fault") ||
+            value.contains("pid") {
+            return "Reading vehicle diagnostics"
+        }
+        return "Preparing diagnostic session"
+    }
+
     override init() {
         super.init()
         applyStoredPollingPolicy()
@@ -163,10 +238,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     func connect() {
         clearPreparedExport()
         if isActive { return }
+        connectionAlertText = nil
+        lastConnectionAlertText = nil
 
         let alert = UIAlertController(
             title: mblinkLocalized("Connection Test"),
-            message: mblinkLocalized("Real Adapter supports ELM/Vgate diagnostics and genuine MB-xxxx Mercedes me native Bluetooth capture. Simulated ELM327 runs the same ELM, OBD, UDS, Mercedes probe, telemetry and evidence stack against an in-process byte-stream emulator."),
+            message: mblinkLocalized("Real Adapter supports ELM/Vgate BLE diagnostics and MB-1/8/9 Mercedes me BLE adapters. MB-2/3/4/5/6/7 adapters use Bluetooth Classic, which iPhone exposes only through an accessory-authorised External Accessory protocol. Simulated ELM327 runs the same diagnostic stack against an in-process byte-stream emulator."),
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: mblinkLocalized("Real Adapter"), style: .default) { [weak self] _ in
@@ -198,12 +275,28 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         isSimulationActive = false
     }
 
+    func dismissConnectionAlert() {
+        connectionAlertText = nil
+    }
+
     func parameter(stableKey: String) -> DiagnosticParameter? {
         diagnosticParameters.first { $0.id == stableKey }
     }
 
     func mercedesSignals(category: String) -> [MercedesTargetSignal] {
         mercedesTargetSignals.filter { $0.category == category }
+    }
+
+    func diagnosticModule(id: String) -> DiagnosticModule? {
+        diagnosticModules.first { $0.id == id }
+    }
+
+    func moduleParameters(moduleID: String) -> [DiagnosticParameter] {
+        guard let module = diagnosticModule(id: moduleID) else { return [] }
+        return loadDiagnosticParameters(
+            responderCANIdentifier: module.responseCANIdentifier,
+            extendedID: module.extendedID,
+            sourceLabel: "\(module.name) · \(module.addressText)")
     }
 
     func toggleFavourite(stableKey: String) {
@@ -231,6 +324,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func refreshPresentation() {
         diagnosticParameters = loadDiagnosticParameters()
+        dashboardParameters = loadDashboardParameters()
     }
 
     func udsStatusText(_ status: UInt8) -> String {
@@ -461,7 +555,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
     }
 
-    private func loadDiagnosticParameters() -> [DiagnosticParameter] {
+    private func loadDiagnosticParameters(
+        responderCANIdentifier: UInt32? = nil,
+        extendedID: Bool = false,
+        sourceLabel: String? = nil
+    ) -> [DiagnosticParameter] {
         let count = mblink_parameter_obd2_definition_count()
         guard count > 0 else { return [] }
         var result = [DiagnosticParameter]()
@@ -471,12 +569,29 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
             let metadata = definition.pointee
             guard let pid = UInt8(exactly: metadata.key.identifier) else { continue }
-            let rawHistory = controller.recentValues(forPID: pid, limit: 60).map(\.doubleValue)
+            let rawHistory: [Double]
+            if let responderCANIdentifier {
+                rawHistory = controller.recentValues(
+                    forPID: pid,
+                    responderCANIdentifier: responderCANIdentifier,
+                    extendedID: extendedID,
+                    limit: 60).map(\.doubleValue)
+            } else {
+                rawHistory = controller.recentValues(
+                    forPID: pid, limit: 60).map(\.doubleValue)
+            }
             let rawValue = rawHistory.last
             let history = rawHistory.map { displayScalar(definition: definition, rawValue: $0) }
             let value = rawValue.map { displayScalar(definition: definition, rawValue: $0) }
             let stableKey = string(from: metadata.stable_key)
             guard !stableKey.isEmpty else { continue }
+            let qualityNote: String?
+            if responderCANIdentifier != nil && pid == 0x2F,
+               let rawValue, rawValue >= 99.5 {
+                qualityNote = "ECU reported 100%; value retained without correction"
+            } else {
+                qualityNote = nil
+            }
             result.append(DiagnosticParameter(
                 id: stableKey,
                 protocolName: string(from: mblink_parameter_protocol_name(metadata.key.protocol)),
@@ -489,9 +604,50 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 value: value,
                 favourite: controller.favourite(forPID: pid),
                 pollingEnabled: controller.pollingEnabled(forPID: pid),
-                history: history))
+                history: history,
+                sourceLabel: sourceLabel,
+                qualityNote: qualityNote))
         }
         return result
+    }
+
+    private func loadDashboardParameters() -> [DiagnosticParameter] {
+        guard let engine = diagnosticModules.first(where: {
+            !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
+                $0.livePIDCount > 0
+        }) else {
+            return diagnosticParameters
+        }
+        return loadDiagnosticParameters(
+            responderCANIdentifier: engine.responseCANIdentifier,
+            extendedID: engine.extendedID,
+            sourceLabel: "\(engine.name) · \(engine.addressText)")
+    }
+
+    private func loadDiagnosticModules() -> [DiagnosticModule] {
+        controller.mercedesModuleSnapshots.map { snapshot in
+            DiagnosticModule(
+                id: snapshot.identifier,
+                name: snapshot.name,
+                designation: snapshot.designation,
+                network: snapshot.network,
+                kind: snapshot.kind,
+                protocolName: snapshot.protocolName,
+                requestCANIdentifier: snapshot.requestCANIdentifier,
+                responseCANIdentifier: snapshot.responseCANIdentifier,
+                extendedID: snapshot.isExtendedID,
+                identityText: snapshot.identityText,
+                partNumber: snapshot.partNumber,
+                softwareNumber: snapshot.softwareNumber,
+                hardwareNumber: snapshot.hardwareNumber,
+                faultStatus: snapshot.faultStatus,
+                faultCount: Int(snapshot.faultCount),
+                faults: snapshot.faults,
+                evidenceDetails: snapshot.evidenceDetails,
+                livePIDCount: controller.observedPIDs(
+                    forResponderCANIdentifier: snapshot.responseCANIdentifier,
+                    extendedID: snapshot.isExtendedID).count)
+        }
     }
 
     private func loadMercedesTargetSignals() -> [MercedesTargetSignal] {
@@ -561,7 +717,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func refresh() {
-        statusText = controller.statusText
+        let updatedStatus = controller.statusText
+        statusText = updatedStatus
+        let isTransportBoundary =
+            updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||
+            updatedStatus.contains("No compatible BLE diagnostic adapter found")
+        if isTransportBoundary && updatedStatus != lastConnectionAlertText {
+            lastConnectionAlertText = updatedStatus
+            connectionAlertText = updatedStatus
+        }
         peripheralName = controller.peripheralName ?? "No adapter"
         adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
         mercedesProbeStatusText = controller.mercedesProbeStatusText
@@ -590,6 +754,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
+        diagnosticModules = loadDiagnosticModules()
+        dashboardParameters = loadDashboardParameters()
         recordedSampleCount = Int(clamping: controller.recordedSampleCount)
     }
 }

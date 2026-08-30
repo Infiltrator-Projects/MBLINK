@@ -51,6 +51,7 @@ jobs:
           grep -q 'return link_elm327_session_begin' src/elm327/session.c
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'link_telemetry_recorder_continue' src/link/platform/apple/LinkDiagnosticsController.m
           grep -Fq 'LinkProbeTimeoutSeconds = 5.0' src/link/platform/apple/LinkBLETransport.m
@@ -253,17 +254,28 @@ jobs:
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
+          grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'didReceiveFlowEvent' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink_mercedes_module_scan_begin_mobile_census(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS' include/mblink/mercedes_module_scan.h
           grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'MBLinkVehicleProfileSchemaVersion = 3' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'MBLinkVehicleProfileSchemaVersion = 4' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'link_obd2_decode_live_pid_responders' src/link/src/obd2/obd2.c
+          grep -Fq 'LinkResponderTelemetryStore' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'mercedesModuleSnapshots' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'observedPIDsForResponderCANIdentifier' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'liveResponders' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'record_responder_sample_named' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'dashboardParameters' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'ECU evidence' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.38"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.39"
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
@@ -275,7 +287,7 @@ jobs:
           ! grep -Fq 'MBLINK_IMPLEMENTATION_REVISION' src/core/mblink.c
           ! grep -Fq 'MBLINK_EMBEDDED_LINK_VERSION' src/core/mblink.c
           grep -Fq '#define MBLINK_EMBEDDED_LINK_REVISION' src/core/mblink.c
-          grep -Fq '"73d9ad358831b3689a80c399ecf5eaeedd45aba6"' src/core/mblink.c
+          grep -Fq '"a6946cb64769a3d7b5455db913441be21b56d468"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
@@ -284,6 +296,9 @@ jobs:
           grep -Fq 'docs/MERCEDES-ME-ADAPTER-INTEROP.md' src/link/README.md
           grep -Fq 'link_linux_serial_probe_adapter' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'native protocol capture' src/link/platform/linux/link-gtk-shell.c
+          grep -Fq 'ExternalAccessory/ExternalAccessory.h' src/link/platform/apple/LinkBLETransport.m
+          grep -Fq 'Bluetooth Classic Mercedes adapter' src/link/platform/apple/LinkBLETransport.m
+          grep -Fq 'ExternalAccessory.framework in Frameworks' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -Fq 'transport.isNativeAdapter' src/link/platform/apple/LinkDiagnosticsController.m
           grep -Fq 'NATIVE_RX' src/link/platform/apple/LinkDiagnosticsController.m
           grep -Fq 'MERCEDES ME ADAPTER · NATIVE' app/linux/main.c

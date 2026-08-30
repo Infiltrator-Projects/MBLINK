@@ -11,9 +11,33 @@
 #include <stdio.h>
 #include <string.h>
 
+@interface MBLinkMercedesModuleSnapshot ()
+@property(nonatomic, copy, readwrite) NSString *identifier;
+@property(nonatomic, copy, readwrite) NSString *name;
+@property(nonatomic, copy, readwrite) NSString *designation;
+@property(nonatomic, copy, readwrite) NSString *network;
+@property(nonatomic, copy, readwrite) NSString *kind;
+@property(nonatomic, copy, readwrite) NSString *protocolName;
+@property(nonatomic, readwrite) uint32_t requestCANIdentifier;
+@property(nonatomic, readwrite) uint32_t responseCANIdentifier;
+@property(nonatomic, readwrite, getter=isExtendedID) BOOL extendedID;
+@property(nonatomic, copy, readwrite, nullable) NSString *identityText;
+@property(nonatomic, copy, readwrite, nullable) NSString *partNumber;
+@property(nonatomic, copy, readwrite, nullable) NSString *softwareNumber;
+@property(nonatomic, copy, readwrite, nullable) NSString *hardwareNumber;
+@property(nonatomic, copy, readwrite) NSString *faultStatus;
+@property(nonatomic, readwrite) NSUInteger faultCount;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *faults;
+@property(nonatomic, copy, readwrite) NSArray<NSString *> *evidenceDetails;
+@end
+
+@implementation MBLinkMercedesModuleSnapshot
+@end
+
 static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
-static const NSInteger MBLinkVehicleProfileSchemaVersion = 3;
+static const NSInteger MBLinkVehicleProfileSchemaVersion = 4;
+static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
@@ -43,6 +67,11 @@ static const NSInteger MBLinkVehicleProfileSchemaVersion = 3;
 - (void)saveCurrentVehicleProfile;
 - (void)removeSavedVehicleProfileForVIN:(NSString *)vin;
 - (BOOL)beginCachedVehicleProfileRefresh;
+- (void)persistCapabilitiesFromFlowEvent:
+    (const LinkDiagnosticFlowEvent *)event;
+- (NSArray<NSNumber *> *)cachedPIDsForResponderCANIdentifier:
+    (uint32_t)responderCANIdentifier
+                                                      extendedID:(BOOL)extendedID;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
@@ -221,11 +250,24 @@ static void MBLinkAppendMercedesModuleFaultStrings(
     if (mblink_mercedes_module_scan_entry_protocol(module) ==
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         for (size_t index = 0U; index < module->kwp_dtcs.count; ++index) {
-            [faults addObject:[NSString stringWithFormat:
-                @"%@ · %@ · %04X · KWP2000 status 0x%02X",
-                name, address,
-                (unsigned int)module->kwp_dtcs.entries[index].code,
-                (unsigned int)module->kwp_dtcs.entries[index].status]];
+            const MblinkKwp2000Dtc *record =
+                &module->kwp_dtcs.entries[index];
+            const char *module_key = module->definition != NULL
+                ? module->definition->key : NULL;
+            const MblinkMercedesKwpDtcDefinition *definition =
+                mblink_mercedes_kwp_dtc_find(module_key, record->code);
+            if (definition != NULL) {
+                [faults addObject:[NSString stringWithFormat:
+                    @"%@ · %@ · %04X — %@ · KWP2000 status 0x%02X",
+                    name, address, (unsigned int)record->code,
+                    MBLinkStringFromCString(definition->description),
+                    (unsigned int)record->status]];
+            } else {
+                [faults addObject:[NSString stringWithFormat:
+                    @"%@ · %@ · %04X · KWP2000 status 0x%02X",
+                    name, address, (unsigned int)record->code,
+                    (unsigned int)record->status]];
+            }
         }
         return;
     }
@@ -241,6 +283,103 @@ static void MBLinkAppendMercedesModuleFaultStrings(
             name, address, MBLinkStringFromCString(code),
             (unsigned int)module->dtcs.records[index].status]];
     }
+}
+
+static NSString *MBLinkMercedesModuleFaultStatus(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (module == NULL) return @"Not attempted";
+    switch (module->dtc_result) {
+    case MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED:
+        return @"Not attempted";
+    case MBLINK_MERCEDES_MODULE_DTC_AVAILABLE:
+        return mblink_mercedes_module_scan_entry_dtc_count(module) == 0U
+            ? @"Checked · no faults" : @"Fault records captured";
+    case MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE:
+        return @"No response to fault read";
+    case MBLINK_MERCEDES_MODULE_DTC_NEGATIVE_RESPONSE:
+        return [NSString stringWithFormat:@"Fault read rejected · NRC 0x%02X",
+            (unsigned int)module->dtc_negative_response_code];
+    case MBLINK_MERCEDES_MODULE_DTC_INVALID_RESPONSE:
+        return @"Incomplete or invalid fault response";
+    }
+    return @"Unknown fault state";
+}
+
+static NSString *MBLinkProbeASCIIValue(
+    const MblinkMercedesEcuProbe *probe,
+    size_t requestIndex)
+{
+    if (probe == NULL) return nil;
+    const LinkEcuProbeDidResult *result =
+        link_ecu_probe_did_result_at(&probe->shared, requestIndex);
+    if (result == NULL || result->status != LINK_ECU_PROBE_READ_AVAILABLE ||
+        result->data_length == 0U) {
+        return nil;
+    }
+    size_t length = result->data_length;
+    while (length > 0U &&
+           (result->data[length - 1U] == UINT8_C(0xff) ||
+            result->data[length - 1U] == UINT8_C(0x00))) {
+        --length;
+    }
+    if (length == 0U) return nil;
+    for (size_t index = 0U; index < length; ++index) {
+        if (result->data[index] < UINT8_C(0x20) ||
+            result->data[index] > UINT8_C(0x7e)) {
+            return nil;
+        }
+    }
+    return [[NSString alloc]
+        initWithBytes:result->data
+               length:length
+             encoding:NSASCIIStringEncoding];
+}
+
+static NSString *MBLinkProbeHexValue(
+    const MblinkMercedesEcuProbe *probe,
+    size_t requestIndex)
+{
+    if (probe == NULL) return nil;
+    const LinkEcuProbeDidResult *result =
+        link_ecu_probe_did_result_at(&probe->shared, requestIndex);
+    if (result == NULL || result->status != LINK_ECU_PROBE_READ_AVAILABLE ||
+        result->data_length == 0U) {
+        return nil;
+    }
+    NSMutableString *value = [[NSMutableString alloc] init];
+    for (size_t index = 0U; index < result->data_length; ++index) {
+        if (index != 0U) [value appendString:@" "];
+        [value appendFormat:@"%02X", (unsigned int)result->data[index]];
+    }
+    return [value copy];
+}
+
+static NSArray<NSString *> *MBLinkEngineProbeEvidence(
+    const MblinkMercedesEcuProbe *probe)
+{
+    if (probe == NULL) return @[];
+    NSMutableArray<NSString *> *values = [[NSMutableArray alloc] init];
+    NSString *serial = MBLinkProbeASCIIValue(probe, 1U);
+    NSString *erotan = MBLinkProbeASCIIValue(
+        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 3U);
+    NSString *f100 = MBLinkProbeHexValue(
+        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 1U);
+    NSString *f154 = MBLinkProbeHexValue(
+        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 2U);
+    if (serial.length != 0U)
+        [values addObject:[NSString stringWithFormat:
+            @"ECU serial (F18C) · %@", serial]];
+    if (erotan.length != 0U)
+        [values addObject:[NSString stringWithFormat:
+            @"EROTAN (F196) · %@", erotan]];
+    if (f100.length != 0U)
+        [values addObject:[NSString stringWithFormat:
+            @"Session / variant (F100) raw · %@", f100]];
+    if (f154.length != 0U)
+        [values addObject:[NSString stringWithFormat:
+            @"Supplier identifier (F154) raw · %@", f154]];
+    return [values copy];
 }
 
 static bool MBLinkSimulatorResponder(
@@ -393,6 +532,184 @@ static bool MBLinkSimulatorResponder(
     return [_shared recentValuesForPID:pid limit:limit];
 }
 
+- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+                     responderCANIdentifier:(uint32_t)responderCANIdentifier
+                                  extendedID:(BOOL)extendedID
+                                       limit:(NSUInteger)limit
+{
+    return [_shared recentValuesForPID:pid
+                responderCANIdentifier:responderCANIdentifier
+                             extendedID:extendedID
+                                  limit:limit];
+}
+
+- (NSArray<NSNumber *> *)observedPIDsForResponderCANIdentifier:
+    (uint32_t)responderCANIdentifier
+                                                      extendedID:(BOOL)extendedID
+{
+    NSMutableOrderedSet<NSNumber *> *pids =
+        [[NSMutableOrderedSet alloc] initWithArray:
+            [self cachedPIDsForResponderCANIdentifier:
+                responderCANIdentifier extendedID:extendedID]];
+    [pids addObjectsFromArray:
+        [_shared observedPIDsForResponderCANIdentifier:
+            responderCANIdentifier extendedID:extendedID]];
+    return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (NSArray<MBLinkMercedesModuleSnapshot *> *)mercedesModuleSnapshots
+{
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    NSMutableArray<MBLinkMercedesModuleSnapshot *> *snapshots =
+        [[NSMutableArray alloc] initWithCapacity:count];
+    NSArray<NSString *> *engineEvidence =
+        MBLinkEngineProbeEvidence(&_mercedesProbe);
+    if (engineEvidence.count == 0U &&
+        [_cachedVehicleProfile[@"engineEvidence"]
+            isKindOfClass:[NSArray class]]) {
+        engineEvidence = _cachedVehicleProfile[@"engineEvidence"];
+    }
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL) continue;
+
+        MBLinkMercedesModuleSnapshot *snapshot =
+            [[MBLinkMercedesModuleSnapshot alloc] init];
+        snapshot.identifier = [NSString stringWithFormat:@"%@:%08X:%08X",
+            module->extended_id ? @"29" : @"11",
+            (unsigned int)module->tx_can_id,
+            (unsigned int)module->rx_can_id];
+        snapshot.name = MBLinkStringFromCString(
+            mblink_mercedes_module_scan_module_name(module));
+        snapshot.kind = MBLinkStringFromCString(
+            mblink_mercedes_module_kind_name(module->kind));
+        snapshot.protocolName = MBLinkStringFromCString(
+            mblink_mercedes_diagnostic_protocol_name(
+                mblink_mercedes_module_scan_entry_protocol(module)));
+        snapshot.requestCANIdentifier = module->tx_can_id;
+        snapshot.responseCANIdentifier = module->rx_can_id;
+        snapshot.extendedID = module->extended_id;
+        snapshot.designation = module->definition != NULL &&
+                module->definition->component_designation != NULL
+            ? MBLinkStringFromCString(
+                module->definition->component_designation) : @"";
+        snapshot.network = module->definition != NULL &&
+                module->definition->network != NULL
+            ? MBLinkStringFromCString(module->definition->network) : @"";
+        snapshot.identityText = module->identity_available
+            ? MBLinkStringFromCString(module->identity) : nil;
+        snapshot.partNumber = module->spare_part_number_available
+            ? MBLinkStringFromCString(module->spare_part_number) : nil;
+        snapshot.softwareNumber = module->software_number_available
+            ? MBLinkStringFromCString(module->software_number) : nil;
+        snapshot.hardwareNumber = module->hardware_number_available
+            ? MBLinkStringFromCString(module->hardware_number) : nil;
+        if (!module->extended_id &&
+            module->tx_can_id == UINT32_C(0x7e0)) {
+            if (snapshot.identityText.length == 0U &&
+                _mercedesProbe.ecu_system_name_available) {
+                snapshot.identityText = MBLinkStringFromCString(
+                    _mercedesProbe.ecu_system_name);
+            }
+            if (snapshot.partNumber.length == 0U &&
+                _mercedesProbe.ecu_spare_part_number_available) {
+                snapshot.partNumber = MBLinkStringFromCString(
+                    _mercedesProbe.ecu_spare_part_number);
+            }
+            if (snapshot.softwareNumber.length == 0U &&
+                _mercedesProbe.ecu_software_number_available) {
+                snapshot.softwareNumber = MBLinkStringFromCString(
+                    _mercedesProbe.ecu_software_number);
+            }
+            if (snapshot.hardwareNumber.length == 0U &&
+                _mercedesProbe.ecu_hardware_number_available) {
+                snapshot.hardwareNumber = MBLinkStringFromCString(
+                    _mercedesProbe.ecu_hardware_number);
+            }
+            snapshot.evidenceDetails = engineEvidence;
+        } else {
+            snapshot.evidenceDetails = @[];
+        }
+        snapshot.faultStatus = MBLinkMercedesModuleFaultStatus(module);
+        snapshot.faultCount =
+            mblink_mercedes_module_scan_entry_dtc_count(module);
+        NSMutableArray<NSString *> *faults = [[NSMutableArray alloc] init];
+        NSString *address = module->extended_id
+            ? [NSString stringWithFormat:@"0x%08X → 0x%08X",
+                (unsigned int)module->tx_can_id,
+                (unsigned int)module->rx_can_id]
+            : [NSString stringWithFormat:@"0x%03X → 0x%03X",
+                (unsigned int)module->tx_can_id,
+                (unsigned int)module->rx_can_id];
+        MBLinkAppendMercedesModuleFaultStrings(
+            faults, module, snapshot.name, address);
+        snapshot.faults = [faults copy];
+        [snapshots addObject:snapshot];
+    }
+
+    /*
+     * A standards-based live response is independent proof that a control
+     * unit exists. In the captured C207 session 7E9 continued answering Mode
+     * 01 after its UDS probe returned no data, so do not erase that responder
+     * from the vehicle map merely because the manufacturer session is quiet.
+     */
+    for (uint32_t responseID = UINT32_C(0x7e8);
+         responseID <= UINT32_C(0x7ef);
+         ++responseID) {
+        NSArray<NSNumber *> *pids =
+            [self observedPIDsForResponderCANIdentifier:
+                responseID extendedID:NO];
+        if (pids.count == 0U) continue;
+        BOOL alreadyPresent = NO;
+        for (MBLinkMercedesModuleSnapshot *existing in snapshots) {
+            if (!existing.isExtendedID &&
+                existing.responseCANIdentifier == responseID) {
+                alreadyPresent = YES;
+                break;
+            }
+        }
+        if (alreadyPresent) continue;
+
+        const uint32_t requestID = responseID - UINT32_C(8);
+        const MblinkMercedesModuleKind kind =
+            mblink_mercedes_module_scan_kind(requestID, false);
+        MBLinkMercedesModuleSnapshot *snapshot =
+            [[MBLinkMercedesModuleSnapshot alloc] init];
+        snapshot.identifier = [NSString stringWithFormat:
+            @"11:%08X:%08X", (unsigned int)requestID,
+            (unsigned int)responseID];
+        snapshot.name = requestID == UINT32_C(0x7e0)
+            ? @"Engine ECU"
+            : requestID == UINT32_C(0x7e1)
+                ? @"Transmission ECU candidate"
+                : [NSString stringWithFormat:
+                    @"OBD responder 0x%03X", (unsigned int)responseID];
+        snapshot.designation = @"Observed legislated-OBD responder";
+        snapshot.network = @"Powertrain CAN / legislated OBD";
+        snapshot.kind = MBLinkStringFromCString(
+            mblink_mercedes_module_kind_name(kind));
+        snapshot.protocolName = @"SAE Mode 01 / ISO 15765-4";
+        snapshot.requestCANIdentifier = requestID;
+        snapshot.responseCANIdentifier = responseID;
+        snapshot.extendedID = NO;
+        snapshot.faultStatus =
+            @"Live responder observed · module fault state not established";
+        snapshot.faultCount = 0U;
+        snapshot.faults = @[];
+        snapshot.evidenceDetails = @[
+            [NSString stringWithFormat:
+                @"Live Mode 01 responder · %lu confirmed PID%@",
+                (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"]
+        ];
+        [snapshots addObject:snapshot];
+    }
+    return [snapshots copy];
+}
+
 - (BOOL)favouriteForPID:(uint8_t)pid
 {
     return [_shared favouriteForPID:pid];
@@ -434,10 +751,12 @@ static bool MBLinkSimulatorResponder(
               didReceiveFlowEvent:(const LinkDiagnosticFlowEvent *)event
 {
     (void)controller;
-    if (event == NULL ||
-        event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN) {
+    if (event == NULL) return;
+    if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
+        [self persistCapabilitiesFromFlowEvent:event];
         return;
     }
+    if (event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN) return;
 
     if (!event->vin_available || event->vin == NULL) {
         self.mercedesVINText = nil;
@@ -935,7 +1254,8 @@ static bool MBLinkSimulatorResponder(
     NSArray *modules = [profile[@"modules"] isKindOfClass:[NSArray class]]
         ? profile[@"modules"] : nil;
     if (profile == nil || ![schema isKindOfClass:[NSNumber class]] ||
-        schema.integerValue != MBLinkVehicleProfileSchemaVersion ||
+        schema.integerValue < MBLinkOldestReadableVehicleProfileSchemaVersion ||
+        schema.integerValue > MBLinkVehicleProfileSchemaVersion ||
         modules.count == 0U) {
         return nil;
     }
@@ -1021,6 +1341,120 @@ static bool MBLinkSimulatorResponder(
         validModules, validModules == 1U ? @"" : @"s"];
 }
 
+- (NSArray<NSNumber *> *)cachedPIDsForResponderCANIdentifier:
+    (uint32_t)responderCANIdentifier
+                                                      extendedID:(BOOL)extendedID
+{
+    NSArray *responders = [_cachedVehicleProfile[@"liveResponders"]
+        isKindOfClass:[NSArray class]]
+        ? _cachedVehicleProfile[@"liveResponders"] : @[];
+    NSMutableOrderedSet<NSNumber *> *pids =
+        [[NSMutableOrderedSet alloc] init];
+    for (id value in responders) {
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        NSDictionary *responder = (NSDictionary *)value;
+        NSNumber *rx = responder[@"rx"];
+        NSNumber *extended = responder[@"extended"];
+        NSArray *storedPIDs = [responder[@"pids"] isKindOfClass:[NSArray class]]
+            ? responder[@"pids"] : @[];
+        if (![rx isKindOfClass:[NSNumber class]] ||
+            ![extended isKindOfClass:[NSNumber class]] ||
+            rx.unsignedIntValue != responderCANIdentifier ||
+            extended.boolValue != extendedID) {
+            continue;
+        }
+        for (id pid in storedPIDs) {
+            if ([pid isKindOfClass:[NSNumber class]] &&
+                ((NSNumber *)pid).unsignedIntegerValue <= UINT8_MAX) {
+                [pids addObject:pid];
+            }
+        }
+    }
+    return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (void)persistCapabilitiesFromFlowEvent:
+    (const LinkDiagnosticFlowEvent *)event
+{
+    if (event == NULL ||
+        event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
+        event->responder_samples.count == 0U ||
+        self.mercedesVINText.length == 0U) {
+        return;
+    }
+
+    NSDictionary *existing = _cachedVehicleProfile;
+    if (existing == nil)
+        existing = [self savedVehicleProfileForVIN:self.mercedesVINText];
+    if (existing == nil) return;
+
+    NSMutableDictionary *profile = [existing mutableCopy];
+    NSMutableArray<NSMutableDictionary *> *responders =
+        [[NSMutableArray alloc] init];
+    NSArray *storedResponders = [profile[@"liveResponders"]
+        isKindOfClass:[NSArray class]] ? profile[@"liveResponders"] : @[];
+    for (id value in storedResponders) {
+        if ([value isKindOfClass:[NSDictionary class]])
+            [responders addObject:[(NSDictionary *)value mutableCopy]];
+    }
+
+    BOOL changed = NO;
+    for (size_t index = 0U;
+         index < event->responder_samples.count;
+         ++index) {
+        const LinkObd2ResponderSample *sample =
+            &event->responder_samples.samples[index];
+        if (!sample->responder_id_available) continue;
+
+        NSMutableDictionary *match = nil;
+        for (NSMutableDictionary *candidate in responders) {
+            NSNumber *rx = candidate[@"rx"];
+            NSNumber *extended = candidate[@"extended"];
+            if ([rx isKindOfClass:[NSNumber class]] &&
+                [extended isKindOfClass:[NSNumber class]] &&
+                rx.unsignedIntValue == sample->responder_id &&
+                extended.boolValue == sample->extended_id) {
+                match = candidate;
+                break;
+            }
+        }
+        if (match == nil) {
+            match = [@{
+                @"rx": @(sample->responder_id),
+                @"extended": @(sample->extended_id),
+                @"pids": @[]
+            } mutableCopy];
+            [responders addObject:match];
+            changed = YES;
+        }
+
+        NSMutableOrderedSet<NSNumber *> *pids =
+            [[NSMutableOrderedSet alloc] initWithArray:
+                [match[@"pids"] isKindOfClass:[NSArray class]]
+                    ? match[@"pids"] : @[]];
+        NSNumber *pid = @(sample->sample.pid);
+        if (![pids containsObject:pid]) {
+            [pids addObject:pid];
+            match[@"pids"] = [[pids array]
+                sortedArrayUsingSelector:@selector(compare:)];
+            changed = YES;
+        }
+    }
+    if (!changed) return;
+
+    profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
+    profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
+    profile[@"liveResponders"] = [responders copy];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *profiles =
+        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
+            mutableCopy] ?: [[NSMutableDictionary alloc] init];
+    profiles[self.mercedesVINText] = [profile copy];
+    [defaults setObject:[profiles copy]
+                 forKey:MBLinkVehicleProfilesDefaultsKey];
+    _cachedVehicleProfile = [profile copy];
+}
+
 - (void)saveCurrentVehicleProfile
 {
     if (_shared.isSimulated || self.mercedesVINText.length == 0U)
@@ -1075,6 +1509,20 @@ static bool MBLinkSimulatorResponder(
         ![self.mercedesCrd3SummaryText isEqualToString:@"Not attempted"]) {
         profile[@"crd3Summary"] = self.mercedesCrd3SummaryText;
     }
+    NSArray *liveResponders = [_cachedVehicleProfile[@"liveResponders"]
+        isKindOfClass:[NSArray class]]
+        ? _cachedVehicleProfile[@"liveResponders"] : nil;
+    if (liveResponders.count != 0U)
+        profile[@"liveResponders"] = liveResponders;
+    NSArray<NSString *> *engineEvidence =
+        MBLinkEngineProbeEvidence(&_mercedesProbe);
+    if (engineEvidence.count == 0U &&
+        [_cachedVehicleProfile[@"engineEvidence"]
+            isKindOfClass:[NSArray class]]) {
+        engineEvidence = _cachedVehicleProfile[@"engineEvidence"];
+    }
+    if (engineEvidence.count != 0U)
+        profile[@"engineEvidence"] = engineEvidence;
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSMutableDictionary *profiles =

@@ -241,7 +241,7 @@ static int test_telemetry(void)
     CHECK(mblink_telemetry_recorder_record_response(
               &recorder, 2000U, "010C", &response));
     CHECK(mblink_telemetry_recorder_finish(&recorder, 9000U));
-    CHECK(strstr(stream.data, "# mblink_session_stream_version,1\n") != NULL);
+    CHECK(strstr(stream.data, "# mblink_session_stream_version,2\n") != NULL);
     {
         char expected_link_version[96];
         const char *first_link_version;
@@ -254,7 +254,7 @@ static int test_telemetry(void)
         CHECK(strstr(stream.data, "# mblink_build_profile,\"") != NULL);
     }
     CHECK(strstr(stream.data,
-                 "record_type,sequence,timestamp_ms,pid,name,value,unit,favourite,command,result,response\n") != NULL);
+                 "record_type,sequence,timestamp_ms,pid,name,value,unit,favourite,responder_can_id,responder_extended,command,result,response\n") != NULL);
     CHECK(strstr(stream.data, "sample,") != NULL);
     CHECK(strstr(stream.data, "transcript,,2000,") != NULL);
     CHECK(strstr(stream.data, "# session_ended_epoch_ms,9000\n") != NULL);
@@ -265,10 +265,10 @@ static int test_telemetry(void)
               &recorder, 3000U, "ATI", &response));
     CHECK(mblink_telemetry_recorder_finish(&recorder, 10000U));
     const char *stream_header = strstr(
-        stream.data, "# mblink_session_stream_version,1\n");
+        stream.data, "# mblink_session_stream_version,2\n");
     CHECK(stream_header != NULL);
     CHECK(strstr(stream_header + 1,
-                 "# mblink_session_stream_version,1\n") == NULL);
+                 "# mblink_session_stream_version,2\n") == NULL);
 
     FailingTextBuffer failing = { .fail_on_write = SIZE_MAX };
     mblink_telemetry_recorder_init(&recorder);

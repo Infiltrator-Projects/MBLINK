@@ -9,6 +9,8 @@
  *  - The 0x600/0x601 NO DATA sweep behaviour is copied from the real scan.
  *  - The 0x7E1 -> 0x7E9 TesterPresent negative response 7F 3E 12 is copied
  *    from the real scan and must still count as a responding ECU.
+ *  - The 0x64A -> 0x489 ORC fault and 0x652 -> 0x48A clean head-unit DTC
+ *    inventory are copied from the 2026-08-30 drive capture.
  *  - The ORC_212 identity and one DTC payload are synthetic.  They exist only
  *    to prove that once a restraint ECU answers, the current scanner records
  *    its fault immediately instead of waiting for the full forensic sweep.
@@ -16,6 +18,7 @@
  * The user's VIN is intentionally not stored in this public fixture.
  */
 #include "mblink/mercedes_module_scan.h"
+#include "mblink/mercedes.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -148,9 +151,13 @@ static int replay_captured_full_scan_misses(void)
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
+    /*
+     * 0x602 is now probed earlier on Daimler's exact 0x602 -> 0x480 route,
+     * so the generic request+8 enumeration skips directly to 0x603.
+     */
     CHECK(scan.full_target_index ==
-          full_target_index_for_tx(UINT32_C(0x602)));
-    CHECK(scan.candidate_tx == UINT32_C(0x602));
+          full_target_index_for_tx(UINT32_C(0x603)));
+    CHECK(scan.candidate_tx == UINT32_C(0x603));
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
     return 0;
@@ -206,6 +213,67 @@ static int reject_promiscuous_11_bit_capture(void)
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+    return 0;
+}
+
+static int replay_captured_kwp_module_faults(void)
+{
+    MblinkMercedesModuleScan scan;
+    MblinkElm327Response tester =
+        make_response(MBLINK_ELM327_RESULT_OK, "7E", false);
+    MblinkElm327Response orc_dtcs =
+        make_response(MBLINK_ELM327_RESULT_OK, "7F1878\n58019B51E0", false);
+    MblinkElm327Response head_unit_dtcs =
+        make_response(MBLINK_ELM327_RESULT_OK, "7F1878\n5800", false);
+    size_t orc_index;
+    size_t head_unit_index;
+
+    CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+    /* Exact ORC route and raw DTC record from the vehicle capture. */
+    CHECK(mblink_mercedes_module_scan_set_full_target(
+              &scan, full_target_index_for_tx(UINT32_C(0x64a))));
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+    CHECK(accept_expected_ok(&scan, "ATCRA489") == 0);
+    CHECK(accept_expected_response(&scan, "3E01", &tester) == 0);
+    CHECK(accept_expected_response(&scan, "1802FF00", &orc_dtcs) == 0);
+    CHECK(scan.module_count == 1U);
+    orc_index = 0U;
+    CHECK(scan.modules[orc_index].tx_can_id == UINT32_C(0x64a));
+    CHECK(scan.modules[orc_index].rx_can_id == UINT32_C(0x489));
+    CHECK(scan.modules[orc_index].dtc_result ==
+          MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
+    CHECK(scan.modules[orc_index].kwp_dtcs.count == 1U);
+    CHECK(scan.modules[orc_index].kwp_dtcs.entries[0].code ==
+          UINT16_C(0x9b51));
+    CHECK(scan.modules[orc_index].kwp_dtcs.entries[0].status ==
+          UINT8_C(0xe0));
+    {
+        const MblinkMercedesKwpDtcDefinition *definition =
+            mblink_mercedes_kwp_dtc_find(
+                scan.modules[orc_index].definition->key,
+                scan.modules[orc_index].kwp_dtcs.entries[0].code);
+        CHECK(definition != NULL);
+        CHECK(strstr(definition->description,
+                     "Driver seat-belt buckle") != NULL);
+    }
+
+    /* The following source-corroborated route returned a valid empty list. */
+    CHECK(scan.candidate_tx == UINT32_C(0x652));
+    CHECK(scan.candidate_rx == UINT32_C(0x48a));
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+    CHECK(accept_expected_ok(&scan, "ATCRA48A") == 0);
+    CHECK(accept_expected_response(&scan, "3E01", &tester) == 0);
+    CHECK(accept_expected_response(&scan, "1802FF00", &head_unit_dtcs) == 0);
+    CHECK(scan.module_count == 2U);
+    head_unit_index = 1U;
+    CHECK(scan.modules[head_unit_index].tx_can_id == UINT32_C(0x652));
+    CHECK(scan.modules[head_unit_index].rx_can_id == UINT32_C(0x48a));
+    CHECK(scan.modules[head_unit_index].dtc_result ==
+          MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
+    CHECK(scan.modules[head_unit_index].kwp_dtcs.count == 0U);
+    CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 1U);
     return 0;
 }
 
@@ -268,6 +336,7 @@ int main(void)
     if (replay_captured_full_scan_misses() != 0) return 1;
     if (replay_captured_negative_tester_present() != 0) return 1;
     if (reject_promiscuous_11_bit_capture() != 0) return 1;
+    if (replay_captured_kwp_module_faults() != 0) return 1;
     if (inject_restraint_fault_after_real_scan_shapes() != 0) return 1;
     puts("Captured C207 deep-scan replay tests passed");
     return 0;

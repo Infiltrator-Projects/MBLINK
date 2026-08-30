@@ -45,6 +45,20 @@ typedef struct {
     const char *provenance;
 } MblinkMercedesDidDefinition;
 
+/**
+ * A manufacturer fault definition whose numeric code is meaningful only in
+ * the named Mercedes module/protocol namespace.  The raw ECU status byte is
+ * deliberately not part of this table: it remains live evidence and must not
+ * be replaced by a guessed textual interpretation.
+ */
+typedef struct {
+    const char *module_key;
+    uint16_t code;
+    const char *description;
+    MblinkMercedesDefinitionStatus status;
+    const char *provenance;
+} MblinkMercedesKwpDtcDefinition;
+
 typedef struct {
     const char *key;
     const char *name;
@@ -93,6 +107,15 @@ const MblinkMercedesDidDefinition *mblink_mercedes_profile_find_did(
     const MblinkMercedesVehicleProfile *profile,
     MblinkMercedesModuleKind module,
     uint16_t identifier);
+
+/** Find a Mercedes KWP2000 fault by its module-scoped raw identifier. */
+const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
+    const char *module_key,
+    uint16_t code);
+
+size_t mblink_mercedes_kwp_dtc_count(void);
+const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_at(
+    size_t index);
 
 MblinkUdsResult mblink_mercedes_decode_defined_did(
     const uint8_t *pdu,

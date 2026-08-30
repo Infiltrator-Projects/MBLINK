@@ -82,6 +82,7 @@ The generic diagnostic-knowledge layer is implemented in the exact LINK revision
 - ISO 14229 status-byte translation is shared in LINK rather than being a manufacturer-specific concept;
 - MBLINK exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for compatibility;
 - MBLINK has product-level regression coverage proving the shared LINK knowledge and compatibility APIs reach the Mercedes product face;
+- MBLINK now has a module-scoped Mercedes KWP2000 definition table with provenance; the vehicle-captured ORC `9B51` record resolves to the driver seat-belt buckle circuit description while preserving raw status `E0`;
 - Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte;
 - OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
 
@@ -89,7 +90,7 @@ The remaining major gaps in this vertical slice are explicit:
 
 1. complete the Faults UI refactor so scan-not-run, failed, clean and faults-present states are visually distinct and rich fault cards consume the structured model directly;
 2. integrate capability-driven freeze-frame and readiness context into the fault workflow instead of leaving those decoders as dormant primitives;
-3. build the evidence-backed Mercedes/CRD3/OM651 manufacturer DTC catalogue in MBLINK without inventing proprietary meanings;
+3. expand the initial evidence-backed Mercedes manufacturer table beyond the verified ORC record, including CRD3/OM651 definitions, without inventing proprietary meanings;
 4. continue maintaining and expanding standards-backed generic diagnostic knowledge in LINK.
 
 This remains a completion track, not optional polish. Additional dashboard work is not a substitute for these remaining items.
@@ -157,10 +158,10 @@ The UI may correlate a fault with current/freeze-frame measurements, but must di
 Fault diagnostics are not considered feature-complete until all of the following are true:
 
 - LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
-- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **not yet complete**;
+- MBLINK contains a tested Mercedes-specific DTC knowledge mechanism with provenance — **implemented for the initial ORC definition; catalogue expansion continues**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
 - the app distinguishes not-scanned, failed, clean and faults-present states — **controller state exists; Faults UI correction remains**;
-- stored, pending, permanent and Mercedes UDS fault records are translated for the user when definitions are known — **generic OBD translation implemented; Mercedes definitions remain**;
+- stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD and the initial module-scoped KWP definition are implemented; Mercedes coverage remains incomplete**;
 - freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **not yet complete**;
 - unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;
 - the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared LINK API implemented; additional platform consumers remain**.
