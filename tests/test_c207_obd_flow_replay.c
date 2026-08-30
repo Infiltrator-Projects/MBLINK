@@ -129,6 +129,20 @@ int main(void)
     CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
 
     /*
+     * Exact richer 7E8 bitmap from the field capture advertises these seven
+     * useful scalar PIDs that older MBLINK builds discovered but did not expose.
+     * Keep them as product regression evidence so future catalogue changes
+     * cannot silently lose them.
+     */
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x1f)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x21)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x24)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x30)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x31)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x3e)));
+    CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x4d)));
+
+    /*
      * The old MBLINK path jumped to the Mercedes extension here.  Current
      * behaviour must attempt standard VIN and all three standard DTC modes
      * first.  The captured VIN and stored-DTC framing are replayed below;
