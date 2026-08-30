@@ -18,10 +18,61 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef enum MblinkLinuxUnitProfile {
-    MBLINK_LINUX_UNITS_METRIC = 0,
-    MBLINK_LINUX_UNITS_US_CUSTOMARY
-} MblinkLinuxUnitProfile;
+typedef enum MblinkTemperatureUnit {
+    MBLINK_TEMP_CELSIUS = 0,
+    MBLINK_TEMP_FAHRENHEIT
+} MblinkTemperatureUnit;
+
+typedef enum MblinkPressureUnit {
+    MBLINK_PRESSURE_KPA = 0,
+    MBLINK_PRESSURE_BAR,
+    MBLINK_PRESSURE_PSI
+} MblinkPressureUnit;
+
+typedef enum MblinkSpeedUnit {
+    MBLINK_SPEED_KMH = 0,
+    MBLINK_SPEED_MPH
+} MblinkSpeedUnit;
+
+typedef enum MblinkDistanceUnit {
+    MBLINK_DISTANCE_KM = 0,
+    MBLINK_DISTANCE_MILES
+} MblinkDistanceUnit;
+
+typedef enum MblinkFuelVolumeUnit {
+    MBLINK_FUEL_VOLUME_LITRES = 0,
+    MBLINK_FUEL_VOLUME_US_GALLONS,
+    MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS
+} MblinkFuelVolumeUnit;
+
+typedef enum MblinkFuelEconomyUnit {
+    MBLINK_FUEL_ECONOMY_L_PER_100KM = 0,
+    MBLINK_FUEL_ECONOMY_KM_PER_L,
+    MBLINK_FUEL_ECONOMY_MPG_US,
+    MBLINK_FUEL_ECONOMY_MPG_IMPERIAL
+} MblinkFuelEconomyUnit;
+
+typedef enum MblinkFuelRateUnit {
+    MBLINK_FUEL_RATE_L_PER_HOUR = 0,
+    MBLINK_FUEL_RATE_US_GAL_PER_HOUR,
+    MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR
+} MblinkFuelRateUnit;
+
+typedef enum MblinkAirMassUnit {
+    MBLINK_AIR_MASS_G_PER_SECOND = 0,
+    MBLINK_AIR_MASS_LB_PER_MINUTE
+} MblinkAirMassUnit;
+
+typedef enum MblinkPreferenceKind {
+    MBLINK_PREF_TEMPERATURE = 0,
+    MBLINK_PREF_PRESSURE,
+    MBLINK_PREF_SPEED,
+    MBLINK_PREF_DISTANCE,
+    MBLINK_PREF_FUEL_VOLUME,
+    MBLINK_PREF_FUEL_ECONOMY,
+    MBLINK_PREF_FUEL_RATE,
+    MBLINK_PREF_AIR_MASS
+} MblinkPreferenceKind;
 
 typedef struct MblinkLinuxContext {
     bool connected;
@@ -39,7 +90,15 @@ typedef struct MblinkLinuxContext {
     bool sample_valid[256];
     LinkObd2Sample samples[256];
     bool polling_enabled[256];
-    MblinkLinuxUnitProfile units;
+    MblinkTemperatureUnit temperature_unit;
+    MblinkPressureUnit pressure_unit;
+    MblinkSpeedUnit speed_unit;
+    MblinkDistanceUnit distance_unit;
+    MblinkFuelVolumeUnit fuel_volume_unit;
+    MblinkFuelEconomyUnit fuel_economy_unit;
+    MblinkFuelRateUnit fuel_rate_unit;
+    MblinkAirMassUnit air_mass_unit;
+    uint64_t presentation_revision;
     LinkFuelEconomy fuel_economy;
     MblinkMercedesEngineScan manufacturer_scan;
     bool manufacturer_scan_started;
@@ -70,7 +129,11 @@ static const char mblink_css[] =
     ".link-card-note { color: #9ca4ab; }"
     ".link-status-chip { padding: 7px 11px; border-radius: 999px; border: 1px solid #3b4147; font-weight: 700; }"
     ".state-warning { color: #d19e47; border-color: #72572f; }"
-    ".state-success { color: #63ab7c; border-color: #365f45; }";
+    ".state-success { color: #63ab7c; border-color: #365f45; }"
+    ".mblink-settings-section { margin-top: 2px; }"
+    ".mblink-settings-row { padding: 10px 0; }"
+    ".mblink-settings-row dropdown { min-width: 210px; }"
+    ".mblink-settings-note { color: #899198; font-size: 11px; }";
 
 static uint64_t monotonic_ms(void)
 {
@@ -183,17 +246,189 @@ static void polling_toggled(GtkCheckButton *button, gpointer opaque)
     context->polling_enabled[pid] = gtk_check_button_get_active(button);
 }
 
-static void units_changed(GtkDropDown *dropdown,
-                          GParamSpec *spec,
-                          gpointer opaque)
+static char *preferences_config_path(void)
+{
+    char *directory = g_build_filename(
+        g_get_user_config_dir(), "the-first-infiltrator", NULL);
+    char *path;
+    if (directory == NULL) return NULL;
+    (void)g_mkdir_with_parents(directory, 0700);
+    path = g_build_filename(directory, "mblink.ini", NULL);
+    g_free(directory);
+    return path;
+}
+
+static int key_file_integer_or_default(
+    GKeyFile *key_file,
+    const char *group,
+    const char *key,
+    int fallback,
+    int maximum)
+{
+    GError *error = NULL;
+    gint value;
+    if (key_file == NULL || group == NULL || key == NULL)
+        return fallback;
+    value = g_key_file_get_integer(key_file, group, key, &error);
+    if (error != NULL) {
+        g_error_free(error);
+        return fallback;
+    }
+    if (value < 0 || value > maximum) return fallback;
+    return (int)value;
+}
+
+static void initialise_display_preferences(MblinkLinuxContext *context)
+{
+    GKeyFile *key_file;
+    char *path;
+    if (context == NULL) return;
+
+    context->temperature_unit = MBLINK_TEMP_CELSIUS;
+    context->pressure_unit = MBLINK_PRESSURE_KPA;
+    context->speed_unit = MBLINK_SPEED_KMH;
+    context->distance_unit = MBLINK_DISTANCE_KM;
+    context->fuel_volume_unit = MBLINK_FUEL_VOLUME_LITRES;
+    context->fuel_economy_unit = MBLINK_FUEL_ECONOMY_L_PER_100KM;
+    context->fuel_rate_unit = MBLINK_FUEL_RATE_L_PER_HOUR;
+    context->air_mass_unit = MBLINK_AIR_MASS_G_PER_SECOND;
+    context->presentation_revision = 1U;
+
+    path = preferences_config_path();
+    if (path == NULL) return;
+    key_file = g_key_file_new();
+    if (g_key_file_load_from_file(
+            key_file, path, G_KEY_FILE_NONE, NULL)) {
+        context->temperature_unit = (MblinkTemperatureUnit)
+            key_file_integer_or_default(
+                key_file, "units", "temperature",
+                MBLINK_TEMP_CELSIUS, MBLINK_TEMP_FAHRENHEIT);
+        context->pressure_unit = (MblinkPressureUnit)
+            key_file_integer_or_default(
+                key_file, "units", "pressure",
+                MBLINK_PRESSURE_KPA, MBLINK_PRESSURE_PSI);
+        context->speed_unit = (MblinkSpeedUnit)
+            key_file_integer_or_default(
+                key_file, "units", "speed",
+                MBLINK_SPEED_KMH, MBLINK_SPEED_MPH);
+        context->distance_unit = (MblinkDistanceUnit)
+            key_file_integer_or_default(
+                key_file, "units", "distance",
+                MBLINK_DISTANCE_KM, MBLINK_DISTANCE_MILES);
+        context->fuel_volume_unit = (MblinkFuelVolumeUnit)
+            key_file_integer_or_default(
+                key_file, "units", "fuel_volume",
+                MBLINK_FUEL_VOLUME_LITRES,
+                MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS);
+        context->fuel_economy_unit = (MblinkFuelEconomyUnit)
+            key_file_integer_or_default(
+                key_file, "units", "fuel_economy",
+                MBLINK_FUEL_ECONOMY_L_PER_100KM,
+                MBLINK_FUEL_ECONOMY_MPG_IMPERIAL);
+        context->fuel_rate_unit = (MblinkFuelRateUnit)
+            key_file_integer_or_default(
+                key_file, "units", "fuel_rate",
+                MBLINK_FUEL_RATE_L_PER_HOUR,
+                MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR);
+        context->air_mass_unit = (MblinkAirMassUnit)
+            key_file_integer_or_default(
+                key_file, "units", "air_mass",
+                MBLINK_AIR_MASS_G_PER_SECOND,
+                MBLINK_AIR_MASS_LB_PER_MINUTE);
+    }
+    g_key_file_unref(key_file);
+    g_free(path);
+}
+
+static void save_display_preferences(const MblinkLinuxContext *context)
+{
+    GKeyFile *key_file;
+    char *path;
+    char *data;
+    gsize length = 0U;
+    if (context == NULL) return;
+    path = preferences_config_path();
+    if (path == NULL) return;
+    key_file = g_key_file_new();
+    g_key_file_set_integer(
+        key_file, "units", "temperature", context->temperature_unit);
+    g_key_file_set_integer(
+        key_file, "units", "pressure", context->pressure_unit);
+    g_key_file_set_integer(
+        key_file, "units", "speed", context->speed_unit);
+    g_key_file_set_integer(
+        key_file, "units", "distance", context->distance_unit);
+    g_key_file_set_integer(
+        key_file, "units", "fuel_volume", context->fuel_volume_unit);
+    g_key_file_set_integer(
+        key_file, "units", "fuel_economy", context->fuel_economy_unit);
+    g_key_file_set_integer(
+        key_file, "units", "fuel_rate", context->fuel_rate_unit);
+    g_key_file_set_integer(
+        key_file, "units", "air_mass", context->air_mass_unit);
+    data = g_key_file_to_data(key_file, &length, NULL);
+    if (data != NULL) {
+        (void)g_file_set_contents(path, data, (gssize)length, NULL);
+        g_free(data);
+    }
+    g_key_file_unref(key_file);
+    g_free(path);
+}
+
+static uint64_t mblink_presentation_revision(void *opaque)
+{
+    const MblinkLinuxContext *context = opaque;
+    return context != NULL ? context->presentation_revision : 0U;
+}
+
+static void preference_changed(
+    GtkDropDown *dropdown,
+    GParamSpec *spec,
+    gpointer opaque)
 {
     MblinkLinuxContext *context = opaque;
     const guint selected = gtk_drop_down_get_selected(dropdown);
+    const guint kind = GPOINTER_TO_UINT(
+        g_object_get_data(G_OBJECT(dropdown), "mblink-pref-kind"));
     (void)spec;
     if (context == NULL) return;
-    context->units = selected == 1U
-        ? MBLINK_LINUX_UNITS_US_CUSTOMARY
-        : MBLINK_LINUX_UNITS_METRIC;
+
+    switch ((MblinkPreferenceKind)kind) {
+    case MBLINK_PREF_TEMPERATURE:
+        if (selected <= MBLINK_TEMP_FAHRENHEIT)
+            context->temperature_unit = (MblinkTemperatureUnit)selected;
+        break;
+    case MBLINK_PREF_PRESSURE:
+        if (selected <= MBLINK_PRESSURE_PSI)
+            context->pressure_unit = (MblinkPressureUnit)selected;
+        break;
+    case MBLINK_PREF_SPEED:
+        if (selected <= MBLINK_SPEED_MPH)
+            context->speed_unit = (MblinkSpeedUnit)selected;
+        break;
+    case MBLINK_PREF_DISTANCE:
+        if (selected <= MBLINK_DISTANCE_MILES)
+            context->distance_unit = (MblinkDistanceUnit)selected;
+        break;
+    case MBLINK_PREF_FUEL_VOLUME:
+        if (selected <= MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS)
+            context->fuel_volume_unit = (MblinkFuelVolumeUnit)selected;
+        break;
+    case MBLINK_PREF_FUEL_ECONOMY:
+        if (selected <= MBLINK_FUEL_ECONOMY_MPG_IMPERIAL)
+            context->fuel_economy_unit = (MblinkFuelEconomyUnit)selected;
+        break;
+    case MBLINK_PREF_FUEL_RATE:
+        if (selected <= MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR)
+            context->fuel_rate_unit = (MblinkFuelRateUnit)selected;
+        break;
+    case MBLINK_PREF_AIR_MASS:
+        if (selected <= MBLINK_AIR_MASS_LB_PER_MINUTE)
+            context->air_mass_unit = (MblinkAirMassUnit)selected;
+        break;
+    }
+    ++context->presentation_revision;
+    save_display_preferences(context);
 }
 
 static void format_sample(const LinkObd2Sample *sample,
@@ -209,29 +444,68 @@ static void format_sample(const LinkObd2Sample *sample,
         return;
     }
 
-    if (context != NULL &&
-        context->units == MBLINK_LINUX_UNITS_US_CUSTOMARY) {
+    if (context != NULL) {
         switch (sample->unit) {
         case LINK_OBD2_UNIT_CELSIUS:
-            (void)snprintf(buffer, capacity, "%.1f °F",
-                           sample->value * 9.0 / 5.0 + 32.0);
+            if (context->temperature_unit == MBLINK_TEMP_FAHRENHEIT)
+                (void)snprintf(
+                    buffer, capacity, "%.1f °F",
+                    sample->value * 9.0 / 5.0 + 32.0);
+            else
+                (void)snprintf(buffer, capacity, "%.1f °C", sample->value);
             return;
+
+        case LINK_OBD2_UNIT_KPA:
+            if (context->pressure_unit == MBLINK_PRESSURE_BAR)
+                (void)snprintf(
+                    buffer, capacity, "%.2f bar", sample->value / 100.0);
+            else if (context->pressure_unit == MBLINK_PRESSURE_PSI)
+                (void)snprintf(
+                    buffer, capacity,
+                    sample->value < 70.0 && sample->value > -70.0
+                        ? "%.2f psi" : "%.1f psi",
+                    sample->value * 0.14503773773020923);
+            else
+                (void)snprintf(
+                    buffer, capacity,
+                    sample->value < 100.0 && sample->value > -100.0
+                        ? "%.2f kPa" : "%.1f kPa",
+                    sample->value);
+            return;
+
         case LINK_OBD2_UNIT_KMH:
-            (void)snprintf(buffer, capacity, "%.1f mph",
-                           sample->value * 0.621371192237334);
+            if (context->speed_unit == MBLINK_SPEED_MPH)
+                (void)snprintf(
+                    buffer, capacity, "%.1f mph",
+                    sample->value * 0.621371192237334);
+            else
+                (void)snprintf(buffer, capacity, "%.1f km/h", sample->value);
             return;
-        case LINK_OBD2_UNIT_KPA: {
-            const double psi = sample->value * 0.14503773773020923;
-            (void)snprintf(
-                buffer, capacity,
-                psi < 10.0 && psi > -10.0 ? "%.2f psi" : "%.1f psi",
-                psi);
+
+        case LINK_OBD2_UNIT_GRAMS_PER_SECOND:
+            if (context->air_mass_unit == MBLINK_AIR_MASS_LB_PER_MINUTE)
+                (void)snprintf(
+                    buffer, capacity, "%.2f lb/min",
+                    sample->value * 0.1322773573109265);
+            else
+                (void)snprintf(buffer, capacity, "%.2f g/s", sample->value);
             return;
-        }
+
         case LINK_OBD2_UNIT_LITRES_PER_HOUR:
-            (void)snprintf(buffer, capacity, "%.2f US gal/h",
-                           sample->value * 0.2641720523581484);
+            if (context->fuel_rate_unit ==
+                MBLINK_FUEL_RATE_US_GAL_PER_HOUR)
+                (void)snprintf(
+                    buffer, capacity, "%.2f US gal/h",
+                    sample->value * 0.2641720523581484);
+            else if (context->fuel_rate_unit ==
+                     MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR)
+                (void)snprintf(
+                    buffer, capacity, "%.2f Imp gal/h",
+                    sample->value * 0.2199692482990878);
+            else
+                (void)snprintf(buffer, capacity, "%.2f L/h", sample->value);
             return;
+
         default:
             break;
         }
@@ -819,6 +1093,102 @@ static void append_parameters(GtkWidget *body,
     gtk_box_append(GTK_BOX(body), card);
 }
 
+static void format_fuel_economy(
+    double litres_per_100km,
+    const MblinkLinuxContext *context,
+    char *buffer,
+    size_t capacity)
+{
+    if (buffer == NULL || capacity == 0U || context == NULL) return;
+    switch (context->fuel_economy_unit) {
+    case MBLINK_FUEL_ECONOMY_KM_PER_L:
+        if (litres_per_100km > 0.0)
+            (void)snprintf(
+                buffer, capacity, "%.2f km/L", 100.0 / litres_per_100km);
+        else
+            (void)snprintf(buffer, capacity, "—");
+        break;
+    case MBLINK_FUEL_ECONOMY_MPG_US:
+        if (litres_per_100km > 0.0)
+            (void)snprintf(
+                buffer, capacity, "%.1f mpg (US)",
+                235.214583 / litres_per_100km);
+        else
+            (void)snprintf(buffer, capacity, "—");
+        break;
+    case MBLINK_FUEL_ECONOMY_MPG_IMPERIAL:
+        if (litres_per_100km > 0.0)
+            (void)snprintf(
+                buffer, capacity, "%.1f mpg (Imp)",
+                282.480936 / litres_per_100km);
+        else
+            (void)snprintf(buffer, capacity, "—");
+        break;
+    case MBLINK_FUEL_ECONOMY_L_PER_100KM:
+    default:
+        (void)snprintf(
+            buffer, capacity, "%.1f L/100 km", litres_per_100km);
+        break;
+    }
+}
+
+static void format_distance(
+    double kilometres,
+    const MblinkLinuxContext *context,
+    char *buffer,
+    size_t capacity)
+{
+    if (context != NULL &&
+        context->distance_unit == MBLINK_DISTANCE_MILES)
+        (void)snprintf(
+            buffer, capacity, "%.1f mi",
+            kilometres * 0.621371192237334);
+    else
+        (void)snprintf(buffer, capacity, "%.1f km", kilometres);
+}
+
+static void format_fuel_volume(
+    double litres,
+    const MblinkLinuxContext *context,
+    char *buffer,
+    size_t capacity)
+{
+    if (context != NULL &&
+        context->fuel_volume_unit == MBLINK_FUEL_VOLUME_US_GALLONS)
+        (void)snprintf(
+            buffer, capacity, "%.2f US gal",
+            litres * 0.2641720523581484);
+    else if (context != NULL &&
+             context->fuel_volume_unit ==
+                 MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS)
+        (void)snprintf(
+            buffer, capacity, "%.2f Imp gal",
+            litres * 0.2199692482990878);
+    else
+        (void)snprintf(buffer, capacity, "%.2f L", litres);
+}
+
+static void format_fuel_rate(
+    double litres_per_hour,
+    const MblinkLinuxContext *context,
+    char *buffer,
+    size_t capacity)
+{
+    if (context != NULL &&
+        context->fuel_rate_unit == MBLINK_FUEL_RATE_US_GAL_PER_HOUR)
+        (void)snprintf(
+            buffer, capacity, "%.2f US gal/h",
+            litres_per_hour * 0.2641720523581484);
+    else if (context != NULL &&
+             context->fuel_rate_unit ==
+                 MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR)
+        (void)snprintf(
+            buffer, capacity, "%.2f Imp gal/h",
+            litres_per_hour * 0.2199692482990878);
+    else
+        (void)snprintf(buffer, capacity, "%.2f L/h", litres_per_hour);
+}
+
 static void append_fuel_economy(GtkWidget *body,
                                 const MblinkLinuxContext *context)
 {
@@ -834,23 +1204,43 @@ static void append_fuel_economy(GtkWidget *body,
         : (snapshot.fuel_rate_available ? snapshot.fuel_rate_source : snapshot.average_source);
 
     if (snapshot.instantaneous_available) {
-        (void)snprintf(instantaneous, sizeof(instantaneous), "%.1f L/100 km",
-                       snapshot.instantaneous_l_per_100km);
+        format_fuel_economy(
+            snapshot.instantaneous_l_per_100km,
+            context, instantaneous, sizeof(instantaneous));
     } else if (context->connected && !snapshot.moving) {
-        (void)snprintf(instantaneous, sizeof(instantaneous), "— · stationary / awaiting speed");
+        (void)snprintf(
+            instantaneous, sizeof(instantaneous),
+            "— · stationary / awaiting speed");
     } else {
-        (void)snprintf(instantaneous, sizeof(instantaneous), "Waiting for measured fuel data");
+        (void)snprintf(
+            instantaneous, sizeof(instantaneous),
+            "Waiting for measured fuel data");
     }
     if (snapshot.average_available)
-        (void)snprintf(average, sizeof(average), "%.1f L/100 km", snapshot.average_l_per_100km);
+        format_fuel_economy(
+            snapshot.average_l_per_100km,
+            context, average, sizeof(average));
     else
-        (void)snprintf(average, sizeof(average), "Waiting for trip distance");
+        (void)snprintf(
+            average, sizeof(average), "Waiting for trip distance");
     if (snapshot.fuel_rate_available)
-        (void)snprintf(rate, sizeof(rate), "%.2f L/h", snapshot.fuel_rate_l_per_hour);
+        format_fuel_rate(
+            snapshot.fuel_rate_l_per_hour,
+            context, rate, sizeof(rate));
     else
         (void)snprintf(rate, sizeof(rate), "Not available");
-    (void)snprintf(trip, sizeof(trip), "%.2f L over %.1f km",
-                   snapshot.trip_fuel_litres, snapshot.trip_distance_km);
+    {
+        char volume[48];
+        char distance[48];
+        format_fuel_volume(
+            snapshot.trip_fuel_litres, context,
+            volume, sizeof(volume));
+        format_distance(
+            snapshot.trip_distance_km, context,
+            distance, sizeof(distance));
+        (void)snprintf(
+            trip, sizeof(trip), "%s over %s", volume, distance);
+    }
 
     link_gtk_card_append_status(card,
         snapshot.instantaneous_available || snapshot.fuel_rate_available
@@ -908,6 +1298,161 @@ static void append_generic_status(GtkWidget *body,
     gtk_box_append(GTK_BOX(body), card);
 }
 
+
+static void append_preference_dropdown(
+    GtkWidget *card,
+    const char *title,
+    const char *description,
+    const char *const *choices,
+    guint selected,
+    MblinkPreferenceKind kind,
+    MblinkLinuxContext *context)
+{
+    GtkWidget *row;
+    GtkWidget *copy;
+    GtkWidget *dropdown;
+    GtkStringList *model;
+    size_t index;
+
+    if (card == NULL || choices == NULL || context == NULL) return;
+    row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14);
+    copy = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    model = gtk_string_list_new(NULL);
+    for (index = 0U; choices[index] != NULL; ++index)
+        gtk_string_list_append(model, choices[index]);
+    dropdown = gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+    g_object_unref(model);
+
+    gtk_widget_add_css_class(row, "link-settings-row");
+    gtk_widget_add_css_class(row, "mblink-settings-row");
+    gtk_widget_add_css_class(copy, "link-settings-copy");
+    gtk_widget_add_css_class(dropdown, "link-settings-dropdown");
+    gtk_widget_set_hexpand(copy, TRUE);
+    gtk_box_append(
+        GTK_BOX(copy),
+        link_gtk_left_label(title, "link-settings-title"));
+    gtk_box_append(
+        GTK_BOX(copy),
+        link_gtk_left_label(description, "link-settings-description"));
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(dropdown), selected);
+    g_object_set_data(
+        G_OBJECT(dropdown), "mblink-pref-kind",
+        GUINT_TO_POINTER((guint)kind));
+    g_signal_connect(
+        dropdown, "notify::selected",
+        G_CALLBACK(preference_changed), context);
+    gtk_box_append(GTK_BOX(row), copy);
+    gtk_box_append(GTK_BOX(row), dropdown);
+    gtk_box_append(GTK_BOX(card), row);
+}
+
+static void append_measurement_settings(
+    GtkWidget *body,
+    MblinkLinuxContext *context)
+{
+    static const char *temperature[] =
+        { "Celsius (°C)", "Fahrenheit (°F)", NULL };
+    static const char *pressure[] =
+        { "Kilopascal (kPa)", "Bar (bar)", "PSI (psi)", NULL };
+    static const char *speed[] =
+        { "Kilometres per hour (km/h)", "Miles per hour (mph)", NULL };
+    static const char *distance[] =
+        { "Kilometres (km)", "Miles (mi)", NULL };
+    static const char *fuel_volume[] =
+        { "Litres (L)", "US gallons (US gal)", "Imperial gallons (Imp gal)", NULL };
+    static const char *fuel_economy[] = {
+        "Litres per 100 km (L/100 km)",
+        "Kilometres per litre (km/L)",
+        "Miles per gallon — US (mpg US)",
+        "Miles per gallon — Imperial (mpg Imp)",
+        NULL
+    };
+    static const char *fuel_rate[] = {
+        "Litres per hour (L/h)",
+        "US gallons per hour (US gal/h)",
+        "Imperial gallons per hour (Imp gal/h)",
+        NULL
+    };
+    static const char *air_mass[] =
+        { "Grams per second (g/s)", "Pounds per minute (lb/min)", NULL };
+    GtkWidget *card =
+        link_gtk_card_new("MEASUREMENT", "Units & display formats");
+
+    gtk_widget_add_css_class(card, "mblink-settings-section");
+    append_preference_dropdown(
+        card, "Temperature",
+        "Coolant, intake-air, ambient and exhaust-gas temperatures.",
+        temperature, (guint)context->temperature_unit,
+        MBLINK_PREF_TEMPERATURE, context);
+    append_preference_dropdown(
+        card, "Pressure",
+        "Boost, manifold, fuel-rail and differential-pressure readings.",
+        pressure, (guint)context->pressure_unit,
+        MBLINK_PREF_PRESSURE, context);
+    append_preference_dropdown(
+        card, "Speed",
+        "Vehicle and wheel-speed presentation.",
+        speed, (guint)context->speed_unit,
+        MBLINK_PREF_SPEED, context);
+    append_preference_dropdown(
+        card, "Distance",
+        "Trip distance and distance-based summaries.",
+        distance, (guint)context->distance_unit,
+        MBLINK_PREF_DISTANCE, context);
+    append_preference_dropdown(
+        card, "Fuel volume",
+        "Trip fuel quantity and other volumetric fuel values.",
+        fuel_volume, (guint)context->fuel_volume_unit,
+        MBLINK_PREF_FUEL_VOLUME, context);
+    append_preference_dropdown(
+        card, "Fuel economy",
+        "Instantaneous and trip-average consumption.",
+        fuel_economy, (guint)context->fuel_economy_unit,
+        MBLINK_PREF_FUEL_ECONOMY, context);
+    append_preference_dropdown(
+        card, "Fuel flow",
+        "Measured volumetric fuel-rate display.",
+        fuel_rate, (guint)context->fuel_rate_unit,
+        MBLINK_PREF_FUEL_RATE, context);
+    append_preference_dropdown(
+        card, "Air mass flow",
+        "Mass-air-flow sensor presentation.",
+        air_mass, (guint)context->air_mass_unit,
+        MBLINK_PREF_AIR_MASS, context);
+    link_gtk_card_append_note(
+        card,
+        "RPM, percentages and volts retain their conventional engineering units. These choices change presentation only; captured diagnostic values and exported evidence remain canonical.");
+    gtk_box_append(GTK_BOX(body), card);
+}
+
+static void append_application_settings(
+    GtkWidget *body,
+    const MblinkLinuxContext *context)
+{
+    GtkWidget *card =
+        link_gtk_card_new("APPLICATION", "MBLINK system information");
+    link_gtk_card_append_detail(card, "Version", mblink_version());
+    link_gtk_card_append_detail(
+        card, "Product", "Mercedes-Benz diagnostics");
+    link_gtk_card_append_detail(
+        card, "Portable core",
+        mblink_self_check() ? "Validated" : "Invalid metadata");
+    link_gtk_card_append_detail(
+        card, "Transport",
+        "LINK native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
+    link_gtk_card_append_detail(
+        card, "Diagnostic mode",
+        "SAE OBD-II + Mercedes read-only factory extension");
+    link_gtk_card_append_detail(
+        card, "Vehicle discovery",
+        "VIN/ECU evidence + bounded module census");
+    link_gtk_card_append_note(
+        card,
+        "Display preferences are saved automatically for this user account and apply immediately to Linux presentation.");
+    gtk_box_append(GTK_BOX(body), card);
+    (void)context;
+}
+
 static void render_section(size_t section, GtkWidget *body, void *opaque)
 {
     MblinkLinuxContext *context = opaque;
@@ -924,37 +1469,10 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
     case LINK_WORKSPACE_LOG:
         append_generic_status(body, "SESSION RECORDER", "Diagnostic evidence",
                               "The shared recorder/evidence path can consume the same real diagnostic events without inventing data.", context); break;
-    case LINK_WORKSPACE_SETTINGS: {
-        GtkWidget *card = link_gtk_card_new("MBLINK", "System identity");
-        link_gtk_card_append_detail(card, "Version", mblink_version());
-        link_gtk_card_append_detail(card, "Product", "Mercedes-Benz diagnostics");
-        link_gtk_card_append_detail(card, "Portable core", mblink_self_check() ? "Validated" : "Invalid metadata");
-        link_gtk_card_append_detail(card, "Linux transport", "LINK native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
-        link_gtk_card_append_detail(card, "Linux diagnostic flow", "SAE OBD-II + Mercedes read-only factory extension");
-        link_gtk_card_append_detail(card, "Mercedes scan", "Engine fingerprint + bounded full-range census; DEEP RESCAN enables forensic fallback probes");
-        link_gtk_card_append_detail(card, "Fuel economy", "Factory-priority + SAE measured fallback");
-        {
-            const char *unit_names[] = { "Metric", "US customary", NULL };
-            GtkStringList *model = gtk_string_list_new(unit_names);
-            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
-            GtkWidget *label =
-                link_gtk_left_label("Unit system", "link-detail-label");
-            GtkWidget *dropdown =
-                gtk_drop_down_new(G_LIST_MODEL(model), NULL);
-            gtk_widget_set_hexpand(label, TRUE);
-            gtk_drop_down_set_selected(
-                GTK_DROP_DOWN(dropdown),
-                context->units == MBLINK_LINUX_UNITS_US_CUSTOMARY ? 1U : 0U);
-            g_signal_connect(
-                dropdown, "notify::selected", G_CALLBACK(units_changed), context);
-            gtk_box_append(GTK_BOX(row), label);
-            gtk_box_append(GTK_BOX(row), dropdown);
-            gtk_box_append(GTK_BOX(card), row);
-            g_object_unref(model);
-        }
-        gtk_box_append(GTK_BOX(body), card);
+    case LINK_WORKSPACE_SETTINGS:
+        append_measurement_settings(body, context);
+        append_application_settings(body, context);
         break;
-    }
     case LINK_WORKSPACE_SECTION_COUNT: break;
     }
 }
@@ -1262,7 +1780,7 @@ int main(int argc, char **argv)
 
     context.replay_mode = replay_mode;
     context.replay_verify = replay_verify;
-    context.units = MBLINK_LINUX_UNITS_METRIC;
+    initialise_display_preferences(&context);
     initialise_polling_policy(&context);
     link_fuel_economy_init(&context.fuel_economy);
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
@@ -1281,6 +1799,7 @@ int main(int argc, char **argv)
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
     descriptor.polling_enabled = mblink_polling_enabled;
+    descriptor.presentation_revision = mblink_presentation_revision;
     descriptor.diagnostic_restart_action_label = "DEEP RESCAN";
     descriptor.diagnostic_restart_action = request_full_sweep;
     descriptor.manufacturer_extension = &mblink_manufacturer_extension;
