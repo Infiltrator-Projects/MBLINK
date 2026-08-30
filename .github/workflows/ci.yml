@@ -299,7 +299,7 @@ jobs:
           grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.43"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.44"
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
@@ -311,7 +311,7 @@ jobs:
           ! grep -Fq 'MBLINK_IMPLEMENTATION_REVISION' src/core/mblink.c
           ! grep -Fq 'MBLINK_EMBEDDED_LINK_VERSION' src/core/mblink.c
           grep -Fq '#define MBLINK_EMBEDDED_LINK_REVISION' src/core/mblink.c
-          grep -Fq '"f894a88d3a63de08b6c13b9fb3ad69d32ed6c78f"' src/core/mblink.c
+          grep -Fq '"a5515f7b4d75f23eba7a1aae3c179c82c4abaeea"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
