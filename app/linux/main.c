@@ -1198,7 +1198,7 @@ static void append_fuel_economy(GtkWidget *body,
     char instantaneous[64];
     char average[64];
     char rate[64];
-    char trip[96];
+    char trip[128];
     LinkFuelEconomySource display_source = snapshot.instantaneous_available
         ? snapshot.instantaneous_source
         : (snapshot.fuel_rate_available ? snapshot.fuel_rate_source : snapshot.average_source);
