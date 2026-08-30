@@ -3,6 +3,7 @@
 #include "c207-replay.h"
 #include "link-gtk-shell.h"
 #include "link-gtk-widgets.h"
+#include "link/dtc_knowledge.h"
 #include "link/fuel_economy.h"
 #include "link/workspace.h"
 #include "mblink/mblink.h"
@@ -542,11 +543,182 @@ static void append_dtc_list(GtkWidget *card,
         link_gtk_card_append_detail(card, label, "None reported");
         return;
     }
+
     for (index = 0U; index < list->count; ++index) {
-        char label[48];
-        (void)snprintf(label, sizeof(label), "%s %zu", prefix, index + 1U);
-        link_gtk_card_append_detail(card, label, list->entries[index].code);
+        LinkDtcKnowledge knowledge = {0};
+        char label[64];
+        char classification[192];
+        char definition[320];
+        const char *code = list->entries[index].code;
+        const bool resolved = link_dtc_resolve(code, &knowledge);
+
+        (void)snprintf(
+            label, sizeof(label), "%s %zu · code", prefix, index + 1U);
+        link_gtk_card_append_detail(
+            card, label,
+            resolved && knowledge.code[0] != '\0' ? knowledge.code : code);
+
+        (void)snprintf(label, sizeof(label), "%s %zu · state", prefix, index + 1U);
+        link_gtk_card_append_detail(card, label, prefix);
+
+        if (resolved && knowledge.definition_known) {
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · meaning", prefix, index + 1U);
+            link_gtk_card_append_detail(card, label, knowledge.title);
+
+            (void)snprintf(
+                classification, sizeof(classification), "%s · %s · %s",
+                link_dtc_system_name(knowledge.system),
+                knowledge.category,
+                link_dtc_origin_name(knowledge.origin));
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · classification",
+                prefix, index + 1U);
+            link_gtk_card_append_detail(card, label, classification);
+
+            (void)snprintf(
+                definition, sizeof(definition),
+                "%s · raw code preserved",
+                link_dtc_source_name(knowledge.source));
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · definition",
+                prefix, index + 1U);
+            link_gtk_card_append_detail(card, label, definition);
+        } else {
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · definition",
+                prefix, index + 1U);
+            link_gtk_card_append_detail(
+                card, label,
+                resolved &&
+                knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC
+                    ? "Manufacturer-specific definition unknown · raw code preserved"
+                    : "Definition unknown · raw code preserved");
+        }
     }
+}
+
+static void append_readiness_monitor(
+    GtkWidget *card,
+    const char *name,
+    bool supported,
+    bool incomplete)
+{
+    if (card == NULL || name == NULL || !supported) return;
+    link_gtk_card_append_detail(
+        card, name, incomplete ? "Not ready / incomplete" : "Ready");
+}
+
+static void append_diagnostic_context(
+    GtkWidget *body,
+    const MblinkLinuxContext *context)
+{
+    GtkWidget *card =
+        link_gtk_card_new("DIAGNOSTIC CONTEXT", "Readiness and stored-fault freeze-frame");
+    const LinkObd2Readiness *readiness;
+    size_t freeze_count = 0U;
+    const LinkObd2Sample *freeze_samples;
+    char summary[160];
+    size_t index;
+
+    if (body == NULL || context == NULL) return;
+
+    if (!context->diagnostic_valid) {
+        link_gtk_card_append_status(
+            card, "NOT COLLECTED", "state-warning");
+        link_gtk_card_append_note(
+            card,
+            "Diagnostic context is collected as part of a completed standard fault investigation.");
+        gtk_box_append(GTK_BOX(body), card);
+        return;
+    }
+
+    readiness = link_diagnostic_flow_readiness(&context->diagnostic);
+    if (!context->diagnostic.readiness_attempted) {
+        link_gtk_card_append_status(
+            card, "READINESS NOT YET COLLECTED", "state-warning");
+    } else if (readiness == NULL) {
+        link_gtk_card_append_status(
+            card, "READINESS UNAVAILABLE / UNSUPPORTED", "state-warning");
+    } else {
+        static const char *spark_names[8] = {
+            "Catalyst", "Heated catalyst", "Evaporative system",
+            "Secondary air", "A/C refrigerant", "Oxygen sensor",
+            "Oxygen sensor heater", "EGR / VVT"
+        };
+        static const char *diesel_names[8] = {
+            "NMHC catalyst", "NOx / SCR", NULL, "Boost pressure",
+            NULL, "Exhaust gas sensor", "Particulate filter", "EGR / VVT"
+        };
+        const char *const *names =
+            readiness->compression_ignition ? diesel_names : spark_names;
+        static const char *continuous_names[3] = {
+            "Misfire", "Fuel system", "Comprehensive components"
+        };
+
+        (void)snprintf(
+            summary, sizeof(summary),
+            "READINESS CAPTURED · MIL %s · %u confirmed DTC%s · %s ignition",
+            readiness->mil_on ? "ON" : "off",
+            (unsigned int)readiness->confirmed_dtc_count,
+            readiness->confirmed_dtc_count == 1U ? "" : "s",
+            readiness->compression_ignition ? "compression" : "spark");
+        link_gtk_card_append_status(card, summary, "state-success");
+
+        for (index = 0U; index < 3U; ++index) {
+            append_readiness_monitor(
+                card, continuous_names[index],
+                (readiness->continuous_supported &
+                    (uint8_t)(1U << index)) != 0U,
+                (readiness->continuous_incomplete &
+                    (uint8_t)(1U << index)) != 0U);
+        }
+        for (index = 0U; index < 8U; ++index) {
+            if (names[index] == NULL) continue;
+            append_readiness_monitor(
+                card, names[index],
+                (readiness->noncontinuous_supported &
+                    (uint8_t)(1U << index)) != 0U,
+                (readiness->noncontinuous_incomplete &
+                    (uint8_t)(1U << index)) != 0U);
+        }
+    }
+
+    freeze_samples = link_diagnostic_flow_freeze_frame_samples(
+        &context->diagnostic, &freeze_count);
+    if (!context->diagnostic.freeze_frame_requested) {
+        link_gtk_card_append_detail(
+            card, "Mode 02 freeze-frame",
+            context->diagnostic.standard_diagnostic_context_complete
+                ? "Not required · no stored OBD fault reported"
+                : "Not yet requested");
+    } else if (freeze_samples == NULL || freeze_count == 0U) {
+        link_gtk_card_append_detail(
+            card, "Mode 02 freeze-frame",
+            context->diagnostic.freeze_frame_complete
+                ? "Unavailable / unsupported for stored fault"
+                : "Collection in progress");
+    } else {
+        link_gtk_card_append_detail(
+            card, "Mode 02 freeze-frame",
+            "Frame 0 · captured fault context (NOT current live data)");
+        for (index = 0U; index < freeze_count; ++index) {
+            char label[96];
+            char value[96];
+            (void)snprintf(
+                label, sizeof(label), "Freeze PID 0x%02X · %s",
+                (unsigned int)freeze_samples[index].pid,
+                link_obd2_pid_name(freeze_samples[index].pid));
+            format_sample(
+                &freeze_samples[index], context, value, sizeof(value));
+            link_gtk_card_append_detail(card, label, value);
+        }
+    }
+
+    link_gtk_card_append_note(
+        card,
+        "Readiness is standards-defined diagnostic state. Mode 02 values are the ECU's stored frame-zero fault context and are deliberately kept separate from current Live Data.");
+    gtk_box_append(GTK_BOX(body), card);
 }
 
 static void append_factory_dtc_list(GtkWidget *card,
@@ -1017,11 +1189,17 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(obd, "STARTING SCAN", "state-warning");
     } else if (context->diagnostic.stage == LINK_DIAGNOSTIC_FLOW_FAILED) {
         link_gtk_card_append_status(obd, "SCAN FAILED · RECONNECT TO RETRY", "state-warning");
-    } else if (context->diagnostic_ready) {
+    } else if (link_diagnostic_flow_standard_context_complete(
+                   &context->diagnostic)) {
         (void)snprintf(summary, sizeof(summary), "COMPLETE · %zu stored · %zu pending · %zu permanent",
              context->diagnostic.stored_dtcs.count, context->diagnostic.pending_dtcs.count,
              context->diagnostic.permanent_dtcs.count);
-        link_gtk_card_append_status(obd, summary, "state-success");
+        link_gtk_card_append_status(
+            obd, summary,
+            context->diagnostic.stored_dtcs.count == 0U &&
+            context->diagnostic.pending_dtcs.count == 0U &&
+            context->diagnostic.permanent_dtcs.count == 0U
+                ? "state-success" : "state-warning");
         append_dtc_list(obd, "Stored", &context->diagnostic.stored_dtcs);
         append_dtc_list(obd, "Pending", &context->diagnostic.pending_dtcs);
         append_dtc_list(obd, "Permanent", &context->diagnostic.permanent_dtcs);
@@ -1034,6 +1212,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
     gtk_box_append(GTK_BOX(body), mercedes);
     gtk_box_append(GTK_BOX(body), modules);
     gtk_box_append(GTK_BOX(body), obd);
+    append_diagnostic_context(body, context);
 }
 
 static void append_parameters(GtkWidget *body,
