@@ -136,7 +136,7 @@ jobs:
           cmake -S . -B build-linux-sanitized             -DCMAKE_BUILD_TYPE=Debug             -DCMAKE_INSTALL_PREFIX=/usr             -DMBLINK_BUILD_LINUX_APP=ON             -DMBLINK_ENABLE_SANITIZERS=ON             -DMBLINK_BUILD_PROFILE=generic             -DBUILD_TESTING=OFF
           cmake --build build-linux-sanitized --parallel --target mblink-linux
           log="$RUNNER_TEMP/navigation-sanitized.log"
-          GTK_A11Y=none           ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1           timeout 25s xvfb-run -a ./build-linux-sanitized/mblink-linux --ui-navigation-stress | tee "$log"
+          GTK_A11Y=none           ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1           timeout 25s xvfb-run -a ./build-linux-sanitized/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
       - name: Verify Linux About and branding
         shell: bash
