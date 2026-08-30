@@ -1041,16 +1041,43 @@ static void append_module_fault_rows(
                  dtc_index < module->kwp_dtcs.count;
                  ++dtc_index) {
                 char label[96];
-                char value[128];
+                char value[384];
+                const MblinkKwp2000Dtc *record =
+                    &module->kwp_dtcs.entries[dtc_index];
+                const char *module_key = module->definition != NULL
+                    ? module->definition->key : NULL;
+                const MblinkMercedesKwpDtcDefinition *definition =
+                    mblink_mercedes_kwp_dtc_find(module_key, record->code);
                 (void)snprintf(label, sizeof(label),
                     "  %s fault %zu",
                     mblink_mercedes_module_scan_module_name(module),
                     dtc_index + 1U);
-                (void)snprintf(value, sizeof(value),
-                    "%04X · KWP2000 status 0x%02X",
-                    (unsigned int)module->kwp_dtcs.entries[dtc_index].code,
-                    (unsigned int)module->kwp_dtcs.entries[dtc_index].status);
+                if (definition != NULL) {
+                    (void)snprintf(
+                        value, sizeof(value),
+                        "%04X — %s · KWP2000 status 0x%02X · %s",
+                        (unsigned int)record->code,
+                        definition->description,
+                        (unsigned int)record->status,
+                        mblink_mercedes_definition_status_name(
+                            definition->status));
+                } else {
+                    (void)snprintf(
+                        value, sizeof(value),
+                        "%04X · definition unknown · KWP2000 status 0x%02X",
+                        (unsigned int)record->code,
+                        (unsigned int)record->status);
+                }
                 link_gtk_card_append_detail(card, label, value);
+                if (definition != NULL && definition->provenance != NULL) {
+                    (void)snprintf(
+                        label, sizeof(label),
+                        "  %s %04X provenance",
+                        mblink_mercedes_module_scan_module_name(module),
+                        (unsigned int)record->code);
+                    link_gtk_card_append_detail(
+                        card, label, definition->provenance);
+                }
             }
         } else {
             for (size_t dtc_index = 0U;
