@@ -1320,8 +1320,12 @@ static void append_preference_dropdown(
     model = gtk_string_list_new(NULL);
     for (index = 0U; choices[index] != NULL; ++index)
         gtk_string_list_append(model, choices[index]);
+    /*
+     * gtk_drop_down_new() takes ownership of model. Releasing it here used to
+     * leave the dropdown pointing at freed storage; the resulting delayed
+     * failure matches the field coredumps in g_list_model_get_n_items().
+     */
     dropdown = gtk_drop_down_new(G_LIST_MODEL(model), NULL);
-    g_object_unref(model);
 
     gtk_widget_add_css_class(row, "link-settings-row");
     gtk_widget_add_css_class(row, "mblink-settings-row");
