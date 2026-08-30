@@ -184,6 +184,25 @@ int main(void)
     CHECK(event.dtc_negative_response);
     CHECK(event.dtc_negative_response_code == UINT8_C(0x22));
     CHECK(flow.standard_dtc_inventory_complete);
+    CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_READINESS);
+
+    /*
+     * The captured drive did not preserve a standalone 0101 readiness reply.
+     * Keep that absence explicit rather than inventing one: the optional
+     * context step must tolerate NO DATA, mark readiness unavailable and move
+     * on. With no stored SAE DTCs, Mode 02 is correctly not requested.
+     */
+    CHECK(link_diagnostic_flow_next_action(&flow, 1150U, &action) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(strcmp(action.command, "0101") == 0);
+    response = no_data_response();
+    CHECK(link_diagnostic_flow_accept_response(
+              &flow, &response, 1150U, &event) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(flow.readiness_attempted);
+    CHECK(!flow.readiness_available);
+    CHECK(flow.standard_diagnostic_context_complete);
+    CHECK(!flow.freeze_frame_requested);
     CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION);
 
     CHECK(link_diagnostic_flow_next_action(&flow, 1200U, &action) ==
