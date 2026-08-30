@@ -1060,7 +1060,7 @@ private struct MBFaultsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     HStack {
-                        MBSectionHeader(title: "Fault memory", kicker: "Mercedes + OBD")
+                        MBSectionHeader(title: "Fault investigation", kicker: "Mercedes + OBD-II")
                         Spacer()
                         Text("\(total)")
                             .font(.system(size: 30, weight: .bold, design: .rounded))
@@ -1069,7 +1069,34 @@ private struct MBFaultsView: View {
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 10) {
-                            MBSectionHeader(title: "Mercedes modules", kicker: "UDS")
+                            MBSectionHeader(title: "Standard scan state", kicker: "Evidence state")
+                            Text(connection.faultScanStatusText)
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                            if connection.obdFaultScanComplete {
+                                statusRow(
+                                    total == 0
+                                        ? "Standard OBD scan completed with no reported faults"
+                                        : "Standard OBD fault inventory completed",
+                                    symbol: total == 0
+                                        ? "checkmark.circle.fill"
+                                        : "exclamationmark.triangle.fill",
+                                    colour: total == 0 ? MBBrand.success : MBBrand.warning)
+                            } else if connection.obdFaultScanFailed {
+                                statusRow("Standard OBD scan failed or is incomplete",
+                                          symbol: "xmark.octagon.fill",
+                                          colour: MBBrand.fault)
+                            } else {
+                                statusRow("Standard OBD scan has not completed",
+                                          symbol: "clock.fill",
+                                          colour: MBBrand.muted)
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            MBSectionHeader(title: "Mercedes modules", kicker: "Manufacturer fault memory")
                             Text(connection.mercedesUDSFaultStatusText)
                                 .font(.caption)
                                 .foregroundStyle(MBBrand.muted)
@@ -1092,6 +1119,7 @@ private struct MBFaultsView: View {
                                     Text(fault)
                                         .font(.body.monospaced().weight(.semibold))
                                         .foregroundStyle(MBBrand.silverBright)
+                                        .textSelection(.enabled)
                                 }
                             }
                         }
@@ -1100,11 +1128,67 @@ private struct MBFaultsView: View {
                     faultPanel("Stored", faults: connection.storedFaults)
                     faultPanel("Pending", faults: connection.pendingFaults)
                     faultPanel("Permanent", faults: connection.permanentFaults)
+                    diagnosticContextPanel
                 }
                 .padding(16)
             }
         }
         .mbDiagnosticScreen("Faults")
+    }
+
+    private var diagnosticContextPanel: some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                MBSectionHeader(title: "Diagnostic context", kicker: "Readiness + Mode 02")
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Emissions readiness", systemImage: "checklist")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text(connection.readinessStatusText)
+                        .font(.caption)
+                        .foregroundStyle(MBBrand.silver)
+                    ForEach(connection.readinessMonitorStatus, id: \.self) { monitor in
+                        Text(monitor)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(MBBrand.muted)
+                    }
+                }
+
+                Divider().overlay(MBBrand.line)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Stored-fault freeze-frame", systemImage: "camera.metering.center.weighted")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text("Mode 02 frame 0 · captured fault context, not current live data")
+                        .font(.caption)
+                        .foregroundStyle(MBBrand.muted)
+
+                    if !connection.freezeFrameContext.isEmpty {
+                        ForEach(connection.freezeFrameContext, id: \.self) { item in
+                            Text(item)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(MBBrand.silver)
+                                .textSelection(.enabled)
+                        }
+                    } else if connection.obdFaultScanComplete &&
+                                connection.storedFaults.isEmpty {
+                        statusRow("Not required — no stored OBD fault was reported",
+                                  symbol: "checkmark.circle",
+                                  colour: MBBrand.muted)
+                    } else if connection.obdFaultScanComplete {
+                        statusRow("No Mode 02 freeze-frame values were available",
+                                  symbol: "minus.circle",
+                                  colour: MBBrand.warning)
+                    } else {
+                        statusRow("Freeze-frame context has not been collected",
+                                  symbol: "clock",
+                                  colour: MBBrand.muted)
+                    }
+                }
+            }
+        }
     }
 
     private func faultPanel(_ title: String, faults: [DiagnosticFault]) -> some View {
@@ -1125,31 +1209,72 @@ private struct MBFaultsView: View {
                                   symbol: "checkmark.circle.fill",
                                   colour: MBBrand.success)
                     } else if connection.obdFaultScanFailed {
-                        statusRow("Standard OBD fault scan failed",
+                        statusRow("Scan failed — no clean result inferred",
                                   symbol: "exclamationmark.triangle.fill",
                                   colour: MBBrand.fault)
                     } else {
-                        statusRow("Standard OBD fault scan not complete",
+                        statusRow("Not scanned / scan still in progress",
                                   symbol: "clock.fill",
                                   colour: MBBrand.muted)
                     }
                 } else {
                     ForEach(faults) { fault in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(fault.code)
-                                .font(.body.monospaced().weight(.bold))
-                                .foregroundStyle(MBBrand.silverBright)
-                            Text(fault.title)
-                                .font(.subheadline)
-                                .foregroundStyle(MBBrand.silver)
-                            Text("\(fault.system) · \(fault.category) · \(fault.origin)")
-                                .font(.caption)
-                                .foregroundStyle(MBBrand.muted)
+                        diagnosticFaultCard(fault)
+                        if fault.id != faults.last?.id {
+                            Divider().overlay(MBBrand.line)
                         }
                     }
                 }
             }
         }
+    }
+
+    private func diagnosticFaultCard(_ fault: DiagnosticFault) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(fault.code)
+                    .font(.title3.monospaced().weight(.bold))
+                    .foregroundStyle(MBBrand.silverBright)
+                    .textSelection(.enabled)
+                Spacer()
+                Text(fault.state.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(MBBrand.muted)
+            }
+
+            Text(fault.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(MBBrand.silver)
+
+            HStack(spacing: 7) {
+                Text(fault.system)
+                Text("·")
+                Text(fault.category)
+            }
+            .font(.caption)
+            .foregroundStyle(MBBrand.muted)
+
+            HStack(spacing: 7) {
+                Text(fault.origin)
+                Text("·")
+                Text(fault.source)
+            }
+            .font(.caption)
+            .foregroundStyle(MBBrand.muted)
+
+            Label(
+                fault.definitionKnown
+                    ? "Definition resolved; raw code preserved"
+                    : "Definition unknown; raw code preserved",
+                systemImage: fault.definitionKnown
+                    ? "checkmark.seal.fill"
+                    : "questionmark.diamond.fill")
+                .font(.caption)
+                .foregroundStyle(fault.definitionKnown
+                                 ? MBBrand.success
+                                 : MBBrand.warning)
+        }
+        .padding(.vertical, 3)
     }
 
     private func statusRow(_ text: String, symbol: String, colour: Color) -> some View {
