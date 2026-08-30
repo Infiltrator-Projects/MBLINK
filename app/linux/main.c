@@ -1311,21 +1311,16 @@ static void append_preference_dropdown(
     GtkWidget *row;
     GtkWidget *copy;
     GtkWidget *dropdown;
-    GtkStringList *model;
-    size_t index;
 
     if (card == NULL || choices == NULL || context == NULL) return;
     row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14);
     copy = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    model = gtk_string_list_new(NULL);
-    for (index = 0U; choices[index] != NULL; ++index)
-        gtk_string_list_append(model, choices[index]);
     /*
-     * gtk_drop_down_new() takes ownership of model. Releasing it here used to
-     * leave the dropdown pointing at freed storage; the resulting delayed
-     * failure matches the field coredumps in g_list_model_get_n_items().
+     * Use GTK's string constructor so MBLINK never has to manage a
+     * GtkDropDown model reference here. This permanently removes the ownership
+     * mistake that produced the field g_list_model_get_n_items() crashes.
      */
-    dropdown = gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+    dropdown = gtk_drop_down_new_from_strings(choices);
 
     gtk_widget_add_css_class(row, "link-settings-row");
     gtk_widget_add_css_class(row, "mblink-settings-row");
