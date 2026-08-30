@@ -1755,6 +1755,59 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     }
 }
 
+static bool verify_display_preferences(void)
+{
+    MblinkLinuxContext context = {0};
+    LinkObd2Sample sample = {0};
+    char value[96];
+
+    context.temperature_unit = MBLINK_TEMP_FAHRENHEIT;
+    sample.unit = LINK_OBD2_UNIT_CELSIUS;
+    sample.value = 100.0;
+    format_sample(&sample, &context, value, sizeof(value));
+    if (strcmp(value, "212.0 °F") != 0) return false;
+
+    context.pressure_unit = MBLINK_PRESSURE_BAR;
+    sample.unit = LINK_OBD2_UNIT_KPA;
+    sample.value = 250.0;
+    format_sample(&sample, &context, value, sizeof(value));
+    if (strcmp(value, "2.50 bar") != 0) return false;
+
+    context.speed_unit = MBLINK_SPEED_MPH;
+    sample.unit = LINK_OBD2_UNIT_KMH;
+    sample.value = 100.0;
+    format_sample(&sample, &context, value, sizeof(value));
+    if (strcmp(value, "62.1 mph") != 0) return false;
+
+    context.air_mass_unit = MBLINK_AIR_MASS_LB_PER_MINUTE;
+    sample.unit = LINK_OBD2_UNIT_GRAMS_PER_SECOND;
+    sample.value = 10.0;
+    format_sample(&sample, &context, value, sizeof(value));
+    if (strcmp(value, "1.32 lb/min") != 0) return false;
+
+    context.fuel_rate_unit = MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR;
+    sample.unit = LINK_OBD2_UNIT_LITRES_PER_HOUR;
+    sample.value = 10.0;
+    format_sample(&sample, &context, value, sizeof(value));
+    if (strcmp(value, "2.20 Imp gal/h") != 0) return false;
+
+    context.fuel_economy_unit = MBLINK_FUEL_ECONOMY_MPG_IMPERIAL;
+    format_fuel_economy(10.0, &context, value, sizeof(value));
+    if (strcmp(value, "28.2 mpg (Imp)") != 0) return false;
+
+    context.distance_unit = MBLINK_DISTANCE_MILES;
+    format_distance(100.0, &context, value, sizeof(value));
+    if (strcmp(value, "62.1 mi") != 0) return false;
+
+    context.fuel_volume_unit = MBLINK_FUEL_VOLUME_US_GALLONS;
+    format_fuel_volume(10.0, &context, value, sizeof(value));
+    if (strcmp(value, "2.64 US gal") != 0) return false;
+
+    (void)printf(
+        "MBLINK settings verified: 8 independent measurement preferences\n");
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     MblinkLinuxContext context = {0};
@@ -1762,21 +1815,33 @@ int main(int argc, char **argv)
     LinkGtkShellDescriptor descriptor = {0};
     bool replay_mode = false;
     bool replay_verify = false;
+    bool settings_verify = false;
     int index;
 
     for (index = 1; index < argc; ++index) {
-        if (strcmp(argv[index], "--replay-c207") == 0 ||
-            strcmp(argv[index], "--replay-c207-verify") == 0) {
+        const bool replay_argument =
+            strcmp(argv[index], "--replay-c207") == 0 ||
+            strcmp(argv[index], "--replay-c207-verify") == 0;
+        const bool settings_argument =
+            strcmp(argv[index], "--ui-settings-verify") == 0;
+        if (replay_argument || settings_argument) {
             int move;
-            replay_mode = true;
-            if (strcmp(argv[index], "--replay-c207-verify") == 0)
-                replay_verify = true;
+            if (replay_argument) {
+                replay_mode = true;
+                if (strcmp(argv[index], "--replay-c207-verify") == 0)
+                    replay_verify = true;
+            } else {
+                settings_verify = true;
+            }
             for (move = index; move + 1 < argc; ++move)
                 argv[move] = argv[move + 1];
             --argc;
             --index;
         }
     }
+
+    if (settings_verify)
+        return verify_display_preferences() ? 0 : 5;
 
     context.replay_mode = replay_mode;
     context.replay_verify = replay_verify;

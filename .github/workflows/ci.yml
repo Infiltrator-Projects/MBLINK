@@ -107,6 +107,13 @@ jobs:
           set -euo pipefail
           ldd ./build-linux/mblink-linux | grep -F 'libusb-1.0.so' >/dev/null
           grep -aF 'OP2:Tactrix OpenPort 2.0' ./build-linux/mblink-linux >/dev/null
+      - name: Verify independent display preferences
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build-linux/mblink-linux --ui-settings-verify | tee "$RUNNER_TEMP/settings-verify.log"
+          grep -Fq 'MBLINK settings verified: 8 independent measurement preferences' "$RUNNER_TEMP/settings-verify.log"
+
       - name: Verify offline C207 replay reaches visible ORC fault
         shell: bash
         run: |
