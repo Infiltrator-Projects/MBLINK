@@ -126,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/navigation-stress.log"
-          G_DEBUG=fatal-warnings timeout 20s xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
+          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 20s xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
           grep -Fq 'sidebar selections while disconnected with main-loop interleaving' "$log"
       - name: Verify Linux About and branding
