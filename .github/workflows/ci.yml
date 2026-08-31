@@ -313,7 +313,7 @@ jobs:
           grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.53"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.54"
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
