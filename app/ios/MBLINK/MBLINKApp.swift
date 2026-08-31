@@ -1677,10 +1677,13 @@ private struct MBModuleLiveDataView: View {
                     value: manufacturerValues.isEmpty
                         ? (scanningThisModule ? "Scanning" : "Not scanned")
                         : "\(manufacturerValues.count) positive")
-                if !supportedParameters.isEmpty {
+                if module.obdAdvertisedPIDCount > 0 {
                     MBInfoRow(
-                        label: "Standard OBD-II",
-                        value: "\(supportedParameters.count) advertised PID\(supportedParameters.count == 1 ? "" : "s")")
+                        label: "OBD capability codes",
+                        value: "\(module.obdAdvertisedPIDCount) advertised")
+                    MBInfoRow(
+                        label: "Decoded live values",
+                        value: "\(supportedParameters.count) selectable")
                 }
             }
         }
