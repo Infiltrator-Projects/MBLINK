@@ -115,6 +115,8 @@ private struct MBSectionHeader: View {
 }
 
 private struct MBInfoRow: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let label: String
     let value: String
     var monospaced = false
@@ -129,31 +131,42 @@ private struct MBInfoRow: View {
             .textSelection(.enabled)
     }
 
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text(LocalizedStringKey(label))
-                    .font(.subheadline)
-                    .foregroundStyle(MBBrand.muted)
-                    .fixedSize(horizontal: true, vertical: false)
-                Spacer(minLength: 12)
-                valueText
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 250, alignment: .trailing)
-            }
+    private var compactLabel: some View {
+        Text(LocalizedStringKey(label))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(MBBrand.muted)
+            .textCase(.uppercase)
+            .tracking(0.45)
+    }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(LocalizedStringKey(label))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(MBBrand.muted)
-                    .textCase(.uppercase)
-                    .tracking(0.45)
-                valueText
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    var body: some View {
+        Group {
+            /*
+             * Do not let long Mercedes evidence fight a two-column layout on
+             * iPhone.  Compact-width screens always give the value the full
+             * panel width; regular-width screens retain the denser row form.
+             */
+            if horizontalSizeClass == .compact {
+                VStack(alignment: .leading, spacing: 5) {
+                    compactLabel
+                    valueText
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(LocalizedStringKey(label))
+                        .font(.subheadline)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 16)
+                    valueText
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 420, alignment: .trailing)
+                }
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
     }
 }
 
@@ -1409,60 +1422,84 @@ private struct MBLiveDataView: View {
     }
 
     private func liveRow(_ parameter: DiagnosticParameter) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(LocalizedStringKey(parameter.title))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(MBBrand.silverBright)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 10)
+        VStack(alignment: .leading, spacing: 8) {
+            /*
+             * Title owns a complete line.  The previous compact row allowed
+             * the value, Poll switch and favourite button to squeeze long
+             * names into a few characters of width, producing the vertical
+             * word-stacking seen in real iPhone captures.
+             */
+            Text(LocalizedStringKey(parameter.title))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(MBBrand.silverBright)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .center, spacing: 12) {
                 Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
-                    .font(.subheadline.monospacedDigit().weight(.bold))
+                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundStyle(
                         parameter.pollingEnabled && parameter.isAvailable
                             ? MBBrand.silverBright : MBBrand.muted)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.68)
                     .layoutPriority(2)
+
+                Spacer(minLength: 10)
+
+                HStack(spacing: 7) {
+                    Text("Poll")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(MBBrand.muted)
+
+                    Toggle("", isOn: Binding(
+                        get: { parameter.pollingEnabled },
+                        set: { connection.setPolling($0, stableKey: parameter.id) }
+                    ))
+                    .labelsHidden()
+                    .tint(MBBrand.success)
+                    .controlSize(.small)
+
+                    Button {
+                        connection.toggleFavourite(stableKey: parameter.id)
+                    } label: {
+                        Image(systemName: parameter.favourite ? "star.fill" : "star")
+                            .font(.title3)
+                            .foregroundStyle(
+                                parameter.favourite
+                                    ? MBBrand.silverBright : MBBrand.muted)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
 
-            HStack(spacing: 10) {
-                Text("\(parameter.shortName) · \(parameter.brandSourceText)" +
-                     (parameter.isSupported ? "" : " · not advertised"))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(parameter.isSupported ? MBBrand.muted : MBBrand.warning)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+            Text("\(parameter.shortName) · \(parameter.brandSourceText)" +
+                 (parameter.isSupported ? "" : " · not advertised"))
+                .font(.caption.monospaced())
+                .foregroundStyle(parameter.isSupported ? MBBrand.muted : MBBrand.warning)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 8)
+            if let source = parameter.sourceLabel {
+                Label(source, systemImage: "cpu")
+                    .font(.caption2.monospaced().weight(.semibold))
+                    .foregroundStyle(MBBrand.silver)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-                Text("Poll")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(MBBrand.muted)
-
-                Toggle("", isOn: Binding(
-                    get: { parameter.pollingEnabled },
-                    set: { connection.setPolling($0, stableKey: parameter.id) }
-                ))
-                .labelsHidden()
-                .tint(MBBrand.success)
-                .controlSize(.small)
-
-                Button {
-                    connection.toggleFavourite(stableKey: parameter.id)
-                } label: {
-                    Image(systemName: parameter.favourite ? "star.fill" : "star")
-                        .font(.title3)
-                        .foregroundStyle(
-                            parameter.favourite
-                                ? MBBrand.silverBright : MBBrand.muted)
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(.plain)
+            if let qualityNote = parameter.qualityNote {
+                Label(qualityNote, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(MBBrand.warning)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
     }
+
 }
 
 private struct MBDataTableView: View {
@@ -1678,6 +1715,7 @@ private struct MBGraphsView: View {
 
 private struct MBEvidenceView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @State private var showingTechnicalDetails = false
 
     var body: some View {
         ZStack {
@@ -1685,20 +1723,49 @@ private struct MBEvidenceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     MBPanel {
-                        VStack(spacing: 4) {
-                            MBInfoRow(label: "Engine endpoint", value: connection.mercedesProbeEndpointText)
-                            MBInfoRow(label: "Mercedes probe", value: connection.mercedesProbeStatusText)
+                        VStack(alignment: .leading, spacing: 4) {
+                            MBSectionHeader(title: "Session summary", kicker: "Vehicle evidence")
                             MBInfoRow(label: "VIN", value: connection.mercedesVINText, monospaced: true)
-                            MBInfoRow(label: "Identity", value: connection.mercedesIdentitySummaryText)
-                            MBInfoRow(label: "CRD3", value: connection.mercedesCrd3SummaryText)
+                            Divider().overlay(MBBrand.line)
+                            MBInfoRow(label: "Mercedes probe", value: connection.mercedesProbeStatusText)
+                            Divider().overlay(MBBrand.line)
                             MBInfoRow(label: "UDS faults", value: connection.mercedesUDSFaultStatusText)
+                            Divider().overlay(MBBrand.line)
                             MBInfoRow(label: "OBD fault scan", value: connection.faultScanStatusText)
+                            Divider().overlay(MBBrand.line)
                             MBInfoRow(label: "Recorded samples", value: "\(connection.recordedSampleCount)")
                         }
                     }
 
                     MBPanel {
-                        VStack(alignment: .leading, spacing: 12) {
+                        DisclosureGroup(isExpanded: $showingTechnicalDetails) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Divider().overlay(MBBrand.line)
+                                    .padding(.vertical, 5)
+                                MBInfoRow(label: "Engine endpoint", value: connection.mercedesProbeEndpointText)
+                                Divider().overlay(MBBrand.line)
+                                MBInfoRow(label: "Identity", value: connection.mercedesIdentitySummaryText)
+                                Divider().overlay(MBBrand.line)
+                                MBInfoRow(label: "CRD3", value: connection.mercedesCrd3SummaryText)
+                            }
+                        } label: {
+                            Label("Technical details", systemImage: "wrench.and.screwdriver")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(MBBrand.silverBright)
+                        }
+                        .tint(MBBrand.silver)
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 11) {
+                            Text("Diagnostic evidence CSV")
+                                .font(.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("Creates a snapshot of the current session without stopping live polling.")
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
                             Button {
                                 connection.prepareCSVExport()
                             } label: {
@@ -1707,18 +1774,26 @@ private struct MBEvidenceView: View {
                                         ProgressView()
                                             .controlSize(.small)
                                     }
-                                    Label("Prepare diagnostic evidence CSV",
+                                    Label("Prepare evidence CSV",
                                           systemImage: "doc.badge.gearshape")
+                                    Spacer()
                                 }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(MBBrand.silverBright)
+                                .padding(.vertical, 3)
                             }
                             .disabled(connection.isPreparingCSV)
+
                             if let exportURL = connection.csvExportURL {
+                                Divider().overlay(MBBrand.line)
                                 ShareLink(item: exportURL) {
-                                    Label("Share diagnostic evidence", systemImage: "square.and.arrow.up")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(MBBrand.silverBright)
+                                    HStack(spacing: 8) {
+                                        Label("Share evidence CSV", systemImage: "square.and.arrow.up")
+                                        Spacer()
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .padding(.vertical, 3)
                                 }
                             }
                         }
