@@ -224,7 +224,7 @@ static int test_telemetry(void)
                  "# adapter_identifier,\"ELM327, test \"\"adapter\"\"\"\n") != NULL);
     CHECK(strstr(output.data,
                  "sequence,timestamp_ms,pid,name,value,unit,favourite\n") != NULL);
-    CHECK(strstr(output.data, ",0x0C,\"Engine speed\",") != NULL);
+    CHECK(strstr(output.data, ",0x0C,\"Engine RPM\",") != NULL);
     CHECK(strstr(output.data, "# diagnostic_transcript\n") != NULL);
     CHECK(strstr(output.data,
                  "timestamp_ms,command,result,response\n") != NULL);
