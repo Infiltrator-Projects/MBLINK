@@ -1404,22 +1404,19 @@ private struct MBFaultsView: View {
 
 private struct MBLiveDataView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @State private var scope: MBLiveScope = .available
-    @State private var searchText = ""
 
-    private var filtered: [DiagnosticParameter] {
-        connection.diagnosticParameters.filter { parameter in
-            let scopeMatches: Bool
-            switch scope {
-            case .available: scopeMatches = parameter.isSupported
-            case .favourites: scopeMatches = parameter.favourite
-            case .all: scopeMatches = true
+    private var modules: [DiagnosticModule] {
+        connection.diagnosticModules.sorted {
+            if ($0.livePIDCount > 0) != ($1.livePIDCount > 0) {
+                return $0.livePIDCount > 0
             }
-            guard scopeMatches else { return false }
-            guard !searchText.isEmpty else { return true }
-            return parameter.title.localizedCaseInsensitiveContains(searchText) ||
-                parameter.shortName.localizedCaseInsensitiveContains(searchText) ||
-                parameter.brandPidText.localizedCaseInsensitiveContains(searchText)
+            if $0.livePIDCount != $1.livePIDCount {
+                return $0.livePIDCount > $1.livePIDCount
+            }
+            if $0.requestCANIdentifier != $1.requestCANIdentifier {
+                return $0.requestCANIdentifier < $1.requestCANIdentifier
+            }
+            return $0.name < $1.name
         }
     }
 
@@ -1428,14 +1425,16 @@ private struct MBLiveDataView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Live data", kicker: "Shared parameter catalogue")
+                    MBSectionHeader(
+                        title: "Live data",
+                        kicker: "Choose a control unit")
 
                     MBPanel {
                         HStack(spacing: 18) {
                             NavigationLink {
                                 MBDataTableView()
                             } label: {
-                                Label("Table", systemImage: "tablecells")
+                                Label("Combined table", systemImage: "tablecells")
                             }
                             NavigationLink {
                                 MBGraphsView()
@@ -1452,60 +1451,240 @@ private struct MBLiveDataView: View {
                         .foregroundStyle(MBBrand.silverBright)
                     }
 
-                    Picker("Show", selection: $scope) {
-                        ForEach(MBLiveScope.allCases) { item in
-                            Text(LocalizedStringKey(item.rawValue)).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    ForEach(MBParameterGroup.allCases) { group in
-                        let parameters = filtered.filter { $0.brandGroup == group }
-                        if !parameters.isEmpty {
-                            MBPanel {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
-                                        .font(.headline)
-                                        .foregroundStyle(MBBrand.silverBright)
-                                        .padding(.bottom, 4)
-                                    ForEach(parameters) { parameter in
-                                        liveRow(parameter)
-                                        if parameter.id != parameters.last?.id {
-                                            Divider().overlay(MBBrand.line)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if filtered.isEmpty {
+                    if modules.isEmpty {
                         MBPanel {
-                            Text(scope == .available
-                                 ? (connection.isActive
-                                    ? "No decoded parameters are advertised by the current vehicle."
-                                    : "Connect to the vehicle to discover supported parameters.")
-                                 : "No matching parameters.")
+                            Text(connection.isActive
+                                 ? "Control-unit discovery is still in progress. Each responding ECU will appear here with its own supported PID list."
+                                 : "Connect to the vehicle to discover control units and their supported PIDs.")
                                 .font(.subheadline)
                                 .foregroundStyle(MBBrand.silver)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        ForEach(modules) { module in
+                            NavigationLink {
+                                MBModuleLiveDataView(moduleID: module.id)
+                            } label: {
+                                moduleCard(module)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        MBPanel {
+                            Text("PID availability is kept per responding ECU. If two modules answer the same SAE PID, MBLINK keeps their values separate instead of collapsing them into one device.")
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
                 .padding(16)
             }
         }
-        .searchable(text: $searchText, prompt: "Parameter, PID or name")
         .mbDiagnosticScreen("Live Data")
+    }
+
+    private func moduleCard(_ module: DiagnosticModule) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: module.symbol)
+                .font(.title2)
+                .foregroundStyle(MBBrand.silverBright)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(module.name)
+                    .font(.headline)
+                    .foregroundStyle(MBBrand.silverBright)
+                    .multilineTextAlignment(.leading)
+
+                if !module.designation.isEmpty {
+                    Text(module.designation)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(MBBrand.silver)
+                }
+
+                Text("\(module.addressText) · \(module.protocolName)")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label(
+                    module.livePIDCount > 0
+                        ? "\(module.livePIDCount) advertised PID\(module.livePIDCount == 1 ? "" : "s")"
+                        : "No live PIDs captured",
+                    systemImage: module.livePIDCount > 0
+                        ? "waveform.path.ecg"
+                        : "minus.circle")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(module.livePIDCount > 0
+                                     ? MBBrand.silver : MBBrand.muted)
+            }
+
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(MBBrand.muted)
+                .padding(.top, 8)
+        }
+        .padding(15)
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(MBBrand.panel))
+        .overlay(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(MBBrand.line, lineWidth: 1))
+    }
+}
+
+private struct MBModuleLiveDataView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+    let moduleID: String
+
+    @State private var scope: MBLiveScope = .available
+    @State private var searchText = ""
+
+    private var module: DiagnosticModule? {
+        connection.diagnosticModule(id: moduleID)
+    }
+
+    private var allParameters: [DiagnosticParameter] {
+        connection.moduleParameters(moduleID: moduleID)
+    }
+
+    private var filtered: [DiagnosticParameter] {
+        allParameters.filter { parameter in
+            let scopeMatches: Bool
+            switch scope {
+            case .available:
+                scopeMatches = parameter.isSupported
+            case .favourites:
+                scopeMatches = parameter.isSupported && parameter.favourite
+            case .all:
+                scopeMatches = true
+            }
+
+            guard scopeMatches else { return false }
+            guard !searchText.isEmpty else { return true }
+
+            return parameter.title.localizedCaseInsensitiveContains(searchText) ||
+                parameter.shortName.localizedCaseInsensitiveContains(searchText) ||
+                parameter.brandPidText.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    private var supportedCount: Int {
+        allParameters.filter(\.isSupported).count
+    }
+
+    private var selectedCount: Int {
+        allParameters.filter { $0.isSupported && $0.pollingEnabled }.count
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                if let module {
+                    VStack(alignment: .leading, spacing: 15) {
+                        MBSectionHeader(
+                            title: module.name,
+                            kicker: "PID selection")
+
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 8) {
+                                MBInfoRow(label: "CAN route", value: module.addressText)
+                                MBInfoRow(label: "Protocol", value: module.protocolName)
+                                MBInfoRow(label: "Advertised PIDs", value: "\(supportedCount)")
+                                MBInfoRow(label: "Selected for polling", value: "\(selectedCount)")
+
+                                if !module.designation.isEmpty {
+                                    Divider().overlay(MBBrand.line)
+                                    Text(module.designation)
+                                        .font(.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
+                        Picker("Show", selection: $scope) {
+                            ForEach(MBLiveScope.allCases) { item in
+                                Text(LocalizedStringKey(item.rawValue)).tag(item)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        ForEach(MBParameterGroup.allCases) { group in
+                            let parameters = filtered.filter {
+                                $0.brandGroup == group
+                            }
+                            if !parameters.isEmpty {
+                                MBPanel {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Label(
+                                            LocalizedStringKey(group.rawValue),
+                                            systemImage: group.symbol)
+                                            .font(.headline)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                            .padding(.bottom, 4)
+
+                                        ForEach(parameters) { parameter in
+                                            liveRow(parameter)
+                                            if parameter.id != parameters.last?.id {
+                                                Divider().overlay(MBBrand.line)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if filtered.isEmpty {
+                            MBPanel {
+                                Text(emptyMessage(module: module))
+                                    .font(.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        MBPanel {
+                            Text("SAE Mode 01 is functionally addressed, so one PID request can produce replies from more than one ECU. MBLINK records those replies against the exact responder shown above; the selector is organised by ECU so you can see which module actually advertises and returns each value.")
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(16)
+                } else {
+                    MBPanel {
+                        Text("This control unit is no longer present in the active vehicle profile.")
+                            .font(.subheadline)
+                            .foregroundStyle(MBBrand.silver)
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .searchable(text: $searchText, prompt: "Parameter, PID or name")
+        .mbDiagnosticScreen(module?.name ?? "PID Selection")
+    }
+
+    private func emptyMessage(module: DiagnosticModule) -> String {
+        switch scope {
+        case .available:
+            return module.livePIDCount == 0
+                ? "This ECU is responding, but no standard live-data PIDs have been captured from it yet."
+                : "No advertised PIDs match the current search."
+        case .favourites:
+            return "No favourite PIDs from this ECU match the current search."
+        case .all:
+            return "No catalogue entries match the current search."
+        }
     }
 
     private func liveRow(_ parameter: DiagnosticParameter) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            /*
-             * Title owns a complete line.  The previous compact row allowed
-             * the value, Poll switch and favourite button to squeeze long
-             * names into a few characters of width, producing the vertical
-             * word-stacking seen in real iPhone captures.
-             */
             Text(LocalizedStringKey(parameter.title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(MBBrand.silverBright)
@@ -1516,9 +1695,8 @@ private struct MBLiveDataView: View {
                 Text(parameter.presentationValue)
                     .font(.system(size: 21, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(
-                        parameter.pollingEnabled && parameter.isAvailable
-                            ? MBBrand.silverBright : MBBrand.muted)
+                    .foregroundStyle(parameter.hasLiveValue
+                                     ? MBBrand.silverBright : MBBrand.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
                     .layoutPriority(2)
@@ -1532,7 +1710,10 @@ private struct MBLiveDataView: View {
 
                     Toggle("", isOn: Binding(
                         get: { parameter.pollingEnabled },
-                        set: { connection.setPolling($0, stableKey: parameter.id) }
+                        set: {
+                            connection.setPolling(
+                                $0, stableKey: parameter.id)
+                        }
                     ))
                     .labelsHidden()
                     .tint(MBBrand.success)
@@ -1541,11 +1722,12 @@ private struct MBLiveDataView: View {
                     Button {
                         connection.toggleFavourite(stableKey: parameter.id)
                     } label: {
-                        Image(systemName: parameter.favourite ? "star.fill" : "star")
+                        Image(systemName: parameter.favourite
+                              ? "star.fill" : "star")
                             .font(.title3)
-                            .foregroundStyle(
-                                parameter.favourite
-                                    ? MBBrand.silverBright : MBBrand.muted)
+                            .foregroundStyle(parameter.favourite
+                                             ? MBBrand.silverBright
+                                             : MBBrand.muted)
                             .frame(width: 30, height: 30)
                     }
                     .buttonStyle(.plain)
@@ -1553,19 +1735,13 @@ private struct MBLiveDataView: View {
                 .fixedSize(horizontal: true, vertical: false)
             }
 
-            Text("\(parameter.shortName) · \(parameter.brandSourceText)" +
-                 (parameter.isSupported ? "" : " · not advertised"))
+            Text("\(parameter.shortName) · \(parameter.brandPidText)" +
+                 (parameter.isSupported ? "" : " · not advertised by this ECU"))
                 .font(.caption.monospaced())
-                .foregroundStyle(parameter.isSupported ? MBBrand.muted : MBBrand.warning)
+                .foregroundStyle(parameter.isSupported
+                                 ? MBBrand.muted : MBBrand.warning)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let source = parameter.sourceLabel {
-                Label(source, systemImage: "cpu")
-                    .font(.caption2.monospaced().weight(.semibold))
-                    .foregroundStyle(MBBrand.silver)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
 
             if let qualityNote = parameter.qualityNote {
                 Label(qualityNote, systemImage: "exclamationmark.triangle.fill")
@@ -1576,7 +1752,6 @@ private struct MBLiveDataView: View {
         }
         .padding(.vertical, 9)
     }
-
 }
 
 private struct MBDataTableView: View {
