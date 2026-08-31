@@ -1023,11 +1023,11 @@ static bool MBLinkSimulatorResponder(
     }
 
     /*
-     * A completed scan is intentionally cached for the current connection.
-     * Reopening a module must not fire another 256-request sweep.
+     * Keep the last values visible, but permit an explicit refresh.  When a
+     * module has already completed a discovery pass the next scan re-reads only
+     * those module-scoped identifiers that previously returned positive data,
+     * avoiding another 256-request sweep.
      */
-    if (_manufacturerDataByModule[identifier] != nil) return;
-
     const NSUInteger generation = ++_manufacturerDataRequestGeneration;
     self.manufacturerDataScanModuleIdentifier = identifier;
     self.manufacturerDataScanStatusText =
@@ -1086,9 +1086,38 @@ static bool MBLinkSimulatorResponder(
             module->extended_id,
             mblink_mercedes_module_scan_entry_protocol(module),
             module->kind);
-    MblinkMercedesDataScanResult result =
-        mblink_mercedes_data_scan_begin(
+    NSArray<MBLinkMercedesDataSnapshot *> *knownValues =
+        _manufacturerDataByModule[identifier];
+    BOOL targetedRefresh =
+        knownValues.count > 0U &&
+        knownValues.count <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
+    MblinkMercedesDataScanResult result;
+
+    if (targetedRefresh) {
+        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t identifierCount = 0U;
+        for (MBLinkMercedesDataSnapshot *snapshot in knownValues) {
+            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+                break;
+            identifiers[identifierCount++] = snapshot.identifier;
+        }
+        result = mblink_mercedes_data_scan_begin_identifiers(
+            &_manufacturerDataScan, &config,
+            identifiers, identifierCount);
+        if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+            /*
+             * Cached presentation data must never make discovery impossible.
+             * If a stale/invalid cached list cannot initialise, fall back to
+             * the normal bounded range scan.
+             */
+            targetedRefresh = NO;
+            result = mblink_mercedes_data_scan_begin(
+                &_manufacturerDataScan, &config);
+        }
+    } else {
+        result = mblink_mercedes_data_scan_begin(
             &_manufacturerDataScan, &config);
+    }
     if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
@@ -1101,11 +1130,19 @@ static bool MBLinkSimulatorResponder(
     }
 
     self.manufacturerDataScanActive = YES;
-    self.manufacturerDataScanStatusText = [NSString stringWithFormat:
-        @"Reading Mercedes manufacturer data · %@",
-        MBLinkStringFromCString(
-            mblink_mercedes_data_scan_stage_name(
-                _manufacturerDataScan.stage))];
+    self.manufacturerDataScanStatusText = targetedRefresh
+        ? [NSString stringWithFormat:
+            @"Refreshing %zu known-positive Mercedes data ID%@ · %@",
+            _manufacturerDataScan.identifier_count,
+            _manufacturerDataScan.identifier_count == 1U ? @"" : @"s",
+            MBLinkStringFromCString(
+                mblink_mercedes_data_scan_stage_name(
+                    _manufacturerDataScan.stage))]
+        : [NSString stringWithFormat:
+            @"Reading Mercedes manufacturer data · %@",
+            MBLinkStringFromCString(
+                mblink_mercedes_data_scan_stage_name(
+                    _manufacturerDataScan.stage))];
     [self notifyDelegate];
     [self beginCurrentMercedesDataScanCommand];
 }
