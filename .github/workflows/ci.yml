@@ -288,6 +288,7 @@ jobs:
           grep -Fq 'MBLinkVehicleProfileSchemaVersion = 4' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'flowConfig.preserve_pid_discovery_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'link_obd2_decode_live_pid_responders' src/link/src/obd2/obd2.c
           grep -Fq 'LinkResponderTelemetryStore' src/link/platform/apple/LinkDiagnosticsController.m
           grep -Fq 'mercedesModuleSnapshots' platform/apple/MBLinkDiagnosticsController.m
@@ -299,7 +300,7 @@ jobs:
           grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
-          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.49"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.14.50"
           grep -Fq 'LINK_MERCEDES_ME_NUS_SERVICE_UUID' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'LINK_MERCEDES_ME_REFERENCE_CLASSIC_CONNECT_TIMEOUT_MS 44000U' src/link/include/link/mercedes_me_adapter.h
           grep -Fq 'link_mercedes_me_adapter_family_from_name' src/link/src/core/mercedes_me_adapter.c
@@ -311,7 +312,7 @@ jobs:
           ! grep -Fq 'MBLINK_IMPLEMENTATION_REVISION' src/core/mblink.c
           ! grep -Fq 'MBLINK_EMBEDDED_LINK_VERSION' src/core/mblink.c
           grep -Fq '#define MBLINK_EMBEDDED_LINK_REVISION' src/core/mblink.c
-          grep -Fq '"efbab05191bcc973567624a6d25b775626b8723c"' src/core/mblink.c
+          grep -Fq '"6bf9a6b126883226f7cd96479c93486b92229da1"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c

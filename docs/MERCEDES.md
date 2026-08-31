@@ -483,7 +483,7 @@ positive manufacturer identifiers are deliberately shown as `RAW` until the
 Whisper/CAESAR definition or a reproducible vehicle mapping proves their
 meaning.
 
-LINK 0.14.48 adds the product-neutral ability to pause an idle live scheduler,
+LINK 0.14.50 retains responder-specific OBD capability masks and also adds the product-neutral ability to pause an idle live scheduler,
 enter a read-only manufacturer extension, perform physical-ECU reads, restore
 the adapter and resume the existing standard live schedule without losing OBD
 capability or fault state. MBLINK owns the Mercedes scan plan and all semantic
