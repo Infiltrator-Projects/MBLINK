@@ -1584,10 +1584,18 @@ private struct MBDashboardView: View {
 }
 
 private struct MBDieselView: View {
+    private enum Scope: String, CaseIterable, Identifiable {
+        case vehicle = "Vehicle targets"
+        case mercedesMe = "Mercedes me IDs"
+        var id: String { rawValue }
+    }
+
     @EnvironmentObject private var connection: ConnectionViewModel
     @State private var searchText = ""
+    @State private var scope: Scope = .vehicle
 
     private var targetSignals: [MercedesTargetSignal] {
+        guard scope == .vehicle else { return [] }
         guard !searchText.isEmpty else { return connection.mercedesTargetSignals }
         return connection.mercedesTargetSignals.filter {
             $0.title.localizedCaseInsensitiveContains(searchText) ||
@@ -1595,9 +1603,27 @@ private struct MBDieselView: View {
             $0.status.localizedCaseInsensitiveContains(searchText)
         }
     }
-    private var targetCategories: [String] { Array(Set(targetSignals.map(\.category))).sorted() }
+
+    private var nativeIdentities: [MercedesNativeDataIdentity] {
+        guard scope == .mercedesMe else { return [] }
+        let values = connection.mercedesNativeDataIdentities
+        guard !searchText.isEmpty else {
+            return values.sorted { $0.symbol < $1.symbol }
+        }
+        return values.filter {
+            $0.symbol.localizedCaseInsensitiveContains(searchText) ||
+            $0.dataID.localizedCaseInsensitiveContains(searchText)
+        }.sorted { $0.symbol < $1.symbol }
+    }
+
+    private var targetCategories: [String] {
+        Array(Set(targetSignals.map(\.category))).sorted()
+    }
+
     private var mappedCount: Int {
-        connection.mercedesTargetSignals.filter { $0.status != "corroborated-unmapped" }.count
+        connection.mercedesTargetSignals.filter {
+            $0.status != "corroborated-unmapped"
+        }.count
     }
 
     var body: some View {
@@ -1605,56 +1631,154 @@ private struct MBDieselView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "OM651 factory data", kicker: "Evidence-backed target catalogue")
+                    MBSectionHeader(title: "Factory data", kicker: "Mercedes-Benz evidence catalogue")
+
                     MBPanel {
                         VStack(spacing: 4) {
-                            MBInfoRow(label: "Known value identities", value: "\(connection.mercedesTargetSignals.count)")
-                            MBInfoRow(label: "Mapping candidates / verified", value: "\(mappedCount)")
-                            MBInfoRow(label: "Automatically polled", value: "Only vehicle-verified mappings")
+                            MBInfoRow(label: "OM651 vehicle targets",
+                                      value: "\(connection.mercedesTargetSignals.count)")
+                            MBInfoRow(label: "Mercedes me identities",
+                                      value: "\(connection.mercedesNativeDataIdentities.count)")
+                            MBInfoRow(label: "Mapped / verified targets",
+                                      value: "\(mappedCount)")
                         }
                     }
 
-                    ForEach(targetCategories, id: \.self) { category in
-                        let signals = targetSignals.filter { $0.category == category }
-                        if !signals.isEmpty {
-                            MBPanel {
-                                VStack(alignment: .leading, spacing: 9) {
-                                    Text(category.uppercased()).font(.caption2.weight(.bold)).tracking(0.9).foregroundStyle(MBBrand.muted)
-                                    ForEach(signals) { signal in
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            HStack(alignment: .firstTextBaseline) {
-                                                Text(signal.title).font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silverBright)
-                                                Spacer(minLength: 8)
-                                                Text(statusLabel(signal.status))
-                                                    .font(.caption2.monospaced().weight(.bold))
-                                                    .foregroundStyle(signal.status == "vehicle-verified" ? MBBrand.success : MBBrand.warning)
-                                            }
-                                            if signal.status != "corroborated-unmapped" {
-                                                Text(signal.provenance).font(.caption2).foregroundStyle(MBBrand.muted)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                        }
-                                        .padding(.vertical, 5)
-                                        if signal.id != signals.last?.id { Divider().overlay(MBBrand.line) }
-                                    }
-                                }
-                            }
+                    Picker("Factory data source", selection: $scope) {
+                        ForEach(Scope.allCases) { item in
+                            Text(item.rawValue).tag(item)
                         }
                     }
+                    .pickerStyle(.segmented)
 
-                    if targetSignals.isEmpty {
-                        MBPanel { Text("No factory-data targets match the current search.").font(.subheadline).foregroundStyle(MBBrand.silver) }
+                    if scope == .vehicle {
+                        vehicleTargets
+                    } else {
+                        mercedesMeIdentities
                     }
+
                     MBPanel {
-                        Text("Factory identities are evidence targets, not guessed live values. MBLINK only polls a manufacturer value after its request, response shape, scale and meaning are verified.")
-                            .font(.caption).foregroundStyle(MBBrand.muted)
+                        Text(scope == .vehicle
+                             ? "Vehicle targets are manufacturer values known to exist on the OM651/CDID3 family. MBLINK only polls a value after its request, response shape, scale and meaning are verified."
+                             : "Mercedes me IDs are exact model identifiers recovered from the official diagnostic stack. They prove the factory framework knew the value; they do not by themselves prove a CAN address, UDS/KWP request, payload layout or scale.")
+                            .font(.caption)
+                            .foregroundStyle(MBBrand.muted)
                     }
                 }
                 .padding(16)
             }
         }
-        .searchable(text: $searchText, prompt: "Factory value or category")
+        .searchable(
+            text: $searchText,
+            prompt: scope == .vehicle
+                ? "Factory value or category"
+                : "Mercedes me identity")
         .mbDiagnosticScreen("Factory Data")
+    }
+
+    @ViewBuilder
+    private var vehicleTargets: some View {
+        ForEach(targetCategories, id: \.self) { category in
+            let signals = targetSignals.filter { $0.category == category }
+            if !signals.isEmpty {
+                MBPanel {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(category.uppercased())
+                            .font(.caption2.weight(.bold))
+                            .tracking(0.9)
+                            .foregroundStyle(MBBrand.muted)
+
+                        ForEach(signals) { signal in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(signal.title)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Spacer(minLength: 8)
+                                    Text(statusLabel(signal.status))
+                                        .font(.caption2.monospaced().weight(.bold))
+                                        .foregroundStyle(signal.status == "vehicle-verified"
+                                                         ? MBBrand.success : MBBrand.warning)
+                                }
+                                if signal.status != "corroborated-unmapped" {
+                                    Text(signal.provenance)
+                                        .font(.caption2)
+                                        .foregroundStyle(MBBrand.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(.vertical, 5)
+
+                            if signal.id != signals.last?.id {
+                                Divider().overlay(MBBrand.line)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if targetSignals.isEmpty {
+            MBPanel {
+                Text("No vehicle factory-data targets match the current search.")
+                    .font(.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mercedesMeIdentities: some View {
+        if nativeIdentities.isEmpty {
+            MBPanel {
+                Text("No Mercedes me data identities match the current search.")
+                    .font(.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+            }
+        } else {
+            MBPanel {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(nativeIdentities) { identity in
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(nativeTitle(identity.symbol))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text(identity.dataID)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(MBBrand.silver)
+                                    .textSelection(.enabled)
+                                Text(identity.symbol)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(MBBrand.muted)
+                                    .textSelection(.enabled)
+                            }
+                            Spacer(minLength: 8)
+                            Text("KNOWN ID")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(MBBrand.silver)
+                        }
+                        .padding(.vertical, 8)
+
+                        if identity.id != nativeIdentities.last?.id {
+                            Divider().overlay(MBBrand.line)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func nativeTitle(_ symbol: String) -> String {
+        let acronyms: Set<String> = [
+            "ABS", "BT", "CAN", "DCS", "ECU", "HIL", "ID",
+            "MMC", "OBD", "RPM", "SAM", "TM", "VIN"
+        ]
+        return symbol.split(separator: "_").map { part in
+            let word = String(part)
+            if acronyms.contains(word) { return word }
+            return word.prefix(1) + word.dropFirst().lowercased()
+        }.joined(separator: " ")
     }
 
     private func statusLabel(_ status: String) -> String {

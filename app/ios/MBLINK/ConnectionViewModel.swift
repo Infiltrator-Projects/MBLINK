@@ -95,6 +95,12 @@ struct MercedesTargetSignal: Identifiable {
     let provenance: String
 }
 
+struct MercedesNativeDataIdentity: Identifiable {
+    let id: String
+    let symbol: String
+    let dataID: String
+}
+
 /// Structured, presentation-ready facts decoded directly from a Mercedes VIN.
 /// Raw diagnostic evidence remains in `mercedesIdentityResults`; the Vehicle
 /// screen uses this model so protocol delimiters never leak into the UI.
@@ -167,6 +173,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var dashboardParameters = [DiagnosticParameter]()
     @Published private(set) var diagnosticModules = [DiagnosticModule]()
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
+    @Published private(set) var mercedesNativeDataIdentities = [MercedesNativeDataIdentity]()
     @Published private(set) var recordedSampleCount = 0
     @Published private(set) var csvExportURL: URL?
     @Published private(set) var isPreparingCSV = false
@@ -237,6 +244,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         applyStoredPollingPolicy()
         controller.delegate = self
         mercedesTargetSignals = loadMercedesTargetSignals()
+        mercedesNativeDataIdentities = loadMercedesNativeDataIdentities()
         refresh()
     }
 
@@ -681,6 +689,25 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 category: string(from: mblink_mercedes_om651_signal_category_name(metadata.category)),
                 status: string(from: mblink_mercedes_om651_signal_status_name(metadata.status)),
                 provenance: string(from: metadata.provenance)))
+        }
+        return result
+    }
+
+    private func loadMercedesNativeDataIdentities() -> [MercedesNativeDataIdentity] {
+        let count = Int(link_mercedes_me_data_id_count())
+        guard count > 0 else { return [] }
+
+        var result = [MercedesNativeDataIdentity]()
+        result.reserveCapacity(count)
+        for index in 0..<count {
+            guard let definition = link_mercedes_me_data_id_at(index) else { continue }
+            let symbol = string(from: definition.pointee.symbol)
+            let dataID = string(from: definition.pointee.data_id)
+            guard !symbol.isEmpty, !dataID.isEmpty else { continue }
+            result.append(MercedesNativeDataIdentity(
+                id: symbol,
+                symbol: symbol,
+                dataID: dataID))
         }
         return result
     }

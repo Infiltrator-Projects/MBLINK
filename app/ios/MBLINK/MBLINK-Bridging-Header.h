@@ -6,3 +6,4 @@
 #include "mblink/mercedes_vin.h"
 #include "mblink/mercedes_om651_api.h"
 #include "link/i18n.h"
+#include "link/mercedes_me_data_ids.h"
