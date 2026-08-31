@@ -143,6 +143,23 @@ int main(void)
     CHECK(link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x4d)));
 
     /*
+     * The exact captured 0x40 support page does NOT advertise PID 0x60.
+     * Re-running this evidence against the expanded 2026 J1979 catalogue must
+     * therefore stop at the 0x40 page for this vehicle. Newer generic PIDs
+     * such as 0x69/0x70/0x7A/0xAA are globally understood by LINK, but this
+     * C207 capture does not claim to implement them.
+     */
+    CHECK(!link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x60)));
+    CHECK(!link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x69)));
+    CHECK(!link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x70)));
+    CHECK(!link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0x7a)));
+    CHECK(!link_obd2_pid_set_contains(&flow.supported_pids, UINT8_C(0xaa)));
+    CHECK(link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0x69)) != NULL);
+    CHECK(link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0x70)) != NULL);
+    CHECK(link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0x7a)) != NULL);
+    CHECK(link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0xaa)) != NULL);
+
+    /*
      * The old MBLINK path jumped to the Mercedes extension here.  Current
      * behaviour must attempt standard VIN and all three standard DTC modes
      * first.  The captured VIN and stored-DTC framing are replayed below;
@@ -255,6 +272,58 @@ int main(void)
         CHECK(responders.samples[0].sample.value == 14.375);
         CHECK(responders.samples[1].responder_id == UINT32_C(0x7e9));
         CHECK(responders.samples[1].sample.value == 14.2);
+    }
+
+    /*
+     * Replay exact scalar samples from MBLINK-session-20260829-140223.
+     * These are useful because they prove that the apparently high PID 0x11
+     * reading is the throttle valve, not accelerator demand: the two pedal
+     * channels remain near 5-6% while the valve is near 88%.
+     */
+    {
+        LinkObd2Sample sample;
+
+        response = ok_response("4111E0", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x11), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value > 87.84 && sample.value < 87.85);
+
+        response = ok_response("41490E", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x49), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value > 5.49 && sample.value < 5.50);
+
+        response = ok_response("414A0F", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x4a), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value > 5.88 && sample.value < 5.89);
+
+        response = ok_response("412F45", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x2f), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value > 27.05 && sample.value < 27.07);
+
+        response = ok_response("414638", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x46), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value == 16.0);
+
+        response = ok_response("4123000A", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x23), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value == 100.0);
+
+        response = ok_response("41230028", false);
+        CHECK(link_obd2_decode_live_pid(
+                  &response, UINT8_C(0x23), &sample) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(sample.value == 400.0);
     }
 
     puts("Captured C207 OBD-flow replay tests passed");
