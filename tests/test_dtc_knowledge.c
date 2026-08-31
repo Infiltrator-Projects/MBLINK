@@ -40,6 +40,18 @@ int main(void)
           fault.origin == MBLINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC,
           "manufacturer-specific unknown is explicit rather than fabricated");
 
+    check(mblink_dtc_resolve("B3000", &fault),
+          "B3 reserved range remains a diagnostic record");
+    check(!fault.definition_known &&
+          fault.origin == MBLINK_DTC_ORIGIN_DOCUMENT_RESERVED,
+          "B3 is not mislabelled as manufacturer-specific or generic");
+
+    check(mblink_dtc_resolve("P3FFF", &fault),
+          "standard-controlled unassigned P3 code remains a record");
+    check(!fault.definition_known &&
+          fault.origin == MBLINK_DTC_ORIGIN_STANDARD_CONTROLLED,
+          "unassigned standard-controlled code is explicit rather than fabricated");
+
     check(mblink_dtc_format_uds_status(0x0dU, status, sizeof(status)),
           "shared UDS status formatting reaches MBLINK");
     check(strstr(status, "Test failed") != NULL &&
