@@ -1627,6 +1627,7 @@ private struct MBDataTableView: View {
                             if parameter.id != sorted.last?.id { Divider().overlay(MBBrand.line) }
                         }
                     }
+                    }
                 }
                 .padding(16)
             }
