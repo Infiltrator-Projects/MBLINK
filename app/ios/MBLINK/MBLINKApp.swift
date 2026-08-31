@@ -1656,11 +1656,6 @@ private struct MBModuleLiveDataView: View {
             }
         }
         .searchable(text: $searchText, prompt: "Mercedes data ID, value or SAE PID")
-        .task(id: moduleID) {
-            if connection.isActive && manufacturerValues.isEmpty {
-                connection.discoverManufacturerData(moduleID: moduleID)
-            }
-        }
         .mbDiagnosticScreen(module?.name ?? "Module Data")
     }
 
