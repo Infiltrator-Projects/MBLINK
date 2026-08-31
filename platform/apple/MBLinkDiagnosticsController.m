@@ -12,6 +12,18 @@
 #include <stdio.h>
 #include <string.h>
 
+@interface MBLinkStandardDataSnapshot ()
+@property(nonatomic, readwrite) uint8_t pid;
+@property(nonatomic, readwrite) uint32_t responderCANIdentifier;
+@property(nonatomic, readwrite, getter=isExtendedID) BOOL extendedID;
+@property(nonatomic, readwrite) NSUInteger valueKind;
+@property(nonatomic, readwrite) NSUInteger signalCount;
+@property(nonatomic, copy, readwrite) NSString *formattedValue;
+@property(nonatomic, copy, readwrite) NSString *rawHex;
+@end
+@implementation MBLinkStandardDataSnapshot
+@end
+
 @interface MBLinkMercedesDataSnapshot ()
 @property(nonatomic, readwrite) uint16_t identifier;
 @property(nonatomic, readwrite) uint8_t service;
@@ -118,6 +130,10 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     MblinkMercedesDataScan _manufacturerDataScan;
     NSMutableDictionary<NSString *, NSArray<MBLinkMercedesDataSnapshot *> *> *
         _manufacturerDataByModule;
+    NSMutableDictionary<NSString *, MBLinkStandardDataSnapshot *> *
+        _standardDataByResponder;
+    NSMutableDictionary<NSNumber *, MBLinkStandardDataSnapshot *> *
+        _standardDataLatest;
     NSUInteger _manufacturerDataRequestGeneration;
 }
 
@@ -136,6 +152,48 @@ static NSString *MBLinkStringFromCString(const char *value)
     if (value == NULL) return @"unknown";
     NSString *string = [NSString stringWithUTF8String:value];
     return string != nil ? string : @"unknown";
+}
+
+static NSString *MBLinkStandardDataKey(uint8_t pid, uint32_t responder, BOOL extended)
+{
+    return [NSString stringWithFormat:@"%@:%08X:%02X",
+        extended ? @"29" : @"11", (unsigned int)responder, (unsigned int)pid];
+}
+
+static NSString *MBLinkDecodedRawHex(const LinkObd2DecodedPid *decoded)
+{
+    if (decoded == NULL || decoded->raw_length == 0U) return @"";
+    NSMutableString *text = [[NSMutableString alloc] initWithCapacity:decoded->raw_length * 3U];
+    for (size_t i = 0U; i < decoded->raw_length; ++i) {
+        if (i != 0U) [text appendString:@" "];
+        [text appendFormat:@"%02X", (unsigned int)decoded->raw[i]];
+    }
+    return [text copy];
+}
+
+static NSString *MBLinkDecodedDisplay(const LinkObd2DecodedPid *decoded)
+{
+    if (decoded == NULL) return @"";
+    if (decoded->text_available && decoded->text[0] != '\0')
+        return MBLinkStringFromCString(decoded->text);
+    if (decoded->signal_count != 0U) {
+        NSMutableArray<NSString *> *parts = [[NSMutableArray alloc] init];
+        for (size_t i = 0U; i < decoded->signal_count; ++i) {
+            const LinkObd2DecodedSignal *signal = &decoded->signals[i];
+            NSString *label = signal->label != NULL && signal->label[0] != '\0'
+                ? MBLinkStringFromCString(signal->label) : @"";
+            NSString *unit = signal->unit != NULL && signal->unit[0] != '\0'
+                ? MBLinkStringFromCString(signal->unit) : @"";
+            NSString *value = unit.length != 0U
+                ? [NSString stringWithFormat:@"%.6g %@", signal->value, unit]
+                : [NSString stringWithFormat:@"%.6g", signal->value];
+            [parts addObject:label.length != 0U
+                ? [NSString stringWithFormat:@"%@ %@", label, value] : value];
+        }
+        return [parts componentsJoinedByString:@" · "];
+    }
+    NSString *raw = MBLinkDecodedRawHex(decoded);
+    return raw.length != 0U ? [@"RAW " stringByAppendingString:raw] : @"RAW";
 }
 
 static NSString *MBLinkMercedesModuleIdentifier(
@@ -543,6 +601,8 @@ static bool MBLinkSimulatorResponder(
     self.manufacturerDataScanStatusText = @"Not scanned";
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataByModule = [[NSMutableDictionary alloc] init];
+    _standardDataByResponder = [[NSMutableDictionary alloc] init];
+    _standardDataLatest = [[NSMutableDictionary alloc] init];
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -625,6 +685,19 @@ static bool MBLinkSimulatorResponder(
                 responderCANIdentifier:responderCANIdentifier
                              extendedID:extendedID
                                   limit:limit];
+}
+
+- (nullable MBLinkStandardDataSnapshot *)standardDataSnapshotForPID:(uint8_t)pid
+{
+    return _standardDataLatest[@(pid)];
+}
+
+- (nullable MBLinkStandardDataSnapshot *)standardDataSnapshotForPID:(uint8_t)pid
+                     responderCANIdentifier:(uint32_t)responderCANIdentifier
+                                  extendedID:(BOOL)extendedID
+{
+    return _standardDataByResponder[
+        MBLinkStandardDataKey(pid, responderCANIdentifier, extendedID)];
 }
 
 - (NSArray<NSNumber *> *)observedPIDsForResponderCANIdentifier:
@@ -848,8 +921,26 @@ static bool MBLinkSimulatorResponder(
 {
     (void)controller;
     if (event == NULL) return;
-    if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
-        [self persistCapabilitiesFromFlowEvent:event];
+    if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
+        event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED) {
+        for (size_t i = 0U; i < event->responder_decoded.count; ++i) {
+            const LinkObd2ResponderDecodedPid *entry = &event->responder_decoded.entries[i];
+            if (!entry->responder_id_available || entry->decoded.definition == NULL) continue;
+            MBLinkStandardDataSnapshot *snapshot = [[MBLinkStandardDataSnapshot alloc] init];
+            snapshot.pid = entry->decoded.definition->pid;
+            snapshot.responderCANIdentifier = entry->responder_id;
+            snapshot.extendedID = entry->extended_id;
+            snapshot.valueKind = (NSUInteger)entry->decoded.definition->value_kind;
+            snapshot.signalCount = entry->decoded.signal_count;
+            snapshot.formattedValue = MBLinkDecodedDisplay(&entry->decoded);
+            snapshot.rawHex = MBLinkDecodedRawHex(&entry->decoded);
+            _standardDataByResponder[MBLinkStandardDataKey(
+                snapshot.pid, snapshot.responderCANIdentifier, snapshot.extendedID)] = snapshot;
+            _standardDataLatest[@(snapshot.pid)] = snapshot;
+        }
+        if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE)
+            [self persistCapabilitiesFromFlowEvent:event];
+        [self notifyDelegate];
         return;
     }
     if (event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN) return;

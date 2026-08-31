@@ -5,6 +5,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MBLinkDiagnosticsController;
 
+@interface MBLinkStandardDataSnapshot : NSObject
+@property(nonatomic, readonly) uint8_t pid;
+@property(nonatomic, readonly) uint32_t responderCANIdentifier;
+@property(nonatomic, readonly, getter=isExtendedID) BOOL extendedID;
+@property(nonatomic, readonly) NSUInteger valueKind;
+@property(nonatomic, readonly) NSUInteger signalCount;
+@property(nonatomic, copy, readonly) NSString *formattedValue;
+@property(nonatomic, copy, readonly) NSString *rawHex;
+@end
+
 @interface MBLinkMercedesDataSnapshot : NSObject
 
 @property(nonatomic, readonly) uint16_t identifier;
@@ -99,6 +109,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<NSNumber *> *)observedPIDsForResponderCANIdentifier:
     (uint32_t)responderCANIdentifier
                                                       extendedID:(BOOL)extendedID;
+- (nullable MBLinkStandardDataSnapshot *)standardDataSnapshotForPID:(uint8_t)pid;
+- (nullable MBLinkStandardDataSnapshot *)standardDataSnapshotForPID:(uint8_t)pid
+                     responderCANIdentifier:(uint32_t)responderCANIdentifier
+                                  extendedID:(BOOL)extendedID;
 - (BOOL)favouriteForPID:(uint8_t)pid;
 - (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid;
 - (BOOL)pollingEnabledForPID:(uint8_t)pid;
