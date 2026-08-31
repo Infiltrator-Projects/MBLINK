@@ -5,6 +5,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MBLinkDiagnosticsController;
 
+@interface MBLinkMercedesDataSnapshot : NSObject
+
+@property(nonatomic, readonly) uint16_t identifier;
+@property(nonatomic, readonly) uint8_t service;
+@property(nonatomic, copy, readonly) NSString *codeText;
+@property(nonatomic, copy, readonly, nullable) NSString *name;
+@property(nonatomic, copy, readonly, nullable) NSString *unit;
+@property(nonatomic, copy, readonly) NSString *formattedValue;
+@property(nonatomic, copy, readonly) NSString *rawHex;
+@property(nonatomic, readonly, getter=isMapped) BOOL mapped;
+
+@end
+
 @interface MBLinkMercedesModuleSnapshot : NSObject
 
 @property(nonatomic, copy, readonly) NSString *identifier;
@@ -48,6 +61,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly)
     NSArray<MBLinkMercedesModuleSnapshot *> *mercedesModuleSnapshots;
 @property(nonatomic, copy, readonly) NSString *vehicleProfileStatusText;
+@property(nonatomic, readonly, getter=isManufacturerDataScanActive)
+    BOOL manufacturerDataScanActive;
+@property(nonatomic, copy, readonly) NSString *manufacturerDataScanStatusText;
+@property(nonatomic, copy, readonly, nullable)
+    NSString *manufacturerDataScanModuleIdentifier;
 @property(nonatomic, copy, readonly) NSString *faultScanStatusText;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *pendingDTCs;
@@ -62,6 +80,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)start;
 - (void)startSimulated;
 - (void)disconnect;
+
+/**
+ * Discover read-only Mercedes manufacturer data identifiers on one exact ECU
+ * route. Positive UDS DIDs / KWP local identifiers are retained per module;
+ * unknown identifiers remain raw instead of being mislabeled as SAE OBD-II.
+ */
+- (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier;
+- (NSArray<MBLinkMercedesDataSnapshot *> *)
+    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                                       limit:(NSUInteger)limit;
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
