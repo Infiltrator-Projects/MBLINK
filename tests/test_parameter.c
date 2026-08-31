@@ -41,18 +41,23 @@ int main(void)
         mblink_parameter_obd2_definition(0x31U);
     const MblinkParameterDefinition *mil_runtime =
         mblink_parameter_obd2_definition(0x4dU);
+    const MblinkParameterDefinition *throttle_g =
+        mblink_parameter_obd2_definition(0x8dU);
+    const MblinkParameterDefinition *reflash_distance =
+        mblink_parameter_obd2_definition(0xc7U);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 57U,
+    passed &= check(mblink_parameter_obd2_definition_count() == 59U,
                     "expanded standard scalar descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
                     throttle_valve != NULL && pedal_d != NULL &&
-                    pedal_e != NULL &&
-                    fuel_level != NULL && engine_runtime != NULL &&
-                    distance_since_clear != NULL && mil_runtime != NULL,
+                    pedal_e != NULL && fuel_level != NULL &&
+                    engine_runtime != NULL && distance_since_clear != NULL &&
+                    mil_runtime != NULL && throttle_g != NULL &&
+                    reflash_distance != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(57U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(59U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
@@ -92,9 +97,11 @@ int main(void)
     passed &= check(mblink_parameter_obd2_definition(0x06U) != NULL &&
                     mblink_parameter_obd2_definition(0xa6U) != NULL,
                     "expanded shared scalar catalogue is not visible through MBLINK");
+    passed &= check(throttle_g != NULL && reflash_distance != NULL,
+                    "LINK 0.14.52 supplemented scalar definitions are missing");
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
-                    "obsolete speculative DPF scalar aliases must not survive");
+                    "structured DPF PIDs must not be flattened into fake scalars");
 
     if (rpm != NULL) {
         MblinkParameterKey same = rpm->key;
