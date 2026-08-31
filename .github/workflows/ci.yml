@@ -79,7 +79,7 @@ jobs:
 
   linux-app:
     name: Linux / GTK4 app
-    runs-on: linux-native
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
