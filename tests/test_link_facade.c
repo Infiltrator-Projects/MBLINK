@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/isotp.h"
 #include "mblink/uds_services.h"
+#include "mblink/obd2.h"
+
+#include <string.h>
 
 #include <stdio.h>
 
@@ -19,6 +22,31 @@ int main(void)
         MBLINK_UDS_STANDARD_SERVICE_COUNT) {
         fputs("MBLINK UDS service facade has the wrong catalogue size\n", stderr);
         return 1;
+    }
+
+    if (mblink_obd2_pid_definition_count() != 234U) {
+        fputs("MBLINK did not inherit the completed LINK J1979 catalogue\n", stderr);
+        return 1;
+    }
+    if (mblink_dtc_catalogue_definition_count() != 9533U ||
+        strcmp(mblink_dtc_range_model_revision(), "J2012_202509") != 0 ||
+        strcmp(mblink_dtc_catalogue_audit_revision(), "J2012DA_202607") != 0) {
+        fputs("MBLINK did not inherit the audited LINK J2012 catalogue\n", stderr);
+        return 1;
+    }
+    {
+        char command[16];
+        uint16_t did = 0U;
+        if (mblink_obd2_obdonuds_pid_to_did(UINT16_C(0x0100), &did) !=
+                MBLINK_OBD2_RESULT_OK ||
+            did != UINT16_C(0xf500) ||
+            mblink_obd2_build_obdonuds_pid_request(
+                UINT16_C(0x0100), command, sizeof(command)) !=
+                MBLINK_OBD2_RESULT_OK ||
+            strcmp(command, "22F500") != 0) {
+            fputs("MBLINK J1979-2 OBDonUDS facade is incomplete\n", stderr);
+            return 1;
+        }
     }
 
     routine = mblink_uds_standard_service_find(
