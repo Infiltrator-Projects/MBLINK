@@ -6,10 +6,25 @@
 #import "mblink/mercedes.h"
 #import "mblink/mercedes_probe.h"
 #import "mblink/mercedes_module_scan.h"
+#import "mblink/mercedes_data_scan.h"
 #import "mblink/uds_dtc.h"
 
 #include <stdio.h>
 #include <string.h>
+
+@interface MBLinkMercedesDataSnapshot ()
+@property(nonatomic, readwrite) uint16_t identifier;
+@property(nonatomic, readwrite) uint8_t service;
+@property(nonatomic, copy, readwrite) NSString *codeText;
+@property(nonatomic, copy, readwrite, nullable) NSString *name;
+@property(nonatomic, copy, readwrite, nullable) NSString *unit;
+@property(nonatomic, copy, readwrite) NSString *formattedValue;
+@property(nonatomic, copy, readwrite) NSString *rawHex;
+@property(nonatomic, readwrite, getter=isMapped) BOOL mapped;
+@end
+
+@implementation MBLinkMercedesDataSnapshot
+@end
 
 @interface MBLinkMercedesModuleSnapshot ()
 @property(nonatomic, copy, readwrite) NSString *identifier;
@@ -49,6 +64,11 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 @property(nonatomic, copy, readwrite) NSString *mercedesUDSFaultStatusText;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *mercedesUDSFaults;
 @property(nonatomic, copy, readwrite) NSString *vehicleProfileStatusText;
+@property(nonatomic, readwrite, getter=isManufacturerDataScanActive)
+    BOOL manufacturerDataScanActive;
+@property(nonatomic, copy, readwrite) NSString *manufacturerDataScanStatusText;
+@property(nonatomic, copy, readwrite, nullable)
+    NSString *manufacturerDataScanModuleIdentifier;
 
 - (void)resetMercedesState;
 - (void)notifyDelegate;
@@ -62,6 +82,16 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
 - (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
+- (nullable const MblinkMercedesModuleScanEntry *)
+    moduleEntryForIdentifier:(NSString *)identifier;
+- (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
+                                             generation:(NSUInteger)generation
+                                                attempt:(NSUInteger)attempt;
+- (void)beginCurrentMercedesDataScanCommand;
+- (void)processMercedesDataScanResponse:
+    (const MblinkElm327Response *)response;
+- (void)publishManufacturerDataScanResults;
+- (void)finishManufacturerDataScanWithStatus:(NSString *)status;
 - (nullable NSDictionary *)savedVehicleProfileForVIN:(NSString *)vin;
 - (void)loadSavedVehicleProfileForVIN:(NSString *)vin;
 - (void)saveCurrentVehicleProfile;
@@ -85,6 +115,10 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     BOOL _moduleScanActive;
     BOOL _cachedModuleRefreshActive;
     NSDictionary *_Nullable _cachedVehicleProfile;
+    MblinkMercedesDataScan _manufacturerDataScan;
+    NSMutableDictionary<NSString *, NSArray<MBLinkMercedesDataSnapshot *> *> *
+        _manufacturerDataByModule;
+    NSUInteger _manufacturerDataRequestGeneration;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -102,6 +136,16 @@ static NSString *MBLinkStringFromCString(const char *value)
     if (value == NULL) return @"unknown";
     NSString *string = [NSString stringWithUTF8String:value];
     return string != nil ? string : @"unknown";
+}
+
+static NSString *MBLinkMercedesModuleIdentifier(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (module == NULL) return @"";
+    return [NSString stringWithFormat:@"%@:%08X:%08X",
+        module->extended_id ? @"29" : @"11",
+        (unsigned int)module->tx_can_id,
+        (unsigned int)module->rx_can_id];
 }
 
 static NSString *MBLinkMercedesEndpointText(
@@ -478,6 +522,12 @@ static bool MBLinkSimulatorResponder(
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
     _cachedVehicleProfile = nil;
+    _manufacturerDataScan = (MblinkMercedesDataScan){0};
+    self.manufacturerDataScanActive = NO;
+    self.manufacturerDataScanStatusText = @"Not scanned";
+    self.manufacturerDataScanModuleIdentifier = nil;
+    _manufacturerDataByModule = [[NSMutableDictionary alloc] init];
+    ++_manufacturerDataRequestGeneration;
 }
 
 - (void)notifyDelegate
@@ -538,6 +588,9 @@ static bool MBLinkSimulatorResponder(
 {
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
+    self.manufacturerDataScanActive = NO;
+    self.manufacturerDataScanModuleIdentifier = nil;
+    ++_manufacturerDataRequestGeneration;
     [_shared disconnect];
 }
 
@@ -594,10 +647,7 @@ static bool MBLinkSimulatorResponder(
 
         MBLinkMercedesModuleSnapshot *snapshot =
             [[MBLinkMercedesModuleSnapshot alloc] init];
-        snapshot.identifier = [NSString stringWithFormat:@"%@:%08X:%08X",
-            module->extended_id ? @"29" : @"11",
-            (unsigned int)module->tx_can_id,
-            (unsigned int)module->rx_can_id];
+        snapshot.identifier = MBLinkMercedesModuleIdentifier(module);
         snapshot.name = MBLinkStringFromCString(
             mblink_mercedes_module_scan_module_name(module));
         snapshot.kind = MBLinkStringFromCString(
@@ -847,6 +897,11 @@ static bool MBLinkSimulatorResponder(
   didReceiveManufacturerResponse:(const LinkElm327Response *)response
 {
     (void)controller;
+    if (self.manufacturerDataScanActive) {
+        [self processMercedesDataScanResponse:
+            (const MblinkElm327Response *)response];
+        return;
+    }
     if (_moduleScanActive) {
         [self processMercedesModuleScanResponse:
             (const MblinkElm327Response *)response];
@@ -865,6 +920,19 @@ static bool MBLinkSimulatorResponder(
  manufacturerExtensionDidFailWithStatus:(NSString *)status
 {
     (void)controller;
+    if (self.manufacturerDataScanActive) {
+        [self publishManufacturerDataScanResults];
+        NSString *module = self.manufacturerDataScanModuleIdentifier ?: @"module";
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+            @"%@ manufacturer-data scan interrupted: %@ · %zu positive retained",
+            module, status,
+            mblink_mercedes_data_scan_record_count(&_manufacturerDataScan)];
+        self.manufacturerDataScanActive = NO;
+        self.manufacturerDataScanModuleIdentifier = nil;
+        ++_manufacturerDataRequestGeneration;
+        [self notifyDelegate];
+        return;
+    }
     if (_moduleScanActive) {
         const size_t capturedModules =
             mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
@@ -895,6 +963,283 @@ static bool MBLinkSimulatorResponder(
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
+    [self notifyDelegate];
+}
+
+- (nullable const MblinkMercedesModuleScanEntry *)
+    moduleEntryForIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return NULL;
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL) continue;
+        if ([MBLinkMercedesModuleIdentifier(module)
+                isEqualToString:identifier]) {
+            return module;
+        }
+    }
+    return NULL;
+}
+
+- (NSArray<MBLinkMercedesDataSnapshot *> *)
+    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return @[];
+    NSArray<MBLinkMercedesDataSnapshot *> *values =
+        _manufacturerDataByModule[identifier];
+    return values != nil ? [values copy] : @[];
+}
+
+- (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U || !_shared.isActive) return;
+
+    if (self.manufacturerDataScanActive) {
+        if ([self.manufacturerDataScanModuleIdentifier
+                isEqualToString:identifier]) {
+            return;
+        }
+        return;
+    }
+
+    /*
+     * A completed scan is intentionally cached for the current connection.
+     * Reopening a module must not fire another 256-request sweep.
+     */
+    if (_manufacturerDataByModule[identifier] != nil) return;
+
+    const NSUInteger generation = ++_manufacturerDataRequestGeneration;
+    self.manufacturerDataScanModuleIdentifier = identifier;
+    self.manufacturerDataScanStatusText =
+        @"Waiting for a safe gap in live polling";
+    [self notifyDelegate];
+
+    [self tryBeginManufacturerDataScanForModuleIdentifier:identifier
+                                               generation:generation
+                                                  attempt:0U];
+}
+
+- (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
+                                             generation:(NSUInteger)generation
+                                                attempt:(NSUInteger)attempt
+{
+    if (generation != _manufacturerDataRequestGeneration ||
+        !_shared.isActive ||
+        ![self.manufacturerDataScanModuleIdentifier
+            isEqualToString:identifier]) {
+        return;
+    }
+
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    if (module == NULL) {
+        self.manufacturerDataScanStatusText =
+            @"The selected Mercedes module is no longer in the active VIN profile";
+        self.manufacturerDataScanModuleIdentifier = nil;
+        [self notifyDelegate];
+        return;
+    }
+
+    if (![_shared beginLiveManufacturerExtension]) {
+        if (attempt < 80U) {
+            dispatch_after(
+                dispatch_time(
+                    DISPATCH_TIME_NOW,
+                    (int64_t)UINT64_C(125) * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                    [self tryBeginManufacturerDataScanForModuleIdentifier:
+                        identifier generation:generation attempt:attempt + 1U];
+                });
+            return;
+        }
+        self.manufacturerDataScanStatusText =
+            @"Could not pause standard live polling for the Mercedes data scan";
+        self.manufacturerDataScanModuleIdentifier = nil;
+        [self notifyDelegate];
+        return;
+    }
+
+    MblinkMercedesDataScanConfig config =
+        mblink_mercedes_data_scan_default_config(
+            module->tx_can_id,
+            module->rx_can_id,
+            module->extended_id,
+            mblink_mercedes_module_scan_entry_protocol(module),
+            module->kind);
+    MblinkMercedesDataScanResult result =
+        mblink_mercedes_data_scan_begin(
+            &_manufacturerDataScan, &config);
+    if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+            @"Mercedes data scan could not start: %@",
+            MBLinkStringFromCString(
+                mblink_mercedes_data_scan_result_name(result))];
+        self.manufacturerDataScanModuleIdentifier = nil;
+        [self notifyDelegate];
+        return;
+    }
+
+    self.manufacturerDataScanActive = YES;
+    self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+        @"Reading Mercedes manufacturer data · %@",
+        MBLinkStringFromCString(
+            mblink_mercedes_data_scan_stage_name(
+                _manufacturerDataScan.stage))];
+    [self notifyDelegate];
+    [self beginCurrentMercedesDataScanCommand];
+}
+
+- (void)beginCurrentMercedesDataScanCommand
+{
+    char command[MBLINK_ELM327_MAX_COMMAND];
+    size_t written = 0U;
+    MblinkMercedesDataScanResult result =
+        mblink_mercedes_data_scan_command(
+            &_manufacturerDataScan,
+            command, sizeof(command), &written);
+    if (result == MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE) {
+        [self finishManufacturerDataScanWithStatus:@"Complete"];
+        return;
+    }
+    if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK ||
+        written == 0U) {
+        [self finishManufacturerDataScanWithStatus:
+            @"Manufacturer-data command generation failed"];
+        return;
+    }
+
+    self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+        @"Mercedes data · %@ · ID 0x%04X · %zu checked · %zu positive",
+        MBLinkStringFromCString(
+            mblink_mercedes_data_scan_stage_name(
+                _manufacturerDataScan.stage)),
+        (unsigned int)_manufacturerDataScan.current_identifier,
+        _manufacturerDataScan.attempted_count,
+        mblink_mercedes_data_scan_record_count(&_manufacturerDataScan)];
+    [self notifyDelegate];
+
+    if (![_shared beginManufacturerCommand:command
+                                   timeout:mblink_mercedes_data_scan_timeout_ms(
+                                       &_manufacturerDataScan)]) {
+        [self finishManufacturerDataScanWithStatus:
+            @"Mercedes manufacturer-data command could not be sent"];
+    }
+}
+
+- (void)processMercedesDataScanResponse:
+    (const MblinkElm327Response *)response
+{
+    MblinkMercedesDataScanResult result =
+        mblink_mercedes_data_scan_accept(
+            &_manufacturerDataScan, response);
+    if (result == MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE ||
+        _manufacturerDataScan.stage ==
+            MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE) {
+        [self finishManufacturerDataScanWithStatus:@"Complete"];
+        return;
+    }
+    if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK ||
+        _manufacturerDataScan.stage ==
+            MBLINK_MERCEDES_DATA_SCAN_STAGE_FAILED) {
+        [self finishManufacturerDataScanWithStatus:[NSString stringWithFormat:
+            @"Incomplete · %@",
+            MBLinkStringFromCString(
+                mblink_mercedes_data_scan_result_name(result))]];
+        return;
+    }
+    [self beginCurrentMercedesDataScanCommand];
+}
+
+- (void)publishManufacturerDataScanResults
+{
+    NSString *identifier = self.manufacturerDataScanModuleIdentifier;
+    if (identifier.length == 0U) return;
+
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    if (module == NULL) return;
+
+    const size_t count =
+        mblink_mercedes_data_scan_record_count(&_manufacturerDataScan);
+    NSMutableArray<MBLinkMercedesDataSnapshot *> *values =
+        [[NSMutableArray alloc] initWithCapacity:count];
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesDataRecord *record =
+            mblink_mercedes_data_scan_record_at(
+                &_manufacturerDataScan, index);
+        if (record == NULL) continue;
+
+        char code[64];
+        char raw[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
+        if (!mblink_mercedes_data_record_format_code(
+                record, code, sizeof(code))) {
+            (void)snprintf(
+                code, sizeof(code), "Data ID 0x%04X",
+                (unsigned int)record->identifier);
+        }
+        if (!mblink_mercedes_data_record_format_hex(
+                record, raw, sizeof(raw))) {
+            (void)snprintf(raw, sizeof(raw), "%s", "<truncated>");
+        }
+
+        MBLinkMercedesDataSnapshot *snapshot =
+            [[MBLinkMercedesDataSnapshot alloc] init];
+        snapshot.identifier = record->identifier;
+        snapshot.service = record->service;
+        snapshot.codeText = MBLinkStringFromCString(code);
+        snapshot.rawHex = MBLinkStringFromCString(raw);
+
+        double numeric = 0.0;
+        const char *name = NULL;
+        const char *unit = NULL;
+        if (mblink_mercedes_data_record_decode_known_numeric(
+                module->kind, record,
+                &numeric, &name, &unit)) {
+            snapshot.mapped = YES;
+            snapshot.name = MBLinkStringFromCString(name);
+            snapshot.unit = MBLinkStringFromCString(unit);
+            snapshot.formattedValue = [NSString stringWithFormat:
+                @"%.3f %@", numeric, snapshot.unit];
+        } else {
+            snapshot.mapped = NO;
+            snapshot.name = nil;
+            snapshot.unit = nil;
+            snapshot.formattedValue = [NSString stringWithFormat:
+                @"RAW %@", snapshot.rawHex];
+        }
+        [values addObject:snapshot];
+    }
+
+    _manufacturerDataByModule[identifier] = [values copy];
+}
+
+- (void)finishManufacturerDataScanWithStatus:(NSString *)status
+{
+    [self publishManufacturerDataScanResults];
+
+    const size_t positive =
+        mblink_mercedes_data_scan_record_count(&_manufacturerDataScan);
+    const size_t attempted = _manufacturerDataScan.attempted_count;
+    NSString *module = self.manufacturerDataScanModuleIdentifier ?: @"Module";
+    self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+        @"%@ · %@ · %zu checked · %zu positive Mercedes data ID%@",
+        module, status, attempted, positive,
+        positive == 1U ? @"" : @"s"];
+
+    self.manufacturerDataScanActive = NO;
+    self.manufacturerDataScanModuleIdentifier = nil;
+    ++_manufacturerDataRequestGeneration;
+
+    if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
+        [_shared failWithStatus:
+            @"Could not resume standard diagnostics after Mercedes data scan"];
+    }
     [self notifyDelegate];
 }
 
@@ -1636,6 +1981,8 @@ static bool MBLinkSimulatorResponder(
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
+    self.manufacturerDataScanActive = NO;
+    self.manufacturerDataScanModuleIdentifier = nil;
     if (![_shared completeManufacturerExtensionRestoringAdapter:restore]) {
         [_shared failWithStatus:
             @"Could not resume shared diagnostic flow after Mercedes probe"];
