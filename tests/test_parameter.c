@@ -45,19 +45,26 @@ int main(void)
         mblink_parameter_obd2_definition(0x8dU);
     const MblinkParameterDefinition *reflash_distance =
         mblink_parameter_obd2_definition(0xc7U);
+    const MblinkParameterDefinition *max_speed_limit =
+        mblink_parameter_obd2_definition(0xaaU);
+    const MblinkParameterDefinition *traction_battery_soh =
+        mblink_parameter_obd2_definition(0xb2U);
+    const MblinkParameterDefinition *engine_odometer =
+        mblink_parameter_obd2_definition(0xd3U);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 59U,
+    passed &= check(mblink_parameter_obd2_definition_count() == 62U,
                     "expanded standard scalar descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
                     throttle_valve != NULL && pedal_d != NULL &&
                     pedal_e != NULL && fuel_level != NULL &&
                     engine_runtime != NULL && distance_since_clear != NULL &&
                     mil_runtime != NULL && throttle_g != NULL &&
-                    reflash_distance != NULL,
+                    reflash_distance != NULL && max_speed_limit != NULL &&
+                    traction_battery_soh != NULL && engine_odometer != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(59U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(62U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
@@ -97,7 +104,10 @@ int main(void)
     passed &= check(mblink_parameter_obd2_definition(0x06U) != NULL &&
                     mblink_parameter_obd2_definition(0xa6U) != NULL,
                     "expanded shared scalar catalogue is not visible through MBLINK");
-    passed &= check(throttle_g != NULL && reflash_distance != NULL,
+    passed &= check(throttle_g != NULL && reflash_distance != NULL &&
+                    max_speed_limit != NULL &&
+                    traction_battery_soh != NULL &&
+                    engine_odometer != NULL,
                     "LINK 0.14.53 supplemented scalar definitions are missing");
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
