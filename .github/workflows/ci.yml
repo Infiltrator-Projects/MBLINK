@@ -179,7 +179,7 @@ jobs:
           retention-days: 30
 
   windows-discover:
-    name: Windows / MBLINK Discover launch-verified
+    name: Windows / MBLINK Discover build-verified
     runs-on: [self-hosted, Windows, ARM64, infiltrator-windows-arm64]
     timeout-minutes: 20
     steps:
@@ -222,10 +222,6 @@ jobs:
           foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {
             if ($deps -match [regex]::Escape($dll)) { throw "Unexpected dynamic runtime dependency: $dll" }
           }
-      - name: Prove the EXE launches
-        shell: pwsh
-        run: |
-          & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'build-win32/Release/mblink-discover.exe' -ExpectedTitle 'MBLINK Discover'
       - name: Verify embedded version metadata and icon
         shell: pwsh
         run: |
@@ -248,6 +244,31 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+  windows-release-launch:
+    name: Windows / release GUI launch verification
+    needs: [windows-discover]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.version.outputs.version }}-windows-discover
+          path: release-assets
+      - name: Prove release EXE launches
+        shell: pwsh
+        run: |
+          & 'src/link/platform/windows/smoke-launch.ps1' -Executable "release-assets/MBLINK-${{ steps.version.outputs.version }}-windows-discover.exe" -ExpectedTitle 'MBLINK Discover'
 
   apple-ios:
     name: Apple / C11 + iOS Debug + iOS Release + IPA
@@ -373,7 +394,7 @@ jobs:
 
   release:
     name: Publish complete atomic release
-    needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios]
+    needs: [portable-core, sanitizers, linux-app, windows-discover, windows-release-launch, apple-ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
     runs-on: linux-native
     permissions:
