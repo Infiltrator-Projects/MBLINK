@@ -13,6 +13,7 @@
 #ifndef MBLINK_MERCEDES_DATA_SCAN_H
 #define MBLINK_MERCEDES_DATA_SCAN_H
 
+#include "mblink/discover.h"
 #include "mblink/elm327.h"
 #include "mblink/mercedes.h"
 
