@@ -82,6 +82,15 @@ typedef struct MblinkMercedesDataScan {
     size_t no_response_count;
     size_t invalid_count;
     bool truncated;
+    /*
+     * Optional explicit identifier sequence used for fast refreshes after a
+     * full discovery pass has already proved which IDs respond on this ECU.
+     * The list is copied into the scan so callers do not own its lifetime.
+     */
+    bool identifier_list_active;
+    size_t identifier_count;
+    size_t identifier_index;
+    uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
     MblinkMercedesDataRecord records[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
 } MblinkMercedesDataScan;
 
@@ -110,6 +119,20 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config);
+
+/**
+ * Begin a bounded refresh using only previously proven positive identifiers.
+ *
+ * This does not change semantic evidence: a positive identifier remains raw
+ * until its meaning/scaling is independently verified.  It only avoids
+ * repeating the entire discovery range when the caller already has a
+ * module-scoped list of responsive IDs.
+ */
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const uint16_t *identifiers,
+    size_t identifier_count);
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
     const MblinkMercedesDataScan *scan,
     char *buffer,
