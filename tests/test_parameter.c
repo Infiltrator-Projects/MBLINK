@@ -98,7 +98,7 @@ int main(void)
                     mblink_parameter_obd2_definition(0xa6U) != NULL,
                     "expanded shared scalar catalogue is not visible through MBLINK");
     passed &= check(throttle_g != NULL && reflash_distance != NULL,
-                    "LINK 0.14.52 supplemented scalar definitions are missing");
+                    "LINK 0.14.53 supplemented scalar definitions are missing");
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
                     "structured DPF PIDs must not be flattened into fake scalars");
