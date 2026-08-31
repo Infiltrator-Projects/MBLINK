@@ -45,6 +45,36 @@ typedef struct {
     const char *provenance;
 } MblinkMercedesDidDefinition;
 
+typedef enum {
+    MBLINK_MERCEDES_DTC_EVIDENCE_COMMUNITY_OBSERVATION = 0,
+    MBLINK_MERCEDES_DTC_EVIDENCE_SPECIALIST_CORROBORATED,
+    MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED,
+    MBLINK_MERCEDES_DTC_EVIDENCE_REPAIR_VERIFIED
+} MblinkMercedesDtcEvidenceTier;
+
+typedef struct {
+    const char *label;
+    const char *reference;
+    MblinkMercedesDtcEvidenceTier tier;
+    /** False when the source proves occurrence/applicability but not meaning. */
+    bool supports_meaning;
+} MblinkMercedesDtcEvidenceSource;
+
+typedef struct {
+    const char *protocol;
+    const char *module_family;
+    const char *ecu_family;
+    const char *vehicle_family;
+    const char *engine_family;
+} MblinkMercedesDtcApplicability;
+
+typedef struct {
+    const char *label;
+    const char *url;
+    /** Lookup starting points never define a proprietary code by themselves. */
+    bool authoritative_for_meaning;
+} MblinkMercedesDtcLookupReference;
+
 /**
  * A manufacturer fault definition whose numeric code is meaningful only in
  * the named Mercedes module/protocol namespace.  The raw ECU status byte is
@@ -65,7 +95,12 @@ typedef struct {
     const char *applicability;
     MblinkMercedesDefinitionStatus status;
     const char *provenance;
+    MblinkMercedesDtcApplicability applicability_details;
+    const MblinkMercedesDtcEvidenceSource *sources;
+    size_t source_count;
 } MblinkMercedesKwpDtcDefinition;
+
+#define MBLINK_MERCEDES_DTC_TEXT_LENGTH 320U
 
 typedef struct {
     const char *key;
@@ -127,6 +162,26 @@ const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
 size_t mblink_mercedes_kwp_dtc_count(void);
 const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_at(
     size_t index);
+
+const char *mblink_mercedes_dtc_evidence_tier_name(
+    MblinkMercedesDtcEvidenceTier tier);
+size_t mblink_mercedes_dtc_lookup_reference_count(void);
+const MblinkMercedesDtcLookupReference *
+mblink_mercedes_dtc_lookup_reference_at(size_t index);
+
+bool mblink_mercedes_kwp_dtc_format(
+    const char *module_key,
+    uint16_t code,
+    uint8_t raw_status,
+    char *buffer,
+    size_t capacity);
+
+bool mblink_mercedes_uds_dtc_format(
+    const char *module_key,
+    uint32_t code,
+    uint8_t raw_status,
+    char *buffer,
+    size_t capacity);
 
 MblinkUdsResult mblink_mercedes_decode_defined_did(
     const uint8_t *pdu,

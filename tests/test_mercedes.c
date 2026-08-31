@@ -252,6 +252,8 @@ static int test_decode_wrapper(void)
 static int test_kwp_dtc_lookup(void)
 {
     const MblinkMercedesKwpDtcDefinition *definition;
+    char text[MBLINK_MERCEDES_DTC_TEXT_LENGTH];
+    char tiny[8];
 
     CHECK(mblink_mercedes_kwp_dtc_count() >= 1U);
     definition = mblink_mercedes_kwp_dtc_find(
@@ -272,6 +274,44 @@ static int test_kwp_dtc_lookup(void)
     CHECK(definition->status ==
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     CHECK(definition->provenance != NULL && definition->provenance[0] != '\0');
+    CHECK(strcmp(definition->applicability_details.protocol,
+                 "KWP2000 ReadDTCByStatus") == 0);
+    CHECK(strstr(definition->applicability_details.module_family,
+                 "ORC_212") != NULL);
+    CHECK(strstr(definition->applicability_details.vehicle_family,
+                 "C207") != NULL);
+    CHECK(strcmp(definition->applicability_details.engine_family,
+                 "Not engine-dependent") == 0);
+    CHECK(definition->source_count == 3U);
+    CHECK(definition->sources[0].supports_meaning);
+    CHECK(!definition->sources[1].supports_meaning);
+    CHECK(strcmp(mblink_mercedes_dtc_evidence_tier_name(
+              definition->sources[1].tier), "community-observation") == 0);
+    CHECK(mblink_mercedes_dtc_lookup_reference_count() >= 2U);
+    CHECK(!mblink_mercedes_dtc_lookup_reference_at(0U)
+               ->authoritative_for_meaning);
+    CHECK(mblink_mercedes_dtc_lookup_reference_at(
+              mblink_mercedes_dtc_lookup_reference_count()) == NULL);
+
+    CHECK(mblink_mercedes_kwp_dtc_format(
+        "restraints-orc", UINT16_C(0x9b51), UINT8_C(0xe0),
+        text, sizeof(text)));
+    CHECK(strstr(text, "9B51") != NULL);
+    CHECK(strstr(text, "Driver seat-belt buckle") != NULL);
+    CHECK(strstr(text, "raw KWP2000 status 0xE0") != NULL);
+
+    CHECK(mblink_mercedes_kwp_dtc_format(
+        "restraints-orc", UINT16_C(0x9b52), UINT8_C(0xa0),
+        text, sizeof(text)));
+    CHECK(strstr(text, "unknown Mercedes definition") != NULL);
+    CHECK(strstr(text, "raw KWP2000 status 0xA0") != NULL);
+    CHECK(strstr(text, "https://") != NULL);
+
+    memset(tiny, 'x', sizeof(tiny));
+    CHECK(!mblink_mercedes_kwp_dtc_format(
+        "restraints-orc", UINT16_C(0x9b51), UINT8_C(0xe0),
+        tiny, sizeof(tiny)));
+    CHECK(tiny[0] == '\0');
 
     /* The same numeric value must not leak into another module namespace. */
     CHECK(mblink_mercedes_kwp_dtc_find(
@@ -280,6 +320,15 @@ static int test_kwp_dtc_lookup(void)
               "restraints-orc", UINT16_C(0x9b52)) == NULL);
     CHECK(mblink_mercedes_kwp_dtc_find(NULL, UINT16_C(0x9b51)) == NULL);
     CHECK(mblink_mercedes_kwp_dtc_at(mblink_mercedes_kwp_dtc_count()) == NULL);
+    CHECK(mblink_mercedes_uds_dtc_format(
+        "unknown-602-480", UINT32_C(0xd18100), UINT8_C(0x50),
+        text, sizeof(text)));
+    CHECK(strstr(text, "D18100") != NULL);
+    CHECK(strstr(text, "unknown Mercedes definition") != NULL);
+    CHECK(strstr(text, "raw UDS status 0x50") != NULL);
+    CHECK(strstr(text, "https://") != NULL);
+    CHECK(!mblink_mercedes_uds_dtc_format(
+        NULL, UINT32_C(0x01000000), UINT8_C(0x50), text, sizeof(text)));
     return 0;
 }
 

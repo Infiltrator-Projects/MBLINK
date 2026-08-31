@@ -313,25 +313,33 @@ static void MBLinkAppendMercedesModuleFaultStrings(
                     MBLinkStringFromCString(definition->applicability),
                     MBLinkStringFromCString(definition->provenance)]];
             } else {
+                char formatted[MBLINK_MERCEDES_DTC_TEXT_LENGTH];
+                if (!mblink_mercedes_kwp_dtc_format(
+                        module_key, record->code, record->status,
+                        formatted, sizeof(formatted))) {
+                    continue;
+                }
                 [faults addObject:[NSString stringWithFormat:
-                    @"%@ · %@ · %04X · KWP2000 status 0x%02X",
-                    name, address, (unsigned int)record->code,
-                    (unsigned int)record->status]];
+                    @"%@ · %@ · %@", name, address,
+                    MBLinkStringFromCString(formatted)]];
             }
         }
         return;
     }
 
     for (size_t index = 0U; index < module->dtcs.count; ++index) {
-        char code[7];
-        if (!mblink_uds_dtc_format_hex(
-                module->dtcs.records[index].code, code, sizeof(code))) {
+        char formatted[MBLINK_MERCEDES_DTC_TEXT_LENGTH];
+        const char *module_key = module->definition != NULL
+            ? module->definition->key : NULL;
+        if (!mblink_mercedes_uds_dtc_format(
+                module_key, module->dtcs.records[index].code,
+                module->dtcs.records[index].status,
+                formatted, sizeof(formatted))) {
             continue;
         }
         [faults addObject:[NSString stringWithFormat:
-            @"%@ · %@ · %@ · UDS status 0x%02X",
-            name, address, MBLinkStringFromCString(code),
-            (unsigned int)module->dtcs.records[index].status]];
+            @"%@ · %@ · %@", name, address,
+            MBLinkStringFromCString(formatted)]];
     }
 }
 

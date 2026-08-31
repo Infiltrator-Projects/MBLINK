@@ -1063,11 +1063,14 @@ static void append_module_fault_rows(
                         mblink_mercedes_definition_status_name(
                             definition->status));
                 } else {
-                    (void)snprintf(
-                        value, sizeof(value),
-                        "%04X · definition unknown · KWP2000 status 0x%02X",
-                        (unsigned int)record->code,
-                        (unsigned int)record->status);
+                    if (!mblink_mercedes_kwp_dtc_format(
+                            module_key, record->code, record->status,
+                            value, sizeof(value))) {
+                        (void)snprintf(value, sizeof(value),
+                            "%04X · raw KWP2000 status 0x%02X",
+                            (unsigned int)record->code,
+                            (unsigned int)record->status);
+                    }
                 }
                 link_gtk_card_append_detail(card, label, value);
                 if (definition != NULL) {
@@ -1098,22 +1101,23 @@ static void append_module_fault_rows(
             for (size_t dtc_index = 0U;
                  dtc_index < module->dtcs.count;
                  ++dtc_index) {
-                char code[7];
                 char label[96];
-                char value[128];
-                if (!mblink_uds_dtc_format_hex(
-                        module->dtcs.records[dtc_index].code,
-                        code, sizeof(code))) {
-                    (void)snprintf(code, sizeof(code), "??????");
-                }
+                char value[MBLINK_MERCEDES_DTC_TEXT_LENGTH];
                 (void)snprintf(label, sizeof(label),
                     "  %s fault %zu",
                     mblink_mercedes_module_scan_module_name(module),
                     dtc_index + 1U);
-                (void)snprintf(value, sizeof(value),
-                    "%s · UDS status 0x%02X",
-                    code,
-                    (unsigned int)module->dtcs.records[dtc_index].status);
+                if (!mblink_mercedes_uds_dtc_format(
+                        module->definition != NULL
+                            ? module->definition->key : NULL,
+                        module->dtcs.records[dtc_index].code,
+                        module->dtcs.records[dtc_index].status,
+                        value, sizeof(value))) {
+                    (void)snprintf(value, sizeof(value),
+                        "%06X · raw UDS status 0x%02X",
+                        (unsigned int)module->dtcs.records[dtc_index].code,
+                        (unsigned int)module->dtcs.records[dtc_index].status);
+                }
                 link_gtk_card_append_detail(card, label, value);
 
                 if (context->replay_mode &&

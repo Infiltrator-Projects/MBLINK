@@ -130,6 +130,23 @@ Provenance:  source-corroborated / vehicle-verified definition evidence
 
 A positive UDS DTC response without a known manufacturer definition must still be shown honestly as an unknown Mercedes DTC with raw evidence and decoded status.
 
+### Evidence and applicability contract
+
+Mercedes definitions are module scoped and retain protocol, module/ECU family,
+vehicle family and engine-family applicability as structured fields. Evidence
+sources are retained individually and classified as `community-observation`,
+`specialist-corroborated`, `primary-documented` or `repair-verified`. Each
+source also states whether it supports the textual meaning or proves only that
+the raw record occurred. A vehicle/community capture therefore cannot promote
+its own guessed description.
+
+Unknown KWP and UDS records retain the raw code and raw status and expose
+external research starting points. Those links are explicitly non-authoritative
+for meaning: the result remains **unknown** until applicable evidence supports
+a module-scoped definition. The captured `0x602 -> 0x480` UDS record
+`D18100 / 50` is the regression example for this behaviour; MBLINK assigns no
+meaning or exact ECU identity to it.
+
 ## Freeze-frame and readiness are diagnostic features
 
 The OBD freeze-frame and readiness decoders are now active diagnostic-flow features.

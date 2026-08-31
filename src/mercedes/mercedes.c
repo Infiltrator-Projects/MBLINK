@@ -10,6 +10,7 @@
 #include "infiltratr/core.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 static bool mercedes_text_valid(const char *text)
@@ -47,6 +48,22 @@ static bool mercedes_address_equal(const MblinkIsoTpAddress *left,
 /* Mercedes KWP fault identifiers are module scoped.  Keep this product-owned
  * table separate from LINK's generic SAE/ISO OBD catalogue so an identical
  * 16-bit value from another controller cannot acquire the ORC meaning. */
+static const MblinkMercedesDtcEvidenceSource orc_9b51_sources[] = {
+    {"Independent Mercedes diagnostic-tool reports", "Issue #29 evidence record",
+     MBLINK_MERCEDES_DTC_EVIDENCE_SPECIALIST_CORROBORATED, true},
+    {"Sanitised C207 ORC capture", "tests/test_mercedes_captured_deep_scan.c",
+     MBLINK_MERCEDES_DTC_EVIDENCE_COMMUNITY_OBSERVATION, false},
+    {"Reported Mercedes workshop diagnosis", "Issue #29 field evidence",
+     MBLINK_MERCEDES_DTC_EVIDENCE_SPECIALIST_CORROBORATED, true}
+};
+
+static const MblinkMercedesDtcLookupReference mercedes_dtc_lookup_references[] = {
+    {"Mercedes-Benz B2B Connect workshop information",
+     "https://b2bconnect.mercedes-benz.com/", false},
+    {"NHTSA manufacturer communications search",
+     "https://www.nhtsa.gov/vehicle", false}
+};
+
 static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
     {
         .module_key = "restraints-orc",
@@ -61,21 +78,83 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
         .provenance =
             "Meaning corroborated by independent Mercedes diagnostic-tool "
             "reports; exact ORC 0x64A -> 0x489 raw code 9B51 captured on the "
-            "C207 test vehicle on 2026-08-30."
+            "C207 test vehicle on 2026-08-30.",
+        .applicability_details = {
+            "KWP2000 ReadDTCByStatus", "ORC_212 / restraints-orc", "ORC_212",
+            "C207/W212 family; exact captured vehicle C207 RHD",
+            "Not engine-dependent"
+        },
+        .sources = orc_9b51_sources,
+        .source_count = sizeof(orc_9b51_sources) /
+                        sizeof(orc_9b51_sources[0])
     }
 };
+
+static bool mercedes_dtc_evidence_tier_valid(
+    MblinkMercedesDtcEvidenceTier tier)
+{
+    return tier >= MBLINK_MERCEDES_DTC_EVIDENCE_COMMUNITY_OBSERVATION &&
+           tier <= MBLINK_MERCEDES_DTC_EVIDENCE_REPAIR_VERIFIED;
+}
+
+const char *mblink_mercedes_dtc_evidence_tier_name(
+    MblinkMercedesDtcEvidenceTier tier)
+{
+    switch (tier) {
+    case MBLINK_MERCEDES_DTC_EVIDENCE_COMMUNITY_OBSERVATION:
+        return "community-observation";
+    case MBLINK_MERCEDES_DTC_EVIDENCE_SPECIALIST_CORROBORATED:
+        return "specialist-corroborated";
+    case MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED:
+        return "primary-documented";
+    case MBLINK_MERCEDES_DTC_EVIDENCE_REPAIR_VERIFIED:
+        return "repair-verified";
+    }
+    return "unknown";
+}
+
+size_t mblink_mercedes_dtc_lookup_reference_count(void)
+{
+    return sizeof(mercedes_dtc_lookup_references) /
+           sizeof(mercedes_dtc_lookup_references[0]);
+}
+
+const MblinkMercedesDtcLookupReference *
+mblink_mercedes_dtc_lookup_reference_at(size_t index)
+{
+    return index < mblink_mercedes_dtc_lookup_reference_count()
+        ? &mercedes_dtc_lookup_references[index] : NULL;
+}
 
 bool mblink_mercedes_kwp_dtc_definition_is_valid(
     const MblinkMercedesKwpDtcDefinition *definition)
 {
-    return definition != NULL &&
-           mercedes_text_valid(definition->module_key) &&
-           definition->code != UINT16_C(0x0000) &&
-           mercedes_text_valid(definition->description) &&
-           mercedes_text_valid(definition->subsystem) &&
-           mercedes_text_valid(definition->applicability) &&
-           mercedes_status_valid(definition->status) &&
-           mercedes_text_valid(definition->provenance);
+    if (definition == NULL ||
+        !mercedes_text_valid(definition->module_key) ||
+        definition->code == UINT16_C(0x0000) ||
+        !mercedes_text_valid(definition->description) ||
+        !mercedes_text_valid(definition->subsystem) ||
+        !mercedes_text_valid(definition->applicability) ||
+        !mercedes_status_valid(definition->status) ||
+        !mercedes_text_valid(definition->provenance) ||
+        !mercedes_text_valid(definition->applicability_details.protocol) ||
+        !mercedes_text_valid(definition->applicability_details.module_family) ||
+        !mercedes_text_valid(definition->applicability_details.ecu_family) ||
+        !mercedes_text_valid(definition->applicability_details.vehicle_family) ||
+        !mercedes_text_valid(definition->applicability_details.engine_family) ||
+        definition->sources == NULL || definition->source_count == 0U) {
+        return false;
+    }
+    for (size_t index = 0U; index < definition->source_count; ++index) {
+        const MblinkMercedesDtcEvidenceSource *source =
+            &definition->sources[index];
+        if (!mercedes_text_valid(source->label) ||
+            !mercedes_text_valid(source->reference) ||
+            !mercedes_dtc_evidence_tier_valid(source->tier)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 size_t mblink_mercedes_kwp_dtc_count(void)
@@ -106,6 +185,60 @@ const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
         }
     }
     return NULL;
+}
+
+bool mblink_mercedes_kwp_dtc_format(
+    const char *module_key,
+    uint16_t code,
+    uint8_t raw_status,
+    char *buffer,
+    size_t capacity)
+{
+    const MblinkMercedesKwpDtcDefinition *definition;
+    int written;
+    if (buffer == NULL || capacity == 0U) return false;
+    buffer[0] = '\0';
+    definition = mercedes_text_valid(module_key)
+        ? mblink_mercedes_kwp_dtc_find(module_key, code) : NULL;
+    if (definition != NULL) {
+        written = snprintf(buffer, capacity,
+            "%04X — %s · raw KWP2000 status 0x%02X",
+            (unsigned int)code, definition->description,
+            (unsigned int)raw_status);
+    } else {
+        written = snprintf(buffer, capacity,
+            "%04X — unknown Mercedes definition · raw KWP2000 status 0x%02X · lookup: %s",
+            (unsigned int)code, (unsigned int)raw_status,
+            mercedes_dtc_lookup_references[0].url);
+    }
+    if (written < 0 || (size_t)written >= capacity) {
+        buffer[0] = '\0';
+        return false;
+    }
+    return true;
+}
+
+bool mblink_mercedes_uds_dtc_format(
+    const char *module_key,
+    uint32_t code,
+    uint8_t raw_status,
+    char *buffer,
+    size_t capacity)
+{
+    int written;
+    (void)module_key;
+    if (buffer == NULL || capacity == 0U || code > UINT32_C(0x00ffffff))
+        return false;
+    buffer[0] = '\0';
+    written = snprintf(buffer, capacity,
+        "%06X — unknown Mercedes definition · raw UDS status 0x%02X · lookup: %s",
+        (unsigned int)code, (unsigned int)raw_status,
+        mercedes_dtc_lookup_references[0].url);
+    if (written < 0 || (size_t)written >= capacity) {
+        buffer[0] = '\0';
+        return false;
+    }
+    return true;
 }
 
 const char *mblink_mercedes_definition_status_name(
