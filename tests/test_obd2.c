@@ -195,9 +195,7 @@ static void test_live_pid_decoding(void)
         {0x46U, "0146", "414650\r>", 40.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
         {0x5cU, "015C", "415C50\r>", 40.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
         {0x5eU, "015E", "415E03E8\r>", 50.0, 0.001, MBLINK_OBD2_UNIT_LITRES_PER_HOUR},
-        {0x78U, "0178", "4178010FA00000000000\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS},
-        {0x7aU, "017A", "417A0103E800000000\r>", 10.0, 0.001, MBLINK_OBD2_UNIT_KPA},
-        {0x7cU, "017C", "417C010FA0000000000000\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS}
+        {0x78U, "0178", "4178010FA0000000000000\r>", 360.0, 0.001, MBLINK_OBD2_UNIT_CELSIUS}
     };
     size_t index;
 
@@ -214,6 +212,30 @@ static void test_live_pid_decoding(void)
         check(near_value(sample.value, cases[index].expected,
                          cases[index].tolerance),
               "sample formula matches");
+    }
+
+    {
+        const LinkObd2PidDefinition *dpf_temperature =
+            link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0x7C));
+        uint8_t encoded_payload[9] = {
+            UINT8_C(0x01), UINT8_C(0x0F), UINT8_C(0xA0),
+            0U, 0U, 0U, 0U, 0U, 0U
+        };
+        LinkObd2DecodedPid decoded;
+
+        check(link_obd2_pid_definition(
+                  UINT8_C(0x01), UINT8_C(0x7A)) == NULL,
+              "obsolete speculative DPF pressure PID is absent");
+        check(dpf_temperature != NULL &&
+                  dpf_temperature->value_kind == LINK_OBD2_VALUE_ENCODED,
+              "DPF temperature remains represented as encoded standard data");
+        check(link_obd2_decode_pid_payload(
+                  UINT8_C(0x01), UINT8_C(0x7C),
+                  encoded_payload, sizeof(encoded_payload), &decoded) ==
+                  LINK_OBD2_RESULT_OK &&
+                  decoded.signal_count == 0U &&
+                  decoded.raw_length == sizeof(encoded_payload),
+              "encoded DPF temperature remains available as raw standard data");
     }
 
     {
