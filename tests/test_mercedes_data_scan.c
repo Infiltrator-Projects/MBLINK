@@ -115,6 +115,101 @@ static int test_uds_data_scan(void)
     return 0;
 }
 
+static int test_c207_vehicle_verified_raw_positives(void)
+{
+    MblinkMercedesDataScan scan;
+    MblinkMercedesDataScanConfig config;
+    MblinkElm327Response ok = response_ok("OK");
+    const MblinkMercedesDataRecord *record;
+    char text[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
+
+    /*
+     * Vehicle evidence captured on the C207 proves these identifiers respond
+     * on these exact physical routes.  Their semantics are intentionally not
+     * guessed here: this regression locks down routing, positive-response
+     * handling and exact raw payload retention only.
+     */
+    config = mblink_mercedes_data_scan_default_config(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_MODULE_BRAKES);
+    config.first_identifier = UINT16_C(0x2001);
+    config.last_identifier = UINT16_C(0x2001);
+    CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH632", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA486", ok) == 0);
+    CHECK(accept_command(
+              &scan, "1003", response_ok("7F10785003001400C8")) == 0);
+    CHECK(accept_command(&scan, "3E00", response_ok("7E00")) == 0);
+    CHECK(accept_command(
+              &scan, "222001", response_ok("0110:622001061A06")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    CHECK(scan.positive_count == 1U);
+    record = mblink_mercedes_data_scan_record_at(&scan, 0U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x2001));
+    CHECK(mblink_mercedes_data_record_format_hex(record, text, sizeof(text)));
+    CHECK(strcmp(text, "061A06") == 0);
+
+    config = mblink_mercedes_data_scan_default_config(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_MODULE_RESTRAINTS);
+    config.first_identifier = UINT16_C(0x58);
+    config.last_identifier = UINT16_C(0x58);
+    CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH64A", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA489", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
+    CHECK(accept_command(
+              &scan, "2158", response_ok("61580090556800")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    record = mblink_mercedes_data_scan_record_at(&scan, 0U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x58));
+    CHECK(mblink_mercedes_data_record_format_hex(record, text, sizeof(text)));
+    CHECK(strcmp(text, "0090556800") == 0);
+    CHECK(!mblink_mercedes_data_record_decode_known_numeric(
+        MBLINK_MERCEDES_MODULE_RESTRAINTS,
+        record, &(double){0.0}, &(const char *){0}, &(const char *){0}));
+
+    config = mblink_mercedes_data_scan_default_config(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_MODULE_AUDIO);
+    config.first_identifier = UINT16_C(0x01);
+    config.last_identifier = UINT16_C(0x01);
+    CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH652", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA48A", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
+    CHECK(accept_command(
+              &scan, "2101", response_ok("7F21780120:610110102210")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    record = mblink_mercedes_data_scan_record_at(&scan, 0U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x01));
+    CHECK(mblink_mercedes_data_record_format_hex(record, text, sizeof(text)));
+    CHECK(strcmp(text, "10102210") == 0);
+
+    return 0;
+}
+
 static int test_kwp_local_identifier_scan(void)
 {
     MblinkMercedesDataScan scan;
@@ -163,6 +258,7 @@ int main(void)
 {
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
+    if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;
 }
