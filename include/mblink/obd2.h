@@ -83,9 +83,15 @@ typedef LinkDtcKnowledge MblinkDtcKnowledge;
 #define mblink_obd2_result_name link_obd2_result_name
 #define mblink_obd2_unit_name link_obd2_unit_name
 #define mblink_obd2_pid_name link_obd2_pid_name
-#define mblink_obd2_pid_definition_count link_obd2_pid_definition_count
-#define mblink_obd2_pid_definition_at link_obd2_pid_definition_at
-#define mblink_obd2_pid_definition link_obd2_pid_definition
+/*
+ * Real facade symbols are required here rather than preprocessor aliases:
+ * Clang exposes these declarations to Swift through MBLINK's bridging header,
+ * while the implementation still delegates to LINK's single shared catalogue.
+ */
+size_t mblink_obd2_pid_definition_count(void);
+const MblinkObd2PidDefinition *mblink_obd2_pid_definition_at(size_t index);
+const MblinkObd2PidDefinition *mblink_obd2_pid_definition(uint8_t mode,
+                                                         uint8_t pid);
 #define mblink_obd2_pid_catalogue_snapshot link_obd2_pid_catalogue_snapshot
 #define mblink_obd2_mode01_identifier_count link_obd2_mode01_identifier_count
 #define mblink_obd2_mode01_assigned_count link_obd2_mode01_assigned_count
