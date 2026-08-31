@@ -1434,7 +1434,7 @@ private struct MBLiveDataView: View {
                             NavigationLink {
                                 MBDataTableView()
                             } label: {
-                                Label("Combined table", systemImage: "tablecells")
+                                Label("Table", systemImage: "tablecells")
                             }
                             NavigationLink {
                                 MBGraphsView()
@@ -1449,6 +1449,8 @@ private struct MBLiveDataView: View {
                         }
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(MBBrand.silverBright)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
                     }
 
                     if modules.isEmpty {
@@ -1510,8 +1512,8 @@ private struct MBLiveDataView: View {
 
                 Label(
                     module.livePIDCount > 0
-                        ? "\(module.livePIDCount) advertised PID\(module.livePIDCount == 1 ? "" : "s")"
-                        : "No live PIDs captured",
+                        ? "\(module.livePIDCount) SAE PID\(module.livePIDCount == 1 ? "" : "s")"
+                        : "No SAE live PIDs captured",
                     systemImage: module.livePIDCount > 0
                         ? "waveform.path.ecg"
                         : "minus.circle")
@@ -1594,7 +1596,7 @@ private struct MBModuleLiveDataView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 MBInfoRow(label: "CAN route", value: module.addressText)
                                 MBInfoRow(label: "Protocol", value: module.protocolName)
-                                MBInfoRow(label: "Advertised PIDs", value: "\(supportedCount)")
+                                MBInfoRow(label: "SAE OBD-II PIDs", value: "\(supportedCount)")
                                 MBInfoRow(label: "Selected for polling", value: "\(selectedCount)")
 
                                 if !module.designation.isEmpty {
@@ -1606,6 +1608,10 @@ private struct MBModuleLiveDataView: View {
                                 }
                             }
                         }
+
+                        MBSectionHeader(
+                            title: "Standard OBD-II",
+                            kicker: "Mode 01 · responder \(module.responseAddressText)")
 
                         Picker("Show", selection: $scope) {
                             ForEach(MBLiveScope.allCases) { item in
@@ -1649,7 +1655,7 @@ private struct MBModuleLiveDataView: View {
                         }
 
                         MBPanel {
-                            Text("SAE Mode 01 is functionally addressed, so one PID request can produce replies from more than one ECU. MBLINK records those replies against the exact responder shown above; the selector is organised by ECU so you can see which module actually advertises and returns each value.")
+                            Text("This page is the SAE OBD-II PID set for this ECU only. Mode 01 uses a functional request, so enabling a PID may collect the same PID from more than one responder in one request. MBLINK still stores and displays each ECU's reply separately. Mercedes-specific DIDs are a separate factory-data layer and are not labelled as SAE OBD-II.")
                                 .font(.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1674,7 +1680,7 @@ private struct MBModuleLiveDataView: View {
         switch scope {
         case .available:
             return module.livePIDCount == 0
-                ? "This ECU is responding, but no standard live-data PIDs have been captured from it yet."
+                ? "This ECU is responding, but it has not returned any standard SAE Mode 01 live-data PIDs. Mercedes manufacturer values will only appear here after their ECU request/DID mapping and scaling are verified."
                 : "No advertised PIDs match the current search."
         case .favourites:
             return "No favourite PIDs from this ECU match the current search."
@@ -1735,7 +1741,7 @@ private struct MBModuleLiveDataView: View {
                 .fixedSize(horizontal: true, vertical: false)
             }
 
-            Text("\(parameter.shortName) · \(parameter.brandPidText)" +
+            Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)" +
                  (parameter.isSupported ? "" : " · not advertised by this ECU"))
                 .font(.caption.monospaced())
                 .foregroundStyle(parameter.isSupported
