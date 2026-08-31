@@ -33,8 +33,6 @@ int main(void)
         mblink_parameter_obd2_definition(0x49U);
     const MblinkParameterDefinition *pedal_e =
         mblink_parameter_obd2_definition(0x4aU);
-    const MblinkParameterDefinition *dpf_pressure =
-        mblink_parameter_obd2_definition(0x7aU);
     const MblinkParameterDefinition *fuel_level =
         mblink_parameter_obd2_definition(0x2fU);
     const MblinkParameterDefinition *engine_runtime =
@@ -44,17 +42,17 @@ int main(void)
     const MblinkParameterDefinition *mil_runtime =
         mblink_parameter_obd2_definition(0x4dU);
 
-    passed &= check(mblink_parameter_obd2_definition_count() == 35U,
-                    "standard descriptor count mismatch");
+    passed &= check(mblink_parameter_obd2_definition_count() == 57U,
+                    "expanded standard scalar descriptor count mismatch");
     passed &= check(rpm != NULL && maf != NULL && rail != NULL &&
                     throttle_valve != NULL && pedal_d != NULL &&
-                    pedal_e != NULL && dpf_pressure != NULL &&
+                    pedal_e != NULL &&
                     fuel_level != NULL && engine_runtime != NULL &&
                     distance_since_clear != NULL && mil_runtime != NULL,
                     "expected OBD descriptors missing");
     passed &= check(mblink_parameter_obd2_definition(0xffU) == NULL,
                     "unknown PID unexpectedly has a descriptor");
-    passed &= check(mblink_parameter_obd2_definition_at(35U) == NULL,
+    passed &= check(mblink_parameter_obd2_definition_at(57U) == NULL,
                     "out-of-range descriptor index should fail");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.engine.rpm") == rpm,
@@ -71,10 +69,6 @@ int main(void)
         mblink_parameter_obd2_definition_for_stable_key(
             "obd2.driver.accelerator_pedal_e") == pedal_e,
         "accelerator-pedal E stable-key lookup mismatch");
-    passed &= check(
-        mblink_parameter_obd2_definition_for_stable_key(
-            "obd2.dpf.bank1_delta_pressure") == dpf_pressure,
-        "DPF stable-key lookup mismatch");
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key(
             "obd2.fuel.tank_level") == fuel_level,
@@ -94,6 +88,13 @@ int main(void)
     passed &= check(
         mblink_parameter_obd2_definition_for_stable_key("obd2.missing") == NULL,
         "unknown stable key unexpectedly resolved");
+
+    passed &= check(mblink_parameter_obd2_definition(0x06U) != NULL &&
+                    mblink_parameter_obd2_definition(0xa6U) != NULL,
+                    "expanded shared scalar catalogue is not visible through MBLINK");
+    passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
+                    mblink_parameter_obd2_definition(0x7cU) == NULL,
+                    "obsolete speculative DPF scalar aliases must not survive");
 
     if (rpm != NULL) {
         MblinkParameterKey same = rpm->key;
@@ -141,17 +142,6 @@ int main(void)
                         &parameter, buffer, sizeof(buffer)) &&
                     strcmp(buffer, "123.4 MPa") == 0,
                     "rail-pressure display auto-scaling mismatch");
-
-    obd.pid = 0x7aU;
-    obd.value = 2.34;
-    obd.unit = MBLINK_OBD2_UNIT_KPA;
-    passed &= check(mblink_parameter_from_obd2(&obd, 120U, &parameter),
-                    "DPF pressure conversion failed");
-    passed &= check(parameter.definition == dpf_pressure &&
-                    mblink_parameter_format_sample(
-                        &parameter, buffer, sizeof(buffer)) &&
-                    strcmp(buffer, "2.34 kPa") == 0,
-                    "DPF pressure formatting mismatch");
 
     if (rpm != NULL) {
         MblinkParameterSample unavailable = { rpm, 0U, false, NAN };
