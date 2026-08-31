@@ -953,7 +953,7 @@ private struct MBModulesView: View {
                 }
                 Text("\(module.addressText) · \(module.protocolName)").font(.caption2.monospaced()).foregroundStyle(MBBrand.muted)
                 HStack(spacing: 8) {
-                    Label("\(module.livePIDCount) live PIDs", systemImage: "waveform.path.ecg")
+                    Label("\(module.livePIDCount) selectable OBD values", systemImage: "waveform.path.ecg")
                     Label(module.faultCountLabel, systemImage: "exclamationmark.triangle")
                 }
                 .font(.caption2.weight(.semibold))
@@ -1520,11 +1520,18 @@ private struct MBLiveDataView: View {
                         systemImage: "wrench.and.screwdriver")
                     if module.livePIDCount > 0 {
                         Text("·")
-                        Text("\(module.livePIDCount) SAE PID\(module.livePIDCount == 1 ? "" : "s")")
+                        Text("\(module.livePIDCount) standard live value\(module.livePIDCount == 1 ? "" : "s")")
                     }
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(MBBrand.silver)
+
+                if module.obdAdvertisedPIDCount > 0 {
+                    Text("\(module.obdAdvertisedPIDCount) Mode 01 capability code\(module.obdAdvertisedPIDCount == 1 ? "" : "s") advertised by this responder")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 6)
