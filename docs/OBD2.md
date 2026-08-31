@@ -50,6 +50,34 @@ PID-set unions, typed samples and DTC-list decodes commit caller-visible output 
 
 Readiness is diagnostic information, not merely protocol state. The user-facing diagnostic workflow must expose applicable monitor completion/support information and preserve the difference between a clean completed monitor and a monitor that has not completed.
 
+## Responder-specific capability inventory
+
+Mode 01 capability discovery is now responder-attributed before routine polling
+starts. MBLINK temporarily enables CAN response headers for the `0100`,
+`0120`, `0140`, ... capability exchange, lets LINK retain one supported-PID
+bitmap per responding CAN ECU, and then restores the ordinary response format
+before VIN and fault acquisition.
+
+The PID selector must use those advertised capability maps. It must never infer
+"supported by this ECU" from the set of PIDs that happened to have been polled
+already; polling is opt-in, so sample history is necessarily incomplete.
+
+The captured C207 masks currently prove:
+
+- responder `0x7E8`: 29 advertised capability codes including the `0x20`
+  and `0x40` continuation pages, therefore 27 non-continuation Mode 01 codes;
+  24 of those are current scalar live values already decoded by LINK;
+- responder `0x7E9`: 12 advertised capability codes including continuation
+  pages, therefore 10 non-continuation Mode 01 codes; 9 are current scalar live
+  values already decoded by LINK.
+
+This is also why the standard OBD-II screen should not be padded with hundreds
+of unsupported catalogue entries. SAE Mode 01 has a bounded PID address space
+and a vehicle advertises only the subset it implements. The much larger
+Mercedes actual-value inventory available through the same diagnostic socket
+belongs to the manufacturer UDS/KWP layer and is kept separate from SAE
+OBD-II.
+
 ## VIN and ELM long responses
 
 Mode 09 PID 02 decoding requires exactly 17 VIN characters: digits or uppercase `A`–`Z`, excluding `I`, `O` and `Q`. Output is transactional: a failed decode leaves the caller-visible VIN empty rather than partially updated.
