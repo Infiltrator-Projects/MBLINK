@@ -1633,6 +1633,10 @@ private struct MBModuleLiveDataView: View {
                             manufacturerValuesPanel(module)
                         }
 
+                        if !manufacturerValues.isEmpty && !scanningThisModule {
+                            manufacturerRefreshControl(module)
+                        }
+
                         if !supportedParameters.isEmpty {
                             standardOBDSection(module)
                         }
@@ -1745,6 +1749,36 @@ private struct MBModuleLiveDataView: View {
                         .disabled(!connection.isActive)
                     }
                 }
+            }
+        }
+    }
+
+    private func manufacturerRefreshControl(_ module: DiagnosticModule) -> some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 9) {
+                Button {
+                    connection.discoverManufacturerData(moduleID: module.id)
+                } label: {
+                    Label("Refresh Mercedes values",
+                          systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(MBBrand.background)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(
+                                cornerRadius: 11,
+                                style: .continuous)
+                                .fill(MBBrand.silverBright))
+                }
+                .buttonStyle(.plain)
+                .disabled(!connection.isActive ||
+                          connection.manufacturerDataScanActive)
+
+                Text("Refresh re-reads only the \(manufacturerValues.count) identifiers that this ECU already proved positive, so it can capture changing values without repeating the full discovery sweep.")
+                    .font(.caption)
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
