@@ -35,6 +35,21 @@ struct DiagnosticParameter: Identifiable {
 
     var isAvailable: Bool { value != nil }
     var isSupported: Bool { vehicleSupported }
+
+    /*
+     * Never expose a bare "N/A" for an ordinary catalogue state. A missing
+     * sample can mean three very different things: the vehicle did not
+     * advertise the PID, the user has not enabled polling, or polling is
+     * enabled but the first sample has not arrived yet.
+     */
+    var presentationValue: String {
+        if isAvailable { return formattedValue }
+        if !vehicleSupported { return "Not advertised" }
+        if !pollingEnabled { return "Not polled" }
+        return "Waiting for sample"
+    }
+
+    var hasLiveValue: Bool { pollingEnabled && isAvailable }
 }
 
 struct DiagnosticModule: Identifiable {
