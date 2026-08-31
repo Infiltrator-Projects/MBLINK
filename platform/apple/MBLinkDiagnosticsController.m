@@ -482,6 +482,14 @@ static bool MBLinkSimulatorResponder(
     flowConfig.manufacturer_extension_after_standard_dtcs = true;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
     /*
+     * Capability discovery must retain the responder CAN header as well.
+     * Otherwise a functional 01xx request produces a useful union but the UI
+     * cannot know which ECU advertised which PID until that PID has already
+     * been polled. That circular dependency was why the per-ECU selector
+     * showed only a handful of values.
+     */
+    flowConfig.preserve_pid_discovery_response_headers = true;
+    /*
      * Keep live EOBD responder CAN IDs in the raw evidence stream so
      * simultaneous 7E8/7E9 replies remain attributable while the shared
      * decoder continues to present the first matching standard value.
@@ -615,10 +623,18 @@ static bool MBLinkSimulatorResponder(
     (uint32_t)responderCANIdentifier
                                                       extendedID:(BOOL)extendedID
 {
+    /*
+     * "Available" for selection is capability-driven, not sample-driven.
+     * Keep cached/live evidence as a fallback for older profiles/adapters, but
+     * put the exact responder's 0100/0120/... advertised bitmap first.
+     */
     NSMutableOrderedSet<NSNumber *> *pids =
         [[NSMutableOrderedSet alloc] initWithArray:
-            [self cachedPIDsForResponderCANIdentifier:
+            [_shared supportedPIDsForResponderCANIdentifier:
                 responderCANIdentifier extendedID:extendedID]];
+    [pids addObjectsFromArray:
+        [self cachedPIDsForResponderCANIdentifier:
+            responderCANIdentifier extendedID:extendedID]];
     [pids addObjectsFromArray:
         [_shared observedPIDsForResponderCANIdentifier:
             responderCANIdentifier extendedID:extendedID]];
