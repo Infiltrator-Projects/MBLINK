@@ -223,9 +223,12 @@ static void test_live_pid_decoding(void)
         };
         LinkObd2DecodedPid decoded;
 
-        check(link_obd2_pid_definition(
-                  UINT8_C(0x01), UINT8_C(0x7A)) == NULL,
-              "obsolete speculative DPF pressure PID is absent");
+        const LinkObd2PidDefinition *dpf_pressure =
+            link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0x7A));
+        check(dpf_pressure != NULL &&
+                  dpf_pressure->bytes == 7U &&
+                  dpf_pressure->value_kind == LINK_OBD2_VALUE_ENCODED,
+              "DPF pressure is retained as structured standard data");
         check(dpf_temperature != NULL &&
                   dpf_temperature->value_kind == LINK_OBD2_VALUE_ENCODED,
               "DPF temperature remains represented as encoded standard data");
