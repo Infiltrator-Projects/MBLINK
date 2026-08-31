@@ -43,7 +43,9 @@ struct DiagnosticParameter: Identifiable {
      * enabled but the first sample has not arrived yet.
      */
     var presentationValue: String {
-        if isAvailable { return formattedValue }
+        if isAvailable {
+            return formattedValue == "N/A" ? "Decode error" : formattedValue
+        }
         if !vehicleSupported { return "Not advertised" }
         if !pollingEnabled { return "Not polled" }
         return "Waiting for sample"
