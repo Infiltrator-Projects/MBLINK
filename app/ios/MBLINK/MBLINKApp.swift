@@ -374,10 +374,10 @@ private struct MBMetricTile: View {
                     .foregroundStyle(MBBrand.muted)
             }
 
-            Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
+            Text(parameter.presentationValue)
                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
 
@@ -1135,7 +1135,19 @@ private struct MBFaultsView: View {
     private var standardTotal: Int {
         connection.storedFaults.count + connection.pendingFaults.count + connection.permanentFaults.count
     }
-    private var total: Int { connection.mercedesUDSFaults.count + standardTotal }
+    private var moduleFaultTotal: Int {
+        connection.diagnosticModules.reduce(0) { $0 + $1.faultCount }
+    }
+    private var total: Int { moduleFaultTotal + standardTotal }
+    private var sortedModules: [DiagnosticModule] {
+        connection.diagnosticModules.sorted {
+            if $0.faultCount != $1.faultCount { return $0.faultCount > $1.faultCount }
+            if $0.requestCANIdentifier != $1.requestCANIdentifier {
+                return $0.requestCANIdentifier < $1.requestCANIdentifier
+            }
+            return $0.name < $1.name
+        }
+    }
     private var allScansComplete: Bool {
         connection.obdFaultScanComplete && connection.mercedesFaultScanComplete
     }
@@ -1158,17 +1170,7 @@ private struct MBFaultsView: View {
                     }
                     scanSummaryPanel
 
-                    if !connection.mercedesUDSFaults.isEmpty {
-                        MBPanel {
-                            VStack(alignment: .leading, spacing: 10) {
-                                MBSectionHeader(title: "Mercedes module faults", kicker: "Manufacturer fault memory")
-                                ForEach(connection.mercedesUDSFaults, id: \.self) { fault in
-                                    Text(fault).font(.body.monospaced().weight(.semibold))
-                                        .foregroundStyle(MBBrand.silverBright).textSelection(.enabled)
-                                }
-                            }
-                        }
-                    }
+                    moduleFaultSection
 
                     if standardTotal == 0 {
                         if connection.obdFaultScanComplete {
@@ -1197,7 +1199,7 @@ private struct MBFaultsView: View {
                 MBSectionHeader(title: "Scan status", kicker: "Evidence state")
                 scanSummaryRow(title: "Mercedes modules",
                                detail: connection.mercedesUDSFaultStatusText,
-                               count: "\(connection.mercedesUDSFaults.count) faults",
+                               count: "\(connection.diagnosticModules.count) modules · \(moduleFaultTotal) faults",
                                complete: connection.mercedesFaultScanComplete,
                                failed: connection.mercedesFaultScanFailed)
                 Divider().overlay(MBBrand.line)
@@ -1222,6 +1224,103 @@ private struct MBFaultsView: View {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    @ViewBuilder
+    private var moduleFaultSection: some View {
+        if sortedModules.isEmpty {
+            MBPanel {
+                statusRow(
+                    connection.isActive
+                        ? "Mercedes control-unit census is still in progress"
+                        : "Connect to the vehicle to read control-unit fault memory",
+                    symbol: connection.isActive ? "clock.fill" : "cable.connector",
+                    colour: MBBrand.muted)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                MBSectionHeader(
+                    title: "Control-unit fault memory",
+                    kicker: "Every responding ECU kept separate")
+                ForEach(sortedModules) { module in
+                    moduleFaultCard(module)
+                }
+            }
+        }
+    }
+
+    private func moduleFaultCard(_ module: DiagnosticModule) -> some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: module.symbol)
+                        .font(.title3)
+                        .foregroundStyle(moduleFaultColour(module))
+                        .frame(width: 26)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(module.name)
+                            .font(.headline)
+                            .foregroundStyle(MBBrand.silverBright)
+                        if !module.designation.isEmpty {
+                            Text(module.designation)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(MBBrand.silver)
+                        }
+                        Text("\(module.addressText) · \(module.protocolName)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(MBBrand.muted)
+                    }
+                    Spacer(minLength: 8)
+                    Text(module.faultCountLabel.uppercased())
+                        .font(.caption2.monospaced().weight(.bold))
+                        .foregroundStyle(moduleFaultColour(module))
+                }
+
+                Divider().overlay(MBBrand.line)
+
+                if module.faults.isEmpty {
+                    Label(module.faultStatus,
+                          systemImage: module.faultStatus == "Checked · no faults"
+                              ? "checkmark.circle.fill" : "questionmark.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(moduleFaultColour(module))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(module.faults, id: \.self) { fault in
+                        Text(conciseModuleFault(fault, module: module))
+                            .font(.subheadline.monospaced().weight(.semibold))
+                            .foregroundStyle(MBBrand.silverBright)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                NavigationLink {
+                    MBModuleDetailView(moduleID: module.id)
+                } label: {
+                    HStack {
+                        Text("Open \(module.name)")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(MBBrand.silver)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func conciseModuleFault(_ fault: String, module: DiagnosticModule) -> String {
+        let prefix = "\(module.name) · \(module.addressText) · "
+        guard fault.hasPrefix(prefix) else { return fault }
+        return String(fault.dropFirst(prefix.count))
+    }
+
+    private func moduleFaultColour(_ module: DiagnosticModule) -> Color {
+        if module.faultCount > 0 { return MBBrand.fault }
+        if module.faultStatus == "Checked · no faults" { return MBBrand.success }
+        return MBBrand.warning
     }
 
     private var diagnosticContextPanel: some View {
@@ -1414,7 +1513,7 @@ private struct MBLiveDataView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .center, spacing: 12) {
-                Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
+                Text(parameter.presentationValue)
                     .font(.system(size: 21, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(
@@ -1482,11 +1581,11 @@ private struct MBLiveDataView: View {
 
 private struct MBDataTableView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
+    @AppStorage("mblink.showUnsupportedParameters.v2") private var showUnsupportedParameters = false
 
     private var sorted: [DiagnosticParameter] {
         connection.diagnosticParameters
-            .filter { showUnavailableParameters || $0.isAvailable }
+            .filter { showUnsupportedParameters || $0.isSupported || $0.isAvailable }
             .sorted { $0.title < $1.title }
     }
 
@@ -1494,8 +1593,22 @@ private struct MBDataTableView: View {
         ZStack {
             MBBackground()
             ScrollView {
-                MBPanel {
-                    VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Toggle("Show unsupported catalogue entries",
+                                   isOn: $showUnsupportedParameters)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("Not polled = supported by the vehicle but disabled. Waiting for sample = polling is enabled but no value has arrived yet. Not advertised = the vehicle did not report support for that PID.")
+                                .font(.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(spacing: 0) {
                         ForEach(sorted) { parameter in
                             HStack(spacing: 10) {
                                 Text(parameter.brandPidText)
@@ -1506,9 +1619,9 @@ private struct MBDataTableView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Spacer()
-                                Text(parameter.pollingEnabled ? parameter.formattedValue : "OFF")
+                                Text(parameter.presentationValue)
                                     .font(.subheadline.monospacedDigit().weight(.semibold))
-                                    .foregroundStyle(parameter.pollingEnabled && parameter.isAvailable ? MBBrand.silverBright : MBBrand.muted)
+                                    .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
                             }
                             .padding(.vertical, 9)
                             if parameter.id != sorted.last?.id { Divider().overlay(MBBrand.line) }
