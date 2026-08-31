@@ -504,17 +504,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload="$(jq -nc --arg repository "$GITHUB_REPOSITORY" --arg sha "$RELEASE_SHA" \
-            '{event_type:"application-release",client_payload:{repository:$repository,sha:$sha}}')"
-
           if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
-            if ! curl --fail-with-body --silent --show-error \
-              --request POST \
-              --header "Authorization: Bearer $DISPATCH_TOKEN" \
-              --header "Accept: application/vnd.github+json" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              --data "$payload" \
-              https://api.github.com/repos/Infiltrator-Projects/Infiltrator-Repository/dispatches; then
+            if ! GH_TOKEN="$DISPATCH_TOKEN" gh api \
+              --method POST \
+              repos/Infiltrator-Projects/Infiltrator-Repository/dispatches \
+              -f event_type='application-release' \
+              -f "client_payload[repository]=$GITHUB_REPOSITORY" \
+              -f "client_payload[sha]=$RELEASE_SHA" >/dev/null; then
               echo "::warning::Immediate APT dispatch failed; waiting for the repository's five-minute safety refresh."
             fi
           else
@@ -524,8 +520,7 @@ jobs:
           catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
           for attempt in $(seq 1 72); do
             if curl -fsS --retry 2 --retry-delay 1 "$catalogue?release=$RELEASE_SHA&attempt=$attempt" \
-              | jq -e --arg id "$APP_ID" --arg version "$VERSION" \
-                '.[] | select(.id == $id and .version == $version)' >/dev/null; then
+              | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
               echo "APT repository advertises $APP_ID $VERSION."
               exit 0
             fi
