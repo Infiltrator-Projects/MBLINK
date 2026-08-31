@@ -534,3 +534,43 @@ are regression evidence; `0x7E9` remains a transmission ECU candidate until
 returned Mercedes identity confirms VGS/EGS.
 
 The same run exposed the old default schedule as too aggressive for the ELM/BLE path, which is why LINK 0.14.25 lowers the default request cadences while retaining per-PID enable controls.
+
+
+## 0.7.109 C207 manufacturer-data capture
+
+A 0.7.109 iPhone/Vgate evidence export from the C207 records two consecutive
+connections in one evidence stream. The first connection still hit the known
+BLE first-connect timeout before the automatic retry recovered the same session;
+the following reconnect reached the ELM channel immediately. This is regression
+evidence that retry recovery works, but it is **not** evidence that the initial
+connection defect is fixed.
+
+The longer session captured 33,943 responder-attributed SAE Mode 01 samples.
+The engine responder `0x7E8` supplied 24 distinct live PIDs and the secondary
+`0x7E9` responder supplied nine. In particular, the previously added standard
+values `1F`, `21`, `24`, `30`, `31`, `3E` and `4D` all produced
+real samples, so those catalogue additions are now vehicle-verified on this
+capture rather than merely standards-backed.
+
+More importantly, the module-scoped read-only manufacturer-data scanner found
+positive raw identifiers on three physical Mercedes routes:
+
+- ESP/ABR `0x632 -> 0x486`, UDS: 18 positive DIDs:
+  `2001, 2003, 2004, 2007, 2009, 200A, 200D, 200F, 2010, 2014, 2017, 2023, 2043, 2046, 2047, 2070, 20C0, 20DF`.
+- ORC/SRS `0x64A -> 0x489`, KWP2000: 29 positive local IDs:
+  `01, 02, 07, 0D, 0F, 11, 13, 18, 23, 24, 2B, 2D, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 69, 70, 71, 72, 77, E0, E4`.
+- Audio/head unit `0x652 -> 0x48A`, KWP2000: four positive local IDs:
+  `01, 02, 05, 06`.
+
+The capture also records complete raw payloads for these positives. Regression
+tests preserve representative examples from each route, including ESP DID
+`0x2001 -> 06 1A 06`, ORC local ID `0x58 -> 00 90 55 68 00`, and head-unit
+local ID `0x01 -> 10 10 22 10`. These are vehicle-verified **existence,
+routing and payload** facts only. No engineering meaning, unit or scaling is
+assigned until an independent Mercedes/Whisper/CAESAR definition or a
+reproducible mapping proves it.
+
+The same capture repeated the already established module fault evidence:
+ORC `9B51/E0`, ESP UDS DTC `39475C/00`, and the unclassified
+`0x602 -> 0x480` UDS DTC `7BD181`. Only the source-backed ORC meaning is
+promoted; the ESP and `0x602` meanings remain raw.
