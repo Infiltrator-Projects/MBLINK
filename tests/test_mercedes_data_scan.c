@@ -148,7 +148,7 @@ static int test_targeted_positive_identifier_refresh(void)
               &scan, "2158", response_ok("61580090556800")) == 0);
     CHECK(scan.current_identifier == UINT16_C(0xe0));
     CHECK(accept_command(
-              &scan, "21E0", response_ok("0140:61E000380406")) == 0);
+              &scan, "21E0", response_ok("014\n0:61E000380406")) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     CHECK(scan.attempted_count == 2U);
     CHECK(scan.positive_count == 2U);
@@ -210,7 +210,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
               &scan, "1003", response_ok("7F10785003001400C8")) == 0);
     CHECK(accept_command(&scan, "3E00", response_ok("7E00")) == 0);
     CHECK(accept_command(
-              &scan, "222001", response_ok("0110:622001061A06")) == 0);
+              &scan, "222001", response_ok("011\n0:622001061A06")) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     CHECK(scan.positive_count == 1U);
     record = mblink_mercedes_data_scan_record_at(&scan, 0U);
@@ -262,7 +262,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     CHECK(accept_command(&scan, "ATCRA48A", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
     CHECK(accept_command(
-              &scan, "2101", response_ok("7F21780120:610110102210")) == 0);
+              &scan, "2101", response_ok("7F2178\n012\n0:610110102210")) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     record = mblink_mercedes_data_scan_record_at(&scan, 0U);
     CHECK(record != NULL && record->identifier == UINT16_C(0x01));
