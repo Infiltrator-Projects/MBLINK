@@ -112,6 +112,11 @@ int main(void)
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
                     "structured DPF PIDs must not be flattened into fake scalars");
+    passed &= check(mblink_obd2_mode01_identifier_count() == 256U &&
+                    mblink_obd2_mode01_assigned_count() == 220U,
+                    "complete SAE Mode 01 namespace is not visible through MBLINK");
+    passed &= check(mblink_obd2_pid_definition(0x01U, 0x7aU) != NULL,
+                    "structured SAE PID 0x7A is missing from shared catalogue");
 
     if (rpm != NULL) {
         MblinkParameterKey same = rpm->key;

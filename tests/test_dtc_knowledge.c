@@ -17,6 +17,14 @@ static void check(bool condition, const char *message)
 
 int main(void)
 {
+    check(mblink_dtc_namespace_count() == 65536U,
+          "complete 16-bit SAE DTC namespace is not visible through MBLINK");
+    {
+        MblinkDtcKnowledge first, last;
+        check(mblink_dtc_namespace_at(0x0000U, &first), "P0000 namespace entry resolves");
+        check(mblink_dtc_namespace_at(0xffffU, &last), "U3FFF namespace entry resolves");
+    }
+
     MblinkDtcKnowledge fault;
     char status[LINK_DTC_STATUS_TEXT_LENGTH];
 

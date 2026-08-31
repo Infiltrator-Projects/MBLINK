@@ -309,6 +309,10 @@ jobs:
           grep -Fq 'liveResponders' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'record_responder_sample_named' src/link/platform/apple/LinkDiagnosticsController.m
           grep -Fq 'dashboardParameters' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'mblink_obd2_pid_definition_count()' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'standardDataSnapshot' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'LINK_SCHEDULER_MAX_ITEMS 256U' src/link/include/link/scheduler.h
           grep -Fq 'ECU evidence' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
