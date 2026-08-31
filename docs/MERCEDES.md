@@ -456,6 +456,44 @@ show no invented measurements.
 
 SwiftUI remains a view layer. Mercedes protocol state, CRD3 decoding, UDS fault parsing and Mercedes fault lookup/knowledge belong below the UI so the same evidence rules, definitions and replay tests can be used on other platforms.
 
+## Per-module Mercedes manufacturer-data discovery
+
+Live-data selection is not limited to legislated SAE Mode 01. A responding
+Mercedes ECU may expose its own actual values through UDS
+ReadDataByIdentifier (`0x22`) or KWP2000 ReadDataByLocalIdentifier (`0x21`),
+even when it exposes no standard OBD-II PIDs at all.
+
+MBLINK therefore keeps three layers distinct:
+
+1. the control-unit census identifies the physical Mercedes ECU route;
+2. a read-only manufacturer-data scan is run against that exact TX/RX route;
+3. standard OBD-II Mode 01 values, when a module also returns them, are shown
+   only as a secondary standards-based layer.
+
+The manufacturer-data scanner currently performs a bounded discovery pass over
+the source-backed Daimler actual-value neighbourhood `0x2000..0x20FF` for UDS
+ECUs and local identifiers `0x01..0xFF` for KWP2000 ECUs. Only positive
+responses are retained. Unknown positives remain attached to the originating
+module as raw identifiers and raw response bytes; MBLINK does not invent a
+name, unit or scaling formula.
+
+The first exact numeric mapping remains CRD3 UDS DID `0x2007`, battery voltage,
+decoded as a two-byte big-endian value multiplied by `0.0078125 V`. Other
+positive manufacturer identifiers are deliberately shown as `RAW` until the
+Whisper/CAESAR definition or a reproducible vehicle mapping proves their
+meaning.
+
+LINK 0.14.48 adds the product-neutral ability to pause an idle live scheduler,
+enter a read-only manufacturer extension, perform physical-ECU reads, restore
+the adapter and resume the existing standard live schedule without losing OBD
+capability or fault state. MBLINK owns the Mercedes scan plan and all semantic
+promotion.
+
+This is the architecture required for ESP/ABR, ORC/SRS, EIS/EZS, EPS,
+head-unit and other body/chassis modules: a module does not disappear from Live
+Data merely because it has no SAE Mode 01 PIDs.
+
+
 ## Evidence and promotion
 
 An endpoint, DID, DTC definition or scaling rule may move to a stronger evidence status only when its provenance is defensible. Vehicle-specific promotion requires a reproducible capture tied to the relevant vehicle/ECU/adapter conditions and regression fixture where the definition depends on observed protocol behaviour.
