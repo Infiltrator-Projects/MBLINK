@@ -74,6 +74,18 @@ static void advance_identifier(MblinkMercedesDataScan *scan)
 {
     if (scan == NULL) return;
     scan->attempted_count++;
+
+    if (scan->identifier_list_active) {
+        scan->identifier_index++;
+        if (scan->identifier_index >= scan->identifier_count) {
+            scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+            return;
+        }
+        scan->current_identifier =
+            scan->identifiers[scan->identifier_index];
+        return;
+    }
+
     if (scan->current_identifier >= scan->config.last_identifier) {
         scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
         return;
@@ -205,7 +217,7 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     return config;
 }
 
-MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
+static MblinkMercedesDataScanResult initialise_scan(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config)
 {
@@ -216,6 +228,54 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
     scan->current_identifier = config->first_identifier;
     scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_INIT_PROTOCOL;
     scan->failure = MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
+    return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
+}
+
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config)
+{
+    return initialise_scan(scan, config);
+}
+
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const uint16_t *identifiers,
+    size_t identifier_count)
+{
+    MblinkMercedesDataScanResult result;
+    size_t index;
+    size_t previous;
+
+    if (identifiers == NULL || identifier_count == 0U ||
+        identifier_count > MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS) {
+        return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
+    }
+
+    result = initialise_scan(scan, config);
+    if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) return result;
+
+    for (index = 0U; index < identifier_count; ++index) {
+        const uint16_t identifier = identifiers[index];
+        if (config->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
+            (identifier == 0U || identifier > UINT16_C(0x00ff))) {
+            memset(scan, 0, sizeof(*scan));
+            return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
+        }
+        for (previous = 0U; previous < index; ++previous) {
+            if (identifiers[previous] == identifier) {
+                memset(scan, 0, sizeof(*scan));
+                return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
+            }
+        }
+        scan->identifiers[index] = identifier;
+    }
+
+    scan->identifier_list_active = true;
+    scan->identifier_count = identifier_count;
+    scan->identifier_index = 0U;
+    scan->current_identifier = scan->identifiers[0U];
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
