@@ -11,13 +11,9 @@ permissions:
 
 jobs:
   portable-core:
-    name: ${{ matrix.os }} / C11
-    runs-on: ${{ matrix.os }}
+    name: linux-native / C11
+    runs-on: linux-native
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux-native, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,7 +79,7 @@ jobs:
 
   linux-app:
     name: Linux / GTK4 app
-    runs-on: ubuntu-latest
+    runs-on: linux-native
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,13 +250,9 @@ jobs:
           retention-days: 30
 
   apple-ios:
-    name: iOS / Xcode / ${{ matrix.configuration }}
+    name: Apple / C11 + iOS Debug + iOS Release + IPA
     runs-on: macos-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: [Debug, Release]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -337,30 +329,25 @@ jobs:
           ! grep -Fq 'Text(detail)' app/ios/MBLINK/MBLINKApp.swift
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
-      - name: Build simulator
+      - name: Build and test portable C11 core on macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-macos --config Release --parallel
+          ctest --test-dir build-macos --build-config Release --output-on-failure
+      - name: Build iOS simulator Debug and Release
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
-            -configuration "${{ matrix.configuration }}" -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
-            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
-
-  iphone-device-ipa:
-    name: iPhone / unsigned device IPA
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
-      - id: version
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          for configuration in Debug Release; do
+            xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+              -configuration "$configuration" -sdk iphonesimulator \
+              -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
+              MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+          done
       - name: Build and package IPA
         shell: bash
         env:
@@ -386,9 +373,9 @@ jobs:
 
   release:
     name: Publish complete atomic release
-    needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios, iphone-device-ipa]
+    needs: [portable-core, sanitizers, linux-app, windows-discover, apple-ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
-    runs-on: ubuntu-latest
+    runs-on: linux-native
     permissions:
       contents: write
     steps:
