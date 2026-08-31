@@ -132,7 +132,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     config = mblink_mercedes_data_scan_default_config(
         UINT32_C(0x632), UINT32_C(0x486), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        MBLINK_MERCEDES_MODULE_BRAKES);
+        MBLINK_MERCEDES_MODULE_ABS_ESP);
     config.first_identifier = UINT16_C(0x2001);
     config.last_identifier = UINT16_C(0x2001);
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
@@ -186,7 +186,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     config = mblink_mercedes_data_scan_default_config(
         UINT32_C(0x652), UINT32_C(0x48a), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        MBLINK_MERCEDES_MODULE_AUDIO);
+        MBLINK_MERCEDES_MODULE_OTHER);
     config.first_identifier = UINT16_C(0x01);
     config.last_identifier = UINT16_C(0x01);
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
