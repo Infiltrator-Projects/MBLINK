@@ -90,6 +90,26 @@ struct DiagnosticModule: Identifiable {
     }
 }
 
+struct MercedesModuleDataValue: Identifiable {
+    let id: String
+    let moduleID: String
+    let identifier: UInt16
+    let service: UInt8
+    let codeText: String
+    let title: String
+    let formattedValue: String
+    let rawHex: String
+    let mapped: Bool
+
+    var serviceName: String {
+        switch service {
+        case 0x22: return "UDS ReadDataByIdentifier"
+        case 0x21: return "KWP2000 ReadDataByLocalIdentifier"
+        default: return String(format: "Service 0x%02X", service)
+        }
+    }
+}
+
 struct DiagnosticFault: Identifiable {
     let code: String
     let title: String
@@ -189,6 +209,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
     @Published private(set) var dashboardParameters = [DiagnosticParameter]()
     @Published private(set) var diagnosticModules = [DiagnosticModule]()
+    @Published private(set) var manufacturerDataScanActive = false
+    @Published private(set) var manufacturerDataScanStatusText = "Not scanned"
+    @Published private(set) var manufacturerDataScanModuleID: String?
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var mercedesNativeDataIdentities = [MercedesNativeDataIdentity]()
     @Published private(set) var recordedSampleCount = 0
@@ -327,6 +350,31 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             responderCANIdentifier: module.responseCANIdentifier,
             extendedID: module.extendedID,
             sourceLabel: "\(module.name) · \(module.addressText)")
+    }
+
+    func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
+        controller.manufacturerDataSnapshots(forModuleIdentifier: moduleID)
+            .map { snapshot in
+                let code = snapshot.codeText
+                let title = snapshot.name ?? code
+                return MercedesModuleDataValue(
+                    id: "\(moduleID):\(snapshot.service):\(snapshot.identifier)",
+                    moduleID: moduleID,
+                    identifier: snapshot.identifier,
+                    service: snapshot.service,
+                    codeText: code,
+                    title: title,
+                    formattedValue: snapshot.formattedValue,
+                    rawHex: snapshot.rawHex,
+                    mapped: snapshot.isMapped)
+            }
+    }
+
+    func discoverManufacturerData(moduleID: String) {
+        guard isActive else { return }
+        controller.discoverManufacturerData(
+            forModuleIdentifier: moduleID)
+        refresh()
     }
 
     func toggleFavourite(stableKey: String) {
@@ -817,6 +865,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         isReady = controller.isReady
         diagnosticParameters = loadDiagnosticParameters()
         diagnosticModules = loadDiagnosticModules()
+        manufacturerDataScanActive = controller.isManufacturerDataScanActive
+        manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
+        manufacturerDataScanModuleID = controller.manufacturerDataScanModuleIdentifier
         dashboardParameters = loadDashboardParameters()
         recordedSampleCount = Int(clamping: controller.recordedSampleCount)
     }
