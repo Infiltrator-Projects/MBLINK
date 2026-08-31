@@ -463,7 +463,7 @@ private extension DiagnosticParameter {
     }
 
     var brandSourceText: String {
-        id.hasPrefix("obd2.") ? "SAE OBD-II · \(brandPidText)" :
+        protocolName.lowercased() == "obd2" ? "SAE OBD-II · \(brandPidText)" :
             "\(protocolName.uppercased()) · \(brandPidText)"
     }
 }

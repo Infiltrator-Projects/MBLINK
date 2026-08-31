@@ -26,6 +26,8 @@ struct DiagnosticParameter: Identifiable {
     let suffix: String
     let formattedValue: String
     let value: Double?
+    let structuredValue: String?
+    let rawHex: String?
     let vehicleSupported: Bool
     let favourite: Bool
     let pollingEnabled: Bool
@@ -33,7 +35,7 @@ struct DiagnosticParameter: Identifiable {
     let sourceLabel: String?
     let qualityNote: String?
 
-    var isAvailable: Bool { value != nil }
+    var isAvailable: Bool { value != nil || !(structuredValue ?? "").isEmpty }
     var isSupported: Bool { vehicleSupported }
 
     /*
@@ -43,9 +45,10 @@ struct DiagnosticParameter: Identifiable {
      * enabled but the first sample has not arrived yet.
      */
     var presentationValue: String {
-        if isAvailable {
+        if value != nil {
             return formattedValue == "N/A" ? "Decode error" : formattedValue
         }
+        if let structuredValue, !structuredValue.isEmpty { return structuredValue }
         if !vehicleSupported { return "Not advertised" }
         if !pollingEnabled { return "Not polled" }
         return "Waiting for sample"
@@ -379,21 +382,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func toggleFavourite(stableKey: String) {
-        let pid: UInt8? = stableKey.withCString { key in
-            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else { return nil }
-            return UInt8(exactly: definition.pointee.key.identifier)
-        }
-        guard let pid else { return }
+        guard let pid = pidForStableKey(stableKey) else { return }
         controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
         refresh()
     }
 
     func setPolling(_ enabled: Bool, stableKey: String) {
-        let pid: UInt8? = stableKey.withCString { key in
-            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else { return nil }
-            return UInt8(exactly: definition.pointee.key.identifier)
-        }
-        guard let pid else { return }
+        guard let pid = pidForStableKey(stableKey) else { return }
         var enabledKeys = storedPollingKeys()
         if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
         UserDefaults.standard.set(Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)
@@ -505,16 +500,38 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return initial
     }
 
+    private func standardStableKey(for pid: UInt8) -> String {
+        if let scalar = mblink_parameter_obd2_definition(pid) {
+            let key = string(from: scalar.pointee.stable_key)
+            if !key.isEmpty { return key }
+        }
+        return String(format: "sae.obd2.mode01.%02X", pid)
+    }
+
+    private func pidForStableKey(_ stableKey: String) -> UInt8? {
+        if let parameter = diagnosticParameters.first(where: { $0.id == stableKey }) {
+            return UInt8(exactly: parameter.parameterIdentifier)
+        }
+        if stableKey.hasPrefix("sae.obd2.mode01."),
+           let value = UInt8(stableKey.suffix(2), radix: 16) { return value }
+        return stableKey.withCString { key in
+            guard let definition = mblink_parameter_obd2_definition_for_stable_key(key) else { return nil }
+            return UInt8(exactly: definition.pointee.key.identifier)
+        }
+    }
+
     private func applyStoredPollingPolicy() {
         let enabled = storedPollingKeys()
-        let count = mblink_parameter_obd2_definition_count()
+        let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return }
         for index in 0..<count {
-            guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
+            guard let definition = mblink_obd2_pid_definition_at(index) else { continue }
             let metadata = definition.pointee
-            guard let pid = UInt8(exactly: metadata.key.identifier) else { continue }
-            let stableKey = string(from: metadata.stable_key)
-            controller.setPollingEnabled(enabled.contains(stableKey), forPID: pid)
+            guard metadata.mode == 0x01 else { continue }
+            let pid = metadata.pid
+            guard (pid & 0x1F) != 0 else { continue }
+            controller.setPollingEnabled(
+                enabled.contains(standardStableKey(for: pid)), forPID: pid)
         }
     }
 
@@ -639,31 +656,71 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         extendedID: Bool = false,
         sourceLabel: String? = nil
     ) -> [DiagnosticParameter] {
-        let count = mblink_parameter_obd2_definition_count()
+        let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
         var result = [DiagnosticParameter]()
-        result.reserveCapacity(count)
+        result.reserveCapacity(Int(count))
 
         for index in 0..<count {
-            guard let definition = mblink_parameter_obd2_definition_at(index) else { continue }
-            let metadata = definition.pointee
-            guard let pid = UInt8(exactly: metadata.key.identifier) else { continue }
+            guard let catalogueDefinition = mblink_obd2_pid_definition_at(index) else { continue }
+            let catalogue = catalogueDefinition.pointee
+            guard catalogue.mode == 0x01 else { continue }
+            let pid = catalogue.pid
+            // 00/20/.../E0 are support bitmaps, not user-selectable live values.
+            guard (pid & 0x1F) != 0 else { continue }
+
+            let scalarDefinition = mblink_parameter_obd2_definition(pid)
             let rawHistory: [Double]
+            if scalarDefinition != nil {
+                if let responderCANIdentifier {
+                    rawHistory = controller.recentValues(
+                        forPID: pid,
+                        responderCANIdentifier: responderCANIdentifier,
+                        extendedID: extendedID,
+                        limit: 60).map(\.doubleValue)
+                } else {
+                    rawHistory = controller.recentValues(forPID: pid, limit: 60).map(\.doubleValue)
+                }
+            } else {
+                rawHistory = []
+            }
+
+            let snapshot: MBLinkStandardDataSnapshot?
             if let responderCANIdentifier {
-                rawHistory = controller.recentValues(
+                snapshot = controller.standardDataSnapshot(
                     forPID: pid,
                     responderCANIdentifier: responderCANIdentifier,
-                    extendedID: extendedID,
-                    limit: 60).map(\.doubleValue)
+                    extendedID: extendedID)
             } else {
-                rawHistory = controller.recentValues(
-                    forPID: pid, limit: 60).map(\.doubleValue)
+                snapshot = controller.standardDataSnapshot(forPID: pid)
             }
+
             let rawValue = rawHistory.last
-            let history = rawHistory.map { displayScalar(definition: definition, rawValue: $0) }
-            let value = rawValue.map { displayScalar(definition: definition, rawValue: $0) }
-            let stableKey = string(from: metadata.stable_key)
-            guard !stableKey.isEmpty else { continue }
+            let stableKey = standardStableKey(for: pid)
+            let title: String
+            let shortName: String
+            let suffix: String
+            let history: [Double]
+            let value: Double?
+            let formatted: String
+
+            if let scalarDefinition {
+                title = string(from: scalarDefinition.pointee.name)
+                shortName = string(from: scalarDefinition.pointee.short_name)
+                suffix = displaySuffix(definition: scalarDefinition)
+                history = rawHistory.map { displayScalar(definition: scalarDefinition, rawValue: $0) }
+                value = rawValue.map { displayScalar(definition: scalarDefinition, rawValue: $0) }
+                formatted = formattedValue(definition: scalarDefinition, value: rawValue)
+            } else {
+                title = string(from: catalogue.name)
+                shortName = String(format: "PID %02X", pid)
+                let unit = string(from: catalogue.unit)
+                suffix = unit.isEmpty ? "" : " \(unit)"
+                history = []
+                value = nil
+                formatted = snapshot?.formattedValue ?? "N/A"
+            }
+
             let vehicleSupported: Bool
             if let responderCANIdentifier {
                 vehicleSupported = controller.observedPIDs(
@@ -677,19 +734,24 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             if responderCANIdentifier != nil && pid == 0x2F,
                let rawValue, rawValue >= 99.5 {
                 qualityNote = "ECU reported 100%; value retained without correction"
+            } else if scalarDefinition == nil && snapshot != nil {
+                qualityNote = "Structured SAE value · full payload retained by LINK"
             } else {
                 qualityNote = nil
             }
+
             result.append(DiagnosticParameter(
                 id: stableKey,
-                protocolName: string(from: mblink_parameter_protocol_name(metadata.key.protocol)),
-                moduleIdentifier: metadata.key.module,
-                parameterIdentifier: metadata.key.identifier,
-                shortName: string(from: metadata.short_name),
-                title: string(from: metadata.name),
-                suffix: displaySuffix(definition: definition),
-                formattedValue: formattedValue(definition: definition, value: rawValue),
+                protocolName: "obd2",
+                moduleIdentifier: 0,
+                parameterIdentifier: UInt32(pid),
+                shortName: shortName,
+                title: title,
+                suffix: suffix,
+                formattedValue: formatted,
                 value: value,
+                structuredValue: scalarDefinition == nil ? snapshot?.formattedValue : nil,
+                rawHex: snapshot?.rawHex,
                 vehicleSupported: vehicleSupported,
                 favourite: controller.favourite(forPID: pid),
                 pollingEnabled: controller.pollingEnabled(forPID: pid),
@@ -720,19 +782,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 extendedID: snapshot.isExtendedID)
             let advertisedSet = Set(advertised.map(\.uint8Value))
             var selectableCount = 0
-            let definitionCount = Int(mblink_parameter_obd2_definition_count())
-            if definitionCount > 0 {
-                for index in 0..<definitionCount {
-                    guard let definition =
-                            mblink_parameter_obd2_definition_at(index),
-                          let pid = UInt8(exactly:
-                              definition.pointee.key.identifier) else {
-                        continue
-                    }
-                    if advertisedSet.contains(pid) {
-                        selectableCount += 1
-                    }
-                }
+            for pid in advertisedSet {
+                guard (pid & 0x1F) != 0,
+                      mblink_obd2_pid_definition(0x01, pid) != nil else { continue }
+                selectableCount += 1
             }
 
             return DiagnosticModule(
