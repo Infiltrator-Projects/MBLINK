@@ -72,6 +72,7 @@ struct DiagnosticModule: Identifiable {
     let faultCount: Int
     let faults: [String]
     let evidenceDetails: [String]
+    let obdAdvertisedPIDCount: Int
     let livePIDCount: Int
 
     var addressText: String {
@@ -714,7 +715,27 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private func loadDiagnosticModules() -> [DiagnosticModule] {
         controller.mercedesModuleSnapshots.map { snapshot in
-            DiagnosticModule(
+            let advertised = controller.observedPIDs(
+                forResponderCANIdentifier: snapshot.responseCANIdentifier,
+                extendedID: snapshot.isExtendedID)
+            let advertisedSet = Set(advertised.map(\.uint8Value))
+            var selectableCount = 0
+            let definitionCount = Int(mblink_parameter_obd2_definition_count())
+            if definitionCount > 0 {
+                for index in 0..<definitionCount {
+                    guard let definition =
+                            mblink_parameter_obd2_definition_at(index),
+                          let pid = UInt8(exactly:
+                              definition.pointee.key.identifier) else {
+                        continue
+                    }
+                    if advertisedSet.contains(pid) {
+                        selectableCount += 1
+                    }
+                }
+            }
+
+            return DiagnosticModule(
                 id: snapshot.identifier,
                 name: snapshot.name,
                 designation: snapshot.designation,
@@ -732,9 +753,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 faultCount: Int(snapshot.faultCount),
                 faults: snapshot.faults,
                 evidenceDetails: snapshot.evidenceDetails,
-                livePIDCount: controller.observedPIDs(
-                    forResponderCANIdentifier: snapshot.responseCANIdentifier,
-                    extendedID: snapshot.isExtendedID).count)
+                obdAdvertisedPIDCount: advertised.count,
+                livePIDCount: selectableCount)
         }
     }
 
