@@ -146,11 +146,12 @@ Current manufacturer-specific state:
 - physical C207/Vgate captures have verified standard VIN, selected Mercedes UDS response shapes and the conventional engine route, while unobserved definitions remain explicitly unverified;
 - captured live data distinguishes accelerator-pedal channels from absolute throttle-valve position rather than treating PID `0x11` as pedal demand;
 - the development C207 advertises SAE PID `0x2F` fuel level but not SAE PID `0x5E` engine fuel rate, so MBLINK exposes measured tank percentage while refusing to invent an SAE fuel-flow value;
-- no manufacturer-specific soot-load, regeneration, injector-correction, fuel-consumption or other undocumented OM651 formula is claimed without protocol and vehicle evidence.
+- the archived Mercedes me Whisper parameterisation now source-corroborates a factory-value inventory including `engineOilTemperature`, `intakeManifoldPressure` (bar), `engineFuelRate` (L/h), `actualFuelFlow` / trip fuel-flow values (l/100km), tyre pressures, `fuelPressureCan`, `particleFilter`, torque and AdBlue range; these remain corroborated-unmapped until their exact request/result/formula binding is recovered and vehicle-verified;
+- no manufacturer-specific soot-load, regeneration, injector-correction, fuel-consumption or other OM651 formula is promoted to a live gauge without protocol mapping and vehicle evidence.
 
 The DID Lab remains the promotion boundary for factory values. `corroborated-unmapped`, `source-backed-candidate` and `vehicle-verified` are separate states; correlation can support a candidate but cannot invent its request address or promote it by itself.
 
-The next evidence step is to turn each additional physical C207/OM651 result into a sanitised regression fixture. A reproducible CRD3/ECU/module fingerprint can then unlock genuine OM651-specific DPF, injector, fuel and transmission definitions from observed vehicle behaviour rather than guesses.
+The immediate evidence step is now two-track: preserve every additional physical C207/OM651 response as a sanitised regression fixture, and finish the archived-app mapping from Whisper DataID -> device/provider -> request/result -> extraction/formula. `Values.java` and the diagnostic-logic resources it references are the priority reverse-engineering inputs. Once a source-backed mapping exists, the C207 capture becomes validation and promotion evidence rather than a blind DID search.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
