@@ -388,6 +388,61 @@ The exact semantics of `productID`, `groupID`, `deviceID` and
 Likewise, the default ACS base endpoint remains referenced indirectly via the
 Android resource `R.string.acc_endpoint_uri`.
 
+## ACS selection identity and Whisper VIN mapping
+
+The recovered Java narrows the ACS selection model further.
+
+The Adapter Configuration tracking database does **not** key installed/downloaded
+state on all four descriptor fields. Its lookup predicate is specifically:
+
+```text
+event type
++ productID
++ thingID
+```
+
+and its persisted tracking row stores `productID`, `thingID`, `version`,
+`externalID` and the temporary downloaded-file URL. `deviceID` and
+`groupID` are still present in the ACS request model, but are not used by this
+local package-history lookup.
+
+This makes `thingID` a particularly important package-selection identity, but
+the recovered classes still do not establish its semantic meaning. It must not
+yet be labelled as VIN, adapter serial number or any other specific identifier.
+
+Separately, native Whisper symbols prove that VIN-dependent configuration
+selection exists *inside the vehicle-interface configuration layer*. The
+supplied `libwhisper.so` exports:
+
+```text
+VinMappingRegistry::getMapForVin(...)
+VinMappingRegistry::determineKey(...)
+VinMappingRegistry::countMatchingCharacters(...)
+VinMappingRegistry::writeVinConfigurations(...)
+VinMappingRegistry::removeVinConfigurations(...)
+VinMappingRegistry::CONFIGS_POSTFIX()
+DpConfigurationController::getActiveConfiguration()
+DpConfigurationController::setActiveConfiguration(...)
+DeviceProviderFactory::getActiveConfigurationName()
+```
+
+and contains the configuration namespace literals `vinmapping`,
+`deviceproviders`, `actionproviders` and `_configs`.
+
+Therefore two selection stages must be kept distinct:
+
+1. ACS chooses which Vehicle Interface ZIP to deliver from the generic
+   descriptor/request identities; and
+2. once installed, Whisper has its own VIN-mapping registry capable of selecting
+   configuration content for a VIN and activating the corresponding device
+   provider configuration.
+
+This is stronger evidence for the route to a C207/OM651 mapping than assuming
+that the ACS `thingID` itself is a VIN. The remaining Java target is the
+application code that constructs `AdapterConfigurationDeviceDescriptor`;
+the remaining artifact target is any historical downloaded ACS bundle or
+installed Whisper `_configs` content.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
