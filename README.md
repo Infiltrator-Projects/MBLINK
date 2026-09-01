@@ -82,6 +82,8 @@ manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 
 Manufacturer-specific data remains evidence-gated until documentation or reproducible vehicle captures establish its meaning.
 
+Heavy unknown-vehicle research is a Linux/Windows responsibility: MBLINK Discover uses the shared LINK research engine for passive capture, module census, read-only data harvest and evidence analysis, while iPhone remains the normal diagnostic instrument. See `docs/VEHICLE_RESEARCH.md`.
+
 ## Architecture
 
 Portable diagnostic behaviour is C11. C++ is used only where it materially improves a design. Platform-required languages remain narrow presentation/interop edges and must not become alternate protocol implementations.
