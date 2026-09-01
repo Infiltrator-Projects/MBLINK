@@ -286,21 +286,36 @@ help identify the selected per-vehicle diagnostic package.
 
 Further native analysis narrows the password/key path substantially.
 
-`libgdk.so` exports a C entry point named `start` whose third argument is
-passed through as a callback when the native stack constructs
-`jni::main::JniSessionMasterKeyProvider`. The provider constructor type is:
+The exported C entry point `start` takes the Session Master Key callback as
+its **second** argument. Thumb disassembly shows that argument being wrapped
+directly in `jni::main::JniSessionMasterKeyProvider`, while the first
+argument is converted to the string passed into the adapter start path and the
+third argument is the boolean passed to `ObdAdapter::start(..., bool)`.
+
+The provider constructor type is:
 
 ```text
 const char *(*)(const char *, const char *)
 ```
 
-and `JniSessionMasterKeyProvider::loadSessionMasterKey(...)` invokes that
-callback with two string arguments and treats the returned C string as the
-loaded session-master-key material. The exact semantic names of those two
-arguments remain unproven and are intentionally not guessed.
+The callback contract can now be identified more precisely from
+`RetrieveSmkAction::run()`. The action:
 
-The same GDK binary contains a distinct persistent
-`SessionMasterKeyCache` with:
+1. reads `KEY_OBD_ADAPTER_ID` from the init-sequence state;
+2. checks `SessionMasterKeyCache::get(adapterId)`;
+3. on a cache miss, executes `ISlCommandGetPasskey`;
+4. calls the configured Session Master Key provider with the adapter ID and
+   the returned adapter passkey;
+5. treats the callback result as a string;
+6. rejects special/error responses beginning with `#`;
+7. Base64-decodes the normal callback result;
+8. constructs a `SessionMasterKey` from the decoded bytes; and
+9. stores it back in the cache under the adapter ID.
+
+The returned Session Master Key is therefore a Base64-encoded 32-byte key, not
+the same object as the system encryption password.
+
+The persistent `SessionMasterKeyCache` exposes:
 
 - `getSmkEncryptionKey()`;
 - `getPasswordHash(...)`;
@@ -309,24 +324,49 @@ The same GDK binary contains a distinct persistent
 - `getFilename()` / `getCacheDir()`;
 - `createCacheDir()` / `remove(...)`.
 
-That cache imports `cc::common::System::getEncryptionPassword()`, proving
-that the application-supplied system encryption password is used inside GDK
-for protected session-master-key cache handling.
+`getCacheDir()` is built from
+`cc::common::System::getRuntimeDirectory()` plus the library's cache
+directory constant.
 
-This is separate from the Session Master Key itself. The stack therefore has
-at least two distinct key concepts:
+Most importantly, `getSmkEncryptionKey()` first asks
+`System::getEncryptionPassword()`. If the application has not supplied one,
+the GDK contains a hard-coded fallback byte string:
 
-1. an application/system encryption password supplied through
-   `libcommon.so` and consumed by GDK cache protection; and
-2. a 32-byte Session Master Key loaded through the
-   `JniSessionMasterKeyProvider` callback and later used to derive the live
-   adapter Session Key.
+```text
+QRn39mNyX55E7OLFyGVEq9NnUl1MuUQEDogGNskX/us=
+```
+
+That exact 44-byte ASCII value is constructed in the function itself. It is
+not the SMK. It is the fallback key material used by the SMK cache encryption
+path.
+
+The cache's `getPasswordHash()` is also reproducible from the native code:
+it calls `Aes256Utils::encode(password, password)` and then Base64-encodes
+the resulting 16-byte block. With the built-in fallback above this produces:
+
+```text
+jeZ7us5Yd8wpoLgKW46pyg==
+```
+
+The cache therefore has a deterministic fallback protection path even when the
+application never calls `setSystemEncryptionPassword`.
+
+This is separate from the Session Master Key itself. The stack has at least
+two distinct key concepts:
+
+1. an application/system encryption password, or the built-in fallback above,
+   used by GDK cache protection; and
+2. a 32-byte Session Master Key fetched using
+   `(adapterId, adapterPasskey)`, Base64-decoded by GDK, cached per adapter
+   and later used to derive the live adapter Session Key.
 
 The GDK binary also exposes the Java-facing class name
 `com/tsystems/cc/aftermarket/app/android/gdkbt/BtConnectionGdkImp` and the
-native operation `removeCachedSessionMasterKey`. This is now the highest
-value bridge name to search in the DEX/decompiled application when locating
-the caller-side key provider.
+native operation `removeCachedSessionMasterKey`. The highest-value remaining
+bridge target is therefore the DEX/decompiled class that supplies the
+`start` callback and implements the backend lookup for
+`(adapterId, passkey) -> Base64 SMK`.
+
 
 ## Protected data export artifact
 
