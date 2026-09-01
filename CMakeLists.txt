@@ -16,6 +16,55 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Canonical MBLINK typography. The exact user-supplied font archive is split
+# into Git blobs; reconstruct and hash-verify it before any platform uses it.
+set(MBLINK_FONT_PARTS
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part00"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part01"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part02"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part03")
+foreach(MBLINK_FONT_PART IN LISTS MBLINK_FONT_PARTS)
+    if(NOT EXISTS "${MBLINK_FONT_PART}")
+        message(FATAL_ERROR "Missing MBLINK font archive part: ${MBLINK_FONT_PART}")
+    endif()
+endforeach()
+set(MBLINK_FONT_ARCHIVE "${CMAKE_CURRENT_BINARY_DIR}/mblink-mb-corpo-fonts.tar.xz")
+execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E cat ${MBLINK_FONT_PARTS}
+    OUTPUT_FILE "${MBLINK_FONT_ARCHIVE}"
+    COMMAND_ERROR_IS_FATAL ANY)
+file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
+if(NOT MBLINK_FONT_ARCHIVE_SHA256 STREQUAL
+   "bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274")
+    message(FATAL_ERROR "MBLINK font archive hash mismatch.")
+endif()
+set(MBLINK_FONT_DIR "${CMAKE_CURRENT_BINARY_DIR}/mblink-fonts")
+file(REMOVE_RECURSE "${MBLINK_FONT_DIR}")
+file(MAKE_DIRECTORY "${MBLINK_FONT_DIR}")
+file(ARCHIVE_EXTRACT INPUT "${MBLINK_FONT_ARCHIVE}" DESTINATION "${MBLINK_FONT_DIR}")
+set(MBLINK_FONT_A_COND_REGULAR "${MBLINK_FONT_DIR}/mb_corpo_a_cond_regular.ttf")
+set(MBLINK_FONT_S_BOLD "${MBLINK_FONT_DIR}/mb_corpo_s_bold.ttf")
+set(MBLINK_FONT_S_REGULAR "${MBLINK_FONT_DIR}/mb_corpo_s_regular.ttf")
+set(MBLINK_FONT_FILES
+    "${MBLINK_FONT_A_COND_REGULAR}"
+    "${MBLINK_FONT_S_BOLD}"
+    "${MBLINK_FONT_S_REGULAR}")
+set(MBLINK_FONT_EXPECTED_SHA256
+    "c8bcd7e1a7d71169b38491d9b7c1ffe7ba7b46e888f0c1219931343a47bc0e05"
+    "d37ea986e2344d83390f94f170e6272b56efd00bfec808afe8314c4ca45d43b4"
+    "94ede6629443c03d4362dcef425fb3ff520be5d654370021a34e81286804465c")
+list(LENGTH MBLINK_FONT_FILES MBLINK_FONT_COUNT)
+math(EXPR MBLINK_FONT_LAST "${MBLINK_FONT_COUNT} - 1")
+foreach(MBLINK_FONT_INDEX RANGE 0 ${MBLINK_FONT_LAST})
+    list(GET MBLINK_FONT_FILES ${MBLINK_FONT_INDEX} MBLINK_FONT_FILE)
+    list(GET MBLINK_FONT_EXPECTED_SHA256 ${MBLINK_FONT_INDEX} MBLINK_FONT_SHA256_EXPECTED)
+    file(SHA256 "${MBLINK_FONT_FILE}" MBLINK_FONT_SHA256_ACTUAL)
+    if(NOT MBLINK_FONT_SHA256_ACTUAL STREQUAL MBLINK_FONT_SHA256_EXPECTED)
+        message(FATAL_ERROR "MBLINK font hash mismatch: ${MBLINK_FONT_FILE}")
+    endif()
+endforeach()
+
 option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MBLINK_BUILD_LINUX_APP "Build the native GTK4 Linux front end" OFF)
 set(MBLINK_BUILD_PROFILE "source" CACHE STRING "Build identity: source, generic, or native")
@@ -117,6 +166,7 @@ if(MBLINK_BUILD_LINUX_APP)
     endif()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.6)
+    pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
     find_program(GLIB_COMPILE_RESOURCES_EXECUTABLE NAMES glib-compile-resources REQUIRED)
     set(MBLINK_LINUX_RESOURCE_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/mblink-linux-resources.c")
     add_custom_command(OUTPUT "${MBLINK_LINUX_RESOURCE_SOURCE}"
@@ -135,13 +185,18 @@ if(MBLINK_BUILD_LINUX_APP)
         PROPERTIES
         COMPILE_OPTIONS "-include;${MBLINK_LINK_DIR}/platform/linux/link-gtk-i18n.h")
     set_source_files_properties("${MBLINK_LINUX_RESOURCE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-w")
-    target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4)
+    target_link_libraries(mblink-linux PRIVATE mblink PkgConfig::GTK4 PkgConfig::FONTCONFIG)
+    target_compile_definitions(mblink-linux PRIVATE
+        "MBLINK_FONT_BUILD_DIR=\"${MBLINK_FONT_DIR}\""
+        "MBLINK_FONT_INSTALL_DIR=\"${CMAKE_INSTALL_FULL_DATADIR}/fonts/truetype/mblink\"")
     link_enable_linux_gtk_shell(mblink-linux UDEV_RULE_NAME "60-mblink-openport2.rules")
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(mblink-linux PRIVATE ${MBLINK_WARNING_FLAGS} -Werror)
     endif()
     install(TARGETS mblink-linux RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
     install(FILES app/linux/assets/mblink-emblem.png DESTINATION "${CMAKE_INSTALL_DATADIR}/pixmaps" RENAME mblink.png)
+    install(FILES ${MBLINK_FONT_FILES}
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/fonts/truetype/mblink")
     install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
     install(FILES LICENSE DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink" RENAME copyright)
     install(FILES README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
@@ -177,6 +232,18 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
         FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
     target_link_libraries(mblink-discover PRIVATE mblink)
+    file(TO_NATIVE_PATH "${MBLINK_FONT_S_REGULAR}" MBLINK_FONT_S_REGULAR_RC)
+    file(TO_NATIVE_PATH "${MBLINK_FONT_S_BOLD}" MBLINK_FONT_S_BOLD_RC)
+    file(TO_NATIVE_PATH "${MBLINK_FONT_A_COND_REGULAR}" MBLINK_FONT_A_COND_REGULAR_RC)
+    string(REPLACE "\\" "\\\\" MBLINK_FONT_S_REGULAR_RC "${MBLINK_FONT_S_REGULAR_RC}")
+    string(REPLACE "\\" "\\\\" MBLINK_FONT_S_BOLD_RC "${MBLINK_FONT_S_BOLD_RC}")
+    string(REPLACE "\\" "\\\\" MBLINK_FONT_A_COND_REGULAR_RC "${MBLINK_FONT_A_COND_REGULAR_RC}")
+    set(MBLINK_WINDOWS_FONT_RC "${CMAKE_CURRENT_BINARY_DIR}/mblink-fonts.rc")
+    file(WRITE "${MBLINK_WINDOWS_FONT_RC}"
+        "1101 RCDATA \"${MBLINK_FONT_S_REGULAR_RC}\"\n"
+        "1102 RCDATA \"${MBLINK_FONT_S_BOLD_RC}\"\n"
+        "1103 RCDATA \"${MBLINK_FONT_A_COND_REGULAR_RC}\"\n")
+    target_sources(mblink-discover PRIVATE "${MBLINK_WINDOWS_FONT_RC}")
     if(MSVC)
         target_compile_options(mblink-discover PRIVATE "/FI${MBLINK_LINK_DIR}/platform/windows/link-discover-theme.h")
     endif()
@@ -187,7 +254,13 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         LINK_THEME_TEXT=0x00EFECE8
         LINK_THEME_MUTED=0x00989189
         LINK_THEME_ACCENT=0x00E2DDD7
-        LINK_THEME_ACCENT_TEXT=0x00181411)
+        LINK_THEME_ACCENT_TEXT=0x00181411
+        "LINK_PRODUCT_FONT_UI=\"MB Corpo S Title WEB\""
+        "LINK_PRODUCT_FONT_DISPLAY=\"MB Corpo A Title Cond WEB\""
+        "LINK_PRODUCT_FONT_LOG=\"MB Corpo S Title WEB\""
+        LINK_PRODUCT_FONT_RESOURCE_REGULAR=1101
+        LINK_PRODUCT_FONT_RESOURCE_BOLD=1102
+        LINK_PRODUCT_FONT_RESOURCE_CONDENSED=1103)
 endif()
 function(mblink_add_test target source)
     add_executable(${target} ${source})
