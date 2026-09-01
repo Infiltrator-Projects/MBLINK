@@ -487,19 +487,33 @@ the most recent `DOWNLOAD_FINISHED`, `DOWNLOAD_FAILED` and
 `DOWNLOAD_STARTED` events for the same descriptor and forces a new download
 when the newest event is older than 604800000 ms (7 days).
 
-The exact value of `productID` remains referenced through Android resource
-2131887000 and still needs resource-table resolution.
-
-Resource 2131887002 is reused by the application's diagnosis/backend
-configuration as both `tenantId` and `xClientId`. Because the descriptor
-builder assigns the same resource to `groupID`, the following relationship
-is source-backed for this build:
+The merged Android resource table resolves the descriptor resource names:
 
 ```text
-groupID = tenantId = xClientId = resource 2131887002
+0x7f120398 / 2131887000 = envFrameworkProductId
+0x7f120399 / 2131887001 = envFrameworkServerTimeout
+0x7f12039a / 2131887002 = envFrameworkTenantId
 ```
 
-The literal string value still needs resource-table resolution.
+Therefore the application-layer descriptor construction can be expressed as:
+
+```text
+productID = envFrameworkProductId
+groupID   = envFrameworkTenantId
+deviceID  = "8497e115-32ef-4738-b048-9f206ee43b10"
+thingID   = VIN
+```
+
+The same `envFrameworkTenantId` resource is reused by the application's
+diagnosis/backend configuration as both `tenantId` and `xClientId`. Thus
+for this archived build:
+
+```text
+groupID = tenantId = xClientId = envFrameworkTenantId
+```
+
+The resource names are now proven; their literal string values still need
+resolution from the decoded values resources.
 
 ## Local database live-data availability model
 
