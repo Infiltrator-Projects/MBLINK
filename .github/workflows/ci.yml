@@ -166,6 +166,13 @@ jobs:
           grep -Fq 'static const char mblink_metrics_css[] =' app/linux/main.c
           grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c
           grep -Fq 'g_free(runtime_css);' app/linux/main.c
+          grep -Fq 'descriptor.use_client_side_titlebar = true;' app/linux/main.c
+          grep -Fq '.link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-device-row { min-height: 46px; }' app/linux/main.c
+          grep -Fq '.link-toolbar-label { min-width: 64px; font-size: 14px; font-weight: 700; opacity: 1; }' app/linux/main.c
+          grep -Fq '.link-adapter-combo { min-height: 44px; }' app/linux/main.c
+          grep -Fq 'bool use_client_side_titlebar;' src/link/platform/linux/link-gtk-shell.h
+          grep -Fq 'gtk_window_set_titlebar(shell->window, titlebar);' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
           grep -Fq 'info->copyright_text' app/linux/about-dialog.c
           grep -Fq 'mblink_linux_build_label(info->build_profile)' app/linux/about-dialog.c

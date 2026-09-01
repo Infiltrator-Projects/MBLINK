@@ -159,13 +159,19 @@ static const char mblink_css[] =
 
 static const char mblink_metrics_css[] =
     "window { font-size: 14px; }"
+    ".link-titlebar { min-height: 42px; background: #202125; border-bottom: 1px solid #353a40; }"
+    ".link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
     "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-size: 13px; }"
     "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-size: 13px; }"
     "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }"
     ".link-toolbar-button { min-height: 40px; padding: 7px 14px; }"
     ".link-link-button { min-width: 100px; min-height: 42px; padding: 8px 18px; }"
     ".link-save-session-button { min-height: 42px; padding: 8px 14px; }"
-    ".link-adapter-combo { min-height: 40px; }"
+    ".link-device-row { min-height: 46px; }"
+    ".link-toolbar-label { min-width: 64px; font-size: 14px; font-weight: 700; opacity: 1; }"
+    ".link-adapter-combo { min-height: 44px; }"
+    ".link-adapter-combo, .link-adapter-combo * { font-size: 14px; font-weight: 400; }"
+    ".link-adapter-combo button, .link-adapter-combo button * { padding: 8px 12px; }"
     ".link-section-title { font-size: 14px; }"
     ".link-section-summary { font-size: 12px; }"
     ".link-brand-subtitle { font-size: 12px; }"
@@ -2395,6 +2401,7 @@ int main(int argc, char **argv)
         : "MERCEDES-BENZ · C207 / OM651";
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
+    descriptor.use_client_side_titlebar = true;
     runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;
