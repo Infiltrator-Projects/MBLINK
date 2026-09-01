@@ -487,33 +487,36 @@ the most recent `DOWNLOAD_FINISHED`, `DOWNLOAD_FAILED` and
 `DOWNLOAD_STARTED` events for the same descriptor and forces a new download
 when the newest event is older than 604800000 ms (7 days).
 
-The merged Android resource table resolves the descriptor resource names:
+The merged Android resource table resolves the descriptor resources and their
+literal values:
 
 ```text
-0x7f120398 / 2131887000 = envFrameworkProductId
-0x7f120399 / 2131887001 = envFrameworkServerTimeout
-0x7f12039a / 2131887002 = envFrameworkTenantId
+0x7f120398 / 2131887000 = envFrameworkProductId      = "Daimler"
+0x7f120399 / 2131887001 = envFrameworkServerTimeout = "10000"
+0x7f12039a / 2131887002 = envFrameworkTenantId      = "d6d7c781-932f-42ca-9ee7-280a72480f37"
 ```
 
-Therefore the application-layer descriptor construction can be expressed as:
+Therefore the application-layer descriptor construction can be expressed
+exactly for this archived build as:
 
 ```text
-productID = envFrameworkProductId
-groupID   = envFrameworkTenantId
+productID = "Daimler"
+groupID   = "d6d7c781-932f-42ca-9ee7-280a72480f37"
 deviceID  = "8497e115-32ef-4738-b048-9f206ee43b10"
 thingID   = VIN
 ```
 
-The same `envFrameworkTenantId` resource is reused by the application's
-diagnosis/backend configuration as both `tenantId` and `xClientId`. Thus
-for this archived build:
+The same tenant UUID is reused by the application's diagnosis/backend
+configuration as both `tenantId` and `xClientId`, while the associated
+server timeout is 10000 ms.
+
+The ACS endpoint resource has also been resolved symbolically:
 
 ```text
-groupID = tenantId = xClientId = envFrameworkTenantId
+R.string.acc_endpoint_uri = 0x7f12007d
 ```
 
-The resource names are now proven; their literal string values still need
-resolution from the decoded values resources.
+Its literal URL value still needs extraction from the decoded values resources.
 
 ## Local database live-data availability model
 
