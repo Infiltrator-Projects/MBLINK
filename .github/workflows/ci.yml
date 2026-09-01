@@ -157,6 +157,12 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'mblink_linux_show_about' app/linux/main.c
+          grep -Fq 'gtk_window_set_default_size(GTK_WINDOW(widget), 560, 560);' app/linux/about-dialog.c
+          grep -Fq 'gtk_widget_set_size_request(widget, 520, 500);' app/linux/about-dialog.c
+          grep -Fq 'gtk_widget_add_css_class(widget, "mblink-about-dialog");' app/linux/about-dialog.c
+          grep -Fq '.mblink-about-dialog stackswitcher button' app/linux/main.c
+          grep -Fq '.mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/main.c
+          grep -Fq '.link-toolbar-button { min-height: 40px; padding: 7px 14px; }' app/linux/main.c
           grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
           grep -Fq 'info->copyright_text' app/linux/about-dialog.c
           grep -Fq 'mblink_linux_build_label(info->build_profile)' app/linux/about-dialog.c

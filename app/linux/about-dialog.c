@@ -50,6 +50,10 @@ void mblink_linux_show_about(GtkWindow *parent)
     gtk_window_set_transient_for(GTK_WINDOW(widget), parent);
     gtk_window_set_modal(GTK_WINDOW(widget), TRUE);
     gtk_window_set_destroy_with_parent(GTK_WINDOW(widget), TRUE);
+    gtk_window_set_resizable(GTK_WINDOW(widget), TRUE);
+    gtk_window_set_default_size(GTK_WINDOW(widget), 560, 560);
+    gtk_widget_set_size_request(widget, 520, 500);
+    gtk_widget_add_css_class(widget, "mblink-about-dialog");
     gtk_about_dialog_set_program_name(about, info->program_name);
     gtk_about_dialog_set_version(about, info->version);
     gtk_about_dialog_set_comments(about, comments);
