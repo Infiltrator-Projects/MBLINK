@@ -230,6 +230,29 @@ the APK is not necessarily the final per-vehicle live-data package: the active
 device-provider configuration can be selected/updated after vehicle
 identification.
 
+## Demo-mode application data
+
+The archived `assets/demo_mode_data.json` is application/demo content rather
+than a DiagLogic/Whisper request catalogue. It is still useful because it shows
+the product-side semantic model Mercedes expected to present.
+
+The supplied demo vehicle is VIN `WDD2130431A038256` and carries fields for
+mileage, maintenance remaining time/distance, malfunctions, fuel level, fuel
+range, aggregate fuel consumption, dealer, parking position, appointments,
+refuelling history, trip history and saved/favourite locations. The example
+aggregate fuel record is `kilometersDriven = 38002` and
+`litersConsumed = 2964`; the example malfunction token is
+`brakeLiningCriticalOccurredOnTrip`.
+
+Trip/path data includes latitude, longitude, altitude and speed samples. This is
+valuable for UI/schema fixtures and for keeping Mercedes' application-facing
+terminology intact.
+
+Crucially, this file does **not** expose DiagLogic `dataId` values,
+`requestedDeviceId`, responding ECU addresses, UDS/KWP requests, DIDs,
+payload extraction rules or formulas. It therefore does not advance a factory
+live parameter from `corroborated-unmapped` to a protocol-mapped state.
+
 ## What this file does not yet give us
 
 `MSA_VIN_cascade.properties` proves that Mercedes' application model contains
