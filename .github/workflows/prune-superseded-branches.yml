@@ -2,19 +2,20 @@ name: Prune superseded branches
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   prune:
-    if: startsWith(github.event.head_commit.message, 'Maintenance: prune stale branches')
     runs-on: ubuntu-latest
     steps:
       - name: Delete superseded branches
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
           git init -q /tmp/prune
@@ -36,8 +37,7 @@ jobs:
           done
           for branch in "${branches[@]}"; do
             if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
-              echo "::error::Branch still exists: ${branch}"
+              echo "Branch still exists: ${branch}"
               exit 1
             fi
           done
-          echo 'Superseded branch refs removed.'
