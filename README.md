@@ -138,8 +138,9 @@ A successful numbered release is atomic across supported targets and publishes:
 | `MBLINK-<version>-linux-amd64.deb` | Generic Linux amd64 Debian package. |
 | `MBLINK-<version>-linux-native.run` | Native local Linux build/install program. |
 | `MBLINK-<version>-windows-discover.exe` | MBLINK Discover specialist read-only ECU/module scanner and evidence application. |
-| `MBLINK-<version>-source.zip` | Exact tested source archive including the pinned dependency tree. |
 | `SHA256SUMS.txt` | SHA-256 checksums for all project-owned release artifacts. |
+
+GitHub automatically provides Source code (zip) and Source code (tar.gz) archives for every tagged release; MBLINK does not publish a duplicate project-owned source archive.
 
 The `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
 
