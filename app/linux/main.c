@@ -2122,9 +2122,13 @@ static bool manufacturer_accept_response(const LinkElm327Response *response,
 
 static gboolean replay_verify_quit(gpointer opaque)
 {
-    GApplication *application = g_application_get_default();
     (void)opaque;
-    if (application != NULL) g_application_quit(application);
+    /*
+     * This callback exists only for --replay-c207-verify.  Once the rendered
+     * ORC success marker has been emitted, terminate the verifier cleanly
+     * instead of leaving a GUI main loop alive until CI's timeout expires.
+     */
+    exit(EXIT_SUCCESS);
     return G_SOURCE_REMOVE;
 }
 
