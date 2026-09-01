@@ -2,7 +2,7 @@
 
 # Mercedes / Delphi DID Lab
 
-The DID Lab is MBLINK's offline discovery layer for turning public Mercedes/Delphi definitions and real vehicle captures into defensible factory parameters.
+The DID Lab is MBLINK's offline Mercedes-wide discovery layer for turning public Mercedes/Delphi definitions, Mercedes-Benz open-source material and real vehicle captures into defensible factory parameters. The C207 is one evidence source, not the scope of the catalogue.
 
 Three states are deliberately separate: `corroborated-unmapped` means the value exists but its protocol mapping is unknown; `source-backed-candidate` means an independent source gives a DID/encoding but the development car has not verified it; `vehicle-verified` means the exact request, response shape, scale and meaning are captured in a reproducible fixture. Only vehicle-verified definitions may be automatically polled.
 
@@ -10,7 +10,7 @@ Three states are deliberately separate: `corroborated-unmapped` means the value 
 
 `CRD3::DT_2007_IN_Battery_voltage` is documented as UDS DID `0x2007`, two-byte big-endian unsigned data, factor `0.0078125`, offset `0`, unit volts. The published response `62 20 07 05 FC` contains raw `0x05FC = 1532`, yielding `11.96875 V`.
 
-It remains a source-backed candidate until a C207 capture verifies it.
+It remains a source-backed candidate until a matching vehicle/ECU capture verifies it. A C207 capture can verify C207 applicability, but does not define the project-wide scope.
 
 ## Archived Mercedes me Whisper catalogue
 
@@ -50,12 +50,13 @@ provider, response layout or formula, so the mapping state remains
 See `MERCEDES_ME_WHISPER.md` for the encryption/extraction method, provenance,
 full priority inventory and exact recovered routes. The next DID-Lab task is
 to recover the live DataID -> provider/request/result/formula binding from the
-archived diagnostic-logic/value layer and then validate each mapping on a
-reproducible C207 capture.
+archived diagnostic-logic/value layer and then validate each mapping on
+reproducible vehicle captures. C207 captures remain valuable evidence, but do
+not set the scope of MBLINK.
 
 ## Research manifest
 
-`data/mercedes/crd3-did-lab.json` is the machine-readable research manifest. It records stable keys, source state, known DIDs/scaling, units and the best OBD reference channel for correlation. Rows from a Delphi PDF can be imported here without changing the live scheduler.
+`data/mercedes/did-lab.json` is the machine-readable Mercedes-wide research manifest. It records stable keys, source state, known DIDs/scaling, units and the best OBD reference channel for correlation. Rows from a Delphi PDF can be imported here without changing the live scheduler.
 
 The development C207 now also contributes two explicit transmission discovery targets: transmission-fluid temperature and actual selected gear. Both remain unmapped. The vehicle display supplies useful ground truth, but MBLINK does not assign a VGS/EGS endpoint, DID or scale until diagnostic evidence proves it. The observed secondary `0x7E1/0x7E9` EOBD responder is therefore an investigation target, not a claimed transmission identity.
 
@@ -99,9 +100,9 @@ mblink-did-lab signals
 and the machine-readable mirror is
 `data/mercedes/mbsdk-signal-catalog.json`.
 
-DID Lab now carries corresponding unmapped research targets for the most useful
-C207 signals.  Their correlation reference may point at a Mercedes semantic
-stable key rather than a generic OBD signal.  That makes the intended identity
+DID Lab now carries corresponding unmapped research targets for Mercedes
+signals useful across the product family. Their correlation reference may point
+at a Mercedes semantic stable key rather than a generic OBD signal.  That makes the intended identity
 explicit without inventing a diagnostic mapping.
 
 ## ODX / PDX ingestion
