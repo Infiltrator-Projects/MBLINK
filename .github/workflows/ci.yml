@@ -61,6 +61,7 @@ jobs:
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --config Release --parallel
       - run: ctest --test-dir build --build-config Release --output-on-failure
+      - run: python3 tests/test_whisper_recover.py
 
   sanitizers:
     name: Local Linux / ASan + UBSan
