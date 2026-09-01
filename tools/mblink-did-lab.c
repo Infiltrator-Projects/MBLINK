@@ -128,7 +128,7 @@ static int command_signals(void)
             mblink_mercedes_backend_signal_at(index);
         if (d == NULL) continue;
         printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-               d->c207_research_priority ? "high" : "normal",
+               d->diagnostic_research_priority ? "high" : "normal",
                d->backend_key,
                d->stable_key,
                mblink_mercedes_signal_value_type_name(d->value_type),
