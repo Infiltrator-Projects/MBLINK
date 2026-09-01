@@ -421,6 +421,7 @@
 				66B05F8E65443E6407074F75 /* ConnectionViewModel.swift in Sources */,
 				C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */,
 				42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */,
+				E0A1B2C3D4E5F60718293B99 /* LinkDiagnosticUI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,7 +443,6 @@
 				E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */,
 				E0A1B2C3D4E5F60718293B0F /* mercedes_vin.c in Sources */,
 				E0A1B2C3D4E5F60718293B10 /* LinkDiagnosticsController.m in Sources */,
-				E0A1B2C3D4E5F60718293B99 /* LinkDiagnosticUI.swift in Sources */,
 				E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */,
 				E0A1B2C3D4E5F60718293B0E /* link_safety.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,
