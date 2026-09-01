@@ -3,7 +3,9 @@
   "policy": {
     "purpose": "First-party Mercedes backend semantic vocabulary for offline MBLINK research",
     "diagnostic_identity_rule": "Backend keys are not UDS DIDs or ECU addresses",
-    "automatic_polling_rule": "Semantic catalogue entries never enter live polling by themselves"
+    "automatic_polling_rule": "Semantic catalogue entries never enter live polling by themselves",
+    "scope": "Mercedes-wide semantic catalogue; no chassis-specific assumption",
+    "applicability_rule": "Presence in MBSDK does not prove support on every Mercedes model or model year"
   },
   "source": {
     "repository": "mercedes-benz/MBSDK-CarKit-iOS",
@@ -18,7 +20,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.ignition_state",
@@ -27,7 +30,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.filter_particle_loading",
@@ -36,7 +40,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.adblue_level",
@@ -45,7 +50,8 @@
       "value_type": "int",
       "unit_family": "ratio",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.liquid_tank_level",
@@ -54,7 +60,8 @@
       "value_type": "int",
       "unit_family": "ratio",
       "correlation_reference": "obd2.fuel.tank_level",
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.liquid_range",
@@ -63,7 +70,8 @@
       "value_type": "int",
       "unit_family": "distance",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.liquid_consumption_reset",
@@ -72,7 +80,8 @@
       "value_type": "double",
       "unit_family": "combustion-consumption",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.liquid_consumption_start",
@@ -81,7 +90,8 @@
       "value_type": "double",
       "unit_family": "combustion-consumption",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.odometer",
@@ -90,7 +100,8 @@
       "value_type": "int",
       "unit_family": "distance",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.service_interval_days",
@@ -99,7 +110,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.service_interval_distance",
@@ -108,7 +120,8 @@
       "value_type": "int",
       "unit_family": "distance",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.starter_battery_state",
@@ -117,7 +130,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.tire_pressure_front_left",
@@ -126,7 +140,8 @@
       "value_type": "double",
       "unit_family": "pressure",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.tire_pressure_front_right",
@@ -135,7 +150,8 @@
       "value_type": "double",
       "unit_family": "pressure",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.tire_pressure_rear_left",
@@ -144,7 +160,8 @@
       "value_type": "double",
       "unit_family": "pressure",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.tire_pressure_rear_right",
@@ -153,7 +170,8 @@
       "value_type": "double",
       "unit_family": "pressure",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.tire_sensor_available",
@@ -162,7 +180,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.tire_warning_lamp",
@@ -171,7 +190,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.warning_coolant_low",
@@ -180,7 +200,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.warning_brake_fluid",
@@ -189,7 +210,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.warning_brake_lining",
@@ -198,7 +220,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.warning_engine_light",
@@ -207,7 +230,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": true
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": true
     },
     {
       "stable_key": "mercedes.backend.park_brake_status",
@@ -216,7 +240,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.engine_hood_status",
@@ -225,7 +250,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.average_speed_reset",
@@ -234,7 +260,8 @@
       "value_type": "double",
       "unit_family": "speed",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.average_speed_start",
@@ -243,7 +270,8 @@
       "value_type": "double",
       "unit_family": "speed",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.driven_time_reset",
@@ -252,7 +280,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.driven_time_start",
@@ -261,7 +290,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.auxheat_active",
@@ -270,7 +300,8 @@
       "value_type": "bool",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.vehicle_lock_state",
@@ -279,7 +310,8 @@
       "value_type": "int",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.position_latitude",
@@ -288,7 +320,8 @@
       "value_type": "double",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     },
     {
       "stable_key": "mercedes.backend.position_longitude",
@@ -297,7 +330,8 @@
       "value_type": "double",
       "unit_family": "none",
       "correlation_reference": null,
-      "c207_research_priority": false
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "diagnostic_research_priority": false
     }
   ]
 }
