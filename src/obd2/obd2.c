@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
  * @file obd2.c
- * @brief iOS build bridge to LINK's shared OBD-II implementation.
+ * @brief iOS bridge to LINK's shared OBD-II implementation.
  *
- * CMake consumers link LINK::Core directly and do not compile this file.
- * The existing Xcode target still lists this product path, so on iOS it
- * compiles the exact source from the pinned LINK submodule rather than a copy.
+ * CMake consumers link LINK::Core. The Xcode target still lists this product
+ * path, so iOS compiles the pinned LINK sources rather than copies.
  */
 #include "mblink/obd2.h"
 
