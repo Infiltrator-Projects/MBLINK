@@ -25,6 +25,7 @@
 		E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A12 /* data_scan.c */; };
 		E0A1B2C3D4E5F60718293B0F /* mercedes_vin.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0F /* mercedes_vin.c */; };
 		E0A1B2C3D4E5F60718293B10 /* LinkDiagnosticsController.m in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A10 /* LinkDiagnosticsController.m */; };
+		E0A1B2C3D4E5F60718293B11 /* LinkDiagnosticUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A11 /* LinkDiagnosticUI.swift */; };
 		E0A1B2C3D4E5F60718293B11 /* kwp2000.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A11 /* kwp2000.c */; };
 		E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0D /* link_sweep.c */; };
 		E0A1B2C3D4E5F60718293B0E /* link_safety.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0E /* link_safety.c */; };
@@ -90,6 +91,7 @@
 		F0A1B2C3D4E5F60718293A12 /* data_scan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "data_scan.c"; path = "../../src/mercedes/data_scan.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0F /* mercedes_vin.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_vin.c"; path = "../../src/mercedes/vin.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A10 /* LinkDiagnosticsController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = "LinkDiagnosticsController.m"; path = "../../src/link/platform/apple/LinkDiagnosticsController.m"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A11 /* LinkDiagnosticUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LinkDiagnosticUI.swift"; path = "../../src/link/platform/apple/LinkDiagnosticUI.swift"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A11 /* kwp2000.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "kwp2000.c"; path = "../../src/kwp2000/kwp2000.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0D /* link_sweep.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_sweep.c"; path = "../../src/link/src/discover/sweep.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0E /* link_safety.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_safety.c"; path = "../../src/link/src/discover/safety.c"; sourceTree = SOURCE_ROOT; };
@@ -198,6 +200,7 @@
 				F0A1B2C3D4E5F60718293A12 /* data_scan.c */,
 				F0A1B2C3D4E5F60718293A0F /* mercedes_vin.c */,
 				F0A1B2C3D4E5F60718293A10 /* LinkDiagnosticsController.m */,
+				F0A1B2C3D4E5F60718293A11 /* LinkDiagnosticUI.swift */,
 				F0A1B2C3D4E5F60718293A0D /* link_sweep.c */,
 				F0A1B2C3D4E5F60718293A0E /* link_safety.c */,
 				F11F17B4723669FC1AF042DF /* elm327.c */,
@@ -439,6 +442,7 @@
 				E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */,
 				E0A1B2C3D4E5F60718293B0F /* mercedes_vin.c in Sources */,
 				E0A1B2C3D4E5F60718293B10 /* LinkDiagnosticsController.m in Sources */,
+				E0A1B2C3D4E5F60718293B11 /* LinkDiagnosticUI.swift in Sources */,
 				E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */,
 				E0A1B2C3D4E5F60718293B0E /* link_safety.c in Sources */,
 				06422F9F26875EF894020FA5 /* elm327.c in Sources */,

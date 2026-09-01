@@ -153,23 +153,39 @@ private enum MBTypography {
     }
 }
 
-private let mbDashboardColumns = [
-    GridItem(.flexible(), spacing: 14),
-    GridItem(.flexible(), spacing: 14)
-]
+private let mbLinkTheme = LinkDiagnosticTheme(
+    backgroundTop: .black,
+    backgroundMiddle: MBBrand.background,
+    backgroundBottom: MBBrand.chrome,
+    panel: MBBrand.panel,
+    panelRaised: MBBrand.panelRaised,
+    primaryText: MBBrand.silverBright,
+    secondaryText: MBBrand.silver,
+    mutedText: MBBrand.muted,
+    border: MBBrand.line,
+    accent: MBBrand.silverBright,
+    success: MBBrand.success,
+    warning: MBBrand.warning,
+    fault: MBBrand.fault,
+    typography: LinkDiagnosticTypography(
+        display: MBTypography.display(29, relativeTo: .title),
+        body: MBTypography.body,
+        bodyBold: MBTypography.bodyBold,
+        subheadline: MBTypography.subheadline,
+        subheadlineBold: MBTypography.subheadlineBold,
+        headline: MBTypography.headline,
+        caption: MBTypography.caption,
+        captionBold: MBTypography.captionBold,
+        caption2: MBTypography.caption2,
+        caption2Bold: MBTypography.caption2Bold,
+        title3: MBTypography.title3,
+        title2: MBTypography.title2))
+
+private let mbDashboardColumns = LinkDiagnosticLayout.dashboardColumns
 
 private struct MBBackground: View {
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: Color.black, location: 0.0),
-                .init(color: MBBrand.background, location: 0.55),
-                .init(color: MBBrand.chrome, location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
+        LinkDiagnosticBackground()
     }
 }
 
@@ -191,20 +207,7 @@ private struct MBStatusPill: View {
     let active: Bool
 
     var body: some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(active ? MBBrand.success : MBBrand.muted)
-                .frame(width: 7, height: 7)
-            Text(LocalizedStringKey(text)).textCase(.uppercase)
-                .font(MBTypography.caption2Bold)
-                .tracking(0.8)
-                .lineLimit(1)
-        }
-        .foregroundStyle(MBBrand.silverBright)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Capsule().fill(MBBrand.panelRaised))
-        .overlay(Capsule().stroke(MBBrand.line, lineWidth: 1))
+        LinkStatusPill(text: text, active: active)
     }
 }
 
@@ -216,17 +219,7 @@ private struct MBPanel<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(MBBrand.panel)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(MBBrand.line.opacity(0.85), lineWidth: 1)
-            )
+        LinkPanel { content }
     }
 }
 
@@ -235,17 +228,7 @@ private struct MBSectionHeader: View {
     var kicker: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if let kicker {
-                Text(LocalizedStringKey(kicker)).textCase(.uppercase)
-                    .font(MBTypography.caption2Bold)
-                    .tracking(1.4)
-                    .foregroundStyle(MBBrand.muted)
-            }
-            Text(LocalizedStringKey(title))
-                .font(MBTypography.title3)
-                .foregroundStyle(MBBrand.silverBright)
-        }
+        LinkSectionHeader(title: title, kicker: kicker)
     }
 }
 
@@ -375,12 +358,7 @@ private struct MBHomeTile<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink {
-            destination()
-        } label: {
-            MBTileFace(title: title, subtitle: subtitle, symbol: symbol)
-        }
-        .buttonStyle(.plain)
+        LinkHomeTile(title, subtitle, symbol, destination: destination)
     }
 }
 
@@ -390,8 +368,12 @@ private struct MBCompactLink<Destination: View>: View {
     let symbol: String
     let destination: () -> Destination
 
-    init(_ title: String, _ subtitle: String, _ symbol: String,
-         @ViewBuilder destination: @escaping () -> Destination) {
+    init(
+        _ title: String,
+        _ subtitle: String,
+        _ symbol: String,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) {
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
@@ -399,30 +381,7 @@ private struct MBCompactLink<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink { destination() } label: {
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(MBTypography.title3)
-                    .foregroundStyle(MBBrand.silverBright)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(LocalizedStringKey(title))
-                        .font(MBTypography.subheadlineBold)
-                        .foregroundStyle(MBBrand.silverBright)
-                    Text(LocalizedStringKey(subtitle))
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 10)
-                Image(systemName: "chevron.right")
-                    .font(MBTypography.captionBold)
-                    .foregroundStyle(MBBrand.muted)
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
+        LinkCompactLink(title, subtitle, symbol, destination: destination)
     }
 }
 
@@ -433,10 +392,7 @@ private struct MBActionTile: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            MBTileFace(title: title, subtitle: subtitle, symbol: symbol)
-        }
-        .buttonStyle(.plain)
+        LinkActionTile(title: title, subtitle: subtitle, symbol: symbol, action: action)
     }
 }
 
@@ -446,48 +402,7 @@ private struct MBTileFace: View {
     let symbol: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: symbol)
-                .font(MBTypography.bold(24, relativeTo: .title2))
-                .foregroundStyle(MBBrand.silverBright)
-                .frame(width: 30, height: 30, alignment: .leading)
-
-            Text(LocalizedStringKey(title))
-                .font(MBTypography.headline)
-                .foregroundStyle(MBBrand.silverBright)
-                .lineLimit(1)
-
-            Text(LocalizedStringKey(subtitle))
-                .font(MBTypography.caption)
-                .foregroundStyle(MBBrand.muted)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            HStack {
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(MBTypography.captionBold)
-                    .foregroundStyle(MBBrand.silver.opacity(0.72))
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 19, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [MBBrand.panelRaised, MBBrand.panel],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 19, style: .continuous)
-                .stroke(MBBrand.line, lineWidth: 1)
-        )
+        LinkTileFace(title: title, subtitle: subtitle, symbol: symbol)
     }
 }
 
@@ -643,6 +558,7 @@ struct MBLINKApp: App {
     var body: some Scene {
         WindowGroup {
             MBCommandCentreView()
+                .linkDiagnosticTheme(mbLinkTheme)
                 .environmentObject(connection)
                 .environment(\.font, MBTypography.body)
                 .environment(\.locale, Locale(identifier: MBInterfaceLanguage.canonical(language)))
@@ -697,24 +613,13 @@ private struct MBCommandCentreView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                MBBackground()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        header
-                        if connection.isActive && !connection.isReady { connectionProgress }
-                        connectionCard
-                        MBSectionHeader(title: "Diagnostics", kicker: "Vehicle")
-                        primaryGrid
-                        supportingTools
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 30)
-                }
-            }
-            .toolbar(.hidden, for: .navigationBar)
+        LinkCommandCentreShell(
+            showProgress: connection.isActive && !connection.isReady,
+            header: { header },
+            progress: { connectionProgress },
+            connection: { connectionCard },
+            primary: { primaryGrid },
+            tools: { supportingTools })
             .alert("Adapter transport unavailable",
                    isPresented: Binding(
                        get: { connection.connectionAlertText != nil },
@@ -723,20 +628,13 @@ private struct MBCommandCentreView: View {
             } message: {
                 Text(connection.connectionAlertText ?? "")
             }
-        }
     }
 
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 14) {
-                brandIdentity
-                Spacer(minLength: 8)
-                MBStatusPill(text: connection.statusText, active: connection.isReady)
-            }
-            VStack(alignment: .leading, spacing: 11) {
-                brandIdentity
-                MBStatusPill(text: connection.statusText, active: connection.isReady)
-            }
+        LinkBrandHeader {
+            brandIdentity
+        } status: {
+            MBStatusPill(text: connection.statusText, active: connection.isReady)
         }
     }
 
@@ -813,7 +711,7 @@ private struct MBCommandCentreView: View {
     }
 
     private var primaryGrid: some View {
-        LazyVGrid(columns: mbDashboardColumns, spacing: 14) {
+        LinkDiagnosticGrid {
             MBHomeTile("Faults", "Stored and active diagnostic faults", "exclamationmark.triangle.fill") { MBFaultsView() }
             MBHomeTile("Live Data", "Sensors and measurements", "waveform.path.ecg") { MBLiveDataView() }
             MBHomeTile("Vehicle", "VIN and decoded identity", "car.side.fill") { MBVehicleView() }
@@ -856,13 +754,7 @@ private struct MBCommandCentreView: View {
 
 private extension View {
     func mbDiagnosticScreen(_ title: String) -> some View {
-        self
-            .background(MBBrand.background.ignoresSafeArea())
-            .navigationTitle(LocalizedStringKey(title))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(MBBrand.chrome, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+        linkDiagnosticScreen(title)
     }
 }
 
