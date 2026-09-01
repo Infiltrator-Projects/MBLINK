@@ -8,6 +8,47 @@
     fprintf(stderr, "check failed: %s at %s:%d\n", #expr, __FILE__, __LINE__); \
     return 1; } } while (0)
 
+static int test_complete_report_facade(void)
+{
+    MblinkUdsDtcInformationRequest request =
+        MBLINK_UDS_DTC_INFORMATION_REQUEST_INIT;
+    MblinkUdsDtcInformationResponse response;
+    uint8_t buffer[8];
+    size_t written = 0U;
+    const uint8_t wwh_response[] = {
+        0x59U, 0x55U, 0x33U, 0xffU, 0x04U,
+        0x12U, 0x34U, 0x56U, 0x09U
+    };
+
+    CHECK(mblink_uds_dtc_report_definition_count() ==
+          MBLINK_UDS_DTC_REPORT_SUBFUNCTION_COUNT);
+    CHECK(MBLINK_UDS_DTC_REPORT_SUBFUNCTION_COUNT == 27U);
+    CHECK(mblink_uds_dtc_report_definition(
+              MBLINK_UDS_DTC_REPORT_USER_MEMORY_EXT_DATA_BY_DTC_NUMBER) !=
+          NULL);
+
+    request.subfunction = MBLINK_UDS_DTC_REPORT_WWH_OBD_BY_MASK_RECORD;
+    request.functional_group_identifier = 0x33U;
+    request.status_mask = 0xa5U;
+    request.severity_mask = 0xc0U;
+    CHECK(mblink_uds_build_read_dtc_information_request(
+              &request, buffer, sizeof(buffer), &written) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(written == 5U);
+    CHECK(buffer[0] == 0x19U && buffer[1] == 0x42U);
+    CHECK(buffer[2] == 0x33U && buffer[3] == 0xa5U &&
+          buffer[4] == 0xc0U);
+
+    CHECK(mblink_uds_decode_read_dtc_information_response(
+              MBLINK_UDS_DTC_REPORT_WWH_OBD_WITH_PERMANENT_STATUS,
+              wwh_response, sizeof(wwh_response), &response) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(response.functional_group_identifier_available);
+    CHECK(response.functional_group_identifier == 0x33U);
+    CHECK(response.records_length == 4U);
+    return 0;
+}
+
 static int test_build_request(void)
 {
     uint8_t request[4] = { 0xa5U, 0xa5U, 0xa5U, 0xa5U };
@@ -107,6 +148,7 @@ static int test_formatter_guards(void)
 
 int main(void)
 {
+    if (test_complete_report_facade() != 0) return 1;
     if (test_build_request() != 0) return 1;
     if (test_decode_records() != 0) return 1;
     if (test_empty_and_invalid_responses() != 0) return 1;
