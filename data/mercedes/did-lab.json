@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "purpose": "Offline Mercedes/Delphi DID discovery and correlation",
+    "automatic_polling_rule": "Only vehicle-verified mappings may enter automatic live polling",
+    "correlation_rule": "Correlation supports a mapping hypothesis but never promotes a DID by itself",
+    "scope": "Mercedes-wide research manifest with chassis/engine-specific evidence retained only where the evidence itself is specific",
+    "model_scope_rule": "Do not infer a chassis, ECU family or model-year mapping from a Mercedes backend semantic alone"
+  },
+  "entries": [
+    {
+      "stable_key": "mercedes.om651.electrical.battery_voltage",
+      "name": "Battery voltage",
+      "status": "source-backed-candidate",
+      "service": "0x22",
+      "did": "0x2007",
+      "raw_length": 2,
+      "endianness": "big",
+      "signed": false,
+      "factor": 0.0078125,
+      "offset": 0,
+      "unit": "V",
+      "correlation_reference": "obd2.electrical.control_module_voltage",
+      "source": "CaesarSuite discussion #1, CRD3::DT_2007_IN_Battery_voltage"
+    },
+    {
+      "stable_key": "mercedes.om651.engine.speed",
+      "name": "Engine speed",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "rpm",
+      "correlation_reference": "obd2.engine.rpm",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.vehicle.speed",
+      "name": "Vehicle speed",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "km/h",
+      "correlation_reference": "obd2.vehicle.speed",
+      "source": "Mercedes diagnostic actual-value records"
+    },
+    {
+      "stable_key": "mercedes.om651.fuel.tank_level",
+      "name": "Fuel tank level",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "L",
+      "correlation_reference": "obd2.fuel.tank_level",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.fuel.injection_quantity",
+      "name": "Injection quantity",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "mg/stroke",
+      "correlation_reference": null,
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.fuel.rail_pressure",
+      "name": "Fuel rail pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bar",
+      "correlation_reference": "obd2.diesel.rail_pressure",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.driver.accelerator_pedal.sensor1",
+      "name": "Accelerator pedal position sensor 1",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "%",
+      "correlation_reference": "obd2.driver.accelerator_pedal_d",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.driver.accelerator_pedal.sensor2",
+      "name": "Accelerator pedal position sensor 2",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "%",
+      "correlation_reference": "obd2.driver.accelerator_pedal_e",
+      "source": "MBLINK OM651 target catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.air.throttle_valve",
+      "name": "Throttle valve",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "%",
+      "correlation_reference": "obd2.engine.throttle",
+      "source": "MBLINK OM651 target catalogue plus C207 field correlation"
+    },
+    {
+      "stable_key": "mercedes.om651.engine.coolant_temperature",
+      "name": "Coolant temperature",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "degC",
+      "correlation_reference": "obd2.engine.coolant",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.engine.oil_temperature",
+      "name": "Oil temperature",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "degC",
+      "correlation_reference": "obd2.engine.oil_temperature",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue plus C207 field observation"
+    },
+    {
+      "stable_key": "mercedes.c207.transmission.fluid_temperature",
+      "name": "Transmission fluid temperature",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "degC",
+      "correlation_reference": null,
+      "source": "C207 development-vehicle field observation; exact VGS/EGS endpoint and DID remain to be identified"
+    },
+    {
+      "stable_key": "mercedes.c207.transmission.actual_gear",
+      "name": "Actual transmission gear",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "gear",
+      "correlation_reference": "obd2.vehicle.speed",
+      "source": "C207 development-vehicle field observation; exact VGS/EGS endpoint and DID remain to be identified"
+    },
+    {
+      "stable_key": "mercedes.om651.engine.intake_air_temperature",
+      "name": "Intake air temperature",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "degC",
+      "correlation_reference": "obd2.engine.intake_air",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.om651.environment.ambient_temperature",
+      "name": "Ambient temperature",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "degC",
+      "correlation_reference": "obd2.environment.ambient_air",
+      "source": "Vehicle display observation plus MBLINK field evidence"
+    },
+    {
+      "stable_key": "mercedes.om651.environment.barometric_pressure",
+      "name": "Barometric pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bar",
+      "correlation_reference": "obd2.engine.barometric_pressure",
+      "source": "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+      "stable_key": "mercedes.vehicle.engine.state",
+      "name": "Engine state",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bool",
+      "correlation_reference": "mercedes.backend.engine_state",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.ignition.state",
+      "name": "Ignition state",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "state",
+      "correlation_reference": "mercedes.backend.ignition_state",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.aftertreatment.filter_particle_loading",
+      "name": "Particulate filter loading",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "backend value",
+      "correlation_reference": "mercedes.backend.filter_particle_loading",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.aftertreatment.adblue_level",
+      "name": "AdBlue level",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "%",
+      "correlation_reference": "mercedes.backend.adblue_level",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.fuel.tank_level",
+      "name": "Liquid fuel tank level",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "%",
+      "correlation_reference": "mercedes.backend.liquid_tank_level",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.fuel.range",
+      "name": "Liquid fuel range",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "distance",
+      "correlation_reference": "mercedes.backend.liquid_range",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.fuel.consumption_since_reset",
+      "name": "Liquid consumption since reset",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "consumption",
+      "correlation_reference": "mercedes.backend.liquid_consumption_reset",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.fuel.consumption_since_start",
+      "name": "Liquid consumption since start",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "consumption",
+      "correlation_reference": "mercedes.backend.liquid_consumption_start",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.odometer",
+      "name": "Odometer",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "distance",
+      "correlation_reference": "mercedes.backend.odometer",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.service.interval_days",
+      "name": "Service interval days",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "days",
+      "correlation_reference": "mercedes.backend.service_interval_days",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.service.interval_distance",
+      "name": "Service interval distance",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "distance",
+      "correlation_reference": "mercedes.backend.service_interval_distance",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.electrical.starter_battery_state",
+      "name": "Starter battery state",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "state",
+      "correlation_reference": "mercedes.backend.starter_battery_state",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.tyres.front_left_pressure",
+      "name": "Front-left tyre pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "pressure",
+      "correlation_reference": "mercedes.backend.tire_pressure_front_left",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.tyres.front_right_pressure",
+      "name": "Front-right tyre pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "pressure",
+      "correlation_reference": "mercedes.backend.tire_pressure_front_right",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.tyres.rear_left_pressure",
+      "name": "Rear-left tyre pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "pressure",
+      "correlation_reference": "mercedes.backend.tire_pressure_rear_left",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.tyres.rear_right_pressure",
+      "name": "Rear-right tyre pressure",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "pressure",
+      "correlation_reference": "mercedes.backend.tire_pressure_rear_right",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.warning.coolant_level_low",
+      "name": "Coolant level low warning",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bool",
+      "correlation_reference": "mercedes.backend.warning_coolant_low",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.warning.brake_fluid",
+      "name": "Brake fluid warning",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bool",
+      "correlation_reference": "mercedes.backend.warning_brake_fluid",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.warning.brake_lining",
+      "name": "Brake lining wear warning",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bool",
+      "correlation_reference": "mercedes.backend.warning_brake_lining",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    },
+    {
+      "stable_key": "mercedes.vehicle.warning.engine_light",
+      "name": "Engine warning light",
+      "status": "corroborated-unmapped",
+      "did": null,
+      "unit": "bool",
+      "correlation_reference": "mercedes.backend.warning_engine_light",
+      "applicability": "Mercedes connected-vehicle backend; exact model/year availability varies",
+      "source": "Mercedes-Benz MBSDK CarKit public backend semantic; no ECU/DID mapping asserted"
+    }
+  ]
+}
