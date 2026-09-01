@@ -2336,8 +2336,7 @@ int main(int argc, char **argv)
 
     if (!register_project_fonts()) {
         (void)fprintf(stderr,
-            "MBLINK: unable to register the bundled MB Corpo font set.\n");
-        return 6;
+            "MBLINK: bundled MB Corpo font set unavailable; using platform fallback fonts.\n");
     }
     if (settings_verify)
         return verify_display_preferences() ? 0 : 5;

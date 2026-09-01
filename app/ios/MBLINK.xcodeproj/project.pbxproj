@@ -395,22 +395,15 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part00",
-				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part01",
-				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part02",
-				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part03",
 			);
 			name = "Bundle MB Corpo Fonts";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_a_cond_regular.ttf",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_s_bold.ttf",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_s_regular.ttf",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nARCHIVE=\"${DERIVED_FILE_DIR}/mblink-mb-corpo-fonts.tar.xz\"\nFONT_DIR=\"${DERIVED_FILE_DIR}/mblink-fonts\"\nPART_DIR=\"${SRCROOT}/../../assets/fonts\"\ncat \"${PART_DIR}/mb-corpo-fonts.tar.xz.part00\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part01\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part02\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part03\" > \"${ARCHIVE}\"\nACTUAL=\"$(shasum -a 256 \"${ARCHIVE}\" | awk '{print $1}')\"\nEXPECTED=\"bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274\"\nif [ \"${ACTUAL}\" != \"${EXPECTED}\" ]; then\n  echo \"error: MBLINK font archive hash mismatch\" >&2\n  exit 1\nfi\nrm -rf \"${FONT_DIR}\"\nmkdir -p \"${FONT_DIR}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\ntar -xf \"${ARCHIVE}\" -C \"${FONT_DIR}\"\ncp \"${FONT_DIR}/mb_corpo_a_cond_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_bold.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
+			shellScript = "set -eu\nARCHIVE=\"${DERIVED_FILE_DIR}/mblink-mb-corpo-fonts.tar.xz\"\nFONT_DIR=\"${DERIVED_FILE_DIR}/mblink-fonts\"\nPART_DIR=\"${SRCROOT}/../../assets/fonts\"\nfor PART in mb-corpo-fonts.tar.xz.part00 mb-corpo-fonts.tar.xz.part01 mb-corpo-fonts.tar.xz.part02 mb-corpo-fonts.tar.xz.part03; do\n  if [ ! -f \"${PART_DIR}/${PART}\" ]; then\n    echo \"warning: MBLINK private font archive not present; using iOS font fallback\" >&2\n    exit 0\n  fi\ndone\ncat \"${PART_DIR}/mb-corpo-fonts.tar.xz.part00\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part01\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part02\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part03\" > \"${ARCHIVE}\"\nACTUAL=\"$(shasum -a 256 \"${ARCHIVE}\" | awk '{print $1}')\"\nEXPECTED=\"bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274\"\nif [ \"${ACTUAL}\" != \"${EXPECTED}\" ]; then\n  echo \"error: MBLINK font archive hash mismatch\" >&2\n  exit 1\nfi\nrm -rf \"${FONT_DIR}\"\nmkdir -p \"${FONT_DIR}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\ntar -xf \"${ARCHIVE}\" -C \"${FONT_DIR}\"\ncp \"${FONT_DIR}/mb_corpo_a_cond_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_bold.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -517,7 +510,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.118;
+				MARKETING_VERSION = 0.7.119;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -551,7 +544,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.118;
+				MARKETING_VERSION = 0.7.119;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -600,7 +593,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.118;
+				MARKETING_VERSION = 0.7.119;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -642,7 +635,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.118;
+				MARKETING_VERSION = 0.7.119;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
