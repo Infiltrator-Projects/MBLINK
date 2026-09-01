@@ -2,6 +2,7 @@
 #include "mblink/isotp.h"
 #include "mblink/uds_services.h"
 #include "mblink/obd2.h"
+#include "mblink/j1979da.h"
 
 #include <string.h>
 
@@ -24,7 +25,7 @@ int main(void)
         return 1;
     }
 
-    if (mblink_obd2_pid_definition_count() != 234U) {
+    if (mblink_obd2_pid_definition_count() != 235U) {
         fputs("MBLINK did not inherit the completed LINK J1979 catalogue\n", stderr);
         return 1;
     }
@@ -50,6 +51,30 @@ int main(void)
             return 1;
         }
     }
+    if (strcmp(mblink_j1979_revision(), "J1979_202505") != 0 ||
+        strcmp(mblink_j1979da_revision(), "J1979DA_202607") != 0 ||
+        strcmp(mblink_j1979da_public_semantics_revision(),
+               "J1979DA_201110+verified-public-updates") != 0) {
+        fputs("MBLINK J1979/J1979-DA revision boundary is wrong\n", stderr);
+        return 1;
+    }
+    {
+        char service05[16];
+        const MblinkJ1979UnitScaling *scaling =
+            mblink_j1979_mode06_uasid_definition(0x0AU);
+        if (mblink_j1979_build_mode05_request(
+                0x01U, 0x01U, service05, sizeof(service05)) !=
+                MBLINK_OBD2_RESULT_OK ||
+            strcmp(service05, "050101") != 0 ||
+            scaling == NULL ||
+            scaling->scale < 0.1219 || scaling->scale > 0.1221 ||
+            mblink_j1979_mode06_mid_classification(0x11U) !=
+                MBLINK_J1979_IDENTIFIER_STANDARD) {
+            fputs("MBLINK did not inherit corrected J1979 Mode 05/06 semantics\n", stderr);
+            return 1;
+        }
+    }
+
     if (mblink_dtc_catalogue_definition_count() != 9533U ||
         strcmp(mblink_dtc_range_model_revision(), "J2012_202509") != 0 ||
         strcmp(mblink_dtc_catalogue_audit_revision(), "J2012DA_202607") != 0) {

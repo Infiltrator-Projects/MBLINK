@@ -7,6 +7,7 @@
 #define MBLINK_OBD2_H
 
 #include "mblink/elm327.h"
+#include "mblink/j1979da.h"
 #include "link/obd2.h"
 #include "link/dtc_knowledge.h"
 
