@@ -1,0 +1,43 @@
+name: Prune superseded branches
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    if: startsWith(github.event.head_commit.message, 'Maintenance: prune stale branches')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete superseded branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init -q /tmp/prune
+          cd /tmp/prune
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          branches=(
+            'complete-sae-runtime'
+            'fix/adopt-link-0.14.57'
+            'fix/full-parity-0.7.112'
+            'hal/interface-cleanup-0.7.104'
+            'hal/mercedes-native-identities-0.7.105'
+            'work/adopt-link-j1979-j2012'
+            'work/qualify-link-01453'
+          )
+          for branch in "${branches[@]}"; do
+            if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+              git push origin --delete "${branch}"
+            fi
+          done
+          for branch in "${branches[@]}"; do
+            if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+              echo "::error::Branch still exists: ${branch}"
+              exit 1
+            fi
+          done
+          echo 'Superseded branch refs removed.'
