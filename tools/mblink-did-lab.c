@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_did_lab.h"
+#include "mblink/mercedes_signal_catalog.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -13,10 +14,11 @@ static void usage(const char *program)
     fprintf(stderr,
         "Usage:\n"
         "  %s catalog\n"
+        "  %s signals\n"
         "  %s decode DID_HEX RESPONSE_HEX\n"
         "  %s correlate REFERENCE.csv CANDIDATE.csv [max_lag_ms [pair_tolerance_ms [lag_step_ms]]]\n"
         "Series CSV format: timestamp_ms,value (header optional).\n",
-        program, program, program);
+        program, program, program, program);
 }
 
 static int hex_nibble(int value)
@@ -117,6 +119,28 @@ static bool load_series(const char *path, MblinkSignalPoint **points,
     return true;
 }
 
+static int command_signals(void)
+{
+    size_t index;
+    puts("priority\tbackend-key\tstable-key\ttype\tunit-family\tname\treference\tsource");
+    for (index = 0U; index < mblink_mercedes_backend_signal_count(); ++index) {
+        const MblinkMercedesBackendSignalDefinition *d =
+            mblink_mercedes_backend_signal_at(index);
+        if (d == NULL) continue;
+        printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+               d->c207_research_priority ? "high" : "normal",
+               d->backend_key,
+               d->stable_key,
+               mblink_mercedes_signal_value_type_name(d->value_type),
+               d->unit_family,
+               d->name,
+               d->correlation_reference_key != NULL
+                   ? d->correlation_reference_key : "-",
+               d->source_locator);
+    }
+    return 0;
+}
+
 static int command_catalog(void)
 {
     size_t index;
@@ -205,6 +229,8 @@ int main(int argc, char **argv)
 {
     if (argc == 2 && strcmp(argv[1], "catalog") == 0)
         return command_catalog();
+    if (argc == 2 && strcmp(argv[1], "signals") == 0)
+        return command_signals();
     if (argc == 4 && strcmp(argv[1], "decode") == 0)
         return command_decode(argv[2], argv[3]);
     if (argc >= 4 && argc <= 7 && strcmp(argv[1], "correlate") == 0)

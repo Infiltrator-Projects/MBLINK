@@ -78,3 +78,45 @@ mblink-did-lab correlate reference.csv candidate.csv 2000 100 100
 ```
 
 Correlation input is a two-column CSV, `timestamp_ms,value`, with an optional header.
+
+
+## Mercedes-Benz public MBSDK semantic catalogue
+
+MBLINK now keeps a separate first-party semantic catalogue sourced from the
+public Mercedes-Benz `MBSDK-CarKit-iOS` model.  It includes backend attributes
+such as `filterParticleLoading`, `tankLevelAdBlue`, `starterBatteryState`,
+service interval values, individual tyre pressures, engine/ignition states,
+fuel level/range and warning states.
+
+The boundary is deliberate: these names describe Mercedes backend vehicle
+attributes.  They are **not** treated as UDS DIDs, ECU addresses or scaling
+formulas.  The compiled catalogue is exposed through:
+
+```bash
+mblink-did-lab signals
+```
+
+and the machine-readable mirror is
+`data/mercedes/mbsdk-signal-catalog.json`.
+
+DID Lab now carries corresponding unmapped research targets for the most useful
+C207 signals.  Their correlation reference may point at a Mercedes semantic
+stable key rather than a generic OBD signal.  That makes the intended identity
+explicit without inventing a diagnostic mapping.
+
+## ODX / PDX ingestion
+
+LINK's optional `scripts/import-odx.py` uses Mercedes-Benz `odxtools` to
+normalise a legitimate ODX/PDX database into neutral JSON.  MBLINK can then
+extract UDS ReadDataByIdentifier descriptions with:
+
+```bash
+python3 src/link/scripts/import-odx.py vehicle.pdx -o vehicle.link-odx.json
+python3 scripts/import-mercedes-odx.py vehicle.link-odx.json -o vehicle.did-candidates.json
+```
+
+Every imported DID is emitted as `source-backed-candidate` with
+`automatic_polling: false` and `decode_ready: false`.  ODX evidence can
+establish that a diagnostic description names a request, but MBLINK still
+requires response/scaling evidence and vehicle verification before promoting
+that definition into automatic live polling.

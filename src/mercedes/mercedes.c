@@ -735,7 +735,152 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         0.0, 0.0, "bar", "obd2.engine.barometric_pressure",
         "Independent OM651 CDID3 actual-value catalogues expose barometric pressure. DID and encoding remain unmapped.",
         "ScanDoc OM651 CDID3 actual-value catalogue"
+    },
+    {
+        "mercedes.c207.dpf.filter_particle_loading",
+        "Particulate filter loading",
+        "Mercedes backend semantic / CRD3 research target",
+        MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "backend value",
+        "mercedes.backend.filter_particle_loading",
+        "Mercedes MBSDK exposes filterParticleLoading as an integer backend attribute. This is a semantic target only; no CRD3 DID or scale is asserted.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.adblue.level",
+        "AdBlue level",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "%",
+        "mercedes.backend.adblue_level",
+        "Mercedes MBSDK exposes tankLevelAdBlue with a ratio unit. ECU and DID remain intentionally unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.electrical.starter_battery_state",
+        "Starter battery state",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "state",
+        "mercedes.backend.starter_battery_state",
+        "Mercedes MBSDK exposes starterBatteryState. This does not imply that the backend state is the same signal as SAE control-module voltage.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.service.interval_days",
+        "Service interval days",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "days",
+        "mercedes.backend.service_interval_days",
+        "Mercedes MBSDK exposes serviceIntervalDays. Exact workshop ECU source and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.service.interval_distance",
+        "Service interval distance",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "distance",
+        "mercedes.backend.service_interval_distance",
+        "Mercedes MBSDK exposes serviceIntervalDistance with a distance unit. Exact workshop ECU source and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.tyres.front_left_pressure",
+        "Front-left tyre pressure",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure",
+        "mercedes.backend.tire_pressure_front_left",
+        "Mercedes MBSDK exposes tirepressureFrontLeft as a double with a pressure unit. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.tyres.front_right_pressure",
+        "Front-right tyre pressure",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure",
+        "mercedes.backend.tire_pressure_front_right",
+        "Mercedes MBSDK exposes tirepressureFrontRight as a double with a pressure unit. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.tyres.rear_left_pressure",
+        "Rear-left tyre pressure",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure",
+        "mercedes.backend.tire_pressure_rear_left",
+        "Mercedes MBSDK exposes tirepressureRearLeft as a double with a pressure unit. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.tyres.rear_right_pressure",
+        "Rear-right tyre pressure",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure",
+        "mercedes.backend.tire_pressure_rear_right",
+        "Mercedes MBSDK exposes tirepressureRearRight as a double with a pressure unit. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.warning.coolant_level_low",
+        "Coolant level low warning",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "bool",
+        "mercedes.backend.warning_coolant_low",
+        "Mercedes MBSDK exposes warningCoolantLevelLow as a boolean backend attribute. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.engine.state",
+        "Engine state",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_ENGINE,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "bool",
+        "mercedes.backend.engine_state",
+        "Mercedes MBSDK exposes engineState as a boolean backend attribute. This is a semantic correlation target, not a DID mapping.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.c207.ignition.state",
+        "Ignition state",
+        "Mercedes backend semantic / C207 research target",
+        MBLINK_MERCEDES_MODULE_OTHER,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "state",
+        "mercedes.backend.ignition_state",
+        "Mercedes MBSDK exposes ignitionState as an integer backend attribute. ECU and DID remain unmapped.",
+        "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
     }
+
 };
 
 static bool mercedes_did_lab_definition_valid(

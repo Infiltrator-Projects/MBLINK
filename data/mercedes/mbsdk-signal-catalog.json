@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "purpose": "First-party Mercedes backend semantic vocabulary for offline MBLINK research",
+    "diagnostic_identity_rule": "Backend keys are not UDS DIDs or ECU addresses",
+    "automatic_polling_rule": "Semantic catalogue entries never enter live polling by themselves"
+  },
+  "source": {
+    "repository": "mercedes-benz/MBSDK-CarKit-iOS",
+    "proto_message_keys": "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/ProtoMessageKeys.swift",
+    "vehicle_status_dto": "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+  },
+  "entries": [
+    {
+      "stable_key": "mercedes.backend.engine_state",
+      "backend_key": "engineState",
+      "name": "Engine state",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.ignition_state",
+      "backend_key": "ignitionstate",
+      "name": "Ignition state",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.filter_particle_loading",
+      "backend_key": "filterParticleLoading",
+      "name": "Particulate filter loading",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.adblue_level",
+      "backend_key": "tankLevelAdBlue",
+      "name": "AdBlue level",
+      "value_type": "int",
+      "unit_family": "ratio",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.liquid_tank_level",
+      "backend_key": "tanklevelpercent",
+      "name": "Liquid fuel tank level",
+      "value_type": "int",
+      "unit_family": "ratio",
+      "correlation_reference": "obd2.fuel.tank_level",
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.liquid_range",
+      "backend_key": "rangeliquid",
+      "name": "Liquid fuel range",
+      "value_type": "int",
+      "unit_family": "distance",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.liquid_consumption_reset",
+      "backend_key": "liquidconsumptionreset",
+      "name": "Liquid consumption since reset",
+      "value_type": "double",
+      "unit_family": "combustion-consumption",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.liquid_consumption_start",
+      "backend_key": "liquidconsumptionstart",
+      "name": "Liquid consumption since start",
+      "value_type": "double",
+      "unit_family": "combustion-consumption",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.odometer",
+      "backend_key": "odo",
+      "name": "Odometer",
+      "value_type": "int",
+      "unit_family": "distance",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.service_interval_days",
+      "backend_key": "serviceintervaldays",
+      "name": "Service interval days",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.service_interval_distance",
+      "backend_key": "serviceintervaldistance",
+      "name": "Service interval distance",
+      "value_type": "int",
+      "unit_family": "distance",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.starter_battery_state",
+      "backend_key": "starterBatteryState",
+      "name": "Starter battery state",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.tire_pressure_front_left",
+      "backend_key": "tirepressureFrontLeft",
+      "name": "Tyre pressure front left",
+      "value_type": "double",
+      "unit_family": "pressure",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.tire_pressure_front_right",
+      "backend_key": "tirepressureFrontRight",
+      "name": "Tyre pressure front right",
+      "value_type": "double",
+      "unit_family": "pressure",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.tire_pressure_rear_left",
+      "backend_key": "tirepressureRearLeft",
+      "name": "Tyre pressure rear left",
+      "value_type": "double",
+      "unit_family": "pressure",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.tire_pressure_rear_right",
+      "backend_key": "tirepressureRearRight",
+      "name": "Tyre pressure rear right",
+      "value_type": "double",
+      "unit_family": "pressure",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.tire_sensor_available",
+      "backend_key": "tireSensorAvailable",
+      "name": "Tyre sensor availability",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.tire_warning_lamp",
+      "backend_key": "tirewarninglamp",
+      "name": "Tyre warning lamp",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.warning_coolant_low",
+      "backend_key": "warningcoolantlevellow",
+      "name": "Coolant level low warning",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.warning_brake_fluid",
+      "backend_key": "warningbrakefluid",
+      "name": "Brake fluid warning",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.warning_brake_lining",
+      "backend_key": "warningbrakeliningwear",
+      "name": "Brake lining wear warning",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.warning_engine_light",
+      "backend_key": "warningenginelight",
+      "name": "Engine warning light",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": true
+    },
+    {
+      "stable_key": "mercedes.backend.park_brake_status",
+      "backend_key": "parkbrakestatus",
+      "name": "Park brake status",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.engine_hood_status",
+      "backend_key": "engineHoodStatus",
+      "name": "Engine hood status",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.average_speed_reset",
+      "backend_key": "averageSpeedReset",
+      "name": "Average speed since reset",
+      "value_type": "double",
+      "unit_family": "speed",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.average_speed_start",
+      "backend_key": "averageSpeedStart",
+      "name": "Average speed since start",
+      "value_type": "double",
+      "unit_family": "speed",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.driven_time_reset",
+      "backend_key": "drivenTimeReset",
+      "name": "Driven time since reset",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.driven_time_start",
+      "backend_key": "drivenTimeStart",
+      "name": "Driven time since start",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.auxheat_active",
+      "backend_key": "auxheatActive",
+      "name": "Auxiliary heater active",
+      "value_type": "bool",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.vehicle_lock_state",
+      "backend_key": "vehicleLockState",
+      "name": "Vehicle lock state",
+      "value_type": "int",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.position_latitude",
+      "backend_key": "positionLat",
+      "name": "Vehicle latitude",
+      "value_type": "double",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    },
+    {
+      "stable_key": "mercedes.backend.position_longitude",
+      "backend_key": "positionLong",
+      "name": "Vehicle longitude",
+      "value_type": "double",
+      "unit_family": "none",
+      "correlation_reference": null,
+      "c207_research_priority": false
+    }
+  ]
+}
