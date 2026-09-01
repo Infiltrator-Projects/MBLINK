@@ -38,6 +38,15 @@ extraction and encoding are configuration fields. Its VIN cascade supplies
 real examples such as UDS `22 F1 A0 -> 62 F1 A0` and KWP
 `21 05 -> 61 05` on manufacturer-owned routes.
 
+The archived demo cockpit now independently confirms that
+`engineOilTemperature`, `relativeAcceleratorPedalPosition`,
+`calculatedEngineLoad` and `intakeManifoldPressure` are used as live
+application DataIDs, with time-offset value series. In the demo trace,
+`intakeManifoldPressure` spans 0.18..1.09 while its Whisper catalogue unit is
+`bar`. This strengthens the semantic evidence but does not provide a DID,
+provider, response layout or formula, so the mapping state remains
+`corroborated-unmapped`.
+
 See `MERCEDES_ME_WHISPER.md` for the encryption/extraction method, provenance,
 full priority inventory and exact recovered routes. The next DID-Lab task is
 to recover the live DataID -> provider/request/result/formula binding from the
