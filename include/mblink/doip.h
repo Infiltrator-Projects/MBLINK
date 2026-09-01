@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+/** @file doip.h @brief MBLINK aliases for LINK's shared ISO 13400 DoIP codec. */
+#ifndef MBLINK_DOIP_H
+#define MBLINK_DOIP_H
+#include "link/doip.h"
+typedef LinkDoipResult MblinkDoipResult;
+typedef LinkDoipHeader MblinkDoipHeader;
+#define MBLINK_DOIP_HEADER_SIZE LINK_DOIP_HEADER_SIZE
+#define MBLINK_DOIP_RESULT_OK LINK_DOIP_RESULT_OK
+#define MBLINK_DOIP_RESULT_INVALID_ARGUMENT LINK_DOIP_RESULT_INVALID_ARGUMENT
+#define MBLINK_DOIP_RESULT_BUFFER_TOO_SMALL LINK_DOIP_RESULT_BUFFER_TOO_SMALL
+#define MBLINK_DOIP_RESULT_MALFORMED_FRAME LINK_DOIP_RESULT_MALFORMED_FRAME
+#define MBLINK_DOIP_RESULT_UNEXPECTED_PAYLOAD LINK_DOIP_RESULT_UNEXPECTED_PAYLOAD
+#define MBLINK_DOIP_PAYLOAD_ROUTING_ACTIVATION_REQUEST LINK_DOIP_PAYLOAD_ROUTING_ACTIVATION_REQUEST
+#define MBLINK_DOIP_PAYLOAD_ALIVE_CHECK_RESPONSE LINK_DOIP_PAYLOAD_ALIVE_CHECK_RESPONSE
+#define MBLINK_DOIP_PAYLOAD_DIAGNOSTIC_MESSAGE LINK_DOIP_PAYLOAD_DIAGNOSTIC_MESSAGE
+#define mblink_doip_result_name link_doip_result_name
+#define mblink_doip_encode_frame link_doip_encode_frame
+#define mblink_doip_decode_frame link_doip_decode_frame
+#define mblink_doip_build_routing_activation_request link_doip_build_routing_activation_request
+#define mblink_doip_build_alive_check_response link_doip_build_alive_check_response
+#define mblink_doip_build_diagnostic_message link_doip_build_diagnostic_message
+#define mblink_doip_decode_diagnostic_message link_doip_decode_diagnostic_message
+#endif

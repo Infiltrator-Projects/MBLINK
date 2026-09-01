@@ -34,8 +34,23 @@ extern "C" {
 #define MBLINK_ELM327_RESULT_UNSUPPORTED_COMMAND LINK_ELM327_RESULT_UNSUPPORTED_COMMAND
 #define MBLINK_ELM327_RESULT_ADAPTER_ERROR LINK_ELM327_RESULT_ADAPTER_ERROR
 #define MBLINK_ELM327_RESULT_MALFORMED_RESPONSE LINK_ELM327_RESULT_MALFORMED_RESPONSE
+#define MBLINK_ELM327_PROTOCOL_AUTOMATIC LINK_ELM327_PROTOCOL_AUTOMATIC
+#define MBLINK_ELM327_PROTOCOL_SAE_J1850_PWM LINK_ELM327_PROTOCOL_SAE_J1850_PWM
+#define MBLINK_ELM327_PROTOCOL_SAE_J1850_VPW LINK_ELM327_PROTOCOL_SAE_J1850_VPW
+#define MBLINK_ELM327_PROTOCOL_ISO_9141_2 LINK_ELM327_PROTOCOL_ISO_9141_2
+#define MBLINK_ELM327_PROTOCOL_ISO_14230_4_SLOW LINK_ELM327_PROTOCOL_ISO_14230_4_SLOW
+#define MBLINK_ELM327_PROTOCOL_ISO_14230_4_FAST LINK_ELM327_PROTOCOL_ISO_14230_4_FAST
+#define MBLINK_ELM327_PROTOCOL_ISO_15765_4_11_500 LINK_ELM327_PROTOCOL_ISO_15765_4_11_500
+#define MBLINK_ELM327_PROTOCOL_ISO_15765_4_29_500 LINK_ELM327_PROTOCOL_ISO_15765_4_29_500
+#define MBLINK_ELM327_PROTOCOL_ISO_15765_4_11_250 LINK_ELM327_PROTOCOL_ISO_15765_4_11_250
+#define MBLINK_ELM327_PROTOCOL_ISO_15765_4_29_250 LINK_ELM327_PROTOCOL_ISO_15765_4_29_250
+#define MBLINK_ELM327_PROTOCOL_SAE_J1939 LINK_ELM327_PROTOCOL_SAE_J1939
 
 typedef LinkElm327Result MblinkElm327Result;
+typedef LinkElm327ProtocolNumber MblinkElm327ProtocolNumber;
+typedef LinkElm327ProtocolFamily MblinkElm327ProtocolFamily;
+typedef LinkElm327ProtocolInit MblinkElm327ProtocolInit;
+typedef LinkElm327ProtocolDefinition MblinkElm327ProtocolDefinition;
 typedef LinkElm327Response MblinkElm327Response;
 typedef LinkElm327Parser MblinkElm327Parser;
 
@@ -69,6 +84,11 @@ void mblink_elm327_init_begin(MblinkElm327InitState *state);
 const char *mblink_elm327_init_command(const MblinkElm327InitState *state);
 MblinkElm327Result mblink_elm327_init_accept(MblinkElm327InitState *state,
                                              const MblinkElm327Response *response);
+#define mblink_elm327_protocol_definition_count link_elm327_protocol_definition_count
+#define mblink_elm327_protocol_definition_at link_elm327_protocol_definition_at
+#define mblink_elm327_protocol_definition link_elm327_protocol_definition
+#define mblink_elm327_protocol_family_name link_elm327_protocol_family_name
+#define mblink_elm327_build_set_protocol_command link_elm327_build_set_protocol_command
 
 #ifdef __cplusplus
 }

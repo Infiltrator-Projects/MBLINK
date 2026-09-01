@@ -62,7 +62,9 @@ manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 
 ## Capabilities
 
-- Shared ELM327/OBD-II/UDS diagnostics through LINK.
+- Shared ELM327/OBD-II/UDS diagnostics through LINK, including explicit legacy J1850 PWM/VPW, ISO 9141-2, ISO 14230-4 and ISO 15765-4 protocol selection.
+- Raw-preserving Mode 05/06/09 standard identifier access and the J1979-2_202604 OBDonUDS profile inherited from LINK.
+- Shared ISO 13400 DoIP diagnostic framing for modern OBDonUDS/WWH-OBD transport foundations.
 - Shared Classical CAN and CAN-FD ISO-TP, including 64-byte CAN-FD payloads and extended ISO-TP lengths.
 - Product-prefixed access to LINK's complete 27-service UDS catalogue and codecs without duplicating implementations.
 - Shared generic DTC interpretation through LINK, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
