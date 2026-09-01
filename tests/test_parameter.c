@@ -108,7 +108,7 @@ int main(void)
                     max_speed_limit != NULL &&
                     traction_battery_soh != NULL &&
                     engine_odometer != NULL,
-                    "LINK 0.14.59 scalar definitions are missing");
+                    "LINK 0.14.60 scalar definitions are missing");
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
                     "structured DPF PIDs must not be flattened into fake scalars");
