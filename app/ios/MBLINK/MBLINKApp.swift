@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Charts
+import CoreText
 import Foundation
 import SwiftUI
 import UIKit
@@ -20,20 +21,106 @@ private enum MBBrand {
 
 
 private enum MBTypography {
-    static let uiRegularName = "MBCorpoSTitleWEB-Regular"
-    static let uiBoldName = "MBCorpoSTitleWEB-Bold"
-    static let displayName = "MBCorpoATitleCondWEB-Regular"
+    private struct BundledFont {
+        let resource: String
+        let fallbackPostScriptName: String
+    }
+
+    private static let bundledFonts = [
+        BundledFont(
+            resource: "mb_corpo_s_regular",
+            fallbackPostScriptName: "MBCorpoSTitleWEB-Regular"),
+        BundledFont(
+            resource: "mb_corpo_s_bold",
+            fallbackPostScriptName: "MBCorpoSTitleWEB-Bold"),
+        BundledFont(
+            resource: "mb_corpo_a_cond_regular",
+            fallbackPostScriptName: "MBCorpoATitleCondWEB-Regular")
+    ]
+
+    /*
+     * UIAppFonts remains the normal registration path, but explicitly
+     * registering the bundled files makes sideloaded/unsigned IPA behaviour
+     * deterministic as well.  Resolve the real PostScript name from each TTF
+     * instead of assuming the internal font name matches the filename.
+     *
+     * Font problems must never be process-fatal.  The Xcode build already
+     * hash-verifies all three source TTFs; at runtime we use the bundled face
+     * when available and fall back only for a genuinely unavailable face.
+     */
+    private static let resolvedPostScriptNames: [String: String] = {
+        var result: [String: String] = [:]
+
+        for font in bundledFonts {
+            guard let url = Bundle.main.url(forResource: font.resource, withExtension: "ttf") else {
+                NSLog("MBLINK: bundled font file missing at runtime: %@.ttf", font.resource)
+                continue
+            }
+
+            _ = CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+
+            if let descriptors =
+                CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor],
+               let descriptor = descriptors.first {
+                let ctFont = CTFontCreateWithFontDescriptor(descriptor, 12, nil)
+                result[font.resource] = CTFontCopyPostScriptName(ctFont) as String
+            }
+        }
+
+        return result
+    }()
+
+    static var uiRegularName: String {
+        resolvedPostScriptNames["mb_corpo_s_regular"] ??
+            "MBCorpoSTitleWEB-Regular"
+    }
+
+    static var uiBoldName: String {
+        resolvedPostScriptNames["mb_corpo_s_bold"] ??
+            "MBCorpoSTitleWEB-Bold"
+    }
+
+    static var displayName: String {
+        resolvedPostScriptNames["mb_corpo_a_cond_regular"] ??
+            "MBCorpoATitleCondWEB-Regular"
+    }
+
+    private static func customOrSystem(
+        _ name: String,
+        size: CGFloat,
+        relativeTo style: Font.TextStyle,
+        fallbackWeight: Font.Weight
+    ) -> Font {
+        if UIFont(name: name, size: size) != nil {
+            return .custom(name, size: size, relativeTo: style)
+        }
+
+        NSLog("MBLINK: bundled font %@ unavailable; using safe system fallback", name)
+        return .system(size: size, weight: fallbackWeight)
+    }
 
     static func regular(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
-        .custom(uiRegularName, size: size, relativeTo: style)
+        customOrSystem(
+            uiRegularName,
+            size: size,
+            relativeTo: style,
+            fallbackWeight: .regular)
     }
 
     static func bold(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
-        .custom(uiBoldName, size: size, relativeTo: style)
+        customOrSystem(
+            uiBoldName,
+            size: size,
+            relativeTo: style,
+            fallbackWeight: .bold)
     }
 
     static func display(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
-        .custom(displayName, size: size, relativeTo: style)
+        customOrSystem(
+            displayName,
+            size: size,
+            relativeTo: style,
+            fallbackWeight: .regular)
     }
 
     static let body = regular(17, relativeTo: .body)
@@ -49,12 +136,20 @@ private enum MBTypography {
     static let title2 = bold(22, relativeTo: .title2)
 
     static func verifyBundledFonts() {
-        precondition(
-            UIFont(name: uiRegularName, size: 12) != nil &&
-            UIFont(name: uiBoldName, size: 12) != nil &&
-            UIFont(name: displayName, size: 12) != nil,
-            "MBLINK bundled MB Corpo font set is missing or not registered"
-        )
+        let expected = [
+            ("mb_corpo_s_regular", uiRegularName),
+            ("mb_corpo_s_bold", uiBoldName),
+            ("mb_corpo_a_cond_regular", displayName)
+        ]
+        let unavailable = expected.compactMap { resource, postScriptName in
+            UIFont(name: postScriptName, size: 12) == nil ? resource : nil
+        }
+
+        if !unavailable.isEmpty {
+            NSLog(
+                "MBLINK: font registration incomplete (%@); continuing safely",
+                unavailable.joined(separator: ", "))
+        }
     }
 }
 
