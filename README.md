@@ -132,6 +132,8 @@ Linux `SAVE SESSION` now preserves one complete diagnostic investigation across 
 
 The native iPhone project is `app/ios/MBLINK.xcodeproj`.
 
+The iPhone target bundles the three canonical MB Corpo faces. At startup MBLINK registers the bundled TTF files with CoreText, resolves their actual PostScript names from the font data and uses those faces throughout SwiftUI. Font registration is never process-fatal: a genuinely unavailable face falls back safely while the build-time SHA-256 checks continue to enforce the exact bundled font assets.
+
 GitHub CI verifies the exact recursive dependency gitlinks, portable core, product-to-LINK facade, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run.
 
 ## Release assets
