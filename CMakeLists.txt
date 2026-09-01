@@ -17,29 +17,16 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Canonical MBLINK typography. The exact private font archive is optional:
-# when present it is hash-verified and bundled; source/CI builds remain usable
-# without redistributing the private archive and fall back to platform fonts.
-set(MBLINK_FONT_PARTS
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part00"
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part01"
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part02"
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz.part03")
+# Canonical MBLINK typography. The exact font archive is a required source asset.
+# It contains all three original MB Corpo TTF files supplied for the project.
+set(MBLINK_FONT_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz")
+if(NOT EXISTS "${MBLINK_FONT_ARCHIVE}")
+    message(FATAL_ERROR "Required MBLINK MB Corpo font archive is missing: ${MBLINK_FONT_ARCHIVE}")
+endif()
 set(MBLINK_HAVE_BUNDLED_FONTS TRUE)
-foreach(MBLINK_FONT_PART IN LISTS MBLINK_FONT_PARTS)
-    if(NOT EXISTS "${MBLINK_FONT_PART}")
-        set(MBLINK_HAVE_BUNDLED_FONTS FALSE)
-    endif()
-endforeach()
 set(MBLINK_FONT_DIR "")
 set(MBLINK_FONT_FILES "")
-if(MBLINK_HAVE_BUNDLED_FONTS)
-    set(MBLINK_FONT_ARCHIVE "${CMAKE_CURRENT_BINARY_DIR}/mblink-mb-corpo-fonts.tar.xz")
-    execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E cat ${MBLINK_FONT_PARTS}
-        OUTPUT_FILE "${MBLINK_FONT_ARCHIVE}"
-        COMMAND_ERROR_IS_FATAL ANY)
-    file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
+file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
     if(NOT MBLINK_FONT_ARCHIVE_SHA256 STREQUAL
        "bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274")
         message(FATAL_ERROR "MBLINK font archive hash mismatch.")
@@ -69,9 +56,7 @@ if(MBLINK_HAVE_BUNDLED_FONTS)
             message(FATAL_ERROR "MBLINK font hash mismatch: ${MBLINK_FONT_FILE}")
         endif()
     endforeach()
-else()
-    message(STATUS "MBLINK private font archive not present; using platform font fallbacks.")
-endif()
+
 option(MBLINK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MBLINK_BUILD_LINUX_APP "Build the native GTK4 Linux front end" OFF)
 set(MBLINK_BUILD_PROFILE "source" CACHE STRING "Build identity: source, generic, or native")

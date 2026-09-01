@@ -395,6 +395,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz",
 			);
 			name = "Bundle MB Corpo Fonts";
 			outputFileListPaths = (
@@ -403,7 +404,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nARCHIVE=\"${DERIVED_FILE_DIR}/mblink-mb-corpo-fonts.tar.xz\"\nFONT_DIR=\"${DERIVED_FILE_DIR}/mblink-fonts\"\nPART_DIR=\"${SRCROOT}/../../assets/fonts\"\nfor PART in mb-corpo-fonts.tar.xz.part00 mb-corpo-fonts.tar.xz.part01 mb-corpo-fonts.tar.xz.part02 mb-corpo-fonts.tar.xz.part03; do\n  if [ ! -f \"${PART_DIR}/${PART}\" ]; then\n    echo \"warning: MBLINK private font archive not present; using iOS font fallback\" >&2\n    exit 0\n  fi\ndone\ncat \"${PART_DIR}/mb-corpo-fonts.tar.xz.part00\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part01\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part02\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part03\" > \"${ARCHIVE}\"\nACTUAL=\"$(shasum -a 256 \"${ARCHIVE}\" | awk '{print $1}')\"\nEXPECTED=\"bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274\"\nif [ \"${ACTUAL}\" != \"${EXPECTED}\" ]; then\n  echo \"error: MBLINK font archive hash mismatch\" >&2\n  exit 1\nfi\nrm -rf \"${FONT_DIR}\"\nmkdir -p \"${FONT_DIR}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\ntar -xf \"${ARCHIVE}\" -C \"${FONT_DIR}\"\ncp \"${FONT_DIR}/mb_corpo_a_cond_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_bold.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
+			shellScript = "set -eu\nARCHIVE=\"${SRCROOT}/../../assets/fonts/mb-corpo-fonts.tar.xz\"\nFONT_DIR=\"${DERIVED_FILE_DIR}/mblink-fonts\"\nif [ ! -f \"${ARCHIVE}\" ]; then\n  echo \"error: required MBLINK MB Corpo font archive is missing: ${ARCHIVE}\" >&2\n  exit 1\nfi\nACTUAL=\"$(shasum -a 256 \"${ARCHIVE}\" | awk '{print $1}')\"\nEXPECTED=\"bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274\"\nif [ \"${ACTUAL}\" != \"${EXPECTED}\" ]; then\n  echo \"error: MBLINK font archive hash mismatch\" >&2\n  exit 1\nfi\nrm -rf \"${FONT_DIR}\"\nmkdir -p \"${FONT_DIR}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\ntar -xf \"${ARCHIVE}\" -C \"${FONT_DIR}\"\ncheck_font() {\n  FILE=\"$1\"\n  EXPECTED_FONT=\"$2\"\n  ACTUAL_FONT=\"$(shasum -a 256 \"${FONT_DIR}/${FILE}\" | awk '{print $1}')\"\n  if [ \"${ACTUAL_FONT}\" != \"${EXPECTED_FONT}\" ]; then\n    echo \"error: MBLINK font hash mismatch: ${FILE}\" >&2\n    exit 1\n  fi\n}\ncheck_font mb_corpo_a_cond_regular.ttf c8bcd7e1a7d71169b38491d9b7c1ffe7ba7b46e888f0c1219931343a47bc0e05\ncheck_font mb_corpo_s_bold.ttf d37ea986e2344d83390f94f170e6272b56efd00bfec808afe8314c4ca45d43b4\ncheck_font mb_corpo_s_regular.ttf 94ede6629443c03d4362dcef425fb3ff520be5d654370021a34e81286804465c\ncp \"${FONT_DIR}/mb_corpo_a_cond_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_bold.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
