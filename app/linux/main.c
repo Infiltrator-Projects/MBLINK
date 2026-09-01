@@ -14,6 +14,7 @@
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
 
+#include <fontconfig/fontconfig.h>
 #include <gtk/gtk.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -121,16 +122,16 @@ typedef struct MblinkLinuxContext {
 static void save_display_preferences(const MblinkLinuxContext *context);
 
 static const char mblink_css[] =
-    "window { background: #050608; color: #e8ecef; }"
+    "window { background: #050608; color: #e8ecef; font-family: \"MB Corpo S Title WEB\"; }"
     ".link-connection-bar { background: #101318; border: 1px solid #353a40; }"
     ".link-link-button { background: #d7dde2; color: #111418; border-radius: 10px; }"
-    ".link-brand { color: #eef1f3; }"
+    ".link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-brand-subtitle { color: #aeb6bd; }"
-    ".link-section-title { color: #e7ebee; }"
+    ".link-section-title { color: #e7ebee; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-section-summary { color: #899198; }"
     ".link-card { background: linear-gradient(135deg,#171b20,#0d1014); border: 1px solid #353a40; border-radius: 18px; padding: 20px; }"
     ".link-card-kicker { color: #8c949b; font-size: 10px; font-weight: 800; letter-spacing: 2px; }"
-    ".link-card-title { color: #eef1f3; font-size: 20px; font-weight: 800; }"
+    ".link-card-title { color: #eef1f3; font-size: 20px; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-detail-label { color: #7e858c; }"
     ".link-detail-value { color: #eef1f3; font-weight: 700; }"
     ".link-card-note { color: #9ca4ab; }"
@@ -141,6 +142,47 @@ static const char mblink_css[] =
     ".mblink-settings-row { padding: 10px 0; }"
     ".mblink-settings-row dropdown { min-width: 210px; }"
     ".mblink-settings-note { color: #899198; font-size: 11px; }";
+
+static bool register_one_project_font(FcConfig *config, const char *filename)
+{
+    char *build_path;
+    char *install_path;
+    bool added = false;
+
+    if (config == NULL || filename == NULL) return false;
+    build_path = g_build_filename(MBLINK_FONT_BUILD_DIR, filename, NULL);
+    install_path = g_build_filename(MBLINK_FONT_INSTALL_DIR, filename, NULL);
+    if (build_path != NULL && g_file_test(build_path, G_FILE_TEST_IS_REGULAR))
+        added = FcConfigAppFontAddFile(
+            config, (const FcChar8 *)build_path) != FcFalse;
+    if (!added && install_path != NULL &&
+        g_file_test(install_path, G_FILE_TEST_IS_REGULAR))
+        added = FcConfigAppFontAddFile(
+            config, (const FcChar8 *)install_path) != FcFalse;
+    g_free(build_path);
+    g_free(install_path);
+    return added;
+}
+
+static bool register_project_fonts(void)
+{
+    static const char *const fonts[] = {
+        "mb_corpo_a_cond_regular.ttf",
+        "mb_corpo_s_bold.ttf",
+        "mb_corpo_s_regular.ttf"
+    };
+    FcConfig *config;
+    size_t index;
+
+    if (FcInit() == FcFalse) return false;
+    config = FcConfigGetCurrent();
+    if (config == NULL) return false;
+    for (index = 0U; index < G_N_ELEMENTS(fonts); ++index) {
+        if (!register_one_project_font(config, fonts[index]))
+            return false;
+    }
+    return FcConfigBuildFonts(config) != FcFalse;
+}
 
 static uint64_t monotonic_ms(void)
 {
@@ -2292,6 +2334,11 @@ int main(int argc, char **argv)
         }
     }
 
+    if (!register_project_fonts()) {
+        (void)fprintf(stderr,
+            "MBLINK: unable to register the bundled MB Corpo font set.\n");
+        return 6;
+    }
     if (settings_verify)
         return verify_display_preferences() ? 0 : 5;
 
