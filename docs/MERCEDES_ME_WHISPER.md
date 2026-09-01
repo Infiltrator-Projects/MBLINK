@@ -230,6 +230,58 @@ the APK is not necessarily the final per-vehicle live-data package: the active
 device-provider configuration can be selected/updated after vehicle
 identification.
 
+## Local database live-data availability model
+
+The archived application database migrations add an independent, concrete
+application-level live-data model.
+
+Migration 13 creates:
+
+- `LiveDataId(Id, IdKey)`;
+- `VehicleLiveDataId(Id, LiveDataId, Vehicle)`;
+- a per-vehicle `AvailabilityCheckDone` flag;
+- `DashboardSettings` tied to a vehicle.
+
+It then seeds the live-data catalogue with exactly:
+
+```text
+engineFuelRate
+calculatedEngineLoad
+relativeAcceleratorPedalPosition
+throttlePosition
+ambientAirTemperature
+intakeAirTemperature
+```
+
+Migration 16 adds:
+
+```text
+engineCoolantTemperature
+engineOilTemperature
+```
+
+This is stronger than a raw string occurrence. It proves that the production
+Android application persisted a per-vehicle set of available live DataIDs and
+that these eight DataIDs were first-class members of that live-data system.
+
+The schema does **not** store the UDS/KWP request, CAN route, byte extraction or
+formula. It appears to persist availability/presentation state after the
+diagnostic/configuration layer has determined which DataIDs a particular
+vehicle supports. This aligns with the native DiagLogic functions for live-data
+availability and default DataID selection.
+
+Migration 14 separately creates a per-vehicle `Malfunction` table keyed by a
+Mercedes `DataId`, reinforcing that application-facing DataIDs are a durable
+semantic boundary between the diagnostic engine and the UI/database layer.
+
+The bundled `assets/data_export.zip` is therefore a high-priority artifact to
+inspect. Its being protected does not by itself prove that it contains the
+Whisper request catalogue, but the database schema makes an exported database
+or vehicle-state fixture materially interesting: populated
+`VehicleLiveDataId` rows could reveal which live DataIDs Mercedes considered
+available for the exported vehicle, and configuration/version fields could
+help identify the selected per-vehicle diagnostic package.
+
 ## Demo-mode application data
 
 The archived `assets/demo_mode_data.json` is application/demo content rather
