@@ -4,7 +4,20 @@
 
 The portable C OBD-II layer consumes normalized `MblinkElm327Response` values and returns typed results. BLE, raw ISO-TP, UDS, manufacturer data, scheduling and UI remain outside this layer. The implementation is owned by LINK and exposed through MBLINK compatibility APIs.
 
-## Supported live/freeze-frame values
+## Complete Mode 01 catalogue and decoded examples
+
+LINK exposes the complete classic Mode 01 byte namespace: all 256 identifier
+slots are enumerable, with assigned and reserved status explicit. Every
+assigned standard PID can enter the scheduler when the vehicle advertises it.
+Scalar formulas remain available through the compatibility parameter layer;
+multi-signal values such as DPF pressure/temperature, NOx and aftertreatment
+are retained as structured decoded data. Assigned values whose current digital
+annex layout is not independently corroborated remain readable as complete raw
+payloads rather than receiving an invented formula.
+
+The table below is a compact set of decoded examples, not the boundary of SAE
+coverage.
+
 
 | PID | Parameter | Unit | Formula / selection |
 | --- | --- | --- | --- |
@@ -36,7 +49,11 @@ The portable C OBD-II layer consumes normalized `MblinkElm327Response` values an
 | `7A` | DPF bank-1 differential pressure | `kPa` | support bit for bank-1 differential pressure, then signed `BC / 100` |
 | `7C` | DPF bank-1 inlet temperature | `°C` | support bit for bank-1 inlet temperature, then `(256B + C) / 10 - 40` |
 
-The aftertreatment PIDs contain their own sensor/support flags. MBLINK returns `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` rather than presenting a value when the PID exists but the selected sub-field is not advertised. Unknown typed PIDs also return `MBLINK_OBD2_RESULT_UNSUPPORTED_PID`; MBLINK does not invent formulas.
+The aftertreatment PIDs contain their own sensor/support flags. MBLINK returns `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` rather than presenting a value when the PID exists but the selected sub-field is not advertised. A PID that has a verified typed decoder still returns
+`MBLINK_OBD2_RESULT_UNSUPPORTED_PID` when the requested advertised sub-field
+is absent. Assigned catalogue items without a corroborated formula are retained
+through the structured/raw path instead of being rejected or assigned a guessed
+physical meaning.
 
 PID `11` is the throttle-valve measurement, not accelerator-pedal demand. Pedal demand is kept as the distinct standard `49`/`4A`/`4B` channels and is only polled when the vehicle advertises those PIDs. Fuel-rail pressure remains canonical `kPa` in decoded samples and evidence exports; human-facing parameter formatting auto-scales values of at least 1000 kPa to MPa (for example, `123400 kPa` is shown as `123.4 MPa`).
 
@@ -71,11 +88,11 @@ The captured C207 masks currently prove:
   pages, therefore 10 non-continuation Mode 01 codes; 9 are current scalar live
   values already decoded by LINK.
 
-This is also why the standard OBD-II screen should not be padded with hundreds
-of unsupported catalogue entries. SAE Mode 01 has a bounded PID address space
-and a vehicle advertises only the subset it implements. The much larger
-Mercedes actual-value inventory available through the same diagnostic socket
-belongs to the manufacturer UDS/KWP layer and is kept separate from SAE
+The catalogue itself remains complete even though a vehicle advertises only
+the subset it implements. Presentation may filter or mark unsupported entries,
+but capability state is never confused with catalogue existence. The much
+larger Mercedes actual-value inventory available through the same diagnostic
+socket belongs to the manufacturer UDS/KWP layer and remains separate from SAE
 OBD-II.
 
 ## VIN and ELM long responses
@@ -123,7 +140,13 @@ The layer distinguishes invalid arguments, ELM errors, malformed payloads, unexp
 
 Capability discovery and runtime polling are intentionally separate. A vehicle may advertise dozens of standard PIDs without MBLINK continuously requesting every one. The application keeps every supported definition visible, but each PID has an independent polling enable state backed by LINK's scheduler. Disabling a PID removes it from routine live dispatch rather than merely hiding its value.
 
-MBLINK's first-run mobile/Linux core set is deliberately bounded to RPM, speed, coolant temperature, fuel-rail pressure, absolute throttle-valve position, accelerator-pedal positions D/E and ambient temperature. Unsupported entries simply never enter the schedule. Users can then enable additional advertised PIDs individually.
+MBLINK's first-run mobile/Linux core set is deliberately bounded to RPM, speed,
+coolant temperature, fuel-rail pressure, absolute throttle-valve position,
+accelerator-pedal positions D/E and ambient temperature. Unsupported entries
+simply never enter the schedule. Users can then enable additional advertised
+PIDs individually. iOS persists the stable SAE/parameter selection, and Linux
+persists each assigned Mode 01 polling choice in its configuration file so the
+selection no longer resets at application launch.
 
 PID `46` ambient temperature is displayed to one decimal place for visual consistency with the vehicle display. SAE PID `46` itself has whole-degree-Celsius source resolution, so a value such as `18.0 °C` does not claim a measured tenth. A future verified Mercedes factory ambient-temperature mapping can provide its own native precision.
 

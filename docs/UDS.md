@@ -34,6 +34,23 @@ Named builders are available for the additional service families such as memory 
 
 State-changing, security and programming codecs exist so LINK has a complete standards-shaped serialization layer; they are not automatically enabled by any MBLINK transport or discovery path.
 
+### Complete ReadDTCInformation surface
+
+The 27 registered UDS service identifiers and the ReadDTCInformation report
+types are separate catalogues. LINK now also exposes all 27 requested
+`ReadDTCInformation (0x19)` report types: `0x01..0x19` plus WWH-OBD
+`0x42` and `0x55`. The legacy mirror/emissions report types withdrawn by
+ISO 14229-1:2020 remain available for older ECUs.
+
+Every report type has a bounded request encoder and a validated positive-response
+envelope. Fixed DTC/count/severity records are structurally validated.
+Snapshot and extended-data records whose lengths depend on DID or manufacturer
+definitions remain explicit raw spans until the higher layer supplies those
+definitions; the generic codec does not guess record boundaries.
+
+This completes issue #32 at the shared standards layer without changing
+Discover's read-only allowlist.
+
 ## Timing and failure
 
 Client timing uses caller-supplied monotonic microseconds. Deadlines use saturating arithmetic from the pinned Infiltratr Common library.

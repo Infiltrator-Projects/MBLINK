@@ -11,6 +11,7 @@
 #include "mblink/mercedes_engine_scan.h"
 #include "mblink/fault_investigation.h"
 #include "mblink/mercedes_module_scan.h"
+#include "mblink/obd2.h"
 #include "mblink/parameter.h"
 
 #include <gtk/gtk.h>
@@ -91,6 +92,8 @@ typedef struct MblinkLinuxContext {
     LinkDiagnosticFlow diagnostic;
     bool sample_valid[256];
     LinkObd2Sample samples[256];
+    bool decoded_sample_valid[256];
+    MblinkObd2DecodedPid decoded_samples[256];
     bool polling_enabled[256];
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
@@ -114,6 +117,8 @@ typedef struct MblinkLinuxContext {
     bool module_scan_full;
     bool full_sweep_requested;
 } MblinkLinuxContext;
+
+static void save_display_preferences(const MblinkLinuxContext *context);
 
 static const char mblink_css[] =
     "window { background: #050608; color: #e8ecef; }"
@@ -246,6 +251,8 @@ static void polling_toggled(GtkCheckButton *button, gpointer opaque)
         g_object_get_data(G_OBJECT(button), "mblink-pid"));
     if (context == NULL || pid > UINT8_MAX) return;
     context->polling_enabled[pid] = gtk_check_button_get_active(button);
+    ++context->presentation_revision;
+    save_display_preferences(context);
 }
 
 static char *preferences_config_path(void)
@@ -337,6 +344,26 @@ static void initialise_display_preferences(MblinkLinuxContext *context)
                 key_file, "units", "air_mass",
                 MBLINK_AIR_MASS_G_PER_SECOND,
                 MBLINK_AIR_MASS_LB_PER_MINUTE);
+
+        /*
+         * Polling is a product preference, not a vehicle capability. Retain
+         * the operator's choices by Mode 01 identifier while leaving new keys
+         * at the safe default policy selected by initialise_polling_policy().
+         */
+        for (unsigned int pid = 1U; pid <= UINT8_MAX; ++pid) {
+            char key[24];
+            if (mblink_obd2_mode01_identifier_status((uint8_t)pid) !=
+                    LINK_OBD2_IDENTIFIER_ASSIGNED ||
+                (((uint8_t)pid & UINT8_C(0x1f)) == 0U)) {
+                continue;
+            }
+            (void)snprintf(key, sizeof(key), "mode01_%02X", pid);
+            if (g_key_file_has_key(key_file, "polling", key, NULL)) {
+                context->polling_enabled[pid] =
+                    g_key_file_get_boolean(
+                        key_file, "polling", key, NULL) != FALSE;
+            }
+        }
     }
     g_key_file_unref(key_file);
     g_free(path);
@@ -368,6 +395,17 @@ static void save_display_preferences(const MblinkLinuxContext *context)
         key_file, "units", "fuel_rate", context->fuel_rate_unit);
     g_key_file_set_integer(
         key_file, "units", "air_mass", context->air_mass_unit);
+    for (unsigned int pid = 1U; pid <= UINT8_MAX; ++pid) {
+        char key[24];
+        if (mblink_obd2_mode01_identifier_status((uint8_t)pid) !=
+                LINK_OBD2_IDENTIFIER_ASSIGNED ||
+            (((uint8_t)pid & UINT8_C(0x1f)) == 0U)) {
+            continue;
+        }
+        (void)snprintf(key, sizeof(key), "mode01_%02X", pid);
+        g_key_file_set_boolean(
+            key_file, "polling", key, context->polling_enabled[pid]);
+    }
     data = g_key_file_to_data(key_file, &length, NULL);
     if (data != NULL) {
         (void)g_file_set_contents(path, data, (gssize)length, NULL);
@@ -530,6 +568,76 @@ static void format_sample(const LinkObd2Sample *sample,
         (void)snprintf(buffer, capacity, "%.2f", sample->value);
     else
         (void)snprintf(buffer, capacity, "%.2f %s", sample->value, unit);
+}
+
+static void format_decoded_pid(
+    const MblinkObd2DecodedPid *decoded,
+    char *buffer,
+    size_t capacity)
+{
+    size_t index;
+    size_t used = 0U;
+
+    if (buffer == NULL || capacity == 0U) return;
+    buffer[0] = '\0';
+    if (decoded == NULL) {
+        (void)snprintf(buffer, capacity, "Waiting");
+        return;
+    }
+
+    if (decoded->signal_count != 0U) {
+        const size_t shown =
+            decoded->signal_count < 2U ? decoded->signal_count : 2U;
+        for (index = 0U; index < shown; ++index) {
+            const MblinkObd2DecodedSignal *signal = &decoded->signals[index];
+            const int written = snprintf(
+                buffer + used, capacity - used,
+                "%s%s %.2f%s%s",
+                index == 0U ? "" : " · ",
+                signal->label != NULL ? signal->label : "value",
+                signal->value,
+                signal->unit != NULL && signal->unit[0] != '\0' ? " " : "",
+                signal->unit != NULL ? signal->unit : "");
+            if (written < 0) break;
+            if ((size_t)written >= capacity - used) {
+                used = capacity - 1U;
+                break;
+            }
+            used += (size_t)written;
+        }
+        if (decoded->signal_count > shown && used + 8U < capacity) {
+            (void)snprintf(
+                buffer + used, capacity - used,
+                " · +%zu", decoded->signal_count - shown);
+        }
+        return;
+    }
+
+    if (decoded->text_available && decoded->text[0] != '\0') {
+        (void)snprintf(buffer, capacity, "%s", decoded->text);
+        return;
+    }
+
+    if (decoded->raw_length != 0U) {
+        const int first = snprintf(buffer, capacity, "RAW");
+        if (first < 0 || (size_t)first >= capacity) return;
+        used = (size_t)first;
+        for (index = 0U;
+             index < decoded->raw_length && index < 8U &&
+             used + 4U < capacity;
+             ++index) {
+            const int written = snprintf(
+                buffer + used, capacity - used, " %02X",
+                (unsigned int)decoded->raw[index]);
+            if (written < 0 || (size_t)written >= capacity - used) break;
+            used += (size_t)written;
+        }
+        if (decoded->raw_length > 8U && used + 5U < capacity)
+            (void)snprintf(buffer + used, capacity - used, " …");
+        return;
+    }
+
+    (void)snprintf(buffer, capacity, "Decoded");
 }
 
 static void append_dtc_list(GtkWidget *card,
@@ -1292,37 +1400,61 @@ static void append_parameters(GtkWidget *body,
                               bool compact,
                               MblinkLinuxContext *context)
 {
-    GtkWidget *card = link_gtk_card_new(compact ? "PARAMETER TABLE" : "LIVE DATA CATALOGUE",
-                                        compact ? "Real standard OBD-II samples" : "Available shared diagnostic parameters");
-    size_t count = mblink_parameter_obd2_definition_count();
+    GtkWidget *card = link_gtk_card_new(
+        compact ? "PARAMETER TABLE" : "FULL SAE LIVE DATA CATALOGUE",
+        compact ? "Enabled standard OBD-II samples"
+                : "Every assigned SAE Mode 01 live-data identifier");
+    const size_t count = mblink_obd2_pid_definition_count();
     size_t index;
+
     for (index = 0U; index < count; ++index) {
-        const MblinkParameterDefinition *definition = mblink_parameter_obd2_definition_at(index);
-        char key[64];
-        char value[96];
+        const MblinkObd2PidDefinition *definition =
+            mblink_obd2_pid_definition_at(index);
+        char key[128];
+        char value[192];
         uint8_t pid;
-        if (definition == NULL) continue;
-        pid = (uint8_t)definition->key.identifier;
-        (void)snprintf(key, sizeof(key), "PID 0x%02X · %s",
-                       (unsigned int)pid, definition->short_name);
+
+        if (definition == NULL ||
+            definition->mode != UINT8_C(0x01) ||
+            (definition->pid & UINT8_C(0x1f)) == 0U) {
+            continue;
+        }
+
+        pid = definition->pid;
+        if (compact && !effective_polling_enabled(context, pid))
+            continue;
+
+        (void)snprintf(
+            key, sizeof(key), "PID 0x%02X · %s",
+            (unsigned int)pid,
+            definition->name != NULL ? definition->name : "SAE parameter");
+
         if (!effective_polling_enabled(context, pid)) {
             (void)snprintf(value, sizeof(value), "Polling off");
         } else if (context->sample_valid[pid]) {
-            format_sample(&context->samples[pid], context, value, sizeof(value));
+            format_sample(
+                &context->samples[pid], context, value, sizeof(value));
+        } else if (context->decoded_sample_valid[pid]) {
+            format_decoded_pid(
+                &context->decoded_samples[pid], value, sizeof(value));
         } else if (context->diagnostic_valid &&
-                   !link_obd2_pid_set_contains(&context->diagnostic.supported_pids, pid)) {
+                   !link_obd2_pid_set_contains(
+                       &context->diagnostic.supported_pids, pid)) {
             (void)snprintf(value, sizeof(value), "Not supported by vehicle");
         } else if (context->diagnostic_active || context->diagnostic_ready) {
             (void)snprintf(value, sizeof(value), "Waiting for sample");
         } else {
             (void)snprintf(value, sizeof(value), "No live session");
         }
+
         if (compact) {
             link_gtk_card_append_detail(card, key, value);
         } else {
             GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
-            GtkWidget *name =
-                link_gtk_left_label(definition->name, "link-detail-label");
+            GtkWidget *name = link_gtk_left_label(
+                definition->name != NULL
+                    ? definition->name : "SAE parameter",
+                "link-detail-label");
             GtkWidget *detail =
                 link_gtk_left_label(value, "link-detail-value");
             GtkWidget *toggle = gtk_check_button_new_with_label("Poll");
@@ -1986,22 +2118,45 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     MblinkLinuxContext *context = opaque;
     context->diagnostic_active = active;
     context->diagnostic_ready = ready;
+
     if (flow == NULL) {
         context->diagnostic_valid = false;
         memset(&context->diagnostic, 0, sizeof(context->diagnostic));
         memset(context->sample_valid, 0, sizeof(context->sample_valid));
         memset(context->samples, 0, sizeof(context->samples));
+        memset(
+            context->decoded_sample_valid, 0,
+            sizeof(context->decoded_sample_valid));
+        memset(context->decoded_samples, 0, sizeof(context->decoded_samples));
         link_fuel_economy_init(&context->fuel_economy);
         return;
     }
+
     context->diagnostic = *flow;
     context->diagnostic_valid = true;
-    if (event != NULL && event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
+
+    if (event != NULL &&
+        (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
+         event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED)) {
         const uint64_t now_ms = monotonic_ms();
-        context->samples[event->sample.pid] = event->sample;
-        context->sample_valid[event->sample.pid] = true;
-        (void)link_fuel_economy_observe_obd2(
-            &context->fuel_economy, &event->sample, now_ms);
+
+        for (size_t index = 0U;
+             index < event->responder_decoded.count;
+             ++index) {
+            const LinkObd2ResponderDecodedPid *entry =
+                &event->responder_decoded.entries[index];
+            if (entry->decoded.definition == NULL) continue;
+            const uint8_t pid = entry->decoded.definition->pid;
+            context->decoded_samples[pid] = entry->decoded;
+            context->decoded_sample_valid[pid] = true;
+        }
+
+        if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
+            context->samples[event->sample.pid] = event->sample;
+            context->sample_valid[event->sample.pid] = true;
+            (void)link_fuel_economy_observe_obd2(
+                &context->fuel_economy, &event->sample, now_ms);
+        }
         link_fuel_economy_tick(&context->fuel_economy, now_ms);
     }
 }
@@ -2081,8 +2236,27 @@ static bool verify_display_preferences(void)
     format_fuel_volume(10.0, &context, value, sizeof(value));
     if (strcmp(value, "2.64 US gal") != 0) return false;
 
+    {
+        MblinkObd2DecodedPid decoded = {0};
+        decoded.signal_count = 3U;
+        decoded.signals[0].label = "commanded boost A";
+        decoded.signals[0].value = 120.0;
+        decoded.signals[0].unit = "kPa";
+        decoded.signals[1].label = "actual boost A";
+        decoded.signals[1].value = 125.0;
+        decoded.signals[1].unit = "kPa";
+        decoded.signals[2].label = "boost A control status";
+        decoded.signals[2].value = 1.0;
+        decoded.signals[2].unit = "state";
+        format_decoded_pid(&decoded, value, sizeof(value));
+        if (strstr(value, "commanded boost A 120.00 kPa") == NULL)
+            return false;
+        if (strstr(value, "+1") == NULL)
+            return false;
+    }
+
     (void)printf(
-        "MBLINK settings verified: 8 independent measurement preferences\n");
+        "MBLINK settings verified: 8 independent measurement preferences + structured SAE display\n");
     return true;
 }
 
@@ -2123,8 +2297,8 @@ int main(int argc, char **argv)
 
     context.replay_mode = replay_mode;
     context.replay_verify = replay_verify;
-    initialise_display_preferences(&context);
     initialise_polling_policy(&context);
+    initialise_display_preferences(&context);
     link_fuel_economy_init(&context.fuel_economy);
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
     descriptor.window_title = replay_mode

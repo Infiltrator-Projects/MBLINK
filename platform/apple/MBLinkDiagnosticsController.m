@@ -938,8 +938,7 @@ static bool MBLinkSimulatorResponder(
                 snapshot.pid, snapshot.responderCANIdentifier, snapshot.extendedID)] = snapshot;
             _standardDataLatest[@(snapshot.pid)] = snapshot;
         }
-        if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE)
-            [self persistCapabilitiesFromFlowEvent:event];
+        [self persistCapabilitiesFromFlowEvent:event];
         [self notifyDelegate];
         return;
     }
@@ -1896,8 +1895,10 @@ static bool MBLinkSimulatorResponder(
     (const LinkDiagnosticFlowEvent *)event
 {
     if (event == NULL ||
-        event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
-        event->responder_samples.count == 0U ||
+        (event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE &&
+         event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED) ||
+        (event->responder_samples.count == 0U &&
+         event->responder_decoded.count == 0U) ||
         self.mercedesVINText.length == 0U) {
         return;
     }
@@ -1959,6 +1960,56 @@ static bool MBLinkSimulatorResponder(
             changed = YES;
         }
     }
+    /*
+     * Structured/raw SAE PIDs may not have a scalar responder sample. Persist
+     * responder capability from the decoded list too, so cached VIN profiles
+     * retain DPF/NOx/aftertreatment and raw assigned Mode 01 identifiers.
+     */
+    for (size_t index = 0U;
+         index < event->responder_decoded.count;
+         ++index) {
+        const LinkObd2ResponderDecodedPid *entry =
+            &event->responder_decoded.entries[index];
+        if (!entry->responder_id_available ||
+            entry->decoded.definition == NULL) {
+            continue;
+        }
+
+        NSMutableDictionary *match = nil;
+        for (NSMutableDictionary *candidate in responders) {
+            NSNumber *rx = candidate[@"rx"];
+            NSNumber *extended = candidate[@"extended"];
+            if ([rx isKindOfClass:[NSNumber class]] &&
+                [extended isKindOfClass:[NSNumber class]] &&
+                rx.unsignedIntValue == entry->responder_id &&
+                extended.boolValue == entry->extended_id) {
+                match = candidate;
+                break;
+            }
+        }
+        if (match == nil) {
+            match = [@{
+                @"rx": @(entry->responder_id),
+                @"extended": @(entry->extended_id),
+                @"pids": @[]
+            } mutableCopy];
+            [responders addObject:match];
+            changed = YES;
+        }
+
+        NSMutableOrderedSet<NSNumber *> *pids =
+            [[NSMutableOrderedSet alloc] initWithArray:
+                [match[@"pids"] isKindOfClass:[NSArray class]]
+                    ? match[@"pids"] : @[]];
+        NSNumber *pid = @(entry->decoded.definition->pid);
+        if (![pids containsObject:pid]) {
+            [pids addObject:pid];
+            match[@"pids"] = [[pids array]
+                sortedArrayUsingSelector:@selector(compare:)];
+            changed = YES;
+        }
+    }
+
     if (!changed) return;
 
     profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
