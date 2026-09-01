@@ -165,6 +165,71 @@ offset 2 for the KWP positive responses. This is direct evidence that Whisper
 carries request bytes, response matching and payload-extraction rules in its
 configuration rather than only in native code.
 
+## DiagLogic value transport and live-data orchestration
+
+The decompiled `Values.java` supplied from the archived application is generated
+from `Values.proto`. It is not the live request catalogue; it defines the
+higher-level diagnostic value transport between the native diagnostic engine
+and the Android application.
+
+The protobuf model is nevertheless important because it proves the exact shape
+of a returned measured value:
+
+- `MeasuredItem.dataId`: required application DataID string;
+- `MeasuredItem.unit`: optional engineering unit string;
+- `MeasuredItem.value`: typed value;
+- `MeasuredItem.respondedDeviceAddress`: optional responding device address;
+- `MeasuredItem.timeStamp`: optional timestamp.
+
+The typed `Value` union supports `BOOLEAN`, `DOUBLE`, `LONG`, `STRING`
+and `BYTEARRAY`. `MeasuredItemCollection` groups measured items under a
+required `requestedDeviceId`. The DTC model separately carries
+`troubleCode`, `SPORADIC` / `STATIC`, optional display text and
+`respondedDeviceId`. `VehicleStatus` aggregates assigned VIN, errors, DTC
+collections, measured items, vehicle configuration and adapter software
+version. `DiagPreview` carries `cycleCompleted`, `pendingActionToken` and
+`repeatable`.
+
+This means the production stack preserves both the logical requested device
+identity and the actual responding device address alongside each measured
+value. MBLINK should preserve the same distinction when importing source-backed
+factory values rather than collapsing manufacturer measurements into one
+anonymous live-data stream.
+
+Further symbol recovery from the supplied `libdiaglogic.so` confirms that the
+native diagnostic layer contains a dedicated live-data engine, including
+`LiveDataDiagLogic`, `LiveDataPointReadAction`,
+`LiveDataStreamOpenAction`, `LiveDataStreamReadAction`,
+`LiveDataStreamCloseAction` and `LiveDataStreamReader`. Critically,
+`LiveDataStreamOpenAction::readDefaultDataIdsFromConfiguration()` exists as a
+named exported function. The same binary exposes `DataPoint` objects with
+`getDataId()`, `getDeviceId()`, read interval, throttle/repeat state and
+last-read time, plus `DataPoints::readDataPoints()` and availability actions.
+
+The binary also names live configuration keys such as `defaultLiveDataPoints`,
+`liveDataPoints`, `liveDataFuelValues`, `liveDataStreamReadTimeout`,
+`liveDataAvailabilityDataIdsToRead` and `dataPoints`.
+
+Together with the Whisper configuration model, this establishes the production
+chain as configuration-driven:
+
+```text
+configured DataID/device list
+  -> DiagLogic DataPoint scheduler
+  -> Whisper device/request/result definition
+  -> vehicle response
+  -> typed MeasuredItem(dataId, unit, value, respondedDeviceAddress, timestamp)
+```
+
+The native library also exposes configuration lifecycle code including
+`ConfigUpdateCheckAction`, `ConfigDownloadTimestamps` and
+`VehicleConfigurationDataUpdater::getActiveDeviceProviderConfiguration()`,
+with accessors for configuration version, variant, delivery ID and revision
+information. That is strong evidence that the VIN bootstrap configuration in
+the APK is not necessarily the final per-vehicle live-data package: the active
+device-provider configuration can be selected/updated after vehicle
+identification.
+
 ## What this file does not yet give us
 
 `MSA_VIN_cascade.properties` proves that Mercedes' application model contains
