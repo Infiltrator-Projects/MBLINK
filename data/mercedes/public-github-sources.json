@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "scope": "Mercedes-Benz public GitHub organisation; MBLINK/LINK relevance",
+  "policy": {
+    "product_scope": "Mercedes-wide",
+    "c207_role": "Physical development/evidence vehicle only",
+    "evidence_rule": "Do not infer model/year applicability unless the upstream source or vehicle evidence establishes it"
+  },
+  "repositories": [
+    {
+      "repository": "mercedes-benz/odxtools",
+      "status": "active",
+      "license": "MIT",
+      "use": "integrate-tooling",
+      "destination": "LINK + MBLINK",
+      "value": "ODX/PDX parsing, ECU variants, diagnostic services, coded parameters, CAN IDs, request/response encode/decode"
+    },
+    {
+      "repository": "mercedes-benz/odex.viewer",
+      "status": "active",
+      "license": "AGPL-3.0-only",
+      "use": "reference-only",
+      "destination": "LINK/MBLINK development",
+      "value": "ODX data-model presentation, JSON/OpenAPI schema ideas, diagnostic database exploration"
+    },
+    {
+      "repository": "mercedes-benz/socketcan-isotp",
+      "status": "active",
+      "license": "BSD-3-Clause",
+      "use": "conformance-reference",
+      "destination": "LINK tests",
+      "value": "Linux SocketCAN ISO-TP/UDS reference behaviour"
+    },
+    {
+      "repository": "mercedes-benz/MBSDK-CarKit-iOS",
+      "status": "archived",
+      "license": "MIT",
+      "use": "semantic-evidence",
+      "destination": "MBLINK",
+      "value": "Mercedes backend vehicle attributes, value types, units and state semantics"
+    },
+    {
+      "repository": "mercedes-benz/MBSDK-Mobile-iOS",
+      "status": "archived",
+      "license": "MIT",
+      "use": "semantic-and-architecture-evidence",
+      "destination": "MBLINK",
+      "value": "Mercedes mobile vehicle-service architecture and public API vocabulary"
+    },
+    {
+      "repository": "mercedes-benz/MBSDK-Mobile-Android",
+      "status": "archived",
+      "license": "MIT",
+      "use": "semantic-cross-check",
+      "destination": "MBLINK",
+      "value": "Independent platform implementation of the same Mercedes mobile SDK family"
+    },
+    {
+      "repository": "mercedes-benz/vehicle-information-service",
+      "status": "archived",
+      "license": "MIT",
+      "use": "architecture-reference",
+      "destination": "LINK",
+      "value": "Manufacturer-neutral W3C Vehicle Information Service signal/service model"
+    },
+    {
+      "repository": "mercedes-benz/dlt-daemon",
+      "status": "active",
+      "license": "MPL-2.0",
+      "use": "logging-reference",
+      "destination": "LINK/MBLINK evidence",
+      "value": "AUTOSAR Diagnostic Log and Trace architecture and tooling"
+    },
+    {
+      "repository": "mercedes-benz/car-integrated-service-mesh-architecture",
+      "status": "active",
+      "license": "MIT",
+      "use": "future-architecture-reference",
+      "destination": "LINK",
+      "value": "Software-defined-vehicle service deployment/communication architecture"
+    }
+  ]
+}
