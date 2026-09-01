@@ -30,11 +30,15 @@ passive network observation
   -> standards-based inventory
   -> Mercedes-aware module discovery
   -> ECU/module identification
-  -> documented read-only information acquisition
-  -> structured raw/evidence dump
+  -> bounded read-only data harvest
+  -> guided signal experiments
+  -> correlation / candidate generation
+  -> structured Vehicle Research Pack
 ```
 
-Generic Discover mechanics belong in LINK. Mercedes topology, identities, probes and decoders belong in MBLINK.
+The heavy research workflow is a Linux/Windows responsibility. Desktop is the laboratory: OpenPort/J2534 is the preferred research transport where available, with ELM/Vgate as a lower-bandwidth fallback. iPhone remains the normal diagnostic instrument and must not become the primary exhaustive DID/KWP research scanner.
+
+Generic Discover mechanics, passive capture, sampling, event markers, correlation and Research Pack infrastructure belong in LINK. Mercedes topology, identities, probes, candidate ranges, formulas and evidence belong in MBLINK. The complete contract is documented in [VEHICLE_RESEARCH.md](VEHICLE_RESEARCH.md).
 
 ## Completed foundations
 
@@ -114,12 +118,15 @@ Implemented baseline:
 
 Next work:
 
-1. Continue moving generic multi-network module-discovery/result behaviour into LINK while keeping Mercedes topology in MBLINK.
-2. Expand evidence-backed module identities and read-only requests beyond the routes already observed or corroborated.
-3. Turn each additional physical response into a sanitised regression fixture before promoting it to vehicle-verified.
-4. Add bounded identity/DID acquisition for documented or reproducibly verified Mercedes modules.
-5. Continue enriching structured dumps with raw requests/responses, module identity, network path, result status, timestamps and product/profile provenance.
-6. Keep reset, security access, routines, DTC clearing, coding, programming and firmware-write operations outside the Discover allowlist unless a separately reviewed product capability explicitly requires them.
+1. Build the Linux/Windows **Vehicle Research** workspace on top of the existing MBLINK Discover product and shared LINK research state model.
+2. Make Tactrix OpenPort/J2534 the preferred desktop research transport while retaining ELM/Vgate as a compatibility fallback.
+3. Add a bounded passive-capture phase before active discovery, then preserve bus IDs, timing and changing-byte evidence.
+4. Run standards baseline acquisition before proprietary harvesting so SAE channels can serve as reference series.
+5. Expand read-only module census and per-module UDS/KWP positive-identifier harvesting, retaining raw positives and valid negatives without inventing semantics.
+6. Add guided operator event markers and offline correlation/ranking for unknown DIDs and passive CAN fields.
+7. Export one deterministic Vehicle Research Pack containing raw traffic, module inventory, request/response evidence, time series, event markers and candidate-analysis output.
+8. Turn each promoted physical mapping into a sanitised regression fixture before marking it vehicle-verified.
+9. Keep reset, security access, routines, DTC clearing, coding, programming and firmware-write operations outside the Discover allowlist unless a separately reviewed product capability explicitly requires them.
 
 Discover remains part of this repository. A separate MBLINK Reader repository would duplicate the existing product boundary and is not part of the roadmap.
 
