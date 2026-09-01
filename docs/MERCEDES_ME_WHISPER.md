@@ -443,6 +443,41 @@ application code that constructs `AdapterConfigurationDeviceDescriptor`;
 the remaining artifact target is any historical downloaded ACS bundle or
 installed Whisper `_configs` content.
 
+## Exact ACS descriptor construction in the Mercedes app
+
+The application-layer caller has now been recovered from the main DEX.
+
+Class `y2.c` constructs every
+`AdapterConfigurationDeviceDescriptor` in one helper. Its fields are set as:
+
+```text
+productID = Android string resource 2131887000
+groupID   = Android string resource 2131887002
+deviceID  = "8497e115-32ef-4738-b048-9f206ee43b10"
+thingID   = caller-supplied string
+```
+
+The same descriptor is used for both ACS download and installation.
+
+This materially narrows the remaining package-selection problem. `deviceID`
+is a fixed application constant in this archived build, while `thingID` is
+the only descriptor field populated dynamically by the immediate caller.
+Therefore `thingID` is the highest-value identity to trace next. Its semantic
+meaning is not yet claimed: the recovered class does not reveal whether the
+caller passes a VIN, adapter identifier, backend thing identifier or another
+vehicle-related token.
+
+The class also performs a weekly refresh policy: it checks the timestamps of
+the most recent `DOWNLOAD_FINISHED`, `DOWNLOAD_FAILED` and
+`DOWNLOAD_STARTED` events for the same descriptor and forces a new download
+when the newest event is older than 604800000 ms (7 days).
+
+The exact values of `productID` and `groupID` are still referenced through
+Android resources and must be resolved from the resource table. The next
+source target is therefore the call graph into `y2.c`, specifically the
+arguments supplied to its methods, together with resource IDs 2131887000 and
+2131887002.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
