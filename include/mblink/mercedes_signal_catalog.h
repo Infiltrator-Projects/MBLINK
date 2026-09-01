@@ -31,7 +31,8 @@ typedef struct {
     MblinkMercedesSignalValueType value_type;
     const char *unit_family;
     const char *correlation_reference_key;
-    bool c207_research_priority;
+    const char *applicability;
+    bool diagnostic_research_priority;
     const char *source_locator;
     const char *note;
 } MblinkMercedesBackendSignalDefinition;
