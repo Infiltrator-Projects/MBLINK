@@ -444,7 +444,7 @@ jobs:
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
           path: release-assets
-      - name: Build complete source archive and checksums
+      - name: Verify release artifacts and build checksums
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -457,10 +457,6 @@ jobs:
             "MBLINK-${VERSION}-windows-discover.exe"; do
             test -s "release-assets/$file"
           done
-          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
-          mkdir -p "$staging"
-          rsync -a --exclude='.git' --exclude='release-assets' ./ "$staging/"
-          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
           (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
       - name: Stage complete draft and publish exact immutable release
         shell: bash
@@ -499,7 +495,6 @@ jobs:
             "MBLINK-${VERSION}-linux-amd64.deb" \
             "MBLINK-${VERSION}-linux-native.run" \
             "MBLINK-${VERSION}-windows-discover.exe" \
-            "MBLINK-${VERSION}-source.zip" \
             "SHA256SUMS.txt"; do
             grep -Fxq "$expected" <<<"$assets"
           done
