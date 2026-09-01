@@ -146,6 +146,12 @@ jobs:
           grep -Fq 'window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }' app/linux/main.c
           grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
+          grep -Fq 'descriptor.adapter_combo_width = 320;' app/linux/main.c
+          grep -Fq '.link-device-row { min-height: 40px; }' app/linux/main.c
+          grep -Fq '.link-adapter-combo { min-height: 36px; }' app/linux/main.c
+          grep -Fq '.link-adapter-combo button, .link-adapter-combo button * { padding: 5px 10px; }' app/linux/main.c
+          grep -Fq 'int adapter_combo_width;' src/link/platform/linux/link-gtk-shell.h
+          grep -Fq 'shell->descriptor->adapter_combo_width > 0' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
           grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift

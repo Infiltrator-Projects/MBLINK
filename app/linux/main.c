@@ -167,11 +167,11 @@ static const char mblink_metrics_css[] =
     ".link-toolbar-button { min-height: 40px; padding: 7px 14px; }"
     ".link-link-button { min-width: 100px; min-height: 42px; padding: 8px 18px; }"
     ".link-save-session-button { min-height: 42px; padding: 8px 14px; }"
-    ".link-device-row { min-height: 46px; }"
+    ".link-device-row { min-height: 40px; }"
     ".link-toolbar-label { min-width: 64px; font-size: 14px; font-weight: 700; opacity: 1; }"
-    ".link-adapter-combo { min-height: 44px; }"
+    ".link-adapter-combo { min-height: 36px; }"
     ".link-adapter-combo, .link-adapter-combo * { font-size: 14px; font-weight: 400; }"
-    ".link-adapter-combo button, .link-adapter-combo button * { padding: 8px 12px; }"
+    ".link-adapter-combo button, .link-adapter-combo button * { padding: 5px 10px; }"
     ".link-section-title { font-size: 14px; }"
     ".link-section-summary { font-size: 12px; }"
     ".link-brand-subtitle { font-size: 12px; }"
@@ -2402,6 +2402,7 @@ int main(int argc, char **argv)
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
     descriptor.use_client_side_titlebar = true;
+    descriptor.adapter_combo_width = 320;
     runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;
