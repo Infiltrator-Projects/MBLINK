@@ -510,13 +510,23 @@ The same tenant UUID is reused by the application's diagnosis/backend
 configuration as both `tenantId` and `xClientId`, while the associated
 server timeout is 10000 ms.
 
-The ACS endpoint resource has also been resolved symbolically:
+The ACS endpoint resource has also been resolved through the merged Android
+resource table. The library-facing Java symbol
 
 ```text
 R.string.acc_endpoint_uri = 0x7f12007d
 ```
 
-Its literal URL value still needs extraction from the decoded values resources.
+maps in the final application resource table to:
+
+```text
+0x7f12007d = string "acc.endpoint_uri"
+```
+
+The name change is a resource-merge/aapt normalization detail; it explains why
+searching the decoded resources for the underscore form returned no value. The
+literal URL still needs extraction from the decoded values resources using the
+final merged name `acc.endpoint_uri`.
 
 ## Local database live-data availability model
 
