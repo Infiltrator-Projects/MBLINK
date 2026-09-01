@@ -1,0 +1,31 @@
+name: Remove duplicate source asset
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove project-owned source zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='v0.7.113'
+          asset='MBLINK-0.7.113-source.zip'
+          assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          if grep -Fxq "$asset" <<<"$assets"; then
+            gh release delete-asset "$tag" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+          assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          if grep -Fxq "$asset" <<<"$assets"; then
+            echo "duplicate source asset still exists" >&2
+            exit 1
+          fi
