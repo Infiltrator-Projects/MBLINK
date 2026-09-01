@@ -462,21 +462,44 @@ The same descriptor is used for both ACS download and installation.
 This materially narrows the remaining package-selection problem. `deviceID`
 is a fixed application constant in this archived build, while `thingID` is
 the only descriptor field populated dynamically by the immediate caller.
-Therefore `thingID` is the highest-value identity to trace next. Its semantic
-meaning is not yet claimed: the recovered class does not reveal whether the
-caller passes a VIN, adapter identifier, backend thing identifier or another
-vehicle-related token.
+
+The caller has now been traced into `TripManagerImpl`. Its injected
+`adapterConfigManager` is the `y2.a` interface implemented by this
+descriptor builder, and after a trip stops the application calls:
+
+```java
+this.f6181s.c(tripVO.v());
+```
+
+Within the same decompiled class, `TripVO.v()` is consistently treated as
+the vehicle VIN; multiple methods explicitly validate their corresponding
+string argument with Kotlin's generated parameter name `"vin"`. Therefore,
+for this production call path:
+
+```text
+thingID = VIN
+```
+
+This is source-backed, not inferred.
 
 The class also performs a weekly refresh policy: it checks the timestamps of
 the most recent `DOWNLOAD_FINISHED`, `DOWNLOAD_FAILED` and
 `DOWNLOAD_STARTED` events for the same descriptor and forces a new download
 when the newest event is older than 604800000 ms (7 days).
 
-The exact values of `productID` and `groupID` are still referenced through
-Android resources and must be resolved from the resource table. The next
-source target is therefore the call graph into `y2.c`, specifically the
-arguments supplied to its methods, together with resource IDs 2131887000 and
-2131887002.
+The exact value of `productID` remains referenced through Android resource
+2131887000 and still needs resource-table resolution.
+
+Resource 2131887002 is reused by the application's diagnosis/backend
+configuration as both `tenantId` and `xClientId`. Because the descriptor
+builder assigns the same resource to `groupID`, the following relationship
+is source-backed for this build:
+
+```text
+groupID = tenantId = xClientId = resource 2131887002
+```
+
+The literal string value still needs resource-table resolution.
 
 ## Local database live-data availability model
 
