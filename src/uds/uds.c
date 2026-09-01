@@ -10,6 +10,7 @@
 #if defined(__APPLE__) && TARGET_OS_IOS
 #include "../link/src/uds/uds.c"
 #include "../link/src/uds/uds_services.c"
+#include "../link/src/uds/uds_server.c"
 #else
 typedef int mblink_uds_compat_translation_unit;
 #endif
