@@ -122,28 +122,11 @@ typedef struct MblinkLinuxContext {
 static void save_display_preferences(const MblinkLinuxContext *context);
 
 static const char mblink_css[] =
-    "window { background: #050608; color: #e8ecef; font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 400; }"
+    "window { background: #050608; color: #e8ecef; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     "window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }"
-    "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-size: 13px; font-weight: 700; }"
-    "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-size: 13px; font-weight: 400; }"
-    "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-size: 13px; font-weight: 400; }"
-    ".link-toolbar-button { min-height: 40px; padding: 7px 14px; }"
-    ".link-link-button { min-width: 100px; min-height: 42px; padding: 8px 18px; }"
-    ".link-save-session-button { min-height: 42px; padding: 8px 14px; }"
-    ".link-adapter-combo { min-height: 40px; }"
-    ".link-section-title { font-size: 14px; }"
-    ".link-section-summary { font-size: 12px; }"
-    ".link-brand-subtitle { font-size: 12px; }"
-    ".link-content-title { font-size: 30px; }"
-    ".link-detail-label, .link-detail-value { font-size: 13px; }"
-    ".link-card-note { font-size: 12px; }"
-    ".link-settings-description, .mblink-settings-note { font-size: 12px; }"
-    ".mblink-about-dialog { background: #050608; }"
-    ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
-    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { min-width: 100px; min-height: 42px; padding: 8px 18px; font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
-    ".mblink-about-dialog label, .mblink-about-dialog textview, .mblink-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
-    ".mblink-about-dialog textview, .mblink-about-dialog textview text { font-weight: 400; }"
-    ".mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }"
+    "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
+    "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
+    "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-connection-bar { background: #101318; border: 1px solid #353a40; }"
     ".link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-brand-subtitle { color: #aeb6bd; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
@@ -173,6 +156,29 @@ static const char mblink_css[] =
     ".mblink-settings-row { padding: 10px 0; }"
     ".mblink-settings-row dropdown { min-width: 210px; }"
     ".mblink-settings-note { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-size: 11px; font-weight: 400; }";
+
+static const char mblink_metrics_css[] =
+    "window { font-size: 14px; }"
+    "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-size: 13px; }"
+    "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-size: 13px; }"
+    "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }"
+    ".link-toolbar-button { min-height: 40px; padding: 7px 14px; }"
+    ".link-link-button { min-width: 100px; min-height: 42px; padding: 8px 18px; }"
+    ".link-save-session-button { min-height: 42px; padding: 8px 14px; }"
+    ".link-adapter-combo { min-height: 40px; }"
+    ".link-section-title { font-size: 14px; }"
+    ".link-section-summary { font-size: 12px; }"
+    ".link-brand-subtitle { font-size: 12px; }"
+    ".link-content-title { font-size: 30px; }"
+    ".link-detail-label, .link-detail-value { font-size: 13px; }"
+    ".link-card-note { font-size: 12px; }"
+    ".link-settings-description, .mblink-settings-note { font-size: 12px; }"
+    ".mblink-about-dialog { background: #050608; }"
+    ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
+    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { min-width: 100px; min-height: 42px; padding: 8px 18px; font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
+    ".mblink-about-dialog label, .mblink-about-dialog textview, .mblink-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
+    ".mblink-about-dialog textview, .mblink-about-dialog textview text { font-weight: 400; }"
+    ".mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
 
 static bool register_one_project_font(FcConfig *config, const char *filename)
 {
@@ -2341,6 +2347,8 @@ int main(int argc, char **argv)
     bool replay_mode = false;
     bool replay_verify = false;
     bool settings_verify = false;
+    char *runtime_css;
+    int status;
     int index;
 
     for (index = 1; index < argc; ++index) {
@@ -2387,7 +2395,9 @@ int main(int argc, char **argv)
         : "MERCEDES-BENZ · C207 / OM651";
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
-    descriptor.css = mblink_css;
+    runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
+    if (runtime_css == NULL) return 6;
+    descriptor.css = runtime_css;
     descriptor.render_section = render_section;
     descriptor.show_about = show_about;
     descriptor.connection_changed = connection_changed;
@@ -2405,5 +2415,7 @@ int main(int argc, char **argv)
         descriptor.auto_connect = true;
     }
     descriptor.context = &context;
-    return link_gtk_shell_run(argc, argv, &descriptor);
+    status = link_gtk_shell_run(argc, argv, &descriptor);
+    g_free(runtime_css);
+    return status;
 }

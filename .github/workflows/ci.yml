@@ -163,6 +163,9 @@ jobs:
           grep -Fq '.mblink-about-dialog stackswitcher button' app/linux/main.c
           grep -Fq '.mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/main.c
           grep -Fq '.link-toolbar-button { min-height: 40px; padding: 7px 14px; }' app/linux/main.c
+          grep -Fq 'static const char mblink_metrics_css[] =' app/linux/main.c
+          grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c
+          grep -Fq 'g_free(runtime_css);' app/linux/main.c
           grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
           grep -Fq 'info->copyright_text' app/linux/about-dialog.c
           grep -Fq 'mblink_linux_build_label(info->build_profile)' app/linux/about-dialog.c
