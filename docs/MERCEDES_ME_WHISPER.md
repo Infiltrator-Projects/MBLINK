@@ -524,9 +524,28 @@ maps in the final application resource table to:
 ```
 
 The name change is a resource-merge/aapt normalization detail; it explains why
-searching the decoded resources for the underscore form returned no value. The
-literal URL still needs extraction from the decoded values resources using the
-final merged name `acc.endpoint_uri`.
+searching the decoded resources for the underscore form returned no value.
+
+The decoded final string resource resolves the ACS endpoint to:
+
+```text
+https://ws41.caritc.de/services-dg/acs_core_api/acs
+```
+
+Therefore the archived application's ACS configuration request is sent to that
+endpoint with the source-backed descriptor values:
+
+```text
+productID = "Daimler"
+groupID   = "d6d7c781-932f-42ca-9ee7-280a72480f37"
+deviceID  = "8497e115-32ef-4738-b048-9f206ee43b10"
+thingID   = VIN
+version   = installed version or ""
+externalID = installed externalID or ""
+```
+
+Authentication headers are supplied separately by the app/toolkit
+authentication layer and are not fabricated here.
 
 ## Local database live-data availability model
 
