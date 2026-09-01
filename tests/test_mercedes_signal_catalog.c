@@ -20,7 +20,8 @@ int main(void)
     CHECK(mblink_mercedes_backend_signal_count() >= 30U);
     CHECK(dpf != NULL);
     CHECK(dpf->value_type == MBLINK_MERCEDES_SIGNAL_INT);
-    CHECK(dpf->c207_research_priority);
+    CHECK(dpf->diagnostic_research_priority);
+    CHECK(strstr(dpf->applicability, "model/year") != NULL);
     CHECK(strcmp(dpf->unit_family, "none") == 0);
     CHECK(strstr(dpf->note, "no ECU") != NULL);
 
