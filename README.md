@@ -72,6 +72,7 @@ manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Responder-attributed iPhone module cards: each observed ECU keeps its CAN route, identity, fault evidence and live Mode 01 values separate from other responders.
 - Offline Mercedes/Delphi DID Lab with source-state tracking, documented scaling decode and time-aligned signal correlation.
+- Archived Mercedes me Whisper parameterisation evidence with reproducible decryption, manufacturer-owned VIN routes/request contracts and a source-corroborated factory DataID inventory; live request/formula mappings remain evidence-gated.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
 - Explicit FULL SWEEP controls on Linux and Windows for read-only forensic module discovery across the wider 11-bit diagnostic range and ISO 15765 normal-fixed 29-bit targets, with F197 identity evidence and address-preserving unknown-module labels.
@@ -176,7 +177,7 @@ Use the smallest document that owns the question:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) owns repository boundaries and engineering rules.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) owns completion status and priorities; it does not redefine dependency versions.
 - [`docs/FAULT_DIAGNOSTICS.md`](docs/FAULT_DIAGNOSTICS.md) owns the end-to-end fault requirement.
-- [`docs/MERCEDES.md`](docs/MERCEDES.md), [`docs/DID_LAB.md`](docs/DID_LAB.md), [`docs/DISCOVER.md`](docs/DISCOVER.md) and [`docs/APPLE.md`](docs/APPLE.md) are scoped implementation/evidence notes. They do not override the three documents above or LINK's shared contracts.
+- [`docs/MERCEDES.md`](docs/MERCEDES.md), [`docs/MERCEDES_ME_WHISPER.md`](docs/MERCEDES_ME_WHISPER.md), [`docs/DID_LAB.md`](docs/DID_LAB.md), [`docs/DISCOVER.md`](docs/DISCOVER.md) and [`docs/APPLE.md`](docs/APPLE.md) are scoped implementation/evidence notes. They do not override the three documents above or LINK's shared contracts.
 
 The committed gitlinks and `VERSION` files remain the sole authorities for dependency and source versions.
 
