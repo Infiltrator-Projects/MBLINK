@@ -282,6 +282,52 @@ or vehicle-state fixture materially interesting: populated
 available for the exported vehicle, and configuration/version fields could
 help identify the selected per-vehicle diagnostic package.
 
+## GDK session-master-key bridge
+
+Further native analysis narrows the password/key path substantially.
+
+`libgdk.so` exports a C entry point named `start` whose third argument is
+passed through as a callback when the native stack constructs
+`jni::main::JniSessionMasterKeyProvider`. The provider constructor type is:
+
+```text
+const char *(*)(const char *, const char *)
+```
+
+and `JniSessionMasterKeyProvider::loadSessionMasterKey(...)` invokes that
+callback with two string arguments and treats the returned C string as the
+loaded session-master-key material. The exact semantic names of those two
+arguments remain unproven and are intentionally not guessed.
+
+The same GDK binary contains a distinct persistent
+`SessionMasterKeyCache` with:
+
+- `getSmkEncryptionKey()`;
+- `getPasswordHash(...)`;
+- `getSmkKeyCacheHash()`;
+- `readCache()` / `writeCache()`;
+- `getFilename()` / `getCacheDir()`;
+- `createCacheDir()` / `remove(...)`.
+
+That cache imports `cc::common::System::getEncryptionPassword()`, proving
+that the application-supplied system encryption password is used inside GDK
+for protected session-master-key cache handling.
+
+This is separate from the Session Master Key itself. The stack therefore has
+at least two distinct key concepts:
+
+1. an application/system encryption password supplied through
+   `libcommon.so` and consumed by GDK cache protection; and
+2. a 32-byte Session Master Key loaded through the
+   `JniSessionMasterKeyProvider` callback and later used to derive the live
+   adapter Session Key.
+
+The GDK binary also exposes the Java-facing class name
+`com/tsystems/cc/aftermarket/app/android/gdkbt/BtConnectionGdkImp` and the
+native operation `removeCachedSessionMasterKey`. This is now the highest
+value bridge name to search in the DEX/decompiled application when locating
+the caller-side key provider.
+
 ## Protected data export artifact
 
 The archived APK also contains `assets/data_export.zip`. Inspection of the
