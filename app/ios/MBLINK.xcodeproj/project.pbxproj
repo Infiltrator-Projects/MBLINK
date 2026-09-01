@@ -278,6 +278,7 @@
 				971ED9D05B25DB6C4D7680D4 /* Sources */,
 				78AE8C6BEB2A40A6D824CCEE /* Frameworks */,
 				364863F9F2E558B0F50473FC /* Resources */,
+				F07A00000000000000000001 /* Bundle MB Corpo Fonts */,
 			);
 			buildRules = (
 			);
@@ -384,6 +385,35 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F07A00000000000000000001 /* Bundle MB Corpo Fonts */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part00",
+				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part01",
+				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part02",
+				"$(SRCROOT)/../../assets/fonts/mb-corpo-fonts.tar.xz.part03",
+			);
+			name = "Bundle MB Corpo Fonts";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_a_cond_regular.ttf",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_s_bold.ttf",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/mb_corpo_s_regular.ttf",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nARCHIVE=\"${DERIVED_FILE_DIR}/mblink-mb-corpo-fonts.tar.xz\"\nFONT_DIR=\"${DERIVED_FILE_DIR}/mblink-fonts\"\nPART_DIR=\"${SRCROOT}/../../assets/fonts\"\ncat \"${PART_DIR}/mb-corpo-fonts.tar.xz.part00\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part01\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part02\" \"${PART_DIR}/mb-corpo-fonts.tar.xz.part03\" > \"${ARCHIVE}\"\nACTUAL=\"$(shasum -a 256 \"${ARCHIVE}\" | awk '{print $1}')\"\nEXPECTED=\"bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274\"\nif [ \"${ACTUAL}\" != \"${EXPECTED}\" ]; then\n  echo \"error: MBLINK font archive hash mismatch\" >&2\n  exit 1\nfi\nrm -rf \"${FONT_DIR}\"\nmkdir -p \"${FONT_DIR}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\ntar -xf \"${ARCHIVE}\" -C \"${FONT_DIR}\"\ncp \"${FONT_DIR}/mb_corpo_a_cond_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_bold.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\ncp \"${FONT_DIR}/mb_corpo_s_regular.ttf\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		971ED9D05B25DB6C4D7680D4 /* Sources */ = {
@@ -559,6 +589,11 @@
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
+				INFOPLIST_KEY_UIAppFonts = (
+					"mb_corpo_a_cond_regular.ttf",
+					"mb_corpo_s_bold.ttf",
+					"mb_corpo_s_regular.ttf",
+				);
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -596,6 +631,11 @@
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
+				INFOPLIST_KEY_UIAppFonts = (
+					"mb_corpo_a_cond_regular.ttf",
+					"mb_corpo_s_bold.ttf",
+					"mb_corpo_s_regular.ttf",
+				);
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
