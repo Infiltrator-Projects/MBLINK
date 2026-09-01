@@ -230,6 +230,83 @@ the APK is not necessarily the final per-vehicle live-data package: the active
 device-provider configuration can be selected/updated after vehicle
 identification.
 
+## Backend-delivered Vehicle Interface configuration
+
+The decompiled Android framework now proves the configuration-download path
+that was previously only inferred from native symbols.
+
+The application contains a dedicated Adapter Configuration Service (ACS)
+component. `AdapterConfigurationComponentImpl.downloadConfiguration(...)`
+builds a `GetConfigurationRequest` from an
+`AdapterConfigurationDeviceDescriptor`. Before sending it, the component
+requires all four descriptor identities to be present:
+
+```text
+productID
+deviceID
+thingID
+groupID
+```
+
+If an installed configuration already exists, the request also carries its
+`version` and `externalID`; a forced/no-installed request sends those as
+empty strings. The request is POSTed to the configured ACS endpoint through
+`ACSConnectorImpl`, with authentication headers supplied either by an
+application `AuthHeaderProvider` or the toolkit `AuthManagement`
+authenticator.
+
+The ACS response contains at least:
+
+```text
+uri
+version
+externalID
+```
+
+An empty `uri` means that no update is available. Otherwise the application
+downloads the returned URI as raw bytes, stores the payload in a temporary
+file, and records the download as a `DOWNLOAD_FINISHED` event together with
+the response version/external ID.
+
+Installation is a separate step. The application reads those exact downloaded
+bytes back from the temporary file and calls:
+
+```text
+VehicleInterfaceFacadeFactory.SINGLETON
+  .getVehicleInterface()
+  .configureVehicleInterface(fileBytes, progressMonitor)
+```
+
+After installation it reports the result back to ACS, records
+`INSTALL_SUCCESSFUL` or `INSTALL_NOT_SUCCESSFUL`, and deletes the temporary
+file.
+
+This is direct source evidence that the production application can obtain a
+device-specific Vehicle Interface configuration from a backend repository and
+install it dynamically. Combined with the supplied
+`libtsivehicleinterface.so` / Whisper evidence, this materially strengthens
+the conclusion that the detailed post-VIN diagnostic mappings need not be
+bundled in the APK.
+
+The ACS endpoint itself is not hard-coded in the Java class. The default
+configuration obtains it from the Android resource
+`R.string.acc_endpoint_uri`. Its exact string value has not yet been
+recovered from the supplied source bundle.
+
+The next highest-value recovery targets are therefore:
+
+1. `GetConfigurationRequest.java` and `GetConfigurationResponse.java` for
+   the complete wire model;
+2. `AdapterConfigurationDeviceDescriptor.java` and the code that constructs
+   it, to determine how vehicle/VIN/adapter identity selects a package;
+3. the Android resource value for `acc_endpoint_uri`;
+4. `VehicleInterfaceFacadeFactory` and the concrete
+   `configureVehicleInterface(byte[], ...)` bridge, to prove exactly how the
+   downloaded payload enters `libtsivehicleinterface.so` / Whisper; and
+5. any retained/cached downloaded configuration file from a historical app
+   installation, which would be the most direct route to the missing
+   DataID-to-request/result/formula mappings.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
