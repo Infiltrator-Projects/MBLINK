@@ -1041,8 +1041,18 @@ private struct MBModuleDetailView: View {
         connection.diagnosticModule(id: moduleID)
     }
 
-    private var parameters: [DiagnosticParameter] {
-        connection.moduleParameters(moduleID: moduleID).filter(\.isAvailable)
+    private var manufacturerValues: [MercedesModuleDataValue] {
+        connection.manufacturerData(moduleID: moduleID)
+    }
+
+    private var scanningThisModule: Bool {
+        connection.manufacturerDataScanActive &&
+            connection.manufacturerDataScanModuleID == moduleID
+    }
+
+    private var standardParameters: [DiagnosticParameter] {
+        connection.moduleParameters(moduleID: moduleID)
+            .filter(\.isSupported)
     }
 
     var body: some View {
@@ -1051,108 +1061,21 @@ private struct MBModuleDetailView: View {
             ScrollView {
                 if let module {
                     VStack(alignment: .leading, spacing: 15) {
-                        MBSectionHeader(title: module.name, kicker: module.kind.uppercased())
-
-                        MBPanel {
-                            VStack(spacing: 4) {
-                                MBInfoRow(label: "CAN route", value: module.addressText)
-                                MBInfoRow(label: "Protocol", value: module.protocolName)
-                                if !module.designation.isEmpty {
-                                    MBInfoRow(label: "Designation", value: module.designation)
-                                }
-                                if !module.network.isEmpty {
-                                    MBInfoRow(label: "Network", value: module.network)
-                                }
-                                if let identity = module.identityText {
-                                    MBInfoRow(label: "Identity", value: identity)
-                                }
-                                if let part = module.partNumber {
-                                    MBInfoRow(label: "Part number", value: part)
-                                }
-                                if let software = module.softwareNumber {
-                                    MBInfoRow(label: "Software", value: software)
-                                }
-                                if let hardware = module.hardwareNumber {
-                                    MBInfoRow(label: "Hardware", value: hardware)
-                                }
-                            }
-                        }
-
-                        if !module.evidenceDetails.isEmpty {
-                            MBSectionHeader(
-                                title: "ECU evidence",
-                                kicker: "Captured read-only identity")
-                            MBPanel {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(module.evidenceDetails, id: \.self) { detail in
-                                        Text(detail)
-                                            .font(MBTypography.caption)
-                                            .foregroundStyle(MBBrand.silverBright)
-                                            .textSelection(.enabled)
-                                    }
-                                }
-                            }
-                        }
-
                         MBSectionHeader(
-                            title: "Live data",
-                            kicker: "\(parameters.count) values from response \(module.responseAddressText)")
-                        if parameters.isEmpty {
-                            MBPanel {
-                                Text("This control unit is responding, but no source-attributed live parameter has been captured from it yet. Identity and fault evidence remain available without assigning guessed DIDs.")
-                                    .font(MBTypography.subheadline)
-                                    .foregroundStyle(MBBrand.silver)
-                            }
-                        } else {
-                            ForEach(MBParameterGroup.allCases) { group in
-                                let grouped = parameters.filter { $0.brandGroup == group }
-                                if !grouped.isEmpty {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
-                                            .font(MBTypography.headline)
-                                            .foregroundStyle(MBBrand.silverBright)
-                                        LazyVGrid(columns: mbDashboardColumns, spacing: 10) {
-                                            ForEach(grouped) { parameter in
-                                                MBMetricTile(parameter: parameter)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            MBPanel {
-                                Text("These are standard Mode 01 values returned by this exact CAN responder. They are kept separate from the same PID returned by another module.")
-                                    .font(MBTypography.caption)
-                                    .foregroundStyle(MBBrand.muted)
-                            }
-                            MBPanel {
-                                Text("State-dependent values are shown exactly as returned. MBLINK does not smooth, substitute or silently correct shutdown and stale ECU readings.")
-                                    .font(MBTypography.caption)
-                                    .foregroundStyle(MBBrand.muted)
-                            }
-                        }
+                            title: module.name,
+                            kicker: module.kind.uppercased())
 
-                        MBSectionHeader(title: "Fault memory", kicker: module.faultStatus)
-                        MBPanel {
-                            if module.faults.isEmpty {
-                                Text(module.faultStatus)
-                                    .font(MBTypography.subheadline)
-                                    .foregroundStyle(MBBrand.silver)
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(module.faults, id: \.self) { fault in
-                                        Text(fault)
-                                            .font(MBTypography.caption)
-                                            .foregroundStyle(MBBrand.silverBright)
-                                            .textSelection(.enabled)
-                                    }
-                                }
-                            }
-                        }
+                        moduleIdentityPanel(module)
+                        factoryDataSection(module)
+                        standardLiveDataSection(module)
+                        faultMemorySection(module)
+                        evidenceSection(module)
                     }
                     .padding(16)
                 } else {
                     MBPanel {
                         Text("The module is no longer present in the active vehicle profile.")
+                            .font(MBTypography.subheadline)
                             .foregroundStyle(MBBrand.silver)
                     }
                     .padding(16)
@@ -1160,6 +1083,330 @@ private struct MBModuleDetailView: View {
             }
         }
         .mbDiagnosticScreen(module?.name ?? "Module")
+    }
+
+    private func moduleIdentityPanel(_ module: DiagnosticModule) -> some View {
+        MBPanel {
+            VStack(spacing: 4) {
+                MBInfoRow(label: "CAN route", value: module.addressText)
+                MBInfoRow(label: "Protocol", value: module.protocolName)
+                if !module.designation.isEmpty {
+                    MBInfoRow(label: "Designation", value: module.designation)
+                }
+                if !module.network.isEmpty {
+                    MBInfoRow(label: "Network", value: module.network)
+                }
+                if let identity = module.identityText {
+                    MBInfoRow(label: "Identity", value: identity)
+                }
+                if let part = module.partNumber {
+                    MBInfoRow(label: "Part number", value: part)
+                }
+                if let software = module.softwareNumber {
+                    MBInfoRow(label: "Software", value: software)
+                }
+                if let hardware = module.hardwareNumber {
+                    MBInfoRow(label: "Hardware", value: hardware)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func factoryDataSection(_ module: DiagnosticModule) -> some View {
+        MBSectionHeader(
+            title: "Factory data",
+            kicker: factoryDataKicker(module))
+
+        if scanningThisModule {
+            MBPanel {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Scanning factory data")
+                            .font(MBTypography.headline)
+                            .foregroundStyle(MBBrand.silverBright)
+                    }
+                    Text(connection.manufacturerDataScanStatusText)
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.silver)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Read-only Mercedes UDS/KWP discovery is running on this ECU's exact diagnostic route.")
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else if manufacturerValues.isEmpty {
+            MBPanel {
+                VStack(alignment: .leading, spacing: 11) {
+                    Text("No Mercedes factory values have been discovered from this ECU yet.")
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silver)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button {
+                        connection.discoverManufacturerData(moduleID: module.id)
+                    } label: {
+                        Label("Scan factory data",
+                              systemImage: "dot.radiowaves.left.and.right")
+                            .font(MBTypography.subheadlineBold)
+                            .foregroundStyle(MBBrand.background)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(
+                                    cornerRadius: 11,
+                                    style: .continuous)
+                                    .fill(MBBrand.silverBright))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!connection.isActive)
+
+                    Text("Positive identifiers are retained even when their meaning is not mapped yet; unknown values remain RAW rather than being assigned guessed DIDs.")
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            MBPanel {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(manufacturerValues) { value in
+                        factoryDataRow(value)
+                        if value.id != manufacturerValues.last?.id {
+                            Divider().overlay(MBBrand.line)
+                        }
+                    }
+                }
+            }
+
+            MBPanel {
+                VStack(alignment: .leading, spacing: 9) {
+                    Button {
+                        connection.discoverManufacturerData(moduleID: module.id)
+                    } label: {
+                        Label(
+                            "Refresh \(manufacturerValues.count) factory value\(manufacturerValues.count == 1 ? "" : "s")",
+                            systemImage: "arrow.clockwise")
+                            .font(MBTypography.subheadlineBold)
+                            .foregroundStyle(MBBrand.background)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(
+                                    cornerRadius: 11,
+                                    style: .continuous)
+                                    .fill(MBBrand.silverBright))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!connection.isActive ||
+                              connection.manufacturerDataScanActive)
+
+                    Text("Refresh re-reads only identifiers already proven positive for this VIN and ECU, so changing values can be captured without repeating the full discovery sweep.")
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func factoryDataKicker(_ module: DiagnosticModule) -> String {
+        if module.protocolName.localizedCaseInsensitiveContains("KWP") {
+            return "Mercedes KWP2000 manufacturer values · ECU \(module.responseAddressText)"
+        }
+        return "Mercedes UDS manufacturer values · ECU \(module.responseAddressText)"
+    }
+
+    private func factoryDataRow(_ value: MercedesModuleDataValue) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(value.title)
+                    .font(MBTypography.subheadlineBold)
+                    .foregroundStyle(MBBrand.silverBright)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text(value.mapped ? "MAPPED" : "RAW")
+                    .font(MBTypography.caption2Bold)
+                    .foregroundStyle(value.mapped
+                                     ? MBBrand.success : MBBrand.warning)
+            }
+
+            Text(value.formattedValue)
+                .font(MBTypography.bold(20, relativeTo: .title3))
+                .monospacedDigit()
+                .foregroundStyle(MBBrand.silverBright)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+
+            Text("\(value.codeText) · \(value.serviceName)")
+                .font(MBTypography.caption)
+                .foregroundStyle(MBBrand.silver)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+
+            if !value.mapped {
+                Text("Raw response payload · \(value.rawHex)")
+                    .font(MBTypography.caption2)
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(.vertical, 9)
+    }
+
+    @ViewBuilder
+    private func standardLiveDataSection(_ module: DiagnosticModule) -> some View {
+        MBSectionHeader(
+            title: "Standard live data",
+            kicker: "SAE Mode 01 · response \(module.responseAddressText)")
+
+        if standardParameters.isEmpty {
+            MBPanel {
+                Text("No SAE Mode 01 live values have been advertised by this ECU.")
+                    .font(MBTypography.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            ForEach(MBParameterGroup.allCases) { group in
+                let grouped = standardParameters.filter {
+                    $0.brandGroup == group
+                }
+                if !grouped.isEmpty {
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(
+                                LocalizedStringKey(group.rawValue),
+                                systemImage: group.symbol)
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                                .padding(.bottom, 4)
+
+                            ForEach(grouped) { parameter in
+                                standardLiveRow(parameter)
+                                if parameter.id != grouped.last?.id {
+                                    Divider().overlay(MBBrand.line)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            MBPanel {
+                Text("These SAE values belong to this exact CAN responder. MBLINK keeps identical PIDs from different ECUs separate.")
+                    .font(MBTypography.caption)
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func standardLiveRow(_ parameter: DiagnosticParameter) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(LocalizedStringKey(parameter.title))
+                .font(MBTypography.subheadlineBold)
+                .foregroundStyle(MBBrand.silverBright)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .center, spacing: 12) {
+                Text(parameter.presentationValue)
+                    .font(MBTypography.bold(21, relativeTo: .title3))
+                    .monospacedDigit()
+                    .foregroundStyle(parameter.hasLiveValue
+                                     ? MBBrand.silverBright : MBBrand.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                    .layoutPriority(2)
+
+                Spacer(minLength: 10)
+
+                HStack(spacing: 7) {
+                    Text("Poll")
+                        .font(MBTypography.caption2Bold)
+                        .foregroundStyle(MBBrand.muted)
+
+                    Toggle("", isOn: Binding(
+                        get: { parameter.pollingEnabled },
+                        set: {
+                            connection.setPolling(
+                                $0, stableKey: parameter.id)
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(MBBrand.success)
+                    .controlSize(.small)
+
+                    Button {
+                        connection.toggleFavourite(stableKey: parameter.id)
+                    } label: {
+                        Image(systemName: parameter.favourite
+                              ? "star.fill" : "star")
+                            .font(MBTypography.title3)
+                            .foregroundStyle(parameter.favourite
+                                             ? MBBrand.silverBright
+                                             : MBBrand.muted)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+            }
+
+            Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)")
+                .font(MBTypography.caption)
+                .foregroundStyle(MBBrand.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 9)
+    }
+
+    private func faultMemorySection(_ module: DiagnosticModule) -> some View {
+        Group {
+            MBSectionHeader(
+                title: "Fault memory",
+                kicker: module.faultStatus)
+            MBPanel {
+                if module.faults.isEmpty {
+                    Text(module.faultStatus)
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silver)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(module.faults, id: \.self) { fault in
+                            Text(fault)
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.silverBright)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func evidenceSection(_ module: DiagnosticModule) -> some View {
+        if !module.evidenceDetails.isEmpty {
+            MBSectionHeader(
+                title: "Evidence and technical details",
+                kicker: "Captured read-only ECU evidence")
+            MBPanel {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(module.evidenceDetails, id: \.self) { detail in
+                        Text(detail)
+                            .font(MBTypography.caption)
+                            .foregroundStyle(MBBrand.silverBright)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1508,7 +1755,7 @@ private struct MBLiveDataView: View {
                     } else {
                         ForEach(modules) { module in
                             NavigationLink {
-                                MBModuleLiveDataView(moduleID: module.id)
+                                MBModuleDetailView(moduleID: module.id)
                             } label: {
                                 moduleCard(module)
                             }
@@ -1590,393 +1837,6 @@ private struct MBLiveDataView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 17, style: .continuous)
                 .stroke(MBBrand.line, lineWidth: 1))
-    }
-}
-
-private struct MBModuleLiveDataView: View {
-    @EnvironmentObject private var connection: ConnectionViewModel
-    let moduleID: String
-
-    @State private var scope: MBLiveScope = .available
-    @State private var searchText = ""
-
-    private var module: DiagnosticModule? {
-        connection.diagnosticModule(id: moduleID)
-    }
-
-    private var manufacturerValues: [MercedesModuleDataValue] {
-        connection.manufacturerData(moduleID: moduleID)
-    }
-
-    private var scanningThisModule: Bool {
-        connection.manufacturerDataScanActive &&
-            connection.manufacturerDataScanModuleID == moduleID
-    }
-
-    private var allParameters: [DiagnosticParameter] {
-        connection.moduleParameters(moduleID: moduleID)
-    }
-
-    private var supportedParameters: [DiagnosticParameter] {
-        allParameters.filter(\.isSupported)
-    }
-
-    private var filteredStandardParameters: [DiagnosticParameter] {
-        allParameters.filter { parameter in
-            let scopeMatches: Bool
-            switch scope {
-            case .available:
-                scopeMatches = parameter.isSupported
-            case .favourites:
-                scopeMatches = parameter.isSupported && parameter.favourite
-            case .all:
-                scopeMatches = true
-            }
-
-            guard scopeMatches else { return false }
-            guard !searchText.isEmpty else { return true }
-            return parameter.title.localizedCaseInsensitiveContains(searchText) ||
-                parameter.shortName.localizedCaseInsensitiveContains(searchText) ||
-                parameter.brandPidText.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    private var filteredManufacturerValues: [MercedesModuleDataValue] {
-        guard !searchText.isEmpty else { return manufacturerValues }
-        return manufacturerValues.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.codeText.localizedCaseInsensitiveContains(searchText) ||
-            $0.rawHex.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            MBBackground()
-            ScrollView {
-                if let module {
-                    VStack(alignment: .leading, spacing: 15) {
-                        MBSectionHeader(
-                            title: module.name,
-                            kicker: "Mercedes control-unit data")
-
-                        moduleSummary(module)
-
-                        MBSectionHeader(
-                            title: "Mercedes manufacturer data",
-                            kicker: manufacturerKicker(module))
-
-                        if scanningThisModule {
-                            scanProgress
-                        }
-
-                        if filteredManufacturerValues.isEmpty {
-                            manufacturerEmptyState(module)
-                        } else {
-                            manufacturerValuesPanel(module)
-                        }
-
-                        if !manufacturerValues.isEmpty && !scanningThisModule {
-                            manufacturerRefreshControl(module)
-                        }
-
-                        if !supportedParameters.isEmpty {
-                            standardOBDSection(module)
-                        }
-
-                        MBPanel {
-                            Text("Mercedes manufacturer values are read directly from this ECU's physical diagnostic route. Positive UDS DIDs or KWP local identifiers are retained even when their meaning is not mapped yet; unknown data stays RAW rather than being mislabeled as OBD-II.")
-                                .font(MBTypography.caption)
-                                .foregroundStyle(MBBrand.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(16)
-                } else {
-                    MBPanel {
-                        Text("This control unit is no longer present in the active vehicle profile.")
-                            .font(MBTypography.subheadline)
-                            .foregroundStyle(MBBrand.silver)
-                    }
-                    .padding(16)
-                }
-            }
-        }
-        .searchable(text: $searchText, prompt: "Mercedes data ID, value or SAE PID")
-        .mbDiagnosticScreen(module?.name ?? "Module Data")
-    }
-
-    private func moduleSummary(_ module: DiagnosticModule) -> some View {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 8) {
-                MBInfoRow(label: "CAN route", value: module.addressText)
-                MBInfoRow(label: "Protocol", value: module.protocolName)
-                if !module.designation.isEmpty {
-                    MBInfoRow(label: "ECU", value: module.designation)
-                }
-                MBInfoRow(
-                    label: "Mercedes data IDs",
-                    value: manufacturerValues.isEmpty
-                        ? (scanningThisModule ? "Scanning" : "Not scanned")
-                        : "\(manufacturerValues.count) positive")
-                if module.obdAdvertisedPIDCount > 0 {
-                    MBInfoRow(
-                        label: "OBD capability codes",
-                        value: "\(module.obdAdvertisedPIDCount) advertised")
-                    MBInfoRow(
-                        label: "Decoded live values",
-                        value: "\(supportedParameters.count) selectable")
-                }
-            }
-        }
-    }
-
-    private func manufacturerKicker(_ module: DiagnosticModule) -> String {
-        if module.protocolName.localizedCaseInsensitiveContains("KWP") {
-            return "KWP2000 local identifiers · ECU \(module.responseAddressText)"
-        }
-        return "UDS ReadDataByIdentifier · ECU \(module.responseAddressText)"
-    }
-
-    private var scanProgress: some View {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Reading module data")
-                        .font(MBTypography.headline)
-                        .foregroundStyle(MBBrand.silverBright)
-                }
-                Text(connection.manufacturerDataScanStatusText)
-                    .font(MBTypography.caption)
-                    .foregroundStyle(MBBrand.silver)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("This is a read-only manufacturer-data discovery pass, not the legislated OBD-II PID list.")
-                    .font(MBTypography.caption)
-                    .foregroundStyle(MBBrand.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func manufacturerEmptyState(_ module: DiagnosticModule) -> some View {
-        if !scanningThisModule {
-            MBPanel {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(manufacturerValues.isEmpty
-                         ? "No positive Mercedes manufacturer data IDs have been retained for this module yet."
-                         : "No Mercedes manufacturer data matches the current search.")
-                        .font(MBTypography.subheadline)
-                        .foregroundStyle(MBBrand.silver)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if manufacturerValues.isEmpty {
-                        Button {
-                            connection.discoverManufacturerData(moduleID: module.id)
-                        } label: {
-                            Label("Read Mercedes data from this ECU",
-                                  systemImage: "dot.radiowaves.left.and.right")
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.background)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(
-                                        cornerRadius: 11,
-                                        style: .continuous)
-                                        .fill(MBBrand.silverBright))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!connection.isActive)
-                    }
-                }
-            }
-        }
-    }
-
-    private func manufacturerRefreshControl(_ module: DiagnosticModule) -> some View {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 9) {
-                Button {
-                    connection.discoverManufacturerData(moduleID: module.id)
-                } label: {
-                    Label("Refresh Mercedes values",
-                          systemImage: "arrow.clockwise")
-                        .font(MBTypography.subheadlineBold)
-                        .foregroundStyle(MBBrand.background)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(
-                                cornerRadius: 11,
-                                style: .continuous)
-                                .fill(MBBrand.silverBright))
-                }
-                .buttonStyle(.plain)
-                .disabled(!connection.isActive ||
-                          connection.manufacturerDataScanActive)
-
-                Text("Refresh re-reads only the \(manufacturerValues.count) identifiers that this ECU already proved positive, so it can capture changing values without repeating the full discovery sweep.")
-                    .font(MBTypography.caption)
-                    .foregroundStyle(MBBrand.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func manufacturerValuesPanel(_ module: DiagnosticModule) -> some View {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(filteredManufacturerValues) { value in
-                    manufacturerRow(value, module: module)
-                    if value.id != filteredManufacturerValues.last?.id {
-                        Divider().overlay(MBBrand.line)
-                    }
-                }
-            }
-        }
-    }
-
-    private func manufacturerRow(
-        _ value: MercedesModuleDataValue,
-        module: DiagnosticModule
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(value.title)
-                    .font(MBTypography.subheadlineBold)
-                    .foregroundStyle(MBBrand.silverBright)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Text(value.mapped ? "MAPPED" : "RAW")
-                    .font(MBTypography.caption2Bold)
-                    .foregroundStyle(value.mapped
-                                     ? MBBrand.success : MBBrand.warning)
-            }
-
-            Text(value.formattedValue)
-                .font(MBTypography.bold(20, relativeTo: .title3))
-                .monospacedDigit()
-                .foregroundStyle(MBBrand.silverBright)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-
-            Text("\(value.codeText) · \(value.serviceName)")
-                .font(MBTypography.caption)
-                .foregroundStyle(MBBrand.silver)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-
-            if !value.mapped {
-                Text("Raw response payload · \(value.rawHex)")
-                    .font(MBTypography.caption2)
-                    .foregroundStyle(MBBrand.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(.vertical, 9)
-    }
-
-    @ViewBuilder
-    private func standardOBDSection(_ module: DiagnosticModule) -> some View {
-        MBSectionHeader(
-            title: "Standard OBD-II",
-            kicker: "Secondary · Mode 01 replies from \(module.responseAddressText)")
-
-        Picker("Show", selection: $scope) {
-            ForEach(MBLiveScope.allCases) { item in
-                Text(LocalizedStringKey(item.rawValue)).tag(item)
-            }
-        }
-        .pickerStyle(.segmented)
-
-        ForEach(MBParameterGroup.allCases) { group in
-            let parameters = filteredStandardParameters.filter {
-                $0.brandGroup == group
-            }
-            if !parameters.isEmpty {
-                MBPanel {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label(
-                            LocalizedStringKey(group.rawValue),
-                            systemImage: group.symbol)
-                            .font(MBTypography.headline)
-                            .foregroundStyle(MBBrand.silverBright)
-                            .padding(.bottom, 4)
-
-                        ForEach(parameters) { parameter in
-                            standardLiveRow(parameter)
-                            if parameter.id != parameters.last?.id {
-                                Divider().overlay(MBBrand.line)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func standardLiveRow(_ parameter: DiagnosticParameter) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(LocalizedStringKey(parameter.title))
-                .font(MBTypography.subheadlineBold)
-                .foregroundStyle(MBBrand.silverBright)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(alignment: .center, spacing: 12) {
-                Text(parameter.presentationValue)
-                    .font(MBTypography.bold(21, relativeTo: .title3))
-                    .monospacedDigit()
-                    .foregroundStyle(parameter.hasLiveValue
-                                     ? MBBrand.silverBright : MBBrand.muted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-                    .layoutPriority(2)
-
-                Spacer(minLength: 10)
-
-                HStack(spacing: 7) {
-                    Text("Poll")
-                        .font(MBTypography.caption2Bold)
-                        .foregroundStyle(MBBrand.muted)
-
-                    Toggle("", isOn: Binding(
-                        get: { parameter.pollingEnabled },
-                        set: {
-                            connection.setPolling(
-                                $0, stableKey: parameter.id)
-                        }
-                    ))
-                    .labelsHidden()
-                    .tint(MBBrand.success)
-                    .controlSize(.small)
-
-                    Button {
-                        connection.toggleFavourite(stableKey: parameter.id)
-                    } label: {
-                        Image(systemName: parameter.favourite
-                              ? "star.fill" : "star")
-                            .font(MBTypography.title3)
-                            .foregroundStyle(parameter.favourite
-                                             ? MBBrand.silverBright
-                                             : MBBrand.muted)
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .fixedSize(horizontal: true, vertical: false)
-            }
-
-            Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)")
-                .font(MBTypography.caption)
-                .foregroundStyle(MBBrand.muted)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 9)
     }
 }
 
