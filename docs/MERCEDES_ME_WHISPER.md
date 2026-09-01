@@ -253,6 +253,51 @@ Crucially, this file does **not** expose DiagLogic `dataId` values,
 payload extraction rules or formulas. It therefore does not advance a factory
 live parameter from `corroborated-unmapped` to a protocol-mapped state.
 
+## Demo cockpit live-data trace
+
+The archived `assets/demo_mode_cockptit.json` is materially stronger than the
+general demo dataset because it is a time-offset live cockpit trace keyed by the
+same Mercedes DataID strings used by Whisper/DiagLogic.
+
+The trace contains exactly these live channels:
+
+- `tripScore`;
+- `acceleration`;
+- `engineOilTemperature`;
+- `relativeAcceleratorPedalPosition`;
+- `calculatedEngineLoad`;
+- `intakeManifoldPressure`.
+
+This directly corroborates that `engineOilTemperature`,
+`relativeAcceleratorPedalPosition`, `calculatedEngineLoad` and
+`intakeManifoldPressure` are not merely catalogue names: the archived
+Mercedes application drives a live cockpit/demo stream using those exact
+DataIDs.
+
+Representative ranges in the supplied scripted trace are:
+
+| DataID | Observed demo range |
+| --- | ---: |
+| `tripScore` | 74 .. 100 |
+| `acceleration` | -3 .. +2 |
+| `engineOilTemperature` | 8 .. 14 |
+| `relativeAcceleratorPedalPosition` | 13 .. 62 |
+| `calculatedEngineLoad` | 0 .. 82 |
+| `intakeManifoldPressure` | 0.18 .. 1.09 |
+
+For `intakeManifoldPressure`, the separate Whisper catalogue declares the
+engineering unit as `bar`; the cockpit trace supplies floating-point values
+in the 0.18..1.09 range. This is useful semantic corroboration, but the trace is
+synthetic/demo data and does **not** establish whether the production value is
+absolute manifold pressure, gauge boost pressure or some transformed display
+quantity on every vehicle. MBLINK must not infer that distinction without the
+actual request/result mapping and a physical capture.
+
+Likewise, the trace contains no device/provider, request PDU, response prefix,
+DID, byte offsets or scaling formula. All four vehicle-value DataIDs therefore
+remain `corroborated-unmapped`; their evidence has become stronger, not
+protocol-complete.
+
 ## What this file does not yet give us
 
 `MSA_VIN_cascade.properties` proves that Mercedes' application model contains
