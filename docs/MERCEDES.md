@@ -47,6 +47,34 @@ The ECU-family side has direct fitment evidence: the public `autodiag2/database`
 
 Physical hardware is a validation gate, not a development gate. MBLINK continues to build the Mercedes protocol model, fixture replay, ECU-family decoding, fault knowledge and safe read-only requests offline. When the development adapter becomes available, the real C207 capture promotes only what it actually proves rather than beginning the implementation from scratch.
 
+## Archived Mercedes me Whisper parameterisation
+
+The archived Mercedes me Adapter application has now yielded its active Whisper
+parameterisation rather than only native-library symbols. The encrypted
+`.properties` payloads were reproducibly decrypted and the active
+`MSA_VIN_cascade.properties` source provides manufacturer-owned DataID
+metadata plus concrete device-provider and VIN-request definitions.
+
+High-value factory DataIDs present in that source include engine oil
+temperature, intake-manifold pressure in bar, engine fuel rate in L/h,
+instantaneous and trip fuel-consumption values in l/100km, individual tyre
+pressures, fuel-pressure values, a particle-filter value, engine torque and
+AdBlue range. These names/units are now source-corroborated but remain
+**unmapped** until the archived diagnostic-logic layer yields their exact
+provider/request/result/formula binding.
+
+The same configuration directly confirms the 500 kbit/s routes
+`7E0 -> 7E8`, `4E0 -> 5FF`, `602 -> 480`, `607 -> 587` and
+`612 -> 482`, together with exact VIN bootstrap requests including
+`22 F1 A0 -> 62 F1 A0`, `1A 90 -> 5A 90`, `21 05 -> 61 05` and
+standard OBD `09 02 -> 49 02`.
+
+The complete recovered evidence, encryption/extraction details, embedded source
+revisions and interpretation boundaries are preserved in
+`MERCEDES_ME_WHISPER.md`. That document is the source of truth for this
+archived-app evidence; this file continues to own how it affects MBLINK's
+Mercedes diagnostic model.
+
 ## W212 / C207 gateway module map
 
 MBLINK now separates the **expected platform roster** from the **observed vehicle map**.
