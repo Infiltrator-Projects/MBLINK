@@ -661,6 +661,89 @@ That derivation protects local storage only and must not be confused with ACS
 authorization, Whisper configuration encryption, or the adapter Session
 Master Key.
 
+## Recovered Whisper installation paths and artifact lifetime
+
+The configuration package lifecycle is now source-backed far enough to guide
+artifact recovery.
+
+The Android ACS component writes the downloaded Vehicle Interface payload to a
+temporary file and records that exact path in the `DOWNLOAD_FINISHED` tracking
+event. Installation reads those same bytes, passes them into the native
+Vehicle Interface configurator, and after a successful install deletes the
+temporary download file. Therefore the original ACS ZIP is normally
+**transient**; a completed historical installation should not be expected to
+leave that raw download behind.
+
+Native analysis of the archived `libwhisper.so` establishes the installation
+staging path:
+
+```text
+Configurator::INCOMING_DIRECTORY() = "/incoming"
+
+incoming path = System::getRuntimeDirectory() + "/incoming"
+output path   = System::getRuntimeDirectory() + "/incoming"
+```
+
+The ZIP payload is therefore decompressed under:
+
+```text
+<runtimeDirectory>/incoming/
+```
+
+The persistence layer then exposes an exact configuration-directory constant:
+
+```text
+ConfigurationAccessProvider::CONFIG_DIR() = "config"
+```
+
+and the runtime/install persistence factories construct namespaces of the form:
+
+```text
+<runtimeDirectory>/<configurationName>/config/
+<installDirectory>/<configurationName>/config/
+```
+
+The configuration names recovered from Whisper make these the highest-value
+historical locations:
+
+```text
+<runtimeDirectory>/actionproviders/config/
+<runtimeDirectory>/deviceproviders/config/
+<runtimeDirectory>/vinmapping/config/
+<runtimeDirectory>/incoming/
+```
+
+with the equivalent install-directory fallback. `VinMappingRegistry` also
+constructs a VIN-derived configuration key using the exact postfix
+`_configs`, so retained names ending in `_configs` are high-value recovery
+targets.
+
+The exact final promotion/switch operation from the decompression staging area
+into the active runtime namespace has not yet been proven byte-for-byte.
+MBLINK therefore records the staging and persistence paths independently rather
+than inventing an atomic move/copy sequence.
+
+A read-only recovery helper is now included:
+
+```bash
+python3 tools/mblink-whisper-recover.py /path/to/app-data
+python3 tools/mblink-whisper-recover.py /path/to/app-data \
+    --copy-out recovered-whisper
+```
+
+It recognises the recovered Whisper namespaces and configuration vocabulary,
+inspects ZIP members, can decrypt the archived hex/AES Whisper
+`.properties` format using the already recovered vendor key, and suppresses
+the known APK bootstrap configuration so that it does not misreport
+`MSA_VIN_cascade.properties` as a downloaded vehicle-specific package.
+
+A scan of the currently supplied/mounted evidence set found the known APK
+bootstrap parameterisation but no retained post-VIN dynamic Whisper package.
+That negative result is important: the remaining artifact target is a
+historical Android application-data/runtime directory (or an interrupted
+download that escaped the normal post-install deletion), not another search
+through the already-extracted APK binaries.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
