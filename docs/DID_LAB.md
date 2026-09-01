@@ -12,6 +12,38 @@ Three states are deliberately separate: `corroborated-unmapped` means the value 
 
 It remains a source-backed candidate until a C207 capture verifies it.
 
+## Archived Mercedes me Whisper catalogue
+
+The archived Mercedes me Adapter Whisper parameterisation is now an independent
+manufacturer source for the existence, datatype and unit of a substantial
+factory-value inventory. The recovered active
+`MSA_VIN_cascade.properties` declares, among others,
+`engineOilTemperature` (°C), `intakeManifoldPressure` (bar),
+`engineFuelRate` (L/h), `actualFuelFlow` / `fuelFlowSinceStart` /
+`fuelFlowSinceReset` (l/100km), four individual tyre pressures (bar),
+`fuelPressureCan` (bar), `particleFilter`, `actualEngineTorque` (%),
+`engineReferenceTorque` (Nm) and AdBlue remaining-distance values.
+
+These are **corroborated-unmapped**, not vehicle-verified live parameters. The
+VIN-cascade file contains their application-model metadata but does not bind
+those high-value DataIDs to the request/result mapping used to acquire them.
+In particular, `intakeManifoldPressure` is a `Double` in bar and is the
+strongest current source-backed candidate for a factory pressure value beyond
+SAE PID 0x0B's one-byte ceiling, while `boostPressureCan` is explicitly a
+percentage and must not be mislabeled as pressure.
+
+The same archive proves the Whisper configuration architecture directly:
+device provider, request PDU, matching positive response, timeout, result
+extraction and encoding are configuration fields. Its VIN cascade supplies
+real examples such as UDS `22 F1 A0 -> 62 F1 A0` and KWP
+`21 05 -> 61 05` on manufacturer-owned routes.
+
+See `MERCEDES_ME_WHISPER.md` for the encryption/extraction method, provenance,
+full priority inventory and exact recovered routes. The next DID-Lab task is
+to recover the live DataID -> provider/request/result/formula binding from the
+archived diagnostic-logic/value layer and then validate each mapping on a
+reproducible C207 capture.
+
 ## Research manifest
 
 `data/mercedes/crd3-did-lab.json` is the machine-readable research manifest. It records stable keys, source state, known DIDs/scaling, units and the best OBD reference channel for correlation. Rows from a Delphi PDF can be imported here without changing the live scheduler.
