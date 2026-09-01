@@ -547,6 +547,69 @@ externalID = installed externalID or ""
 Authentication headers are supplied separately by the app/toolkit
 authentication layer and are not fabricated here.
 
+## ACS authentication path from the production application
+
+The production application does not use the toolkit's generic authentication
+fallback for ACS. Application class `y3.b` installs its own
+`AuthHeaderProvider` on the `AdapterConfigurationComponent` before starting
+the component.
+
+The provider obtains the current OpenShift/backend authentication headers from
+the application's `AuthenticatorOpenShift` path:
+
+```text
+MBFAApplication.authManager
+  -> AuthenticatorOpenShift
+  -> auth header array
+  -> AuthHeaderProvider map
+  -> ACSConnectorImpl.getAuthHeaders()
+```
+
+The ACS provider rejects an empty authentication-header set and augments the
+returned backend headers with the following fixed/client metadata:
+
+```text
+X-APP-VERSION = 4.7.61
+X-APP-TARGET  = live
+X-OS          = Android
+X-OS-VERSION  = Build.VERSION.RELEASE
+X-MANUFACTURER = Build.MANUFACTURER
+X-PHONE-TYPE   = Build.MODEL
+```
+
+`ACSConnectorImpl` applies that same header map to the ACS configuration
+request and to the subsequent configuration-file download URI. The toolkit
+fallback through `AuthManagement.getAuthenticator(...).getAuthHeaders()`
+therefore exists, but is not the primary application path in this build.
+
+The same application class overrides the component configuration rather than
+using only the library defaults. Its endpoint is assembled as:
+
+```text
+string resource 0x7f120389 + string resource 0x7f120385
+```
+
+and its encrypted local tracking-database password is derived from:
+
+```text
+PBKDF2WithHmacSHA1(
+  password = Android secure android_id,
+  salt     = app-specific s0.a() byte array,
+  iterations = 1000,
+  keyLength  = 256 bits
+)
+```
+
+The database-password derivation is local storage protection and must not be
+confused with ACS authorization, Whisper configuration encryption, or the
+adapter Session Master Key.
+
+The exact names/values of the OpenShift-supplied authentication headers still
+need to be recovered from the `AuthenticatorOpenShift` implementation, and
+resources `0x7f120389` and `0x7f120385` should be resolved to verify the
+application-level ACS URL assembly against the already recovered merged
+endpoint.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
