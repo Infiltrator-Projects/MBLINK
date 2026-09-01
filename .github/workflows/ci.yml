@@ -364,6 +364,11 @@ jobs:
           grep -Fq 'LINK_SCHEDULER_MAX_ITEMS 256U' src/link/include/link/scheduler.h
           grep -Fq 'ECU evidence' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBModuleDetailView' app/ios/MBLINK/MBLINKApp.swift
+          test "$(grep -Fc 'private struct MBModuleDetailView: View' app/ios/MBLINK/MBLINKApp.swift)" -eq 1
+          ! grep -Fq 'private struct MBModuleLiveDataView: View' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'title: "Factory data"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'Label("Scan factory data"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq '"Refresh \(manufacturerValues.count) factory value' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Mercedes module census' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LINK_ADAPTER_KIND_MERCEDES_ME_NATIVE' src/link/include/link/transport.h
           link_version="$(tr -d '[:space:]' < src/link/VERSION)"
