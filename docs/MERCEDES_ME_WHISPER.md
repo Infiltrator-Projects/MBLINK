@@ -560,55 +560,106 @@ the application's `AuthenticatorOpenShift` path:
 ```text
 MBFAApplication.authManager
   -> AuthenticatorOpenShift
-  -> auth header array
+  -> access token
+  -> "Authorization: Bearer <access_token>"
   -> AuthHeaderProvider map
   -> ACSConnectorImpl.getAuthHeaders()
 ```
 
-The ACS provider rejects an empty authentication-header set and augments the
-returned backend headers with the following fixed/client metadata:
+The exact primary ACS authorization header is therefore source-backed:
+
+```http
+Authorization: Bearer <OAuth access token>
+```
+
+The bearer header is built only when the stored/refreshed access token is
+non-empty. Empty authentication headers are rejected as NOT_AUTHORIZED.
+
+The same provider augments the bearer header with fixed/client metadata:
 
 ```text
-X-APP-VERSION = 4.7.61
-X-APP-TARGET  = live
-X-OS          = Android
-X-OS-VERSION  = Build.VERSION.RELEASE
+X-APP-VERSION  = 4.7.61
+X-APP-TARGET   = live
+X-OS           = Android
+X-OS-VERSION   = Build.VERSION.RELEASE
 X-MANUFACTURER = Build.MANUFACTURER
 X-PHONE-TYPE   = Build.MODEL
 ```
 
-`ACSConnectorImpl` applies that same header map to the ACS configuration
-request and to the subsequent configuration-file download URI. The toolkit
-fallback through `AuthManagement.getAuthenticator(...).getAuthHeaders()`
-therefore exists, but is not the primary application path in this build.
+`ACSConnectorImpl` applies that same header map to both the ACS
+configuration request and the subsequent configuration-file download URI. The
+toolkit fallback through
+`AuthManagement.getAuthenticator(...).getAuthHeaders()` exists, but is not
+the primary application path in this build.
 
-The same application class overrides the component configuration rather than
-using only the library defaults. Its endpoint is assembled as:
+The OpenShift authenticator persists an access token, refresh token and expiry
+for environment `live`. It reuses a token only when it remains valid by more
+than 10 seconds; otherwise it refreshes using grant type `refresh_token`.
+Interactive authentication exchanges an authorization code using grant type
+`authorization_code`. The Retrofit contract is:
 
 ```text
-string resource 0x7f120389 + string resource 0x7f120385
+POST /oauth/token      code + grant_type=authorization_code
+POST /oauth/token      refresh_token + grant_type=refresh_token
+GET  /oauth/userinfo   Authorization header map
 ```
 
-and its encrypted local tracking-database password is derived from:
+The recovered application resources also identify the generic auth-management
+scope set as:
+
+```text
+mbfaCarla,carlaApp,acsbasicscope,applogcrashlog
+```
+
+and expose the archived token-service resource:
+
+```text
+https://connectme-adapter.mercedes-benz.com/oauth2/token
+```
+
+That token-service string belongs to the application's authentication
+configuration; the concrete `AuthenticatorOpenShift` implementation builds
+its Retrofit service from `envBaseOpenShiftServerUrl` and relative
+`/oauth/token` / `/oauth/userinfo` paths.
+
+The application also overrides the adapter-configuration component endpoint
+rather than relying only on the library default:
+
+```text
+envBaseOpenShiftServerUrl + envAccOpenShiftEndpoint
+```
+
+where the resource IDs are:
+
+```text
+0x7f120389 = envBaseOpenShiftServerUrl
+0x7f120385 = envAccOpenShiftEndpoint
+```
+
+The already recovered merged ACS endpoint is:
+
+```text
+https://ws41.caritc.de/services-dg/acs_core_api/acs
+```
+
+The split literal values of the two environment resources are not yet recorded
+separately, so the concatenation relationship is preserved without inventing
+their boundary.
+
+The encrypted local tracking-database password is derived from:
 
 ```text
 PBKDF2WithHmacSHA1(
-  password = Android secure android_id,
-  salt     = app-specific s0.a() byte array,
+  password   = Android secure android_id,
+  salt       = app-specific s0.a() byte array,
   iterations = 1000,
   keyLength  = 256 bits
 )
 ```
 
-The database-password derivation is local storage protection and must not be
-confused with ACS authorization, Whisper configuration encryption, or the
-adapter Session Master Key.
-
-The exact names/values of the OpenShift-supplied authentication headers still
-need to be recovered from the `AuthenticatorOpenShift` implementation, and
-resources `0x7f120389` and `0x7f120385` should be resolved to verify the
-application-level ACS URL assembly against the already recovered merged
-endpoint.
+That derivation protects local storage only and must not be confused with ACS
+authorization, Whisper configuration encryption, or the adapter Session
+Master Key.
 
 ## Local database live-data availability model
 
