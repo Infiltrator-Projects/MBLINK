@@ -4,6 +4,17 @@
 
 The Apple application is a native presentation/platform edge over the shared LINK diagnostic engine plus MBLINK's Mercedes-specific extension.
 
+
+## Product role: diagnostic instrument, not research laboratory
+
+The iPhone application is intentionally not the primary exhaustive vehicle-research tool.
+
+Linux and Windows MBLINK Discover own the heavy research workflow: passive CAN observation, OpenPort/J2534 acquisition, wide module census, bounded unknown UDS/KWP harvesting, guided operator experiments, correlation and Vehicle Research Pack export. That desktop workflow is defined in [VEHICLE_RESEARCH.md](VEHICLE_RESEARCH.md).
+
+iPhone remains the normal diagnostic instrument: fast VIN/profile recognition, saved-route validation, standards-defined OBD diagnostics, faults/readiness/freeze-frame, known factory values, targeted refreshes, gauges/graphs and evidence export.
+
+A first VIN may still perform the bounded module census required to establish a usable profile, but iPhone must not become the primary brute-force DID/KWP discovery environment. Its **Factory data** surface should converge on reading known or already-learned identifiers rather than carrying the full desktop research burden.
+
 ## Ownership boundary
 
 LINK owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard OBD-II sequencing, VIN/DTC/live-data flow and the generic manufacturer-extension boundary. MBLINK's Apple compatibility transport compiles LINK's shared provider rather than maintaining an independent protocol stack. `MBLinkDiagnosticsController` owns the Mercedes-specific read-only probe and the VIN-keyed module-learning pass and presents their evidence to SwiftUI.
