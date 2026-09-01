@@ -323,6 +323,17 @@ The native `libcommon.so` supplied from the same application exports
 `setSystemEncryptionPassword`,
 `cc::common::System::setEncryptionPassword()`,
 `cc::common::System::getEncryptionPassword()` and AES-256 helper routines.
+
+Thumb disassembly of `setSystemEncryptionPassword` shows that it accepts a
+caller-supplied byte pointer plus length, copies those bytes into a vector and
+passes that vector to `System::setEncryptionPassword()`. There is no fixed
+password literal in that wrapper. Among the supplied native libraries,
+`libgdk.so` is the only library with an undefined reference to
+`System::getEncryptionPassword()`; the other supplied vehicle-stack
+libraries do not import that getter directly. This narrows the next
+reverse-engineering target to the application/JNA/JNI code that invokes the
+C ABI setter and to GDK call sites that consume the stored password.
+
 This gives a concrete next reverse-engineering target: identify the Java/JNI
 call site that supplies the system encryption password and determine whether
 the same application secret is reused by `appExport.zip`, backup/restore, or
