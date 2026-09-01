@@ -282,6 +282,39 @@ or vehicle-state fixture materially interesting: populated
 available for the exported vehicle, and configuration/version fields could
 help identify the selected per-vehicle diagnostic package.
 
+## Protected data export artifact
+
+The archived APK also contains `assets/data_export.zip`. Inspection of the
+central directory shows a single member:
+
+```text
+data_export.json
+uncompressed: 7,415,862 bytes
+compressed:     65,470 bytes
+CRC32:       DE173F34
+timestamp:   2020-10-21 18:29:02
+```
+
+The member is encrypted, but the ZIP metadata does not contain a WinZip AES
+extra field and reports ZIP extraction compatibility version 2.0. That is
+consistent with traditional PKZIP/ZipCrypto encryption rather than AES ZIP
+encryption.
+
+This distinction matters for evidence recovery: traditional ZipCrypto is weak
+against known-plaintext recovery. Because the encrypted member is JSON, a
+recoverable plaintext prefix or other known fragment may be enough to recover
+the internal ZIP keys without discovering the original password. No recovered
+plaintext is claimed until that attack is actually reproduced.
+
+The archive's extreme compression ratio (about 7.4 MB down to about 65 KB)
+also indicates highly repetitive structured content, making it a strong
+candidate for synthetic/export fixture data rather than arbitrary binary
+payload.
+
+The APK additionally contains a very small `assets/android/appExport.zip`
+artifact. It should be inspected alongside `data_export.zip` because it may
+document or template the application's export/import format.
+
 ## Demo-mode application data
 
 The archived `assets/demo_mode_data.json` is application/demo content rather
