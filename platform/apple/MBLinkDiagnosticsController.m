@@ -63,7 +63,7 @@
 
 static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
-static const NSInteger MBLinkVehicleProfileSchemaVersion = 4;
+static const NSInteger MBLinkVehicleProfileSchemaVersion = 5;
 static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
@@ -1186,22 +1186,65 @@ static bool MBLinkSimulatorResponder(
             module->kind);
     NSArray<MBLinkMercedesDataSnapshot *> *knownValues =
         _manufacturerDataByModule[identifier];
+    NSArray<NSNumber *> *persistedIdentifiers = nil;
+    if (knownValues.count == 0U &&
+        [_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]) {
+        for (id value in _cachedVehicleProfile[@"modules"]) {
+            if (![value isKindOfClass:[NSDictionary class]]) continue;
+            NSDictionary *savedModule = (NSDictionary *)value;
+            NSNumber *savedTx = savedModule[@"tx"];
+            NSNumber *savedRx = savedModule[@"rx"];
+            NSNumber *savedExtended = savedModule[@"extended"];
+            if (![savedTx isKindOfClass:[NSNumber class]] ||
+                ![savedRx isKindOfClass:[NSNumber class]] ||
+                ![savedExtended isKindOfClass:[NSNumber class]] ||
+                savedTx.unsignedIntValue != module->tx_can_id ||
+                savedRx.unsignedIntValue != module->rx_can_id ||
+                savedExtended.boolValue != module->extended_id) {
+                continue;
+            }
+            if ([savedModule[@"manufacturerDataIDs"]
+                    isKindOfClass:[NSArray class]]) {
+                persistedIdentifiers = savedModule[@"manufacturerDataIDs"];
+            }
+            break;
+        }
+    }
+
+    const NSUInteger knownIdentifierCount =
+        knownValues.count != 0U ? knownValues.count : persistedIdentifiers.count;
     BOOL targetedRefresh =
-        knownValues.count > 0U &&
-        knownValues.count <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
+        knownIdentifierCount > 0U &&
+        knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
     MblinkMercedesDataScanResult result;
 
     if (targetedRefresh) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
-        for (MBLinkMercedesDataSnapshot *snapshot in knownValues) {
-            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
-                break;
-            identifiers[identifierCount++] = snapshot.identifier;
+        if (knownValues.count != 0U) {
+            for (MBLinkMercedesDataSnapshot *snapshot in knownValues) {
+                if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+                    break;
+                identifiers[identifierCount++] = snapshot.identifier;
+            }
+        } else {
+            for (id value in persistedIdentifiers) {
+                if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+                    break;
+                if (![value isKindOfClass:[NSNumber class]]) continue;
+                const NSUInteger candidate =
+                    ((NSNumber *)value).unsignedIntegerValue;
+                if (candidate > UINT16_MAX) continue;
+                identifiers[identifierCount++] = (uint16_t)candidate;
+            }
+            if (identifierCount == 0U) targetedRefresh = NO;
         }
-        result = mblink_mercedes_data_scan_begin_identifiers(
-            &_manufacturerDataScan, &config,
-            identifiers, identifierCount);
+        result = targetedRefresh
+            ? mblink_mercedes_data_scan_begin_identifiers(
+                &_manufacturerDataScan, &config,
+                identifiers, identifierCount)
+            : mblink_mercedes_data_scan_begin(
+                &_manufacturerDataScan, &config);
         if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
             /*
              * Cached presentation data must never make discovery impossible.
@@ -1373,6 +1416,13 @@ static bool MBLinkSimulatorResponder(
 - (void)finishManufacturerDataScanWithStatus:(NSString *)status
 {
     [self publishManufacturerDataScanResults];
+    /*
+     * Positive manufacturer identifiers are expensive to discover but cheap to
+     * refresh. Persist them against the VIN/module route immediately so a later
+     * session can target only known positives instead of repeating the full
+     * 0x20xx / KWP local-ID sweep.
+     */
+    [self saveCurrentVehicleProfile];
 
     const size_t positive =
         mblink_mercedes_data_scan_record_count(&_manufacturerDataScan);
@@ -2062,6 +2112,49 @@ static bool MBLinkSimulatorResponder(
         if (module->hardware_number_available)
             dictionary[@"hardware"] =
                 MBLinkStringFromCString(module->hardware_number);
+
+        NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
+        NSArray<MBLinkMercedesDataSnapshot *> *knownManufacturerData =
+            _manufacturerDataByModule[moduleIdentifier];
+        NSMutableOrderedSet<NSNumber *> *manufacturerIDs =
+            [[NSMutableOrderedSet alloc] init];
+        for (MBLinkMercedesDataSnapshot *snapshot in knownManufacturerData) {
+            [manufacturerIDs addObject:@(snapshot.identifier)];
+        }
+        if (manufacturerIDs.count == 0U &&
+            [_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]) {
+            for (id savedValue in _cachedVehicleProfile[@"modules"]) {
+                if (![savedValue isKindOfClass:[NSDictionary class]]) continue;
+                NSDictionary *savedModule = (NSDictionary *)savedValue;
+                NSNumber *savedTx = savedModule[@"tx"];
+                NSNumber *savedRx = savedModule[@"rx"];
+                NSNumber *savedExtended = savedModule[@"extended"];
+                if (![savedTx isKindOfClass:[NSNumber class]] ||
+                    ![savedRx isKindOfClass:[NSNumber class]] ||
+                    ![savedExtended isKindOfClass:[NSNumber class]] ||
+                    savedTx.unsignedIntValue != module->tx_can_id ||
+                    savedRx.unsignedIntValue != module->rx_can_id ||
+                    savedExtended.boolValue != module->extended_id) {
+                    continue;
+                }
+                NSArray *savedIDs =
+                    [savedModule[@"manufacturerDataIDs"]
+                        isKindOfClass:[NSArray class]]
+                        ? savedModule[@"manufacturerDataIDs"] : @[];
+                for (id savedID in savedIDs) {
+                    if ([savedID isKindOfClass:[NSNumber class]] &&
+                        ((NSNumber *)savedID).unsignedIntegerValue <= UINT16_MAX) {
+                        [manufacturerIDs addObject:savedID];
+                    }
+                }
+                break;
+            }
+        }
+        if (manufacturerIDs.count != 0U) {
+            dictionary[@"manufacturerDataIDs"] =
+                [[manufacturerIDs array]
+                    sortedArrayUsingSelector:@selector(compare:)];
+        }
         [modules addObject:[dictionary copy]];
     }
     if (modules.count == 0U) return;

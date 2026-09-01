@@ -505,6 +505,8 @@ responses are retained. Unknown positives remain attached to the originating
 module as raw identifiers and raw response bytes; MBLINK does not invent a
 name, unit or scaling formula.
 
+Positive manufacturer identifiers are persisted against the VIN-keyed module profile. After one successful full discovery pass, later sessions can refresh only the exact UDS DIDs / KWP local identifiers that previously responded, avoiding a repeated full-range sweep. Historical Mercedes-me runtime/app-data is therefore useful optional evidence, not a dependency of manufacturer-data discovery.
+
 The first exact numeric mapping remains CRD3 UDS DID `0x2007`, battery voltage,
 decoded as a two-byte big-endian value multiplied by `0.0078125 V`. Other
 positive manufacturer identifiers are deliberately shown as `RAW` until the
