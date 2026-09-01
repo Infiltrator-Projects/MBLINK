@@ -568,7 +568,7 @@ struct MBLINKApp: App {
                     } label: {
                         HStack(spacing: 8) {
                             Text("MBLINK")
-                                .fontWeight(.bold)
+                                .font(MBTypography.captionBold)
                                 .tracking(1.0)
                             Text("© 2026 Shannon Smith")
                                 .foregroundStyle(MBBrand.muted)
