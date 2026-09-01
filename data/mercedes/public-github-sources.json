@@ -8,6 +8,14 @@
   },
   "repositories": [
     {
+      "repository": "mercedes-benz/ardep",
+      "status": "active",
+      "license": "Apache-2.0",
+      "use": "uds-conformance-reference",
+      "destination": "LINK tests",
+      "value": "Mercedes-Benz Automotive Rapid Development Platform with CAN/LIN and a Zephyr-based ISO 14229 UDS implementation covering 22 diagnostic services"
+    },
+    {
       "repository": "mercedes-benz/odxtools",
       "status": "active",
       "license": "MIT",
