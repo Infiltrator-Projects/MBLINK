@@ -725,25 +725,25 @@ than inventing an atomic move/copy sequence.
 
 A read-only recovery helper is now included:
 
-\`\`\`bash
+```bash
 python3 tools/mblink-whisper-recover.py /path/to/app-data
 python3 tools/mblink-whisper-recover.py /path/to/app-data \
     --copy-out recovered-whisper
-\`\`\`
+```
 
 It recognises the recovered Whisper namespaces and configuration vocabulary,
 inspects ZIP members, can decrypt the archived hex/AES Whisper
-\`.properties\` format using the already recovered vendor key, and suppresses
+`.properties` format using the already recovered vendor key, and suppresses
 the known APK bootstrap configuration so that it does not misreport
-\`MSA_VIN_cascade.properties\` as a downloaded vehicle-specific package.
+`MSA_VIN_cascade.properties` as a downloaded vehicle-specific package.
 
 The helper also reconstructs exact Whisper live-data bindings when retained
 configuration contains them. It follows the production property chain from
-\`DEV.<device>.<DataID>.<link>.requestid\` through \`REQUESTID\` and
-\`RESULTID\`, retaining provider type, channel TX/RX/baud, request PDU,
+`DEV.<device>.<DataID>.<link>.requestid` through `REQUESTID` and
+`RESULTID`, retaining provider type, channel TX/RX/baud, request PDU,
 matching response, timeout, extraction, encoding, formula, datatype and unit.
 
-\`\`\`bash
+```bash
 python3 tools/mblink-whisper-recover.py /path/to/app-data --mappings \
     --target intakeManifoldPressure \
     --target engineFuelRate \
@@ -752,18 +752,18 @@ python3 tools/mblink-whisper-recover.py /path/to/app-data --mappings \
 
 python3 tools/mblink-whisper-recover.py /path/to/app-data --json \
     --target intakeManifoldPressure
-\`\`\`
+```
 
-Every reconstructed binding is emitted as \`source-backed-candidate\`. The
-tool never promotes it to \`vehicle-verified\`, and APK bootstrap mappings are
-suppressed unless \`--include-baseline-mappings\` is explicitly requested.
+Every reconstructed binding is emitted as `source-backed-candidate`. The
+tool never promotes it to `vehicle-verified`, and APK bootstrap mappings are
+suppressed unless `--include-baseline-mappings` is explicitly requested.
 
 A scan of the currently supplied/mounted evidence set found the known APK
 bootstrap parameterisation but no retained post-VIN dynamic Whisper package.
 The mapping parser likewise found zero post-VIN DataID ->
 device/request/result bindings for the priority factory live-data targets. As
 a regression oracle, explicitly enabling baseline mappings reconstructs the
-known Motor \`0x7E0 -> 0x7E8\`, \`22 F1 A0\` VIN request and its ASCII
+known Motor `0x7E0 -> 0x7E8`, `22 F1 A0` VIN request and its ASCII
 extraction. The zero live-data result is therefore meaningful rather than a
 parser blind spot: the remaining artifact target is a historical Android
 application-data/runtime directory (or an interrupted download that escaped
