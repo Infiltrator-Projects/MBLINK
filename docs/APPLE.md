@@ -49,6 +49,29 @@ Live-data rows expose a real per-PID Poll switch. The preference is persisted by
 Interface language and unit profile are separate settings. Metric remains the default regardless of selected English variant. US customary converts temperatures, speed, pressure and volumetric fuel rate only for presentation; diagnostic evidence remains canonical.
 
 
+## Canonical control-unit screen
+
+iPhone now has one canonical detail screen for each responding control unit.
+Modules, Live Data and Faults all navigate to that same ECU surface rather than
+maintaining separate module-detail experiences.
+
+The screen order is intentionally consistent:
+
+1. control-unit identity and physical CAN route;
+2. **Factory data** — Mercedes UDS/KWP manufacturer values with a read-only
+   `Scan factory data` action before discovery and a targeted
+   `Refresh N factory values` action after positive identifiers are known;
+3. standard SAE Mode 01 live data from that exact responder, including Poll and
+   favourite controls;
+4. fault memory;
+5. captured ECU evidence/technical details.
+
+A responding ECU with no live values no longer presents a dead-end explanation:
+the same screen offers factory-data discovery directly. Unknown positive
+manufacturer identifiers remain RAW until independently mapped, and repeat
+refreshes use the VIN-persisted positive identifier set rather than repeating
+the full bounded discovery range.
+
 ## Evidence export continuity
 
 Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple controller copies the in-memory recorder bytes and MBLINK performs the atomic file write on a utility task, away from CoreBluetooth callbacks and LINK's 100 ms session tick. Live diagnostic polling is expected to continue while evidence is prepared.
