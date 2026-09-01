@@ -134,6 +134,20 @@ jobs:
           log="$RUNNER_TEMP/navigation-sanitized.log"
           GTK_A11Y=none           ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1           timeout 25s xvfb-run -a ./build-linux-sanitized/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
+      - name: Verify canonical MB Corpo typography roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '.link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }' app/linux/main.c
+          test "$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/main.c)" -eq 1
+          grep -Fq '.link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-size: 20px; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-toolbar-button, .link-toolbar-button label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'static let title2 = bold(22, relativeTo: .title2)' app/ios/MBLINK/MBLINKApp.swift
+          test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 1
+          grep -Fq '.font(MBTypography.display(29, relativeTo: .title))' app/ios/MBLINK/MBLINKApp.swift
       - name: Verify Linux About and branding
         shell: bash
         run: |

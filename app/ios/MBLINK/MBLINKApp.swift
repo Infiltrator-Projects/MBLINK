@@ -45,8 +45,8 @@ private enum MBTypography {
     static let captionBold = bold(12, relativeTo: .caption)
     static let caption2 = regular(11, relativeTo: .caption2)
     static let caption2Bold = bold(11, relativeTo: .caption2)
-    static let title3 = display(20, relativeTo: .title3)
-    static let title2 = display(22, relativeTo: .title2)
+    static let title3 = bold(20, relativeTo: .title3)
+    static let title2 = bold(22, relativeTo: .title2)
 
     static func verifyBundledFonts() {
         precondition(
@@ -353,7 +353,7 @@ private struct MBTileFace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: symbol)
-                .font(MBTypography.display(24, relativeTo: .title2))
+                .font(MBTypography.bold(24, relativeTo: .title2))
                 .foregroundStyle(MBBrand.silverBright)
                 .frame(width: 30, height: 30, alignment: .leading)
 
@@ -413,7 +413,7 @@ private struct MBMetricTile: View {
             }
 
             Text(parameter.presentationValue)
-                .font(MBTypography.display(24, relativeTo: .title2))
+                .font(MBTypography.bold(24, relativeTo: .title2))
                 .monospacedDigit()
                 .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
                 .minimumScaleFactor(0.65)
@@ -885,7 +885,7 @@ private struct MBVehicleView: View {
             if let identity = connection.vehicleIdentity {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "car.side.fill")
-                        .font(MBTypography.display(30, relativeTo: .title))
+                        .font(MBTypography.bold(30, relativeTo: .title))
                         .foregroundStyle(MBBrand.silverBright)
                         .frame(width: 42, height: 42)
                     VStack(alignment: .leading, spacing: 5) {
@@ -1208,7 +1208,7 @@ private struct MBFaultsView: View {
                         MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")
                         Spacer()
                         Text("\(total)")
-                            .font(MBTypography.display(30, relativeTo: .title))
+                            .font(MBTypography.bold(30, relativeTo: .title))
                             .foregroundStyle(headlineColour)
                     }
                     scanSummaryPanel
@@ -1857,7 +1857,7 @@ private struct MBModuleLiveDataView: View {
             }
 
             Text(value.formattedValue)
-                .font(MBTypography.display(20, relativeTo: .title3))
+                .font(MBTypography.bold(20, relativeTo: .title3))
                 .monospacedDigit()
                 .foregroundStyle(MBBrand.silverBright)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1929,7 +1929,7 @@ private struct MBModuleLiveDataView: View {
 
             HStack(alignment: .center, spacing: 12) {
                 Text(parameter.presentationValue)
-                    .font(MBTypography.display(21, relativeTo: .title3))
+                    .font(MBTypography.bold(21, relativeTo: .title3))
                     .monospacedDigit()
                     .foregroundStyle(parameter.hasLiveValue
                                      ? MBBrand.silverBright : MBBrand.muted)
@@ -2597,7 +2597,7 @@ private struct MBLINKAboutView: View {
                             .padding(.top, 30)
                         VStack(spacing: 4) {
                             Text("MBLINK")
-                                .font(MBTypography.display(34, relativeTo: .largeTitle))
+                                .font(MBTypography.bold(34, relativeTo: .largeTitle))
                                 .tracking(2.0)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text("MERCEDES DIAGNOSTICS")
