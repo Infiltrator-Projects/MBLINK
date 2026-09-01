@@ -18,6 +18,46 @@ private enum MBBrand {
     static let fault = Color(red: 0.78, green: 0.28, blue: 0.28)
 }
 
+
+private enum MBTypography {
+    static let uiRegularName = "MBCorpoSTitleWEB-Regular"
+    static let uiBoldName = "MBCorpoSTitleWEB-Bold"
+    static let displayName = "MBCorpoATitleCondWEB-Regular"
+
+    static func regular(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        .custom(uiRegularName, size: size, relativeTo: style)
+    }
+
+    static func bold(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        .custom(uiBoldName, size: size, relativeTo: style)
+    }
+
+    static func display(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        .custom(displayName, size: size, relativeTo: style)
+    }
+
+    static let body = regular(17, relativeTo: .body)
+    static let bodyBold = bold(17, relativeTo: .body)
+    static let subheadline = regular(15, relativeTo: .subheadline)
+    static let subheadlineBold = bold(15, relativeTo: .subheadline)
+    static let headline = bold(17, relativeTo: .headline)
+    static let caption = regular(12, relativeTo: .caption)
+    static let captionBold = bold(12, relativeTo: .caption)
+    static let caption2 = regular(11, relativeTo: .caption2)
+    static let caption2Bold = bold(11, relativeTo: .caption2)
+    static let title3 = display(20, relativeTo: .title3)
+    static let title2 = display(22, relativeTo: .title2)
+
+    static func verifyBundledFonts() {
+        precondition(
+            UIFont(name: uiRegularName, size: 12) != nil &&
+            UIFont(name: uiBoldName, size: 12) != nil &&
+            UIFont(name: displayName, size: 12) != nil,
+            "MBLINK bundled MB Corpo font set is missing or not registered"
+        )
+    }
+}
+
 private let mbDashboardColumns = [
     GridItem(.flexible(), spacing: 14),
     GridItem(.flexible(), spacing: 14)
@@ -61,7 +101,7 @@ private struct MBStatusPill: View {
                 .fill(active ? MBBrand.success : MBBrand.muted)
                 .frame(width: 7, height: 7)
             Text(LocalizedStringKey(text)).textCase(.uppercase)
-                .font(.caption2.weight(.bold))
+                .font(MBTypography.caption2Bold)
                 .tracking(0.8)
                 .lineLimit(1)
         }
@@ -103,12 +143,12 @@ private struct MBSectionHeader: View {
         VStack(alignment: .leading, spacing: 3) {
             if let kicker {
                 Text(LocalizedStringKey(kicker)).textCase(.uppercase)
-                    .font(.caption2.weight(.bold))
+                    .font(MBTypography.caption2Bold)
                     .tracking(1.4)
                     .foregroundStyle(MBBrand.muted)
             }
             Text(LocalizedStringKey(title))
-                .font(.title3.weight(.semibold))
+                .font(MBTypography.title3)
                 .foregroundStyle(MBBrand.silverBright)
         }
     }
@@ -123,9 +163,7 @@ private struct MBInfoRow: View {
 
     private var valueText: some View {
         Text(LocalizedStringKey(value))
-            .font(monospaced
-                  ? .subheadline.monospaced()
-                  : .subheadline.weight(.medium))
+            .font(monospaced ? MBTypography.subheadline : MBTypography.subheadlineBold)
             .foregroundStyle(MBBrand.silverBright)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -133,7 +171,7 @@ private struct MBInfoRow: View {
 
     private var compactLabel: some View {
         Text(LocalizedStringKey(label))
-            .font(.caption.weight(.semibold))
+            .font(MBTypography.captionBold)
             .foregroundStyle(MBBrand.muted)
             .textCase(.uppercase)
             .tracking(0.45)
@@ -156,7 +194,7 @@ private struct MBInfoRow: View {
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     Text(LocalizedStringKey(label))
-                        .font(.subheadline)
+                        .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: true, vertical: false)
                     Spacer(minLength: 16)
@@ -184,11 +222,11 @@ private struct MBVehicleFactTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(LocalizedStringKey(fact.label)).textCase(.uppercase)
-                .font(.caption2.weight(.bold))
+                .font(MBTypography.caption2Bold)
                 .tracking(0.8)
                 .foregroundStyle(MBBrand.muted)
             Text(fact.value)
-                .font(fact.monospaced ? .subheadline.monospaced() : .subheadline.weight(.semibold))
+                .font(fact.monospaced ? MBTypography.subheadline : MBTypography.subheadlineBold)
                 .foregroundStyle(MBBrand.silverBright)
                 .lineLimit(3)
                 .minimumScaleFactor(0.8)
@@ -269,21 +307,21 @@ private struct MBCompactLink<Destination: View>: View {
         NavigationLink { destination() } label: {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
-                    .font(.title3.weight(.semibold))
+                    .font(MBTypography.title3)
                     .foregroundStyle(MBBrand.silverBright)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(LocalizedStringKey(title))
-                        .font(.subheadline.weight(.semibold))
+                        .font(MBTypography.subheadlineBold)
                         .foregroundStyle(MBBrand.silverBright)
                     Text(LocalizedStringKey(subtitle))
-                        .font(.caption)
+                        .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 10)
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(MBTypography.captionBold)
                     .foregroundStyle(MBBrand.muted)
             }
             .contentShape(Rectangle())
@@ -315,17 +353,17 @@ private struct MBTileFace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 24, weight: .semibold))
+                .font(MBTypography.display(24, relativeTo: .title2))
                 .foregroundStyle(MBBrand.silverBright)
                 .frame(width: 30, height: 30, alignment: .leading)
 
             Text(LocalizedStringKey(title))
-                .font(.headline.weight(.semibold))
+                .font(MBTypography.headline)
                 .foregroundStyle(MBBrand.silverBright)
                 .lineLimit(1)
 
             Text(LocalizedStringKey(subtitle))
-                .font(.caption)
+                .font(MBTypography.caption)
                 .foregroundStyle(MBBrand.muted)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -335,7 +373,7 @@ private struct MBTileFace: View {
             HStack {
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(MBTypography.captionBold)
                     .foregroundStyle(MBBrand.silver.opacity(0.72))
             }
         }
@@ -365,35 +403,35 @@ private struct MBMetricTile: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text(LocalizedStringKey(parameter.shortName)).textCase(.uppercase)
-                    .font(.caption2.monospaced().weight(.bold))
+                    .font(MBTypography.caption2Bold)
                     .tracking(0.7)
                     .foregroundStyle(MBBrand.silver)
                 Spacer()
                 Text(parameter.brandPidText)
-                    .font(.caption2.monospaced())
+                    .font(MBTypography.caption2)
                     .foregroundStyle(MBBrand.muted)
             }
 
             Text(parameter.presentationValue)
-                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .font(MBTypography.display(24, relativeTo: .title2))
                 .monospacedDigit()
                 .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
 
             Text(LocalizedStringKey(parameter.title))
-                .font(.caption)
+                .font(MBTypography.caption)
                 .foregroundStyle(MBBrand.muted)
                 .lineLimit(2)
             if let source = parameter.sourceLabel {
                 Label(source, systemImage: "cpu")
-                    .font(.caption2.monospaced().weight(.semibold))
+                    .font(MBTypography.caption2Bold)
                     .foregroundStyle(MBBrand.silver)
                     .lineLimit(2)
             }
             if let qualityNote = parameter.qualityNote {
                 Text(qualityNote)
-                    .font(.caption2)
+                    .font(MBTypography.caption2)
                     .foregroundStyle(MBBrand.warning)
                     .lineLimit(2)
             }
@@ -503,10 +541,15 @@ struct MBLINKApp: App {
     @State private var showingAbout = false
     @AppStorage("mblink.language") private var language = "en-AU"
 
+    init() {
+        MBTypography.verifyBundledFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
             MBCommandCentreView()
                 .environmentObject(connection)
+                .environment(\.font, MBTypography.body)
                 .environment(\.locale, Locale(identifier: MBInterfaceLanguage.canonical(language)))
                 .environment(\.layoutDirection, MBInterfaceLanguage.canonical(language).hasPrefix("ar") ? .rightToLeft : .leftToRight)
                 .onAppear {
@@ -532,7 +575,7 @@ struct MBLINKApp: App {
                             Spacer()
                             Label("About", systemImage: "info.circle")
                         }
-                        .font(.caption)
+                        .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.silver)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
@@ -607,11 +650,11 @@ private struct MBCommandCentreView: View {
             MBLogoMark(size: 54)
             VStack(alignment: .leading, spacing: 3) {
                 Text("MBLINK")
-                    .font(.system(size: 29, weight: .black, design: .rounded))
+                    .font(MBTypography.display(29, relativeTo: .title))
                     .tracking(1.6)
                     .foregroundStyle(MBBrand.silverBright)
                 Text("MERCEDES-BENZ DIAGNOSTICS")
-                    .font(.caption2.weight(.bold))
+                    .font(MBTypography.caption2Bold)
                     .tracking(1.4)
                     .foregroundStyle(MBBrand.silver)
             }
@@ -624,10 +667,10 @@ private struct MBCommandCentreView: View {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(connection.isActive ? "Diagnostic session" : "Vehicle connection")
-                            .font(.headline)
+                            .font(MBTypography.headline)
                             .foregroundStyle(MBBrand.silverBright)
                         Text(connection.statusText)
-                            .font(.caption)
+                            .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -643,7 +686,7 @@ private struct MBCommandCentreView: View {
                 } label: {
                     Label(connection.isActive ? "Disconnect" : "Connect to vehicle",
                           systemImage: connection.isActive ? "cable.connector.slash" : "cable.connector")
-                        .font(.subheadline.weight(.semibold))
+                        .font(MBTypography.subheadlineBold)
                         .foregroundStyle(MBBrand.background)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
@@ -657,17 +700,17 @@ private struct MBCommandCentreView: View {
                         Image(systemName: "car.side.fill").foregroundStyle(MBBrand.silver)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(identity.model ?? identity.manufacturer)
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text(identity.vin)
-                                .font(.caption2.monospaced())
+                                .font(MBTypography.caption2)
                                 .foregroundStyle(MBBrand.muted)
                                 .lineLimit(1)
                         }
                     }
                 } else if !connection.isActive {
                     Text("Connect once to identify the vehicle, faults, modules and supported live data.")
-                        .font(.caption)
+                        .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                 }
             }
@@ -700,15 +743,15 @@ private struct MBCommandCentreView: View {
         MBPanel {
             VStack(alignment: .leading, spacing: 7) {
                 Label(connection.connectionPhaseTitle, systemImage: "dot.radiowaves.left.and.right")
-                    .font(.headline)
+                    .font(MBTypography.headline)
                     .foregroundStyle(MBBrand.silverBright)
                 Text(connection.statusText)
-                    .font(.subheadline)
+                    .font(MBTypography.subheadline)
                     .foregroundStyle(MBBrand.silver)
                     .fixedSize(horizontal: false, vertical: true)
                 if !connection.diagnosticModules.isEmpty {
                     Text("\(connection.diagnosticModules.count) responding control units retained so far")
-                        .font(.caption.monospaced())
+                        .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                 }
             }
@@ -788,7 +831,7 @@ private struct MBVehicleView: View {
                             MBSectionHeader(title: "Vehicle", kicker: "Decoded VIN")
                             if identityFacts.isEmpty {
                                 Text("Decoded Mercedes vehicle details will appear here after VIN identification.")
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.muted)
                             } else {
                                 MBVehicleFactGrid(facts: identityFacts)
@@ -825,7 +868,7 @@ private struct MBVehicleView: View {
                             .padding(.top, 8)
                         } label: {
                             Label("Diagnostic details", systemImage: "wrench.and.screwdriver")
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                         }
                     }
@@ -842,19 +885,19 @@ private struct MBVehicleView: View {
             if let identity = connection.vehicleIdentity {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "car.side.fill")
-                        .font(.system(size: 30, weight: .semibold))
+                        .font(MBTypography.display(30, relativeTo: .title))
                         .foregroundStyle(MBBrand.silverBright)
                         .frame(width: 42, height: 42)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(identity.model ?? identity.manufacturer)
-                            .font(.title2.weight(.bold))
+                            .font(MBTypography.title2)
                             .foregroundStyle(MBBrand.silverBright)
                         Text([identity.chassis, identity.bodyStyle, identity.engineFamily]
                             .compactMap { $0 }.joined(separator: " · "))
-                            .font(.subheadline.weight(.medium))
+                            .font(MBTypography.subheadlineBold)
                             .foregroundStyle(MBBrand.silver)
                         Text(identity.vin)
-                            .font(.subheadline.monospaced().weight(.semibold))
+                            .font(MBTypography.subheadlineBold)
                             .foregroundStyle(MBBrand.silverBright)
                             .textSelection(.enabled)
                     }
@@ -862,10 +905,10 @@ private struct MBVehicleView: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Waiting for vehicle VIN")
-                        .font(.headline)
+                        .font(MBTypography.headline)
                         .foregroundStyle(MBBrand.silverBright)
                     Text(connection.mercedesVINText)
-                        .font(.subheadline.monospaced())
+                        .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.muted)
                 }
             }
@@ -890,7 +933,7 @@ private struct MBModulesView: View {
                             Text(connection.isActive
                                  ? "Mercedes module census is in progress. Responding control units will appear here and remain attached to the VIN profile."
                                  : "Connect to the vehicle to discover its control units.")
-                                .font(.subheadline)
+                                .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
                     } else {
@@ -904,7 +947,7 @@ private struct MBModulesView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             MBSectionHeader(title: "Factory data", kicker: "OM651 target catalogue")
                             Text("\(connection.mercedesTargetSignals.count) evidence-backed manufacturer value identities")
-                                .font(.subheadline)
+                                .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                             NavigationLink { MBDieselView() } label: {
                                 HStack {
@@ -912,7 +955,7 @@ private struct MBModulesView: View {
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                 }
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                             }
                         }
@@ -932,7 +975,7 @@ private struct MBModulesView: View {
                             .padding(.top, 8)
                         } label: {
                             Label("Scan and capability details", systemImage: "info.circle")
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                         }
                     }
@@ -945,18 +988,18 @@ private struct MBModulesView: View {
 
     private func moduleCard(_ module: DiagnosticModule) -> some View {
         HStack(alignment: .top, spacing: 13) {
-            Image(systemName: module.symbol).font(.title2).foregroundStyle(MBBrand.silverBright).frame(width: 34, height: 34)
+            Image(systemName: module.symbol).font(MBTypography.title2).foregroundStyle(MBBrand.silverBright).frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 5) {
-                Text(module.name).font(.headline).foregroundStyle(MBBrand.silverBright).multilineTextAlignment(.leading)
+                Text(module.name).font(MBTypography.headline).foregroundStyle(MBBrand.silverBright).multilineTextAlignment(.leading)
                 if !module.designation.isEmpty {
-                    Text(module.designation).font(.caption.weight(.semibold)).foregroundStyle(MBBrand.silver)
+                    Text(module.designation).font(MBTypography.captionBold).foregroundStyle(MBBrand.silver)
                 }
-                Text("\(module.addressText) · \(module.protocolName)").font(.caption2.monospaced()).foregroundStyle(MBBrand.muted)
+                Text("\(module.addressText) · \(module.protocolName)").font(MBTypography.caption2).foregroundStyle(MBBrand.muted)
                 HStack(spacing: 8) {
                     Label("\(module.livePIDCount) selectable OBD values", systemImage: "waveform.path.ecg")
                     Label(module.faultCountLabel, systemImage: "exclamationmark.triangle")
                 }
-                .font(.caption2.weight(.semibold))
+                .font(MBTypography.caption2Bold)
                 .foregroundStyle(MBBrand.silver)
             }
             Spacer(minLength: 4)
@@ -970,7 +1013,7 @@ private struct MBModulesView: View {
     private func capability(_ text: String, _ symbol: String) -> some View {
         HStack(spacing: 11) {
             Image(systemName: symbol).frame(width: 24).foregroundStyle(MBBrand.silverBright)
-            Text(text).font(.subheadline).foregroundStyle(MBBrand.silver)
+            Text(text).font(MBTypography.subheadline).foregroundStyle(MBBrand.silver)
             Spacer()
         }
     }
@@ -1043,7 +1086,7 @@ private struct MBModuleDetailView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(module.evidenceDetails, id: \.self) { detail in
                                         Text(detail)
-                                            .font(.caption.monospaced())
+                                            .font(MBTypography.caption)
                                             .foregroundStyle(MBBrand.silverBright)
                                             .textSelection(.enabled)
                                     }
@@ -1057,7 +1100,7 @@ private struct MBModuleDetailView: View {
                         if parameters.isEmpty {
                             MBPanel {
                                 Text("This control unit is responding, but no source-attributed live parameter has been captured from it yet. Identity and fault evidence remain available without assigning guessed DIDs.")
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silver)
                             }
                         } else {
@@ -1066,7 +1109,7 @@ private struct MBModuleDetailView: View {
                                 if !grouped.isEmpty {
                                     VStack(alignment: .leading, spacing: 10) {
                                         Label(LocalizedStringKey(group.rawValue), systemImage: group.symbol)
-                                            .font(.headline)
+                                            .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                         LazyVGrid(columns: mbDashboardColumns, spacing: 10) {
                                             ForEach(grouped) { parameter in
@@ -1078,12 +1121,12 @@ private struct MBModuleDetailView: View {
                             }
                             MBPanel {
                                 Text("These are standard Mode 01 values returned by this exact CAN responder. They are kept separate from the same PID returned by another module.")
-                                    .font(.caption)
+                                    .font(MBTypography.caption)
                                     .foregroundStyle(MBBrand.muted)
                             }
                             MBPanel {
                                 Text("State-dependent values are shown exactly as returned. MBLINK does not smooth, substitute or silently correct shutdown and stale ECU readings.")
-                                    .font(.caption)
+                                    .font(MBTypography.caption)
                                     .foregroundStyle(MBBrand.muted)
                             }
                         }
@@ -1092,13 +1135,13 @@ private struct MBModuleDetailView: View {
                         MBPanel {
                             if module.faults.isEmpty {
                                 Text(module.faultStatus)
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silver)
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(module.faults, id: \.self) { fault in
                                         Text(fault)
-                                            .font(.caption.monospaced())
+                                            .font(MBTypography.caption)
                                             .foregroundStyle(MBBrand.silverBright)
                                             .textSelection(.enabled)
                                     }
@@ -1165,7 +1208,7 @@ private struct MBFaultsView: View {
                         MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")
                         Spacer()
                         Text("\(total)")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(MBTypography.display(30, relativeTo: .title))
                             .foregroundStyle(headlineColour)
                     }
                     scanSummaryPanel
@@ -1218,9 +1261,9 @@ private struct MBFaultsView: View {
                 .foregroundStyle(failed ? MBBrand.fault : complete ? MBBrand.success : MBBrand.warning)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silverBright)
-                Text(count).font(.caption.monospaced()).foregroundStyle(MBBrand.silver)
-                Text(detail).font(.caption).foregroundStyle(MBBrand.muted).fixedSize(horizontal: false, vertical: true)
+                Text(title).font(MBTypography.subheadlineBold).foregroundStyle(MBBrand.silverBright)
+                Text(count).font(MBTypography.caption).foregroundStyle(MBBrand.silver)
+                Text(detail).font(MBTypography.caption).foregroundStyle(MBBrand.muted).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -1254,25 +1297,25 @@ private struct MBFaultsView: View {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: module.symbol)
-                        .font(.title3)
+                        .font(MBTypography.title3)
                         .foregroundStyle(moduleFaultColour(module))
                         .frame(width: 26)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(module.name)
-                            .font(.headline)
+                            .font(MBTypography.headline)
                             .foregroundStyle(MBBrand.silverBright)
                         if !module.designation.isEmpty {
                             Text(module.designation)
-                                .font(.caption.weight(.semibold))
+                                .font(MBTypography.captionBold)
                                 .foregroundStyle(MBBrand.silver)
                         }
                         Text("\(module.addressText) · \(module.protocolName)")
-                            .font(.caption2.monospaced())
+                            .font(MBTypography.caption2)
                             .foregroundStyle(MBBrand.muted)
                     }
                     Spacer(minLength: 8)
                     Text(module.faultCountLabel.uppercased())
-                        .font(.caption2.monospaced().weight(.bold))
+                        .font(MBTypography.caption2Bold)
                         .foregroundStyle(moduleFaultColour(module))
                 }
 
@@ -1282,13 +1325,13 @@ private struct MBFaultsView: View {
                     Label(module.faultStatus,
                           systemImage: module.faultStatus == "Checked · no faults"
                               ? "checkmark.circle.fill" : "questionmark.circle.fill")
-                        .font(.subheadline)
+                        .font(MBTypography.subheadline)
                         .foregroundStyle(moduleFaultColour(module))
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     ForEach(module.faults, id: \.self) { fault in
                         Text(conciseModuleFault(fault, module: module))
-                            .font(.subheadline.monospaced().weight(.semibold))
+                            .font(MBTypography.subheadlineBold)
                             .foregroundStyle(MBBrand.silverBright)
                             .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
@@ -1303,7 +1346,7 @@ private struct MBFaultsView: View {
                         Spacer()
                         Image(systemName: "chevron.right")
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(MBTypography.captionBold)
                     .foregroundStyle(MBBrand.silver)
                 }
                 .buttonStyle(.plain)
@@ -1328,20 +1371,20 @@ private struct MBFaultsView: View {
             DisclosureGroup(isExpanded: $contextExpanded) {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("Emissions readiness", systemImage: "checklist").font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silverBright)
-                        Text(connection.readinessStatusText).font(.caption).foregroundStyle(MBBrand.silver)
+                        Label("Emissions readiness", systemImage: "checklist").font(MBTypography.subheadlineBold).foregroundStyle(MBBrand.silverBright)
+                        Text(connection.readinessStatusText).font(MBTypography.caption).foregroundStyle(MBBrand.silver)
                         ForEach(connection.readinessMonitorStatus, id: \.self) { monitor in
-                            Text(monitor).font(.caption.monospaced()).foregroundStyle(MBBrand.muted)
+                            Text(monitor).font(MBTypography.caption).foregroundStyle(MBBrand.muted)
                         }
                     }
                     Divider().overlay(MBBrand.line)
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Stored-fault freeze-frame", systemImage: "camera.metering.center.weighted")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silverBright)
-                        Text("Mode 02 frame 0 · captured fault context, not current live data").font(.caption).foregroundStyle(MBBrand.muted)
+                            .font(MBTypography.subheadlineBold).foregroundStyle(MBBrand.silverBright)
+                        Text("Mode 02 frame 0 · captured fault context, not current live data").font(MBTypography.caption).foregroundStyle(MBBrand.muted)
                         if !connection.freezeFrameContext.isEmpty {
                             ForEach(connection.freezeFrameContext, id: \.self) { item in
-                                Text(item).font(.caption.monospaced()).foregroundStyle(MBBrand.silver).textSelection(.enabled)
+                                Text(item).font(MBTypography.caption).foregroundStyle(MBBrand.silver).textSelection(.enabled)
                             }
                         } else if connection.obdFaultScanComplete && connection.storedFaults.isEmpty {
                             statusRow("Not required — no stored OBD fault was reported", symbol: "checkmark.circle", colour: MBBrand.muted)
@@ -1355,7 +1398,7 @@ private struct MBFaultsView: View {
                 .padding(.top, 8)
             } label: {
                 Label("Readiness and freeze-frame context", systemImage: "waveform.path.ecg.rectangle")
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silverBright)
+                    .font(MBTypography.subheadlineBold).foregroundStyle(MBBrand.silverBright)
             }
         }
     }
@@ -1366,7 +1409,7 @@ private struct MBFaultsView: View {
                 HStack {
                     MBSectionHeader(title: title, kicker: "Standard OBD-II")
                     Spacer()
-                    Text("\(faults.count)").font(.title2.monospacedDigit().weight(.bold)).foregroundStyle(MBBrand.fault)
+                    Text("\(faults.count)").font(MBTypography.title2).foregroundStyle(MBBrand.fault)
                 }
                 ForEach(faults) { fault in
                     diagnosticFaultCard(fault)
@@ -1379,16 +1422,16 @@ private struct MBFaultsView: View {
     private func diagnosticFaultCard(_ fault: DiagnosticFault) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
-                Text(fault.code).font(.title3.monospaced().weight(.bold)).foregroundStyle(MBBrand.silverBright).textSelection(.enabled)
+                Text(fault.code).font(MBTypography.title3).foregroundStyle(MBBrand.silverBright).textSelection(.enabled)
                 Spacer()
-                Text(fault.state.uppercased()).font(.caption2.weight(.bold)).foregroundStyle(MBBrand.muted)
+                Text(fault.state.uppercased()).font(MBTypography.caption2Bold).foregroundStyle(MBBrand.muted)
             }
-            Text(fault.title).font(.subheadline.weight(.semibold)).foregroundStyle(MBBrand.silver)
-            Text("\(fault.system) · \(fault.category)").font(.caption).foregroundStyle(MBBrand.muted)
-            Text("\(fault.origin) · \(fault.source)").font(.caption).foregroundStyle(MBBrand.muted)
+            Text(fault.title).font(MBTypography.subheadlineBold).foregroundStyle(MBBrand.silver)
+            Text("\(fault.system) · \(fault.category)").font(MBTypography.caption).foregroundStyle(MBBrand.muted)
+            Text("\(fault.origin) · \(fault.source)").font(MBTypography.caption).foregroundStyle(MBBrand.muted)
             Label(fault.definitionKnown ? "Definition resolved; raw code preserved" : "Definition unknown; raw code preserved",
                   systemImage: fault.definitionKnown ? "checkmark.seal.fill" : "questionmark.diamond.fill")
-                .font(.caption).foregroundStyle(fault.definitionKnown ? MBBrand.success : MBBrand.warning)
+                .font(MBTypography.caption).foregroundStyle(fault.definitionKnown ? MBBrand.success : MBBrand.warning)
         }
         .padding(.vertical, 3)
     }
@@ -1396,7 +1439,7 @@ private struct MBFaultsView: View {
     private func statusRow(_ text: String, symbol: String, colour: Color) -> some View {
         HStack(spacing: 9) {
             Image(systemName: symbol).foregroundStyle(colour)
-            Text(text).font(.subheadline).foregroundStyle(MBBrand.silver)
+            Text(text).font(MBTypography.subheadline).foregroundStyle(MBBrand.silver)
             Spacer()
         }
     }
@@ -1447,7 +1490,7 @@ private struct MBLiveDataView: View {
                                 Label("Factory", systemImage: "engine.combustion.fill")
                             }
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .font(MBTypography.subheadlineBold)
                         .foregroundStyle(MBBrand.silverBright)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
@@ -1458,7 +1501,7 @@ private struct MBLiveDataView: View {
                             Text(connection.isActive
                                  ? "Control-unit discovery is still in progress. Each responding ECU will appear here with its own supported PID list."
                                  : "Connect to the vehicle to discover control units and their supported PIDs.")
-                                .font(.subheadline)
+                                .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -1474,7 +1517,7 @@ private struct MBLiveDataView: View {
 
                         MBPanel {
                             Text("PID availability is kept per responding ECU. If two modules answer the same SAE PID, MBLINK keeps their values separate instead of collapsing them into one device.")
-                                .font(.caption)
+                                .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -1489,24 +1532,24 @@ private struct MBLiveDataView: View {
     private func moduleCard(_ module: DiagnosticModule) -> some View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: module.symbol)
-                .font(.title2)
+                .font(MBTypography.title2)
                 .foregroundStyle(MBBrand.silverBright)
                 .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(module.name)
-                    .font(.headline)
+                    .font(MBTypography.headline)
                     .foregroundStyle(MBBrand.silverBright)
                     .multilineTextAlignment(.leading)
 
                 if !module.designation.isEmpty {
                     Text(module.designation)
-                        .font(.caption.weight(.semibold))
+                        .font(MBTypography.captionBold)
                         .foregroundStyle(MBBrand.silver)
                 }
 
                 Text("\(module.addressText) · \(module.protocolName)")
-                    .font(.caption2.monospaced())
+                    .font(MBTypography.caption2)
                     .foregroundStyle(MBBrand.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -1523,12 +1566,12 @@ private struct MBLiveDataView: View {
                         Text("\(module.livePIDCount) standard live value\(module.livePIDCount == 1 ? "" : "s")")
                     }
                 }
-                .font(.caption2.weight(.semibold))
+                .font(MBTypography.caption2Bold)
                 .foregroundStyle(MBBrand.silver)
 
                 if module.obdAdvertisedPIDCount > 0 {
                     Text("\(module.obdAdvertisedPIDCount) Mode 01 capability code\(module.obdAdvertisedPIDCount == 1 ? "" : "s") advertised by this responder")
-                        .font(.caption2.monospaced())
+                        .font(MBTypography.caption2)
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1536,7 +1579,7 @@ private struct MBLiveDataView: View {
 
             Spacer(minLength: 6)
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
+                .font(MBTypography.captionBold)
                 .foregroundStyle(MBBrand.muted)
                 .padding(.top, 8)
         }
@@ -1643,7 +1686,7 @@ private struct MBModuleLiveDataView: View {
 
                         MBPanel {
                             Text("Mercedes manufacturer values are read directly from this ECU's physical diagnostic route. Positive UDS DIDs or KWP local identifiers are retained even when their meaning is not mapped yet; unknown data stays RAW rather than being mislabeled as OBD-II.")
-                                .font(.caption)
+                                .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -1652,7 +1695,7 @@ private struct MBModuleLiveDataView: View {
                 } else {
                     MBPanel {
                         Text("This control unit is no longer present in the active vehicle profile.")
-                            .font(.subheadline)
+                            .font(MBTypography.subheadline)
                             .foregroundStyle(MBBrand.silver)
                     }
                     .padding(16)
@@ -1702,15 +1745,15 @@ private struct MBModuleLiveDataView: View {
                     ProgressView()
                         .controlSize(.small)
                     Text("Reading module data")
-                        .font(.headline)
+                        .font(MBTypography.headline)
                         .foregroundStyle(MBBrand.silverBright)
                 }
                 Text(connection.manufacturerDataScanStatusText)
-                    .font(.caption.monospaced())
+                    .font(MBTypography.caption)
                     .foregroundStyle(MBBrand.silver)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("This is a read-only manufacturer-data discovery pass, not the legislated OBD-II PID list.")
-                    .font(.caption)
+                    .font(MBTypography.caption)
                     .foregroundStyle(MBBrand.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1725,7 +1768,7 @@ private struct MBModuleLiveDataView: View {
                     Text(manufacturerValues.isEmpty
                          ? "No positive Mercedes manufacturer data IDs have been retained for this module yet."
                          : "No Mercedes manufacturer data matches the current search.")
-                        .font(.subheadline)
+                        .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.silver)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -1735,7 +1778,7 @@ private struct MBModuleLiveDataView: View {
                         } label: {
                             Label("Read Mercedes data from this ECU",
                                   systemImage: "dot.radiowaves.left.and.right")
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.background)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -1761,7 +1804,7 @@ private struct MBModuleLiveDataView: View {
                 } label: {
                     Label("Refresh Mercedes values",
                           systemImage: "arrow.clockwise")
-                        .font(.subheadline.weight(.semibold))
+                        .font(MBTypography.subheadlineBold)
                         .foregroundStyle(MBBrand.background)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -1776,7 +1819,7 @@ private struct MBModuleLiveDataView: View {
                           connection.manufacturerDataScanActive)
 
                 Text("Refresh re-reads only the \(manufacturerValues.count) identifiers that this ECU already proved positive, so it can capture changing values without repeating the full discovery sweep.")
-                    .font(.caption)
+                    .font(MBTypography.caption)
                     .foregroundStyle(MBBrand.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1803,32 +1846,32 @@ private struct MBModuleLiveDataView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(value.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(MBTypography.subheadlineBold)
                     .foregroundStyle(MBBrand.silverBright)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Text(value.mapped ? "MAPPED" : "RAW")
-                    .font(.caption2.monospaced().weight(.bold))
+                    .font(MBTypography.caption2Bold)
                     .foregroundStyle(value.mapped
                                      ? MBBrand.success : MBBrand.warning)
             }
 
             Text(value.formattedValue)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(MBTypography.display(20, relativeTo: .title3))
                 .monospacedDigit()
                 .foregroundStyle(MBBrand.silverBright)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
 
             Text("\(value.codeText) · \(value.serviceName)")
-                .font(.caption.monospaced())
+                .font(MBTypography.caption)
                 .foregroundStyle(MBBrand.silver)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
 
             if !value.mapped {
                 Text("Raw response payload · \(value.rawHex)")
-                    .font(.caption2.monospaced())
+                    .font(MBTypography.caption2)
                     .foregroundStyle(MBBrand.muted)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -1860,7 +1903,7 @@ private struct MBModuleLiveDataView: View {
                         Label(
                             LocalizedStringKey(group.rawValue),
                             systemImage: group.symbol)
-                            .font(.headline)
+                            .font(MBTypography.headline)
                             .foregroundStyle(MBBrand.silverBright)
                             .padding(.bottom, 4)
 
@@ -1879,14 +1922,14 @@ private struct MBModuleLiveDataView: View {
     private func standardLiveRow(_ parameter: DiagnosticParameter) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(LocalizedStringKey(parameter.title))
-                .font(.subheadline.weight(.semibold))
+                .font(MBTypography.subheadlineBold)
                 .foregroundStyle(MBBrand.silverBright)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .center, spacing: 12) {
                 Text(parameter.presentationValue)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                    .font(MBTypography.display(21, relativeTo: .title3))
                     .monospacedDigit()
                     .foregroundStyle(parameter.hasLiveValue
                                      ? MBBrand.silverBright : MBBrand.muted)
@@ -1898,7 +1941,7 @@ private struct MBModuleLiveDataView: View {
 
                 HStack(spacing: 7) {
                     Text("Poll")
-                        .font(.caption2.weight(.bold))
+                        .font(MBTypography.caption2Bold)
                         .foregroundStyle(MBBrand.muted)
 
                     Toggle("", isOn: Binding(
@@ -1917,7 +1960,7 @@ private struct MBModuleLiveDataView: View {
                     } label: {
                         Image(systemName: parameter.favourite
                               ? "star.fill" : "star")
-                            .font(.title3)
+                            .font(MBTypography.title3)
                             .foregroundStyle(parameter.favourite
                                              ? MBBrand.silverBright
                                              : MBBrand.muted)
@@ -1929,7 +1972,7 @@ private struct MBModuleLiveDataView: View {
             }
 
             Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)")
-                .font(.caption.monospaced())
+                .font(MBTypography.caption)
                 .foregroundStyle(MBBrand.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1956,10 +1999,10 @@ private struct MBDataTableView: View {
                         VStack(alignment: .leading, spacing: 9) {
                             Toggle("Show unsupported catalogue entries",
                                    isOn: $showUnsupportedParameters)
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text("Not polled = supported by the vehicle but disabled. Waiting for sample = polling is enabled but no value has arrived yet. Not advertised = the vehicle did not report support for that PID.")
-                                .font(.caption)
+                                .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -1970,15 +2013,15 @@ private struct MBDataTableView: View {
                         ForEach(sorted) { parameter in
                             HStack(spacing: 10) {
                                 Text(parameter.brandPidText)
-                                    .font(.caption.monospaced().weight(.bold))
+                                    .font(MBTypography.captionBold)
                                     .foregroundStyle(MBBrand.silver)
                                     .frame(width: 48, alignment: .leading)
                                 Text(LocalizedStringKey(parameter.title))
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Spacer()
                                 Text(parameter.presentationValue)
-                                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                                    .font(MBTypography.subheadlineBold)
                                     .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
                             }
                             .padding(.vertical, 9)
@@ -2021,13 +2064,13 @@ private struct MBDashboardView: View {
                         MBPanel {
                             VStack(alignment: .leading, spacing: 7) {
                                 Label("Mercedes module census", systemImage: "dot.radiowaves.left.and.right")
-                                    .font(.headline)
+                                    .font(MBTypography.headline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Text(connection.mercedesProbeStatusText)
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silver)
                                 Text("\(connection.diagnosticModules.count) responding control units found")
-                                    .font(.caption.monospaced())
+                                    .font(MBTypography.caption)
                                     .foregroundStyle(MBBrand.muted)
                             }
                         }
@@ -2037,7 +2080,7 @@ private struct MBDashboardView: View {
                             Text(connection.isActive
                                  ? "Live polling will begin when the read-only module and fault census finishes."
                                  : "Connect to the vehicle to populate dashboard measurements.")
-                                .font(.subheadline)
+                                .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
                     } else {
@@ -2133,7 +2176,7 @@ private struct MBDieselView: View {
                         Text(scope == .vehicle
                              ? "Vehicle targets are manufacturer values known to exist on the OM651/CDID3 family. MBLINK only polls a value after its request, response shape, scale and meaning are verified."
                              : "Mercedes me IDs are exact model identifiers recovered from the official diagnostic stack. They prove the factory framework knew the value; they do not by themselves prove a CAN address, UDS/KWP request, payload layout or scale.")
-                            .font(.caption)
+                            .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                     }
                 }
@@ -2156,7 +2199,7 @@ private struct MBDieselView: View {
                 MBPanel {
                     VStack(alignment: .leading, spacing: 9) {
                         Text(category.uppercased())
-                            .font(.caption2.weight(.bold))
+                            .font(MBTypography.caption2Bold)
                             .tracking(0.9)
                             .foregroundStyle(MBBrand.muted)
 
@@ -2164,17 +2207,17 @@ private struct MBDieselView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack(alignment: .firstTextBaseline) {
                                     Text(signal.title)
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(MBTypography.subheadlineBold)
                                         .foregroundStyle(MBBrand.silverBright)
                                     Spacer(minLength: 8)
                                     Text(statusLabel(signal.status))
-                                        .font(.caption2.monospaced().weight(.bold))
+                                        .font(MBTypography.caption2Bold)
                                         .foregroundStyle(signal.status == "vehicle-verified"
                                                          ? MBBrand.success : MBBrand.warning)
                                 }
                                 if signal.status != "corroborated-unmapped" {
                                     Text(signal.provenance)
-                                        .font(.caption2)
+                                        .font(MBTypography.caption2)
                                         .foregroundStyle(MBBrand.muted)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
@@ -2193,7 +2236,7 @@ private struct MBDieselView: View {
         if targetSignals.isEmpty {
             MBPanel {
                 Text("No vehicle factory-data targets match the current search.")
-                    .font(.subheadline)
+                    .font(MBTypography.subheadline)
                     .foregroundStyle(MBBrand.silver)
             }
         }
@@ -2204,7 +2247,7 @@ private struct MBDieselView: View {
         if nativeIdentities.isEmpty {
             MBPanel {
                 Text("No Mercedes me data identities match the current search.")
-                    .font(.subheadline)
+                    .font(MBTypography.subheadline)
                     .foregroundStyle(MBBrand.silver)
             }
         } else {
@@ -2214,20 +2257,20 @@ private struct MBDieselView: View {
                         HStack(alignment: .top, spacing: 10) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(nativeTitle(identity.symbol))
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(MBTypography.subheadlineBold)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Text(identity.dataID)
-                                    .font(.caption.monospaced())
+                                    .font(MBTypography.caption)
                                     .foregroundStyle(MBBrand.silver)
                                     .textSelection(.enabled)
                                 Text(identity.symbol)
-                                    .font(.caption2.monospaced())
+                                    .font(MBTypography.caption2)
                                     .foregroundStyle(MBBrand.muted)
                                     .textSelection(.enabled)
                             }
                             Spacer(minLength: 8)
                             Text("KNOWN ID")
-                                .font(.caption2.monospaced().weight(.bold))
+                                .font(MBTypography.caption2Bold)
                                 .foregroundStyle(MBBrand.silver)
                         }
                         .padding(.vertical, 8)
@@ -2279,7 +2322,7 @@ private struct MBGraphsView: View {
                     if graphed.isEmpty {
                         MBPanel {
                             Text("Connect to the vehicle and collect samples to populate graphs.")
-                                .font(.subheadline)
+                                .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
                     } else {
@@ -2288,11 +2331,11 @@ private struct MBGraphsView: View {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack {
                                         Text(LocalizedStringKey(parameter.title))
-                                            .font(.headline)
+                                            .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                         Spacer()
                                         Text(parameter.formattedValue)
-                                            .font(.headline.monospacedDigit())
+                                            .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                     }
                                     if parameter.history.count > 1 {
@@ -2354,7 +2397,7 @@ private struct MBEvidenceView: View {
                             }
                         } label: {
                             Label("Technical details", systemImage: "wrench.and.screwdriver")
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                         }
                         .tint(MBBrand.silver)
@@ -2363,10 +2406,10 @@ private struct MBEvidenceView: View {
                     MBPanel {
                         VStack(alignment: .leading, spacing: 11) {
                             Text("Diagnostic evidence CSV")
-                                .font(.headline)
+                                .font(MBTypography.headline)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text("Creates a snapshot of the current session without stopping live polling.")
-                                .font(.caption)
+                                .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
 
@@ -2382,7 +2425,7 @@ private struct MBEvidenceView: View {
                                           systemImage: "doc.badge.gearshape")
                                     Spacer()
                                 }
-                                .font(.subheadline.weight(.semibold))
+                                .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                                 .padding(.vertical, 3)
                             }
@@ -2395,7 +2438,7 @@ private struct MBEvidenceView: View {
                                         Label("Share evidence CSV", systemImage: "square.and.arrow.up")
                                         Spacer()
                                     }
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(MBTypography.subheadlineBold)
                                     .foregroundStyle(MBBrand.silverBright)
                                     .padding(.vertical, 3)
                                 }
@@ -2441,17 +2484,17 @@ private struct MBSettingsView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "globe")
-                                    .font(.title3)
+                                    .font(MBTypography.title3)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Text("Language")
-                                    .font(.headline)
+                                    .font(MBTypography.headline)
                                     .foregroundStyle(MBBrand.silverBright)
                                 Spacer()
                                 Text(MBInterfaceLanguage.displayName(for: language))
-                                    .font(.subheadline)
+                                    .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silver)
                                 Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
+                                    .font(MBTypography.captionBold)
                                     .foregroundStyle(MBBrand.muted)
                             }
                             .contentShape(Rectangle())
@@ -2461,10 +2504,10 @@ private struct MBSettingsView: View {
                     MBPanel {
                         HStack(spacing: 12) {
                             Image(systemName: "ruler")
-                                .font(.title3)
+                                .font(MBTypography.title3)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text("Unit system")
-                                .font(.headline)
+                                .font(MBTypography.headline)
                                 .foregroundStyle(MBBrand.silverBright)
                             Spacer()
                             Picker("Unit system", selection: $units) {
@@ -2509,12 +2552,12 @@ private struct MBLanguageSelectionView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Text(item.nativeName)
-                                .font(.body.weight(.medium))
+                                .font(MBTypography.bodyBold)
                                 .foregroundStyle(MBBrand.silverBright)
                             Spacer()
                             if MBInterfaceLanguage.canonical(selection) == item.id {
                                 Image(systemName: "checkmark")
-                                    .font(.body.weight(.bold))
+                                    .font(MBTypography.bodyBold)
                                     .foregroundStyle(MBBrand.silverBright)
                             }
                         }
@@ -2554,30 +2597,30 @@ private struct MBLINKAboutView: View {
                             .padding(.top, 30)
                         VStack(spacing: 4) {
                             Text("MBLINK")
-                                .font(.system(size: 34, weight: .black, design: .rounded))
+                                .font(MBTypography.display(34, relativeTo: .largeTitle))
                                 .tracking(2.0)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text("MERCEDES DIAGNOSTICS")
-                                .font(.caption2.weight(.bold))
+                                .font(MBTypography.caption2Bold)
                                 .tracking(1.7)
                                 .foregroundStyle(MBBrand.silver)
                         }
                         Text("Version \(version)")
-                            .font(.subheadline.monospaced())
+                            .font(MBTypography.subheadline)
                             .foregroundStyle(MBBrand.muted)
                         Text("A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith.")
-                            .font(.body)
+                            .font(MBTypography.body)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(MBBrand.silverBright)
                             .padding(.horizontal, 28)
                         Text("Copyright © 2026 Shannon Smith")
-                            .font(.subheadline)
+                            .font(MBTypography.subheadline)
                             .foregroundStyle(MBBrand.muted)
                         Link(
                             "Project Website",
                             destination: URL(string: "https://github.com/Infiltrator-Projects/MBLINK")!
                         )
-                        .font(.body.weight(.semibold))
+                        .font(MBTypography.bodyBold)
                         .foregroundStyle(MBBrand.silverBright)
                     }
                     .frame(maxWidth: .infinity)
