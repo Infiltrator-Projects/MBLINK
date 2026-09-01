@@ -312,8 +312,22 @@ candidate for synthetic/export fixture data rather than arbitrary binary
 payload.
 
 The APK additionally contains a very small `assets/android/appExport.zip`
-artifact. It should be inspected alongside `data_export.zip` because it may
-document or template the application's export/import format.
+artifact. Inspection shows that it is **not** encrypted the same way as
+`data_export.zip`: its sole member `appExport.json` is 16 bytes and uses
+WinZip AES metadata (`compression method 99`, extra field `0x9901`, vendor
+`AE`, strength `3` = AES-256, actual compression method `8`/deflate).
+Therefore it is not suitable as a direct ZipCrypto known-plaintext companion
+for `data_export.zip`.
+
+The native `libcommon.so` supplied from the same application exports
+`setSystemEncryptionPassword`,
+`cc::common::System::setEncryptionPassword()`,
+`cc::common::System::getEncryptionPassword()` and AES-256 helper routines.
+This gives a concrete next reverse-engineering target: identify the Java/JNI
+call site that supplies the system encryption password and determine whether
+the same application secret is reused by `appExport.zip`, backup/restore, or
+other protected app-state artifacts. Password reuse is not assumed until
+verified.
 
 ## Demo-mode application data
 
