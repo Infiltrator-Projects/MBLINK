@@ -360,12 +360,48 @@ two distinct key concepts:
    `(adapterId, adapterPasskey)`, Base64-decoded by GDK, cached per adapter
    and later used to derive the live adapter Session Key.
 
-The GDK binary also exposes the Java-facing class name
-`com/tsystems/cc/aftermarket/app/android/gdkbt/BtConnectionGdkImp` and the
-native operation `removeCachedSessionMasterKey`. The highest-value remaining
-bridge target is therefore the DEX/decompiled class that supplies the
-`start` callback and implements the backend lookup for
-`(adapterId, passkey) -> Base64 SMK`.
+The Java/JNA bridge has now been recovered from the decompiled Android
+application. `HwDevice.start(...)` wraps the application provider in
+`SessionMasterKeyProviderCallback` and passes it directly to the native
+`IHwDeviceLibrary.start(...)` entry point. The callback validates that both
+arguments are non-blank and then delegates to
+`ISessionMasterKeyProvider.loadSessionMasterKey(adapterId, passKey)`.
+
+The production provider is `OpenShiftSessionMasterKeyProvider`. It builds a
+JSON-style request object containing exactly one field, `passKey`, and POSTs
+it to the relative backend endpoint:
+
+```text
+tenants/{tenantId}/obdAdapters/{obdAdapterId}/v2/smk
+```
+
+The tenant ID comes from `BackendAppApiConfiguration.getTenantId()`; the
+adapter ID is the first callback argument. The response model contains a single
+`smk` string, which is returned unchanged to GDK. Backend failures are encoded
+for the native caller as `#<HTTP>` or `#<HTTP>:<application-error>`.
+
+This closes the application-side SMK call chain:
+
+```text
+GDK asks adapter for passkey
+  -> JNA SessionMasterKeyProviderCallback(adapterId, passKey)
+  -> OpenShiftSessionMasterKeyProvider
+  -> POST tenants/{tenantId}/obdAdapters/{obdAdapterId}/v2/smk
+       body: { passKey: ... }
+  -> response: { smk: ... }
+  -> GDK Base64-decodes the returned 32-byte Session Master Key
+  -> SessionMasterKeyCache / live session-key derivation
+```
+
+The backend base URL, authentication headers/token machinery and tenant
+selection are defined elsewhere in the decompiled backend configuration layer
+and are not claimed here yet.
+
+This path is Mercedes-me-adapter authentication infrastructure, not the
+vehicle-side live-data request catalogue. Recovering it is useful for complete
+adapter interoperability, but the higher-value MBLINK live-data target remains
+the downloaded/selected Whisper vehicle configuration that maps DataIDs to
+providers, request PDUs, response extraction and formulas.
 
 
 ## Protected data export artifact
