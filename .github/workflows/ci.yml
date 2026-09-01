@@ -143,7 +143,11 @@ jobs:
           grep -Fq '.link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq '.link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-size: 20px; font-weight: 700; }' app/linux/main.c
           grep -Fq '.link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
-          grep -Fq '.link-toolbar-button, .link-toolbar-button label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }' app/linux/main.c
+          grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
+          grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
+          grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'static let title2 = bold(22, relativeTo: .title2)' app/ios/MBLINK/MBLINKApp.swift
           test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 1
