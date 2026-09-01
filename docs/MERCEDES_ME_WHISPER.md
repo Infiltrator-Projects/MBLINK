@@ -307,6 +307,87 @@ The next highest-value recovery targets are therefore:
    installation, which would be the most direct route to the missing
    DataID-to-request/result/formula mappings.
 
+## Exact Vehicle Interface bundle installation bridge
+
+The Java/JNA and native bridge for installing an ACS-delivered package is now
+source-backed end to end.
+
+The ACS request model is exactly:
+
+```text
+productID
+groupID
+deviceID
+thingID
+version
+externalID
+```
+
+where `version` and `externalID` are empty for a forced/first download and
+carry the currently installed package identity otherwise.
+
+The ACS response model contains exactly:
+
+```text
+uri
+version
+externalID
+```
+
+The downloaded bytes are passed to
+`VehicleInterfaceFacadeImpl.configureVehicleInterface(...)`, which obtains
+the registered `IVehicleInterface` configurator, creates an
+`IConfigurationBundle` directly from the byte array and calls
+`configure(bundle, progressMonitor)`.
+
+The concrete Android implementation loads the native library
+`libtsivehicleinterface.so` through JNA. Its C ABI is:
+
+```c
+void configure(
+    byte *data,
+    int length,
+    progressPerformedCallback,
+    progressFinishedCallback);
+```
+
+Native disassembly of the supplied `libtsivehicleinterface.so` shows that
+this function writes the caller-supplied byte buffer into an in-memory
+stringstream, obtains
+`whisper::configuration::ConfigurationFactory::getConfigurator()`, wraps
+the stream as an input stream, wraps the Java callbacks as a Whisper progress
+monitor, and invokes the Whisper configurator.
+
+The supplied `libwhisper.so` closes the remaining format gap. Its exported
+configuration symbols include:
+
+```text
+Configurator::configure(...)
+Configurator::getFileCount(...)
+Configurator::extractConfigurationFiles(...)
+Configurator::createReport(...)
+DecompressHandler
+Poco::Zip::ZipLocalFileHeader
+Poco::Zip::AutoDetectInputStream
+```
+
+and the same binary contains the configuration directory names
+`deviceproviders`, `actionproviders`, `vinmapping` and `_configs`.
+
+Therefore the ACS `uri` does not point to an opaque firmware blob: the
+downloaded Vehicle Interface payload is a ZIP-format Whisper configuration
+bundle that is streamed directly into the Whisper configuration installer.
+
+This is the strongest evidence so far for where the missing Mercedes
+DataID-to-provider/request/result/formula mappings live. A recovered historical
+ACS bundle would be directly inspectable using the already recovered Whisper
+configuration/decryption tooling.
+
+The exact semantics of `productID`, `groupID`, `deviceID` and
+`thingID` are still not established by the classes currently recovered.
+Likewise, the default ACS base endpoint remains referenced indirectly via the
+Android resource `R.string.acc_endpoint_uri`.
+
 ## Local database live-data availability model
 
 The archived application database migrations add an independent, concrete
