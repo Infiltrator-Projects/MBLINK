@@ -4,7 +4,7 @@
 
 [![MBLINK CI](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml)
 
-MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. The current development target is the C207 E 250 CDI / OM651 with Delphi CRD3.x engine management.
+MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. Its scope is Mercedes-Benz vehicles broadly. The C207 E 250 CDI / OM651 with Delphi CRD3.x engine management is the current physical development/evidence vehicle, not the product boundary.
 
 **Current source version:** see [`VERSION`](VERSION)  
 **Shared engine:** exact LINK gitlink at `src/link`; LINK owns the nested Infiltratr Common pin  
@@ -71,7 +71,7 @@ manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 - Shared generic DTC interpretation through LINK, including high-value engine/diesel and network definitions plus ISO 14229 status semantics.
 - Mercedes-specific diagnostic extension hook and ECU probing.
 - Responder-attributed iPhone module cards: each observed ECU keeps its CAN route, identity, fault evidence and live Mode 01 values separate from other responders.
-- Offline Mercedes/Delphi DID Lab with source-state tracking, documented scaling decode and time-aligned signal correlation.
+- Mercedes-wide DID and signal research layer with source-state tracking, documented scaling decode and time-aligned signal correlation; chassis/engine-specific labels are used only when the evidence is actually specific.
 - Archived Mercedes me Whisper parameterisation evidence with reproducible decryption, manufacturer-owned VIN routes/request contracts and a source-corroborated factory DataID inventory; live request/formula mappings remain evidence-gated.
 - Native C/GTK4 Linux application.
 - Native iPhone application using SwiftUI/Objective-C only at the Apple presentation/interoperability edge.
@@ -80,7 +80,7 @@ manufacturer DTC knowledge layer. See `docs/FAULT_DIAGNOSTICS.md`.
 - Shared portable diagnostic-flow state machine across platforms.
 - Canonical Mercedes three-pointed-star branding reused across supported targets.
 
-Manufacturer-specific data remains evidence-gated until documentation or reproducible vehicle captures establish its meaning.
+Manufacturer-specific data remains evidence-gated until documentation or reproducible vehicle captures establish its meaning. First-party Mercedes backend semantics are treated as Mercedes-wide research vocabulary with explicit applicability uncertainty, never as C207-only data and never as proof that every Mercedes supports the signal.
 
 Heavy unknown-vehicle research is a Linux/Windows responsibility: MBLINK Discover uses the shared LINK research engine for passive capture, module census, read-only data harvest and evidence analysis, while iPhone remains the normal diagnostic instrument. See `docs/VEHICLE_RESEARCH.md`.
 
