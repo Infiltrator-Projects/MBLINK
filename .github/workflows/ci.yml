@@ -157,7 +157,8 @@ jobs:
           grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'static let title2 = bold(22, relativeTo: .title2)' app/ios/MBLINK/MBLINKApp.swift
-          test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 1
+          test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 2
+          grep -Fq 'display: MBTypography.display(29, relativeTo: .title),' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq '.font(MBTypography.display(29, relativeTo: .title))' app/ios/MBLINK/MBLINKApp.swift
       - name: Verify Linux About and branding
         shell: bash
