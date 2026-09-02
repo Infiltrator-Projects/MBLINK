@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot cancel stuck MBLINK release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel stuck 0.7.153 release run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST repos/${GITHUB_REPOSITORY}/actions/runs/33678312466/cancel
