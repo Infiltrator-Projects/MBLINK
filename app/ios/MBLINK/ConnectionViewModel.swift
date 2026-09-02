@@ -205,6 +205,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var readinessStatusText = "Not collected"
     @Published private(set) var readinessMonitorStatus = [String]()
     @Published private(set) var freezeFrameContext = [String]()
+    @Published private(set) var diagnosticCapabilityText = "Unknown / probing"
+    @Published private(set) var diagnosticCapabilityDetailText = ""
+    @Published private(set) var standardResponderSummary = "0 physical responders"
+    @Published private(set) var supportedPIDSummary = "0 advertised PIDs"
+    @Published private(set) var standardVINText = "Unavailable / not yet read"
+    @Published private(set) var standardLiveValueRows = [String]()
     @Published private(set) var isActive = false
     @Published private(set) var isReady = false
     @Published private(set) var isSimulationActive = false
@@ -933,6 +939,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         readinessStatusText = controller.readinessStatusText
         readinessMonitorStatus = controller.readinessMonitorStatus
         freezeFrameContext = controller.freezeFrameContext
+        diagnosticCapabilityText = controller.diagnosticCapabilityText
+        diagnosticCapabilityDetailText = controller.diagnosticCapabilityDetailText
+        standardResponderSummary = controller.standardResponderSummary
+        supportedPIDSummary = controller.supportedPIDSummary
+        standardVINText = controller.standardVINText
+        standardLiveValueRows = controller.standardLiveValueRows
 
         isActive = controller.isActive
         isReady = controller.isReady
