@@ -177,6 +177,29 @@ jobs:
           libdir="$(dirname "$(dirname "$pc")")"
           echo "PKG_CONFIG_PATH=$(dirname "$pc")${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+      - name: Bootstrap Xvfb for self-hosted Linux
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v xvfb-run >/dev/null 2>&1 && command -v Xvfb >/dev/null 2>&1; then
+            exit 0
+          fi
+          root="$RUNNER_TEMP/xvfb-root"
+          dl="$RUNNER_TEMP/xvfb-download"
+          rm -rf "$root" "$dl"
+          mkdir -p "$root" "$dl"
+          cd "$dl"
+          apt-get download xvfb xserver-common xauth libxfont2
+          for deb in ./*.deb; do
+            dpkg-deb -x "$deb" "$root"
+          done
+          test -x "$root/usr/bin/xvfb-run"
+          test -x "$root/usr/bin/Xvfb"
+          echo "$root/usr/bin" >> "$GITHUB_PATH"
+          libdir="$root/usr/lib/x86_64-linux-gnu"
+          echo "LD_LIBRARY_PATH=$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
       - id: version
         shell: bash
         run: |
