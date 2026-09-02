@@ -712,11 +712,30 @@ private struct MBCommandCentreView: View {
 
     private var primaryGrid: some View {
         LinkDiagnosticGrid {
+            MBHomeTile("OBD", "Common legacy, transitional and standard diagnostics", "cpu") {
+                LinkStandardObdView(snapshot: obdSnapshot)
+            }
             MBHomeTile("Faults", "Stored and active diagnostic faults", "exclamationmark.triangle.fill") { MBFaultsView() }
             MBHomeTile("Live Data", "Sensors and measurements", "waveform.path.ecg") { MBLiveDataView() }
             MBHomeTile("Vehicle", "VIN and decoded identity", "car.side.fill") { MBVehicleView() }
             MBHomeTile("Modules", "Control units and capabilities", "square.stack.3d.up.fill") { MBModulesView() }
         }
+    }
+
+    private var obdSnapshot: LinkStandardObdSnapshot {
+        LinkStandardObdSnapshot(
+            capability: connection.diagnosticCapabilityText,
+            capabilityDetail: connection.diagnosticCapabilityDetailText,
+            vin: connection.standardVINText,
+            responderSummary: connection.standardResponderSummary,
+            pidSummary: connection.supportedPIDSummary,
+            readiness: connection.readinessStatusText,
+            readinessMonitors: connection.readinessMonitorStatus,
+            freezeFrame: connection.freezeFrameContext,
+            storedDTCs: connection.storedDTCs,
+            pendingDTCs: connection.pendingDTCs,
+            permanentDTCs: connection.permanentDTCs,
+            liveRows: connection.standardLiveValueRows)
     }
 
     private var supportingTools: some View {
