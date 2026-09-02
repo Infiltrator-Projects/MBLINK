@@ -289,7 +289,7 @@ jobs:
           grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c
           grep -Fq 'g_free(runtime_css);' app/linux/main.c
           grep -Fq 'descriptor.use_client_side_titlebar = true;' app/linux/main.c
-          grep -Fq '.link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-titlebar-label { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'bool use_client_side_titlebar;' src/link/platform/linux/link-gtk-shell.h
           grep -Fq 'gtk_window_set_titlebar(shell->window, titlebar);' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
