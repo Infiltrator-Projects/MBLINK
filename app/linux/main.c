@@ -2429,8 +2429,8 @@ static void manufacturer_finished(bool complete, void *opaque)
 {
     MblinkLinuxContext *context = opaque;
     if (context == NULL) return;
-    append_session_log_entry(
-        context,
+    mblink_linux_trace_append_log(
+        &context->session_trace, monotonic_ms(),
         complete ? "Mercedes manufacturer scan complete"
                  : "Mercedes manufacturer scan incomplete");
     context->manufacturer_scan_active = false;
