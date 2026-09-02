@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+# Ordinary main pushes share one cancellable lane so rapid development does
+# not waste hosted/self-hosted runners. Release commits use a separate,
+# non-cancellable lane so a newer ordinary commit can never abort publication
+# of an already-tested release candidate.
+concurrency:
+  group: mblink-ci-${{ github.ref }}-${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ') && 'release' || 'ordinary' }}
+  cancel-in-progress: ${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ')) }}
+
 jobs:
   portable-core:
     name: linux-native / C11
