@@ -2,7 +2,7 @@
 
 # MBLINK Architecture
 
-MBLINK is a C-first Mercedes product face over LINK.
+MBLINK is a C-first Mercedes-Benz-wide product face over LINK. Vehicle, engine and ECU-family profiles are evidence-scoped subsets inside that manufacturer layer; no single development vehicle defines the product boundary.
 
 ```text
 Infiltratr Common
@@ -33,7 +33,7 @@ Infiltratr Common owns portable primitives useful across unrelated programs.
 
 LINK owns vehicle-diagnostics/application behaviour shared by MBLINK and JAGLINK. That includes the workspace model, Classical CAN and CAN-FD ISO-TP, transport contracts, ELM327 framing/parser/session behaviour, standard OBD-II, generic DTC knowledge, generic UDS and the complete standard service codec catalogue, parameter definitions/store/history, scheduling, telemetry/CSV, portable diagnostic sequencing, Discover safety/evidence, generic ECU/module interrogation machinery and the shared Windows OpenPort/J2534 scanner.
 
-MBLINK owns Mercedes identity, the C207/OM651/CRD3 profile, Mercedes endpoint/definition provenance, Mercedes DTC knowledge, Mercedes module topology and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
+MBLINK owns Mercedes-wide identity/catalogue logic, vehicle/engine/ECU-family profiles (including the current C207/OM651/CRD3 evidence profile), Mercedes endpoint/definition provenance, Mercedes DTC knowledge, Mercedes module topology and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
 
 The ownership rule applies to diagnostic knowledge as well as protocol code. Standards-defined generic DTC descriptions/classification, OBD freeze-frame/readiness semantics and generic UDS DTC status interpretation belong in LINK. Mercedes-Benz/CRD3/OM651-specific DTC definitions, module associations and manufacturer diagnostic metadata belong in MBLINK. See `FAULT_DIAGNOSTICS.md` for the normative product requirement.
 
@@ -103,7 +103,7 @@ Discover must preserve the same evidence discipline. A module not responding, a 
 
 Acquiring a raw DTC is only the first stage of fault diagnosis. Where trustworthy knowledge exists, the portable model must carry the translated description, classification, module/system information, state and available diagnostic context while preserving the raw code/status for evidence. Live dashboards are supporting diagnostic views and do not substitute for this path.
 
-The pinned LINK layer is the single source of truth for generic DTC interpretation, CAN-FD/ISO-TP and generic UDS services. The next shared-flow work is readiness/freeze-frame context; the next manufacturer layer is the evidence-backed Mercedes/CRD3/OM651 DTC catalogue.
+The pinned LINK layer is the single source of truth for generic DTC interpretation, CAN-FD/ISO-TP and generic UDS services. Manufacturer-specific expansion is Mercedes-wide; CRD3/OM651 is the current evidence-rich catalogue slice, not the boundary of the Mercedes layer.
 
 For Discover, a "dump" means structured read-only acquisition of available diagnostic information and raw responses. It does not grant reset, security access, coding, programming or firmware-write authority.
 
