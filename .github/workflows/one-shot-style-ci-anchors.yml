@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK style ownership anchors
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-style-ci-anchors.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply source ownership manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/one-shot-style-ci-anchors.py
+          test "$(wc -c < app/linux/main.c)" -le 114000
+          git diff --check
+      - name: Commit source anchor update to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MBLINK release automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/linux/main.c
+          git commit -m "Preserve Linux style CI ownership anchors"
+          git push origin HEAD:main
