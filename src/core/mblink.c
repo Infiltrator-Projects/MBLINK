@@ -30,7 +30,7 @@
  * external immutable LINK commit and is checked against the gitlink in CI.
  */
 #define MBLINK_EMBEDDED_LINK_REVISION \
-    "2c036c897c18e2c592d0bd44c52338dfe89266bb"
+    "4170b952cf7f68971ce51e338b9eac708a97d090"
 
 /*
  * Normal CMake builds consume shared engines through LINK::Core. The native

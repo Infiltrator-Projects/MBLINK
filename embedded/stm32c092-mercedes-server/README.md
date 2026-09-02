@@ -82,8 +82,16 @@ The product target incorporates the useful STM32C092/PCAN findings:
 - FDCAN TX completion comes from the TX event FIFO;
 - ordinary tester requests racing a segmented response are retained by LINK's
   bounded deferred FIFO while Flow Control is handled immediately;
-- ECUReset `0x11` sends the positive response first, then MBLINK performs
-  `NVIC_SystemReset()` after the response-drain interval.
+- ECUReset `0x11` is capability-driven:
+  - `0x01 hardReset` and `0x03 softReset` are supported on this bare target
+    and execute only after the positive response has drained;
+  - `0x02 keyOffOnReset` is not advertised because the board has no ignition
+    or power-cycle controller;
+  - `0x04 enableRapidPowerShutDown` and `0x05 disableRapidPowerShutDown`
+    are not advertised because the reporter project has no real rapid-power
+    shutdown path;
+  - unsupported reset types return `7F 11 12` instead of being incorrectly
+    converted into `NVIC_SystemReset()`.
 
 ## Mercedes endpoint
 

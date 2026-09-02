@@ -84,6 +84,19 @@ static bool mblink_stm32_server_init(void)
 
     uds_config.enforce_session_sequence = true;
     uds_config.s3_server_timeout_ms = UINT32_C(5000);
+
+    /*
+     * This bare STM32C092 target can honestly perform processor/system reset
+     * for hardReset and softReset. It has no ignition/key-cycle controller and
+     * no real rapid-power-shutdown hardware path, so those subfunctions are
+     * deliberately not advertised as supported.
+     */
+    uds_config.supported_ecu_reset_types =
+        LINK_UDS_ECU_RESET_SUPPORT_HARD |
+        LINK_UDS_ECU_RESET_SUPPORT_SOFT;
+    uds_config.rapid_power_shutdown_supported = false;
+    uds_config.rapid_power_shutdown_time_seconds = 0U;
+
     uds_config.clock_ms = mblink_stm32_clock_ms;
     uds_config.clock_context = NULL;
     if (!link_uds_server_init(&uds_server, &uds_config) ||
@@ -135,9 +148,22 @@ static void mblink_stm32_process(void)
     if (result == LINK_STM32_UDS_SERVER_RESULT_REQUEST_COMPLETE &&
         link_uds_server_take_pending_ecu_reset(
             &uds_server, &requested_reset)) {
-        reset_type = requested_reset;
-        reset_requested_ms = HAL_GetTick();
-        reset_pending = true;
+        switch (requested_reset) {
+        case LINK_UDS_ECU_RESET_HARD:
+        case LINK_UDS_ECU_RESET_SOFT:
+            reset_type = requested_reset;
+            reset_requested_ms = HAL_GetTick();
+            reset_pending = true;
+            break;
+        default:
+            /*
+             * Capability filtering in LINK should make this unreachable.
+             * Never turn an unsupported key-cycle/rapid-shutdown request into
+             * an accidental MCU reset.
+             */
+            reset_pending = false;
+            break;
+        }
     }
 
     /*

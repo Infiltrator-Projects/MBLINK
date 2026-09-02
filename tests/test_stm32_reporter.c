@@ -335,76 +335,84 @@ static int test_reporter_single_request_services(void)
 
 static int test_reporter_ecu_reset_through_stm32_transport(void)
 {
-    static const uint8_t reset_types[] = {
-        0x01U, 0x02U, 0x03U, 0x04U, 0x05U
-    };
-    static const uint8_t extended_session[] = { 0x10U, 0x03U };
     ReporterFixture fixture;
     uint8_t response[16U];
+    uint8_t pending_reset_type = 0U;
     size_t response_length;
     size_t tx_start;
     size_t tx_end;
-    size_t index;
+
+    static const uint8_t hard_reset[] = { 0x11U, 0x01U };
+    static const uint8_t key_off_on_reset[] = { 0x11U, 0x02U };
+    static const uint8_t soft_reset[] = { 0x11U, 0x03U };
+    static const uint8_t rapid_enable[] = { 0x11U, 0x04U };
+    static const uint8_t rapid_disable[] = { 0x11U, 0x05U };
 
     CHECK(fixture_init(&fixture) == 0);
 
     /*
-     * Reporter issue #24: every standard ECUReset type must send the positive
-     * 0x51 response through the real STM32 transport before MBLINK is allowed
-     * to consume the pending reset request and invoke NVIC_SystemReset().
+     * The reporter's bare STM32C092 target has an MCU reset primitive, but no
+     * ignition/key-cycle controller and no rapid-power-shutdown hardware.
+     * MBLINK therefore advertises only the reset modes it can really execute.
      */
-    for (index = 0U; index < sizeof(reset_types) / sizeof(reset_types[0]);
-         ++index) {
-        const uint8_t reset_request[] = { 0x11U, reset_types[index] };
-        uint8_t pending_reset_type = 0U;
+    fixture.uds.config.supported_ecu_reset_types =
+        LINK_UDS_ECU_RESET_SUPPORT_HARD |
+        LINK_UDS_ECU_RESET_SUPPORT_SOFT;
+    fixture.uds.config.rapid_power_shutdown_supported = false;
 
-        CHECK(run_transaction(
-                  &fixture, extended_session, sizeof(extended_session),
-                  &tx_start, &tx_end) == 0);
-        CHECK(link_uds_server_active_session(&fixture.uds) == 0x03U);
+    CHECK(run_transaction(
+              &fixture, hard_reset, sizeof(hard_reset),
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end, response, sizeof(response),
+              &response_length) == 0);
+    CHECK(response_length == 2U);
+    CHECK(response[0] == 0x51U && response[1] == 0x01U);
+    CHECK(link_uds_server_take_pending_ecu_reset(
+              &fixture.uds, &pending_reset_type));
+    CHECK(pending_reset_type == 0x01U);
 
-        CHECK(run_transaction(
-                  &fixture, reset_request, sizeof(reset_request),
-                  &tx_start, &tx_end) == 0);
-        CHECK(reassemble_response(
-                  &fixture, tx_start, tx_end, response, sizeof(response),
-                  &response_length) == 0);
-        CHECK(response_length == 2U);
-        CHECK(response[0] == 0x51U);
-        CHECK(response[1] == reset_types[index]);
+    CHECK(run_transaction(
+              &fixture, soft_reset, sizeof(soft_reset),
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end, response, sizeof(response),
+              &response_length) == 0);
+    CHECK(response_length == 2U);
+    CHECK(response[0] == 0x51U && response[1] == 0x03U);
+    CHECK(link_uds_server_take_pending_ecu_reset(
+              &fixture.uds, &pending_reset_type));
+    CHECK(pending_reset_type == 0x03U);
 
-        /* ECUReset always returns the server to DefaultSession. */
-        CHECK(link_uds_server_active_session(&fixture.uds) == 0x01U);
-
-        /*
-         * The portable server exposes the reset only after the transaction has
-         * completed. The STM32 product main loop consumes this and waits 50 ms
-         * before calling NVIC_SystemReset(), so the 0x51 frame is not cut off.
-         */
-        CHECK(link_uds_server_take_pending_ecu_reset(
-                  &fixture.uds, &pending_reset_type));
-        CHECK(pending_reset_type == reset_types[index]);
-        CHECK(!link_uds_server_take_pending_ecu_reset(
-                   &fixture.uds, &pending_reset_type));
-    }
-
-    /* Unsupported reset type must be a truthful negative response. */
+    /*
+     * Do not lie to PCAN: the target cannot perform a genuine ignition
+     * off/on cycle or rapid-power-shutdown state transition, so those
+     * subfunctions are explicitly unsupported instead of being mapped to
+     * NVIC_SystemReset().
+     */
     {
-        static const uint8_t invalid_reset[] = { 0x11U, 0x06U };
-        uint8_t pending_reset_type = 0U;
+        const uint8_t *unsupported[] = {
+            key_off_on_reset, rapid_enable, rapid_disable
+        };
+        const size_t unsupported_lengths[] = {
+            sizeof(key_off_on_reset), sizeof(rapid_enable),
+            sizeof(rapid_disable)
+        };
+        size_t index;
 
-        CHECK(run_transaction(
-                  &fixture, invalid_reset, sizeof(invalid_reset),
-                  &tx_start, &tx_end) == 0);
-        CHECK(reassemble_response(
-                  &fixture, tx_start, tx_end, response, sizeof(response),
-                  &response_length) == 0);
-        CHECK(response_length == 3U);
-        CHECK(response[0] == 0x7fU);
-        CHECK(response[1] == 0x11U);
-        CHECK(response[2] == LINK_UDS_NRC_SUBFUNCTION_NOT_SUPPORTED);
-        CHECK(!link_uds_server_take_pending_ecu_reset(
-                   &fixture.uds, &pending_reset_type));
+        for (index = 0U; index < 3U; ++index) {
+            CHECK(run_transaction(
+                      &fixture, unsupported[index], unsupported_lengths[index],
+                      &tx_start, &tx_end) == 0);
+            CHECK(reassemble_response(
+                      &fixture, tx_start, tx_end,
+                      response, sizeof(response), &response_length) == 0);
+            CHECK(response_length == 3U);
+            CHECK(response[0] == 0x7fU && response[1] == 0x11U);
+            CHECK(response[2] == LINK_UDS_NRC_SUBFUNCTION_NOT_SUPPORTED);
+            CHECK(!link_uds_server_take_pending_ecu_reset(
+                       &fixture.uds, &pending_reset_type));
+        }
     }
 
     return 0;
