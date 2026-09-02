@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK stale branch cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-delete-stale-branches.yml
+
+permissions:
+  contents: write
+
+jobs:
+  delete-stale-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Delete reviewed superseded branches
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branches=(
+            "adopt-link-0.14.60-stm32c0-fix"
+            "adopt-link-0.14.62-stm32c092-role-fix"
+            "fix/ios-font-launch-crash-0.7.128"
+            "fix-link-pin-guards-0.7.116"
+            "issue-38-adopt-link-stm32-dtc"
+            "release/0.7.128-ios-launch-fix"
+            "release/0.7.128-link-pin-ios"
+            "stm32c092-mercedes-server"
+          )
+
+          for branch in "${branches[@]}"; do
+            if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+              echo "Deleting reviewed stale branch: ${branch}"
+              git push origin --delete "${branch}"
+            else
+              echo "Already absent: ${branch}"
+            fi
+          done
+
+          mapfile -t remaining < <(
+            git ls-remote --heads origin |
+            awk '{sub("refs/heads/", "", $2); print $2}' |
+            sort
+          )
+
+          printf 'Remaining branches:\n'
+          printf '  %s\n' "${remaining[@]}"
+
+          if [[ "${#remaining[@]}" -ne 1 || "${remaining[0]}" != "main" ]]; then
+            echo "Repository branch cleanup incomplete: expected only main." >&2
+            exit 1
+          fi
