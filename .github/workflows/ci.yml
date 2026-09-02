@@ -154,6 +154,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev pkg-config xvfb xauth
         if: runner.environment == 'github-hosted'
+      - name: Bootstrap libusb development files for self-hosted Linux
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if pkg-config --exists libusb-1.0; then
+            exit 0
+          fi
+          root="$RUNNER_TEMP/libusb-dev"
+          dl="$RUNNER_TEMP/libusb-download"
+          rm -rf "$root" "$dl"
+          mkdir -p "$root" "$dl"
+          cd "$dl"
+          apt-get download libusb-1.0-0 libusb-1.0-0-dev
+          for deb in ./*.deb; do
+            dpkg-deb -x "$deb" "$root"
+          done
+          pc="$(find "$root/usr/lib" -path '*/pkgconfig/libusb-1.0.pc' -print -quit)"
+          test -n "$pc"
+          sed -i "s|^prefix=/usr$|prefix=$root/usr|" "$pc"
+          libdir="$(dirname "$(dirname "$pc")")"
+          echo "PKG_CONFIG_PATH=$(dirname "$pc")${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
       - id: version
         shell: bash
         run: |
@@ -355,7 +378,7 @@ jobs:
     name: Windows / release GUI launch verification
     needs: [windows-discover]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
-    runs-on: [self-hosted, Windows, ARM64, infiltrator-windows-arm64]
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
