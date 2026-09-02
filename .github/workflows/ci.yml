@@ -40,6 +40,9 @@ jobs:
           grep -Fq 'NVIC_SystemReset();' embedded/stm32c092-mercedes-server/Src-main.c
           ! grep -Fq 'link-stm32c092-server-example.h' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'NominalSyncJumpWidth = 2;' embedded/stm32c092-mercedes-server/Src-fdcan.c
+          grep -Fq 'MX_USART2_UART_Init();' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'MX_USART1_UART_Init();' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'test_reporter_pcan_burst_during_19_02' tests/test_stm32_reporter.c
           grep -q 'src/uds/uds_services.c' src/link/CMakeLists.txt
           grep -q 'link_uds_standard_service_count' src/link/src/uds/uds_services.c
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c

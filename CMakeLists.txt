@@ -289,6 +289,12 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-discover-plan tests/test_discover_plan.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
     mblink_add_test(mblink-test-mercedes-server tests/test_mercedes_server.c)
+    mblink_add_test(mblink-test-stm32-reporter tests/test_stm32_reporter.c)
+    target_sources(mblink-test-stm32-reporter PRIVATE
+        ${MBLINK_LINK_DIR}/platform/stm32/link-stm32-can.c
+        ${MBLINK_LINK_DIR}/platform/stm32/link-stm32-uds-server.c)
+    target_include_directories(mblink-test-stm32-reporter PRIVATE
+        ${MBLINK_LINK_DIR}/platform/stm32)
     mblink_add_test(mblink-test-mercedes-vin tests/test_mercedes_vin.c)
     mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-om651 tests/test_mercedes_om651.c)

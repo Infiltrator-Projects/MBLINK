@@ -156,7 +156,7 @@ int main(void)
     SystemClock_Config();
     MX_GPIO_Init();
     MX_FDCAN1_Init();
-    MX_USART1_UART_Init();
+    MX_USART2_UART_Init();
 
     if (!mblink_stm32_server_init())
         Error_Handler();
