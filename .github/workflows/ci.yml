@@ -398,9 +398,8 @@ jobs:
           retention-days: 30
 
   windows-release-launch:
-    name: Windows / release GUI launch verification
+    name: Windows / GUI launch verification
     needs: [windows-discover]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -542,6 +541,41 @@ jobs:
               -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
               MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
           done
+      - name: Launch iOS simulator smoke
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/mblink-simulator-smoke"
+          rm -rf "$derived"
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$derived" CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+
+          udid="$(xcrun simctl list devices available -j | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for devices in data.get("devices", {}).values():
+    for device in devices:
+        if device.get("isAvailable") and str(device.get("name", "")).startswith("iPhone"):
+            print(device["udid"])
+            raise SystemExit(0)
+raise SystemExit("No available iPhone simulator")
+')"
+          test -n "$udid"
+          xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$udid" -b
+          app="$derived/Build/Products/Debug-iphonesimulator/MBLINK.app"
+          test -d "$app"
+          xcrun simctl install "$udid" "$app"
+          launch_output="$(xcrun simctl launch "$udid" com.github.The-First-Infiltrator.MBLINK)"
+          printf '%s\n' "$launch_output"
+          grep -Fq 'com.github.The-First-Infiltrator.MBLINK' <<<"$launch_output"
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+
       - name: Build and package IPA
         shell: bash
         env:
