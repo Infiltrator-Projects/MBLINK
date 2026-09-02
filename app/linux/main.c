@@ -93,8 +93,14 @@ typedef struct MblinkLinuxContext {
     LinkDiagnosticFlow diagnostic;
     bool sample_valid[256];
     LinkObd2Sample samples[256];
+    bool sample_responder_valid[256];
+    uint32_t sample_responder[256];
+    bool sample_responder_extended[256];
     bool decoded_sample_valid[256];
     MblinkObd2DecodedPid decoded_samples[256];
+    bool decoded_sample_responder_valid[256];
+    uint32_t decoded_sample_responder[256];
+    bool decoded_sample_responder_extended[256];
     bool polling_enabled[256];
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
@@ -231,6 +237,36 @@ static uint64_t monotonic_ms(void)
 {
     const gint64 value = g_get_monotonic_time();
     return value <= 0 ? 0U : (uint64_t)(value / 1000);
+}
+
+/*
+ * Generic Linux table/graph caches use one deterministic physical responder
+ * per PID. Never let arrival order alternate a PID between 7E8 and 7E9.
+ * Prefer the legislated engine responder, then 11-bit over 29-bit, then the
+ * lowest CAN identifier. A sample from the already-selected responder always
+ * refreshes its own value.
+ */
+static bool prefer_obd_responder(
+    uint32_t candidate,
+    bool candidate_extended,
+    bool current_valid,
+    uint32_t current,
+    bool current_extended)
+{
+    if (!current_valid) return true;
+    if (candidate == current && candidate_extended == current_extended)
+        return true;
+
+    const bool candidate_engine =
+        !candidate_extended && candidate == UINT32_C(0x7e8);
+    const bool current_engine =
+        !current_extended && current == UINT32_C(0x7e8);
+    if (candidate_engine != current_engine) return candidate_engine;
+
+    if (candidate_extended != current_extended)
+        return !candidate_extended;
+
+    return candidate < current;
 }
 
 static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
@@ -2256,9 +2292,25 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
         memset(context->sample_valid, 0, sizeof(context->sample_valid));
         memset(context->samples, 0, sizeof(context->samples));
         memset(
+            context->sample_responder_valid, 0,
+            sizeof(context->sample_responder_valid));
+        memset(context->sample_responder, 0, sizeof(context->sample_responder));
+        memset(
+            context->sample_responder_extended, 0,
+            sizeof(context->sample_responder_extended));
+        memset(
             context->decoded_sample_valid, 0,
             sizeof(context->decoded_sample_valid));
         memset(context->decoded_samples, 0, sizeof(context->decoded_samples));
+        memset(
+            context->decoded_sample_responder_valid, 0,
+            sizeof(context->decoded_sample_responder_valid));
+        memset(
+            context->decoded_sample_responder, 0,
+            sizeof(context->decoded_sample_responder));
+        memset(
+            context->decoded_sample_responder_extended, 0,
+            sizeof(context->decoded_sample_responder_extended));
         link_fuel_economy_init(&context->fuel_economy);
         return;
     }
@@ -2276,17 +2328,54 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
              ++index) {
             const LinkObd2ResponderDecodedPid *entry =
                 &event->responder_decoded.entries[index];
-            if (entry->decoded.definition == NULL) continue;
+            if (!entry->responder_id_available ||
+                entry->decoded.definition == NULL) {
+                continue;
+            }
             const uint8_t pid = entry->decoded.definition->pid;
+            if (!prefer_obd_responder(
+                    entry->responder_id, entry->extended_id,
+                    context->decoded_sample_responder_valid[pid],
+                    context->decoded_sample_responder[pid],
+                    context->decoded_sample_responder_extended[pid])) {
+                continue;
+            }
             context->decoded_samples[pid] = entry->decoded;
             context->decoded_sample_valid[pid] = true;
+            context->decoded_sample_responder_valid[pid] = true;
+            context->decoded_sample_responder[pid] = entry->responder_id;
+            context->decoded_sample_responder_extended[pid] =
+                entry->extended_id;
         }
 
         if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) {
-            context->samples[event->sample.pid] = event->sample;
-            context->sample_valid[event->sample.pid] = true;
-            (void)link_fuel_economy_observe_obd2(
-                &context->fuel_economy, &event->sample, now_ms);
+            const LinkObd2Sample *fuel_sample = NULL;
+            for (size_t index = 0U;
+                 index < event->responder_samples.count;
+                 ++index) {
+                const LinkObd2ResponderSample *entry =
+                    &event->responder_samples.samples[index];
+                if (!entry->responder_id_available) continue;
+                const uint8_t pid = entry->sample.pid;
+                if (!prefer_obd_responder(
+                        entry->responder_id, entry->extended_id,
+                        context->sample_responder_valid[pid],
+                        context->sample_responder[pid],
+                        context->sample_responder_extended[pid])) {
+                    continue;
+                }
+                context->samples[pid] = entry->sample;
+                context->sample_valid[pid] = true;
+                context->sample_responder_valid[pid] = true;
+                context->sample_responder[pid] = entry->responder_id;
+                context->sample_responder_extended[pid] =
+                    entry->extended_id;
+                fuel_sample = &context->samples[pid];
+            }
+            if (fuel_sample != NULL) {
+                (void)link_fuel_economy_observe_obd2(
+                    &context->fuel_economy, fuel_sample, now_ms);
+            }
         }
         link_fuel_economy_tick(&context->fuel_economy, now_ms);
     }
