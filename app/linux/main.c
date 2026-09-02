@@ -127,7 +127,7 @@ static const char mblink_css[] =
     "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-connection-bar { background: #101318; border: 1px solid #353a40; }"
+    ".link-connection-bar { background: #101318; border-color: #353a40; }"
     ".link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-brand-subtitle { color: #aeb6bd; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-brand-version { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
@@ -135,16 +135,16 @@ static const char mblink_css[] =
     ".link-section-summary { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-content-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-content-summary { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-card { background: linear-gradient(135deg,#171b20,#0d1014); border: 1px solid #353a40; border-radius: 18px; padding: 20px; }"
-    ".link-card-kicker { color: #8c949b; font-family: \"MB Corpo S Title WEB\"; font-size: 10px; font-weight: 700; letter-spacing: 2px; }"
-    ".link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-size: 20px; font-weight: 700; }"
+    ".link-card { background: linear-gradient(135deg,#171b20,#0d1014); border-color: #353a40; }"
+    ".link-card-kicker { color: #8c949b; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
+    ".link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-detail-label { color: #7e858c; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-card-note { color: #9ca4ab; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-status-chip { padding: 7px 11px; border-radius: 999px; border: 1px solid #3b4147; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
+    ".link-status-chip { border-color: #3b4147; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-link-button { background: #d7dde2; color: #111418; border-radius: 10px; }"
+    ".link-link-button { background: #d7dde2; color: #111418; }"
     ".link-save-session-button, .link-save-session-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-connection-status { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
@@ -158,27 +158,27 @@ static const char mblink_css[] =
     ".mblink-settings-note { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-size: 11px; font-weight: 400; }";
 
 static const char mblink_metrics_css[] =
-    "window { font-size: 14px; }"
-    ".link-titlebar { min-height: 42px; background: #202125; border-bottom: 1px solid #353a40; }"
-    ".link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
-    "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-size: 13px; }"
-    "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-size: 13px; }"
+
+    ".link-titlebar { background: #202125; border-bottom: 1px solid #353a40; }"
+    ".link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
+
+
     "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }"
-    ".link-toolbar-button { min-height: 40px; padding: 7px 14px; }"
-    ".link-link-button { min-width: 100px; min-height: 42px; padding: 8px 18px; }"
-    ".link-save-session-button { min-height: 42px; padding: 8px 14px; }"
-    ".link-device-row { min-height: 40px; }"
-    ".link-toolbar-label { min-width: 64px; font-size: 14px; font-weight: 700; opacity: 1; }"
-    ".link-adapter-combo { min-height: 36px; }"
-    ".link-adapter-combo, .link-adapter-combo * { font-size: 14px; font-weight: 400; }"
-    ".link-adapter-combo button, .link-adapter-combo button * { padding: 5px 10px; }"
-    ".link-section-title { font-size: 14px; }"
-    ".link-section-summary { font-size: 12px; }"
-    ".link-brand-subtitle { font-size: 12px; }"
-    ".link-content-title { font-size: 30px; }"
-    ".link-detail-label, .link-detail-value { font-size: 13px; }"
-    ".link-card-note { font-size: 12px; }"
-    ".link-settings-description, .mblink-settings-note { font-size: 12px; }"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    ".mblink-settings-note { font-size: 12px; }"
     ".mblink-about-dialog { background: #050608; }"
     ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
     ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { min-width: 100px; min-height: 42px; padding: 8px 18px; font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
@@ -2406,7 +2406,6 @@ int main(int argc, char **argv)
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
     descriptor.use_client_side_titlebar = true;
-    descriptor.adapter_combo_width = 320;
     runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;

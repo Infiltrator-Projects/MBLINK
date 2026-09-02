@@ -142,17 +142,20 @@ jobs:
           grep -Fq '.link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }' app/linux/main.c
           test "$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/main.c)" -eq 1
           grep -Fq '.link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
-          grep -Fq '.link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-size: 20px; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq '.link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }' app/linux/main.c
           grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
-          grep -Fq 'descriptor.adapter_combo_width = 320;' app/linux/main.c
-          grep -Fq '.link-device-row { min-height: 40px; }' app/linux/main.c
-          grep -Fq '.link-adapter-combo { min-height: 36px; }' app/linux/main.c
-          grep -Fq '.link-adapter-combo button, .link-adapter-combo button * { padding: 5px 10px; }' app/linux/main.c
-          grep -Fq 'int adapter_combo_width;' src/link/platform/linux/link-gtk-shell.h
-          grep -Fq 'shell->descriptor->adapter_combo_width > 0' src/link/platform/linux/link-gtk-shell.c
+          if grep -Eq '\.link-(connection-bar|device-row|adapter-combo|toolbar-button|link-button|save-session-button|card|status-chip)[^{]*\{[^}]*((min|max)-(width|height)|padding|border-radius)' app/linux/main.c; then
+            echo 'Shared Linux shell geometry must come from LINK, not MBLINK CSS.' >&2
+            exit 1
+          fi
+          if grep -Fq 'adapter_combo_width' app/linux/main.c src/link/platform/linux/link-gtk-shell.h; then
+            echo 'Adapter-selector width must be LINK-owned.' >&2
+            exit 1
+          fi
+          grep -Fq 'gtk_widget_set_hexpand(shell->device_combo, TRUE);' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/main.c
           grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
@@ -170,15 +173,11 @@ jobs:
           grep -Fq 'gtk_widget_add_css_class(widget, "mblink-about-dialog");' app/linux/about-dialog.c
           grep -Fq '.mblink-about-dialog stackswitcher button' app/linux/main.c
           grep -Fq '.mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/main.c
-          grep -Fq '.link-toolbar-button { min-height: 40px; padding: 7px 14px; }' app/linux/main.c
           grep -Fq 'static const char mblink_metrics_css[] =' app/linux/main.c
           grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c
           grep -Fq 'g_free(runtime_css);' app/linux/main.c
           grep -Fq 'descriptor.use_client_side_titlebar = true;' app/linux/main.c
-          grep -Fq '.link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }' app/linux/main.c
-          grep -Fq '.link-device-row { min-height: 40px; }' app/linux/main.c
-          grep -Fq '.link-toolbar-label { min-width: 64px; font-size: 14px; font-weight: 700; opacity: 1; }' app/linux/main.c
-          grep -Fq '.link-adapter-combo { min-height: 36px; }' app/linux/main.c
+          grep -Fq '.link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'bool use_client_side_titlebar;' src/link/platform/linux/link-gtk-shell.h
           grep -Fq 'gtk_window_set_titlebar(shell->window, titlebar);' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
