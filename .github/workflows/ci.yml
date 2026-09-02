@@ -538,8 +538,10 @@ jobs:
           for configuration in Debug Release; do
             xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
               -configuration "$configuration" -sdk iphonesimulator \
-              -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
-              MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+              -destination 'generic/platform=iOS Simulator' \
+              -derivedDataPath "$RUNNER_TEMP/derived-simulator-$configuration" \
+              CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
+              MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
           done
       - name: Launch iOS simulator smoke
         shell: bash
@@ -547,13 +549,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          derived="$RUNNER_TEMP/mblink-simulator-smoke"
-          rm -rf "$derived"
-          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
-            -configuration Debug -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$derived" CODE_SIGNING_ALLOWED=NO \
-            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+          derived="$RUNNER_TEMP/derived-simulator-Debug"
 
           udid="$(xcrun simctl list devices available \
             | sed -nE 's/.*iPhone[^()]*\(([0-9A-Fa-f-]{36})\).*/\1/p' \
