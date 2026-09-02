@@ -101,6 +101,9 @@ typedef struct MblinkLinuxContext {
     bool decoded_sample_responder_valid[256];
     uint32_t decoded_sample_responder[256];
     bool decoded_sample_responder_extended[256];
+    double graph_history[8U][48U];
+    uint8_t graph_history_count[8U];
+    uint8_t graph_history_next[8U];
     bool polling_enabled[256];
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
@@ -356,6 +359,80 @@ static void initialise_polling_policy(MblinkLinuxContext *context)
     for (index = 0U;
          index < sizeof(default_pids) / sizeof(default_pids[0]); ++index) {
         context->polling_enabled[default_pids[index]] = true;
+    }
+}
+
+static const uint8_t mblink_graph_pids[8U] = {
+    UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
+    UINT8_C(0x2f), UINT8_C(0x11), UINT8_C(0x46), UINT8_C(0x49)
+};
+
+static size_t graph_trace_index_for_pid(uint8_t pid)
+{
+    size_t index;
+    for (index = 0U; index < G_N_ELEMENTS(mblink_graph_pids); ++index) {
+        if (mblink_graph_pids[index] == pid) return index;
+    }
+    return G_N_ELEMENTS(mblink_graph_pids);
+}
+
+static void record_graph_sample(
+    MblinkLinuxContext *context,
+    const LinkObd2Sample *sample)
+{
+    size_t trace;
+    uint8_t slot;
+    if (context == NULL || sample == NULL) return;
+    trace = graph_trace_index_for_pid(sample->pid);
+    if (trace >= G_N_ELEMENTS(mblink_graph_pids)) return;
+
+    slot = context->graph_history_next[trace];
+    context->graph_history[trace][slot] = sample->value;
+    context->graph_history_next[trace] =
+        (uint8_t)((slot + 1U) % G_N_ELEMENTS(context->graph_history[trace]));
+    if (context->graph_history_count[trace] <
+        G_N_ELEMENTS(context->graph_history[trace])) {
+        ++context->graph_history_count[trace];
+    }
+}
+
+static void format_graph_sparkline(
+    const double *history,
+    size_t count,
+    size_t next,
+    char *output,
+    size_t output_size)
+{
+    static const char *const blocks[] = {
+        "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"
+    };
+    double minimum;
+    double maximum;
+    size_t start;
+    size_t index;
+
+    if (output == NULL || output_size == 0U) return;
+    output[0] = '\0';
+    if (history == NULL || count == 0U) return;
+
+    start = count < 48U ? 0U : next;
+    minimum = history[start];
+    maximum = history[start];
+    for (index = 1U; index < count; ++index) {
+        const double value = history[(start + index) % 48U];
+        if (value < minimum) minimum = value;
+        if (value > maximum) maximum = value;
+    }
+
+    for (index = 0U; index < count; ++index) {
+        const double value = history[(start + index) % 48U];
+        unsigned int level = 3U;
+        if (maximum > minimum) {
+            const double scaled = ((value - minimum) / (maximum - minimum)) * 7.0;
+            level = (unsigned int)(scaled + 0.5);
+            if (level > 7U) level = 7U;
+        }
+        g_strlcat(output, blocks[level], output_size);
     }
 }
 
@@ -1790,6 +1867,111 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
     append_fuel_economy(body, context);
 }
 
+static void append_graphs(
+    GtkWidget *body,
+    const MblinkLinuxContext *context)
+{
+    GtkWidget *card = link_gtk_card_new(
+        "INSTRUMENT TRACES", "Live telemetry history");
+    size_t index;
+    size_t rendered = 0U;
+
+    link_gtk_card_append_status(
+        card, diagnostic_text(context),
+        context->diagnostic_ready ? "state-success" : "state-warning");
+
+    for (index = 0U; index < G_N_ELEMENTS(mblink_graph_pids); ++index) {
+        const uint8_t pid = mblink_graph_pids[index];
+        const size_t count = context->graph_history_count[index];
+        const MblinkObd2PidDefinition *definition;
+        char key[128];
+        char trace[192];
+        char value[320];
+        char current[96];
+
+        if (count == 0U || !context->sample_valid[pid]) continue;
+        definition = mblink_obd2_pid_definition(UINT8_C(0x01), pid);
+        format_sample(&context->samples[pid], context, current, sizeof(current));
+        format_graph_sparkline(
+            context->graph_history[index], count,
+            context->graph_history_next[index], trace, sizeof(trace));
+
+        (void)snprintf(
+            key, sizeof(key), "PID 0x%02X · %s",
+            (unsigned int)pid,
+            definition != NULL && definition->name != NULL
+                ? definition->name : "SAE parameter");
+        (void)snprintf(value, sizeof(value), "%s   %s", current, trace);
+        link_gtk_card_append_detail(card, key, value);
+        ++rendered;
+    }
+
+    if (rendered == 0U) {
+        link_gtk_card_append_note(
+            card,
+            "Connect and collect live samples to build rolling 48-sample traces for the primary dashboard signals.");
+    } else {
+        link_gtk_card_append_note(
+            card,
+            "Each sparkline is a rolling history of real responder-scoped samples; no interpolation or synthetic values are added.");
+    }
+    gtk_box_append(GTK_BOX(body), card);
+}
+
+static size_t live_sample_count(const MblinkLinuxContext *context)
+{
+    size_t pid;
+    size_t count = 0U;
+    if (context == NULL) return 0U;
+    for (pid = 0U; pid < 256U; ++pid) {
+        if (context->sample_valid[pid] || context->decoded_sample_valid[pid])
+            ++count;
+    }
+    return count;
+}
+
+static void append_session_log(
+    GtkWidget *body,
+    const MblinkLinuxContext *context)
+{
+    GtkWidget *card = link_gtk_card_new(
+        "SESSION RECORDER", "Diagnostic evidence");
+    char value[128];
+
+    link_gtk_card_append_status(
+        card, diagnostic_text(context),
+        context->diagnostic_ready ? "state-success" : "state-warning");
+    link_gtk_card_append_detail(
+        card, "Connection",
+        context->connected ? connection_text(context) : "Not linked");
+    link_gtk_card_append_detail(
+        card, "Adapter",
+        context->adapter_identity[0] != '\0'
+            ? context->adapter_identity : "No adapter identity captured");
+
+    (void)snprintf(value, sizeof(value), "%zu",
+                   context->module_scan.module_count);
+    link_gtk_card_append_detail(card, "Responding Mercedes modules", value);
+
+    (void)snprintf(
+        value, sizeof(value), "%zu",
+        mblink_mercedes_module_scan_total_dtc_count(&context->module_scan));
+    link_gtk_card_append_detail(card, "Mercedes fault records", value);
+
+    (void)snprintf(value, sizeof(value), "%zu", live_sample_count(context));
+    link_gtk_card_append_detail(card, "Live standard data items", value);
+
+    (void)snprintf(value, sizeof(value), "%zu",
+                   context->manufacturer_scan.dtcs.count);
+    link_gtk_card_append_detail(card, "Engine manufacturer fault records", value);
+
+    link_gtk_card_append_note(
+        card,
+        "These values are taken from the active diagnostic/evidence state. Use Save Session in the shared LINK toolbar to persist the full evidence bundle.");
+    gtk_box_append(GTK_BOX(body), card);
+    append_diagnostic_context(body, context);
+}
+
 static void append_generic_status(GtkWidget *body,
                                   const char *kicker,
                                   const char *title,
@@ -1993,10 +2175,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         append_dashboard(body, context);
         break;
     case LINK_WORKSPACE_GRAPHS:
-        append_generic_status(
-            body, "INSTRUMENT TRACES", "Signal history",
-            "Time-series traces receive real LINK telemetry samples from the active Linux diagnostic flow.",
-            context);
+        append_graphs(body, context);
         break;
     case LINK_WORKSPACE_TESTS:
         append_diagnostic_context(body, context);
@@ -2005,10 +2184,7 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
         append_services(body, context);
         break;
     case LINK_WORKSPACE_LOG:
-        append_generic_status(
-            body, "SESSION RECORDER", "Diagnostic log and evidence",
-            "Chronological requests, responses, warnings and telemetry use the shared evidence path without inventing data.",
-            context);
+        append_session_log(body, context);
         break;
     case LINK_WORKSPACE_SETTINGS:
         append_measurement_settings(body, context);
@@ -2370,6 +2546,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                 context->sample_responder[pid] = entry->responder_id;
                 context->sample_responder_extended[pid] =
                     entry->extended_id;
+                record_graph_sample(context, &context->samples[pid]);
                 fuel_sample = &context->samples[pid];
             }
             if (fuel_sample != NULL) {
