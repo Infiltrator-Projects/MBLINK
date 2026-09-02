@@ -169,11 +169,13 @@ if(MBLINK_BUILD_LINUX_APP)
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/mblink.gresource.xml" "${CMAKE_CURRENT_SOURCE_DIR}/app/linux/assets/mblink-emblem.png" VERBATIM)
     add_executable(mblink-linux
         app/linux/main.c
+        app/linux/session_trace.c
         app/linux/about-dialog.c
         app/linux/c207-replay.c
         "${MBLINK_LINUX_RESOURCE_SOURCE}")
     set_source_files_properties(
         app/linux/main.c
+        app/linux/session_trace.c
         app/linux/about-dialog.c
         app/linux/c207-replay.c
         PROPERTIES
@@ -307,6 +309,9 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-mercedes-data-scan tests/test_mercedes_data_scan.c)
     mblink_add_test(mblink-test-mercedes-trace-replay tests/test_mercedes_trace_replay.c)
     mblink_add_test(mblink-test-c207-obd-flow-replay tests/test_c207_obd_flow_replay.c)
+    mblink_add_test(mblink-test-linux-session-trace tests/test_linux_session_trace.c)
+    target_sources(mblink-test-linux-session-trace PRIVATE app/linux/session_trace.c)
+    target_include_directories(mblink-test-linux-session-trace PRIVATE app/linux)
     mblink_add_test(mblink-test-mercedes-captured-deep-scan tests/test_mercedes_captured_deep_scan.c)
     mblink_add_test(mblink-test-mercedes-engine-scan tests/test_mercedes_engine_scan.c)
 endif()
