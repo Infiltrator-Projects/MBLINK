@@ -19,7 +19,7 @@ MBLINK does not own a separate generic discovery engine or Windows OpenPort/J253
 
 MBLINK supplies the Mercedes-specific layer:
 
-- Mercedes/C207 network and ECU knowledge;
+- Mercedes-wide network and ECU knowledge, with C207-specific entries retained only where the evidence is actually C207-specific;
 - known module identities and endpoint definitions;
 - evidence-backed Mercedes read-only probes and identifiers;
 - Mercedes-specific decoders where meaning is documented or reproducibly verified;
