@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot cancel superseded MBLINK CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel superseded CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST repos/${GITHUB_REPOSITORY}/actions/runs/33679935151/cancel
