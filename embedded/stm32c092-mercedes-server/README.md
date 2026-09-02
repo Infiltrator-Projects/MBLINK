@@ -40,6 +40,7 @@ The product-side target files are:
 ```text
 embedded/stm32c092-mercedes-server/Src-main.c
 embedded/stm32c092-mercedes-server/Src-fdcan.c
+src/embedded/console.c
 ```
 
 Use those with the Cube-generated startup/clock/GPIO files for the target.
@@ -50,6 +51,7 @@ Compile the MBLINK Mercedes product sources:
 src/mercedes/mercedes.c
 src/mercedes/vin.c
 src/mercedes/server.c
+src/embedded/console.c
 ```
 
 and the pinned LINK library sources required by the STM32 transport:
@@ -92,6 +94,52 @@ The product target incorporates the useful STM32C092/PCAN findings:
     shutdown path;
   - unsupported reset types return `7F 11 12` instead of being incorrectly
     converted into `NVIC_SystemReset()`.
+
+## Optional engineering console
+
+The target remains **headless by default**. Powering the board starts CAN/FDCAN,
+ISO-TP and the UDS server immediately; no terminal is required and the target
+prints nothing on UART during normal PCAN use.
+
+The reporter's Cube project already configures USART2 as **115200 8-N-1 with no
+flow control**. MBLINK now uses that existing port as an optional engineering
+console. The console stays dormant until the first serial byte arrives, then
+prints a banner and prompt.
+
+Commands are:
+
+```text
+help
+status
+version
+vin
+dtc
+stats
+last
+reset
+```
+
+Useful examples:
+
+```text
+MBLINK> status
+CAN: ONLINE request=0x7E0 response=0x7E8
+UDS session=0x01 reset=none
+
+MBLINK> dtc
+123456 status=0x09
+ABCDEF status=0x08
+
+MBLINK> stats
+UDS requests=12 positive=12 negative=0 suppressed=0
+Transport completed=12 CAN-dropped=0 deferred-dropped=0
+```
+
+The console polls USART2 with a zero timeout after each CAN/UDS processing pass
+and drains at most eight characters per pass. This deliberately gives CAN/UDS
+priority and avoids adding a USART interrupt dependency to the submitted Cube
+project. Console output is bounded and only occurs after a user activates the
+serial port.
 
 ## Mercedes endpoint
 

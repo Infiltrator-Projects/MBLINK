@@ -130,6 +130,7 @@ if(TARGET link-core)
 endif()
 add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
+    src/embedded/console.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
@@ -278,6 +279,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-obd2 tests/test_obd2.c)
     mblink_add_test(mblink-test-dtc-knowledge tests/test_dtc_knowledge.c)
     mblink_add_test(mblink-test-runtime tests/test_runtime.c)
+    mblink_add_test(mblink-test-embedded-console tests/test_embedded_console.c)
     mblink_add_test(mblink-test-parameter tests/test_parameter.c)
     mblink_add_test(mblink-test-parameter-store tests/test_parameter_store.c)
     mblink_add_test(mblink-test-scheduler-parameters tests/test_scheduler_parameters.c)
