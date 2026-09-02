@@ -4,7 +4,7 @@
 
 MBLINK grows from the portable C core outward. Every milestone must leave the repository buildable, tested and reusable. The exact current source version is `VERSION`; the exact shared-engine revision is the `src/link` gitlink.
 
-The active product milestone remains Mercedes-Benz C207 / OM651 diagnostics, with fault interpretation treated as the first completion track.
+MBLINK's product scope is Mercedes-Benz vehicles broadly. The active validation milestone remains C207 / OM651 diagnostics because that is the current physical evidence vehicle, with fault interpretation treated as the first completion track.
 
 MBLINK is one manufacturer product family containing both the normal MBLINK diagnostic application and the specialist MBLINK Discover application. Discover is not a separate repository or future `MBLINK-Reader`; it is the existing branded ECU/module discovery and read-only evidence/dump target and should evolve in place.
 
@@ -138,7 +138,7 @@ The same rule applies to Discover. Generic module discovery, interrogation, safe
 
 The native iPhone target must compile the same LINK implementation as CMake. Product bridge files therefore include exact pinned LINK source where required, and CI explicitly verifies the shared UDS service implementation is present. Platform code must not grow alternate protocol engines.
 
-## Mercedes-Benz C207 / OM651 diagnostics
+## Current C207 / OM651 evidence milestone
 
 Current manufacturer-specific state:
 
@@ -158,7 +158,7 @@ Current manufacturer-specific state:
 
 The DID Lab remains the promotion boundary for factory values. `corroborated-unmapped`, `source-backed-candidate` and `vehicle-verified` are separate states; correlation can support a candidate but cannot invent its request address or promote it by itself.
 
-The active evidence path is now vehicle-first. Historical post-VIN Whisper runtime data would still be useful if it ever surfaced, but it is not a product prerequisite and MBLINK no longer depends on obtaining an old application-data backup. The backend/authentication/package-delivery path is already source-backed; more authentication reverse-engineering is not the priority. The car itself is the practical source of new mappings: bounded read-only manufacturer-data discovery runs only on proven module routes, every positive raw identifier is retained, and repeat scans target only those known positives. On iPhone those positive UDS/KWP identifiers are now persisted in the VIN-keyed module profile, so a successful first discovery does not require another 256-ID sweep on the next session. Physical C207 responses remain the promotion evidence for turning a raw identifier into a vehicle-verified factory value.
+The active evidence path is now vehicle-first. Historical post-VIN Whisper runtime data would still be useful if it ever surfaced, but it is not a product prerequisite and MBLINK no longer depends on obtaining an old application-data backup. The backend/authentication/package-delivery path is already source-backed; more authentication reverse-engineering is not the priority. The car itself is the practical source of new mappings: bounded read-only manufacturer-data discovery runs only on proven module routes, every positive raw identifier is retained, and repeat scans target only those known positives. On iPhone those positive UDS/KWP identifiers are now persisted in the VIN-keyed module profile, so a successful first discovery does not require another 256-ID sweep on the next session. Physical C207 responses remain promotion evidence for C207-family mappings. Other Mercedes vehicle/engine families use their own source-backed or vehicle-capture evidence and are not required to inherit C207 applicability.
 
 Every undocumented Mercedes definition remains experimental until verified against real vehicle responses and regression fixtures.
 
