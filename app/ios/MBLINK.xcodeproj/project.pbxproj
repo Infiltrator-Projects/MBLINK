@@ -42,6 +42,27 @@
 		D1A900000000000000000006 /* link_i18n.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000008 /* link_i18n.c */; };
 		D1A900000000000000000007 /* link_i18n_platform.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000009 /* link_i18n_platform.c */; };
 		D1A900000000000000000010 /* link_language_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000011 /* link_language_pack.c */; };
+		A22100000000000000000001 /* link_workspace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000001 /* link_workspace.c */; };
+		A22100000000000000000002 /* link_fuel_economy.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000002 /* link_fuel_economy.c */; };
+		A22100000000000000000003 /* link_diagnostic_request.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000003 /* link_diagnostic_request.c */; };
+		A22100000000000000000004 /* link_doip.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000004 /* link_doip.c */; };
+		A22100000000000000000005 /* link_diagnostic_flow.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000005 /* link_diagnostic_flow.c */; };
+		A22100000000000000000006 /* link_diagnostic_capability.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000006 /* link_diagnostic_capability.c */; };
+		A22100000000000000000007 /* link_parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000007 /* link_parameter.c */; };
+		A22100000000000000000008 /* link_scheduler.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000008 /* link_scheduler.c */; };
+		A22100000000000000000009 /* link_telemetry.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000009 /* link_telemetry.c */; };
+		A2210000000000000000000A /* link_mercedes_me_adapter.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000A /* link_mercedes_me_adapter.c */; };
+		A2210000000000000000000B /* link_mercedes_me_native_protocol.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000B /* link_mercedes_me_native_protocol.c */; };
+		A2210000000000000000000C /* link_mercedes_me_diagnostic.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000C /* link_mercedes_me_diagnostic.c */; };
+		A2210000000000000000000D /* link_mercedes_me_data_ids.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000D /* link_mercedes_me_data_ids.c */; };
+		A2210000000000000000000E /* link_mercedes_me_diaglogic.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000E /* link_mercedes_me_diaglogic.c */; };
+		A2210000000000000000000F /* link_mercedes_me_whisper.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000F /* link_mercedes_me_whisper.c */; };
+		A22100000000000000000010 /* link_transport.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000010 /* link_transport.c */; };
+		A22100000000000000000011 /* link_elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000011 /* link_elm327.c */; };
+		A22100000000000000000012 /* link_elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000012 /* link_elm327_can.c */; };
+		A22100000000000000000013 /* link_elm327_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000013 /* link_elm327_probe.c */; };
+		A22100000000000000000014 /* link_elm327_session.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000014 /* link_elm327_session.c */; };
+		A22100000000000000000015 /* link_ecu_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000015 /* link_ecu_probe.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,6 +144,27 @@
 		D1A900000000000000000032 /* ja-JP */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ja-JP"; path = "MBLINK/ja-JP.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000033 /* ko-KR */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ko-KR"; path = "MBLINK/ko-KR.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000034 /* id-ID */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id-ID"; path = "MBLINK/id-ID.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000001 /* link_workspace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_workspace.c"; path = "../../src/link/src/core/workspace.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000002 /* link_fuel_economy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_fuel_economy.c"; path = "../../src/link/src/core/fuel_economy.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000003 /* link_diagnostic_request.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_diagnostic_request.c"; path = "../../src/link/src/core/diagnostic_request.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000004 /* link_doip.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_doip.c"; path = "../../src/link/src/core/doip.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000005 /* link_diagnostic_flow.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_diagnostic_flow.c"; path = "../../src/link/src/core/diagnostic_flow.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000006 /* link_diagnostic_capability.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_diagnostic_capability.c"; path = "../../src/link/src/core/diagnostic_capability.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000007 /* link_parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_parameter.c"; path = "../../src/link/src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000008 /* link_scheduler.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_scheduler.c"; path = "../../src/link/src/core/scheduler.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000009 /* link_telemetry.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_telemetry.c"; path = "../../src/link/src/core/telemetry.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000A /* link_mercedes_me_adapter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_adapter.c"; path = "../../src/link/src/core/mercedes_me_adapter.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000B /* link_mercedes_me_native_protocol.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_native_protocol.c"; path = "../../src/link/src/core/mercedes_me_native_protocol.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000C /* link_mercedes_me_diagnostic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_diagnostic.c"; path = "../../src/link/src/core/mercedes_me_diagnostic.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000D /* link_mercedes_me_data_ids.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_data_ids.c"; path = "../../src/link/src/core/mercedes_me_data_ids.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000E /* link_mercedes_me_diaglogic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_diaglogic.c"; path = "../../src/link/src/core/mercedes_me_diaglogic.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000F /* link_mercedes_me_whisper.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_whisper.c"; path = "../../src/link/src/core/mercedes_me_whisper.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000010 /* link_transport.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_transport.c"; path = "../../src/link/src/core/transport.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000011 /* link_elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327.c"; path = "../../src/link/src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000012 /* link_elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327_can.c"; path = "../../src/link/src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000013 /* link_elm327_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327_probe.c"; path = "../../src/link/src/elm327/probe.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000014 /* link_elm327_session.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327_session.c"; path = "../../src/link/src/elm327/session.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000015 /* link_ecu_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_ecu_probe.c"; path = "../../src/link/src/discover/ecu_probe.c"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -186,6 +228,27 @@
 		82C062CB28C8FF6C54323B56 /* Portable Core */ = {
 			isa = PBXGroup;
 			children = (
+				A22000000000000000000001 /* link_workspace.c */,
+				A22000000000000000000002 /* link_fuel_economy.c */,
+				A22000000000000000000003 /* link_diagnostic_request.c */,
+				A22000000000000000000004 /* link_doip.c */,
+				A22000000000000000000005 /* link_diagnostic_flow.c */,
+				A22000000000000000000006 /* link_diagnostic_capability.c */,
+				A22000000000000000000007 /* link_parameter.c */,
+				A22000000000000000000008 /* link_scheduler.c */,
+				A22000000000000000000009 /* link_telemetry.c */,
+				A2200000000000000000000A /* link_mercedes_me_adapter.c */,
+				A2200000000000000000000B /* link_mercedes_me_native_protocol.c */,
+				A2200000000000000000000C /* link_mercedes_me_diagnostic.c */,
+				A2200000000000000000000D /* link_mercedes_me_data_ids.c */,
+				A2200000000000000000000E /* link_mercedes_me_diaglogic.c */,
+				A2200000000000000000000F /* link_mercedes_me_whisper.c */,
+				A22000000000000000000010 /* link_transport.c */,
+				A22000000000000000000011 /* link_elm327.c */,
+				A22000000000000000000012 /* link_elm327_can.c */,
+				A22000000000000000000013 /* link_elm327_probe.c */,
+				A22000000000000000000014 /* link_elm327_session.c */,
+				A22000000000000000000015 /* link_ecu_probe.c */,
 				9B110E710D124AB4D19370DA /* mblink.c */,
 				F0A1B2C3D4E5F60718293A07 /* parameter.c */,
 				F0A1B2C3D4E5F60718293A01 /* scheduler.c */,
@@ -429,6 +492,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A22100000000000000000001 /* link_workspace.c in Sources */,
+				A22100000000000000000002 /* link_fuel_economy.c in Sources */,
+				A22100000000000000000003 /* link_diagnostic_request.c in Sources */,
+				A22100000000000000000004 /* link_doip.c in Sources */,
+				A22100000000000000000005 /* link_diagnostic_flow.c in Sources */,
+				A22100000000000000000006 /* link_diagnostic_capability.c in Sources */,
+				A22100000000000000000007 /* link_parameter.c in Sources */,
+				A22100000000000000000008 /* link_scheduler.c in Sources */,
+				A22100000000000000000009 /* link_telemetry.c in Sources */,
+				A2210000000000000000000A /* link_mercedes_me_adapter.c in Sources */,
+				A2210000000000000000000B /* link_mercedes_me_native_protocol.c in Sources */,
+				A2210000000000000000000C /* link_mercedes_me_diagnostic.c in Sources */,
+				A2210000000000000000000D /* link_mercedes_me_data_ids.c in Sources */,
+				A2210000000000000000000E /* link_mercedes_me_diaglogic.c in Sources */,
+				A2210000000000000000000F /* link_mercedes_me_whisper.c in Sources */,
+				A22100000000000000000010 /* link_transport.c in Sources */,
+				A22100000000000000000011 /* link_elm327.c in Sources */,
+				A22100000000000000000012 /* link_elm327_can.c in Sources */,
+				A22100000000000000000013 /* link_elm327_probe.c in Sources */,
+				A22100000000000000000014 /* link_elm327_session.c in Sources */,
+				A22100000000000000000015 /* link_ecu_probe.c in Sources */,
 				8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */,
 				E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */,
 				E0A1B2C3D4E5F60718293B01 /* scheduler.c in Sources */,
@@ -509,6 +593,8 @@
 					"$(inherited)",
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
+					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
+					"LINK_SOURCE_REVISION=\\\"4e50d442edecda99403a2e50019f0e59a70beb26\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
@@ -543,6 +629,8 @@
 					"$(inherited)",
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
+					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
+					"LINK_SOURCE_REVISION=\\\"4e50d442edecda99403a2e50019f0e59a70beb26\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
