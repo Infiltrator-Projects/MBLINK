@@ -175,7 +175,6 @@ if(MBLINK_BUILD_LINUX_APP)
         "${MBLINK_LINUX_RESOURCE_SOURCE}")
     set_source_files_properties(
         app/linux/main.c
-        app/linux/session_trace.c
         app/linux/about-dialog.c
         app/linux/c207-replay.c
         PROPERTIES
