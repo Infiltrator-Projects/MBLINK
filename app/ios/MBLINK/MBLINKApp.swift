@@ -712,40 +712,21 @@ private struct MBCommandCentreView: View {
 
     private var primaryGrid: some View {
         LinkDiagnosticGrid {
-            MBHomeTile("OBD", "Common legacy, transitional and standard diagnostics", "cpu") {
-                LinkStandardObdView(snapshot: obdSnapshot)
-            }
-            MBHomeTile("Faults", "Stored and active diagnostic faults", "exclamationmark.triangle.fill") { MBFaultsView() }
-            MBHomeTile("Live Data", "Sensors and measurements", "waveform.path.ecg") { MBLiveDataView() }
-            MBHomeTile("Vehicle", "VIN and decoded identity", "car.side.fill") { MBVehicleView() }
-            MBHomeTile("Modules", "Control units and capabilities", "square.stack.3d.up.fill") { MBModulesView() }
+            LinkTaskTile(.vehicle) { MBVehicleView() }
+            LinkTaskTile(.log) { MBEvidenceView() }
+            LinkTaskTile(.errors) { MBFaultsView() }
+            LinkTaskTile(.dashboard) { MBDashboardView() }
+            LinkTaskTile(.table) { MBDataTableView() }
+            LinkTaskTile(.graph) { MBGraphsView() }
+            LinkTaskTile(.tests) { MBTestsView() }
+            LinkTaskTile(.services) { MBServicesView() }
         }
-    }
-
-    private var obdSnapshot: LinkStandardObdSnapshot {
-        LinkStandardObdSnapshot(
-            capability: connection.diagnosticCapabilityText,
-            capabilityDetail: connection.diagnosticCapabilityDetailText,
-            vin: connection.standardVINText,
-            responderSummary: connection.standardResponderSummary,
-            pidSummary: connection.supportedPIDSummary,
-            readiness: connection.readinessStatusText,
-            readinessMonitors: connection.readinessMonitorStatus,
-            freezeFrame: connection.freezeFrameContext,
-            storedDTCs: connection.storedDTCs,
-            pendingDTCs: connection.pendingDTCs,
-            permanentDTCs: connection.permanentDTCs,
-            liveRows: connection.standardLiveValueRows)
     }
 
     private var supportingTools: some View {
         MBPanel {
             VStack(alignment: .leading, spacing: 7) {
-                MBSectionHeader(title: "Tools", kicker: "Secondary")
-                MBCompactLink("Dashboard", "At-a-glance live measurements", "gauge.with.dots.needle.67percent") { MBDashboardView() }
-                Divider().overlay(MBBrand.line)
-                MBCompactLink("Evidence", "Session log and CSV export", "doc.text.magnifyingglass") { MBEvidenceView() }
-                Divider().overlay(MBBrand.line)
+                MBSectionHeader(title: "Settings", kicker: "Application")
                 MBCompactLink("Settings", "Adapter, units and app preferences", "gearshape.fill") { MBSettingsView() }
             }
         }
@@ -859,6 +840,28 @@ private struct MBVehicleView: View {
                                 MBVehicleFactGrid(facts: buildFacts)
                             }
                         }
+                    }
+                    MBPanel {
+                        NavigationLink { MBModulesView() } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "square.stack.3d.up.fill")
+                                    .font(MBTypography.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .frame(width: 30)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Control units")
+                                        .font(MBTypography.subheadlineBold)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text("\(connection.diagnosticModules.count) responding · open module inventory and scan details")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                     MBPanel {
                         DisclosureGroup(isExpanded: $technicalDetailsExpanded) {
@@ -1458,7 +1461,7 @@ private struct MBFaultsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     HStack {
-                        MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")
+                        MBSectionHeader(title: "Errors", kicker: "Mercedes-Benz diagnostic memory")
                         Spacer()
                         Text("\(total)")
                             .font(MBTypography.bold(30, relativeTo: .title))
@@ -1486,7 +1489,7 @@ private struct MBFaultsView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Faults")
+        .mbDiagnosticScreen("Errors")
     }
 
     private var scanSummaryPanel: some View {
@@ -1899,7 +1902,7 @@ private struct MBDataTableView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Data Table")
+        .mbDiagnosticScreen("Table")
     }
 }
 
@@ -2222,7 +2225,7 @@ private struct MBGraphsView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Graphs")
+        .mbDiagnosticScreen("Graph")
     }
 }
 
@@ -2315,7 +2318,105 @@ private struct MBEvidenceView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Evidence")
+        .mbDiagnosticScreen("Log")
+    }
+}
+
+private struct MBTestsView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBSectionHeader(title: "Tests", kicker: "Read-only diagnostic checks")
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            MBSectionHeader(title: "Readiness", kicker: "Standard diagnostics")
+                            MBInfoRow(label: "Monitor status", value: connection.readinessStatusText)
+                            if connection.readinessMonitorStatus.isEmpty {
+                                Text("No readiness-monitor detail has been returned yet.")
+                                    .font(MBTypography.caption)
+                                    .foregroundStyle(MBBrand.muted)
+                            } else {
+                                ForEach(connection.readinessMonitorStatus, id: \.self) { monitor in
+                                    Text(monitor)
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            MBSectionHeader(title: "Freeze-frame context", kicker: "Mode 02")
+                            if connection.freezeFrameContext.isEmpty {
+                                Text("No standard freeze-frame context captured.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.muted)
+                            } else {
+                                ForEach(connection.freezeFrameContext, id: \.self) { item in
+                                    Text(item)
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        Text("Additional standard monitor results and Mercedes self-tests belong here when their request and response behaviour is verified. Unsupported tests are not invented or sent.")
+                            .font(MBTypography.caption)
+                            .foregroundStyle(MBBrand.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Tests")
+    }
+}
+
+private struct MBServicesView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBSectionHeader(title: "Services", kicker: "Vehicle procedures")
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("No service procedure enabled for this session",
+                                  systemImage: "wrench.and.screwdriver.fill")
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text(connection.isActive
+                                 ? "MBLINK will list a procedure here only after its target module, prerequisites, request sequence and safety behaviour are explicitly supported."
+                                 : "Connect to the vehicle to evaluate supported service procedures.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    MBPanel {
+                        Text("Unknown, destructive or unverified control operations remain unavailable. A service entry appearing in the interface must never be inferred from a generic protocol capability alone.")
+                            .font(MBTypography.caption)
+                            .foregroundStyle(MBBrand.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Services")
     }
 }
 
