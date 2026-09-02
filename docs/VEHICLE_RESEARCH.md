@@ -9,8 +9,9 @@ The core rule is:
 
 > **Desktop is the laboratory. iPhone is the diagnostic instrument.**
 
-MBLINK must support multiple vehicles without turning the normal phone
-application into an exhaustive reverse-engineering scanner.
+MBLINK must support Mercedes-Benz vehicles broadly without turning the normal phone
+application into an exhaustive reverse-engineering scanner. The current C207/OM651
+vehicle is one development fixture and evidence source, not the research-product boundary.
 
 ## Product boundary
 
