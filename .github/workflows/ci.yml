@@ -46,6 +46,8 @@ jobs:
           grep -Fq 'void SystemClock_Config(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'void Error_Handler(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'test_reporter_pcan_burst_during_19_02' tests/test_stm32_reporter.c
+          grep -Fq 'test_reporter_ecu_reset_through_stm32_transport' tests/test_stm32_reporter.c
+          grep -Fq 'NVIC_SystemReset();' embedded/stm32c092-mercedes-server/Src-main.c
           grep -q 'src/uds/uds_services.c' src/link/CMakeLists.txt
           grep -q 'link_uds_standard_service_count' src/link/src/uds/uds_services.c
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c

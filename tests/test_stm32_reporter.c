@@ -333,6 +333,83 @@ static int test_reporter_single_request_services(void)
     return 0;
 }
 
+static int test_reporter_ecu_reset_through_stm32_transport(void)
+{
+    static const uint8_t reset_types[] = {
+        0x01U, 0x02U, 0x03U, 0x04U, 0x05U
+    };
+    static const uint8_t extended_session[] = { 0x10U, 0x03U };
+    ReporterFixture fixture;
+    uint8_t response[16U];
+    size_t response_length;
+    size_t tx_start;
+    size_t tx_end;
+    size_t index;
+
+    CHECK(fixture_init(&fixture) == 0);
+
+    /*
+     * Reporter issue #24: every standard ECUReset type must send the positive
+     * 0x51 response through the real STM32 transport before MBLINK is allowed
+     * to consume the pending reset request and invoke NVIC_SystemReset().
+     */
+    for (index = 0U; index < sizeof(reset_types) / sizeof(reset_types[0]);
+         ++index) {
+        const uint8_t reset_request[] = { 0x11U, reset_types[index] };
+        uint8_t pending_reset_type = 0U;
+
+        CHECK(run_transaction(
+                  &fixture, extended_session, sizeof(extended_session),
+                  &tx_start, &tx_end) == 0);
+        CHECK(link_uds_server_active_session(&fixture.uds) == 0x03U);
+
+        CHECK(run_transaction(
+                  &fixture, reset_request, sizeof(reset_request),
+                  &tx_start, &tx_end) == 0);
+        CHECK(reassemble_response(
+                  &fixture, tx_start, tx_end, response, sizeof(response),
+                  &response_length) == 0);
+        CHECK(response_length == 2U);
+        CHECK(response[0] == 0x51U);
+        CHECK(response[1] == reset_types[index]);
+
+        /* ECUReset always returns the server to DefaultSession. */
+        CHECK(link_uds_server_active_session(&fixture.uds) == 0x01U);
+
+        /*
+         * The portable server exposes the reset only after the transaction has
+         * completed. The STM32 product main loop consumes this and waits 50 ms
+         * before calling NVIC_SystemReset(), so the 0x51 frame is not cut off.
+         */
+        CHECK(link_uds_server_take_pending_ecu_reset(
+                  &fixture.uds, &pending_reset_type));
+        CHECK(pending_reset_type == reset_types[index]);
+        CHECK(!link_uds_server_take_pending_ecu_reset(
+                   &fixture.uds, &pending_reset_type));
+    }
+
+    /* Unsupported reset type must be a truthful negative response. */
+    {
+        static const uint8_t invalid_reset[] = { 0x11U, 0x06U };
+        uint8_t pending_reset_type = 0U;
+
+        CHECK(run_transaction(
+                  &fixture, invalid_reset, sizeof(invalid_reset),
+                  &tx_start, &tx_end) == 0);
+        CHECK(reassemble_response(
+                  &fixture, tx_start, tx_end, response, sizeof(response),
+                  &response_length) == 0);
+        CHECK(response_length == 3U);
+        CHECK(response[0] == 0x7fU);
+        CHECK(response[1] == 0x11U);
+        CHECK(response[2] == LINK_UDS_NRC_SUBFUNCTION_NOT_SUPPORTED);
+        CHECK(!link_uds_server_take_pending_ecu_reset(
+                   &fixture.uds, &pending_reset_type));
+    }
+
+    return 0;
+}
+
 static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
 {
     static const uint8_t expected_subfunctions[] = {
@@ -495,6 +572,8 @@ static int test_reporter_pcan_burst_during_19_02(void)
 int main(void)
 {
     if (test_reporter_single_request_services() != 0) return EXIT_FAILURE;
+    if (test_reporter_ecu_reset_through_stm32_transport() != 0)
+        return EXIT_FAILURE;
     if (test_reporter_all_0x19_shapes_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_pcan_burst_during_19_02() != 0) return EXIT_FAILURE;
