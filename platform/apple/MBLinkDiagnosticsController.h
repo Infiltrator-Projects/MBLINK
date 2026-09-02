@@ -103,6 +103,15 @@ NS_ASSUME_NONNULL_BEGIN
  * unknown identifiers remain raw instead of being mislabeled as SAE OBD-II.
  */
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier;
+
+/**
+ * Force a complete bounded manufacturer-data discovery pass on one exact ECU
+ * route. This is intentionally distinct from refresh: refresh re-reads the
+ * identifiers already proven positive, while rescan searches the full safe
+ * range again for newly responding identifiers.
+ */
+- (void)rescanManufacturerDataForModuleIdentifier:(NSString *)identifier;
+
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
 
