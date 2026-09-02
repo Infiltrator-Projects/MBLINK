@@ -2414,6 +2414,20 @@ static bool verify_display_preferences(void)
     LinkObd2Sample sample = {0};
     char value[96];
 
+    /* Arrival order must never make 7E9 displace the selected 7E8 stream. */
+    if (!prefer_obd_responder(
+            UINT32_C(0x7e8), false, true, UINT32_C(0x7e9), false)) {
+        return false;
+    }
+    if (prefer_obd_responder(
+            UINT32_C(0x7e9), false, true, UINT32_C(0x7e8), false)) {
+        return false;
+    }
+    if (!prefer_obd_responder(
+            UINT32_C(0x7e8), false, true, UINT32_C(0x7e8), false)) {
+        return false;
+    }
+
     context.temperature_unit = MBLINK_TEMP_FAHRENHEIT;
     sample.unit = LINK_OBD2_UNIT_CELSIUS;
     sample.value = 100.0;
