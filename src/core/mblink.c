@@ -44,6 +44,7 @@
 #include "../link/src/core/diagnostic_request.c"
 #include "../link/src/core/doip.c"
 #include "../link/src/core/diagnostic_flow.c"
+#include "../link/src/core/diagnostic_capability.c"
 #include "../link/src/core/parameter.c"
 #include "../link/src/core/scheduler.c"
 

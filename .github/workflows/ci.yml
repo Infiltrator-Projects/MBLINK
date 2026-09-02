@@ -418,6 +418,7 @@ jobs:
           test -n "$link_gitlink"
           grep -Fq "\"$link_gitlink\"" src/core/mblink.c
           grep -Fq '#include "../link/src/core/diagnostic_request.c"' src/core/mblink.c
+          grep -Fq '#include "../link/src/core/diagnostic_capability.c"' src/core/mblink.c
           grep -Fq '#include "../link/src/core/mercedes_me_diagnostic.c"' src/core/mblink.c
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
           ! grep -Fq 'LINK_TELEMETRY_LINK_VERSION' src/link/src/core/telemetry.c
