@@ -2,7 +2,7 @@
 
 # Mercedes-Benz diagnostics
 
-Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
+Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. MBLINK's manufacturer scope is Mercedes-Benz broadly; individual chassis, engine and ECU-family profiles are evidence-scoped subsets within it. The current C207/OM651/CRD3 work is one populated profile, not the product boundary. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
 
 ## Shared Apple session architecture
 
