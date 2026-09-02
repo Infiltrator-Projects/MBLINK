@@ -1926,6 +1926,12 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
     MblinkLinuxContext *context = opaque;
     switch ((LinkWorkspaceSection)section) {
     case LINK_WORKSPACE_VEHICLE: append_vehicle(body, context); break;
+    /*
+     * LINK's GTK shell renders the standards/capability OBD workspace before
+     * invoking the product renderer. MBLINK must acknowledge the shared enum
+     * value without replacing it with a Mercedes-specific page.
+     */
+    case LINK_WORKSPACE_OBD: break;
     case LINK_WORKSPACE_MODULES: append_modules(body, context); break;
     case LINK_WORKSPACE_FAULTS: append_faults(body, context); break;
     case LINK_WORKSPACE_LIVE_DATA: append_parameters(body, false, context); break;
