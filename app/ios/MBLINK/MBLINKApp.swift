@@ -1197,7 +1197,7 @@ private struct MBModuleDetailView: View {
                         connection.discoverManufacturerData(moduleID: module.id)
                     } label: {
                         Label(
-                            "Refresh \(manufacturerValues.count) factory value\(manufacturerValues.count == 1 ? "" : "s")",
+                            "Refresh \(manufacturerValues.count) known factory value\(manufacturerValues.count == 1 ? "" : "s")",
                             systemImage: "arrow.clockwise")
                             .font(MBTypography.subheadlineBold)
                             .foregroundStyle(MBBrand.background)
@@ -1210,10 +1210,44 @@ private struct MBModuleDetailView: View {
                                     .fill(MBBrand.silverBright))
                     }
                     .buttonStyle(.plain)
-                    .disabled(!connection.isActive ||
-                              connection.manufacturerDataScanActive)
+                    /*
+                     * Do not gate this control on a mirrored scan flag. The
+                     * controller is the concurrency authority and will reject
+                     * a genuinely overlapping scan. Leaving the button wired
+                     * avoids a stale SwiftUI state making it look tappable
+                     * while silently swallowing every press.
+                     */
+                    .disabled(!connection.isActive)
+                    .opacity(connection.isActive ? 1.0 : 0.45)
 
-                    Text("Refresh re-reads only identifiers already proven positive for this VIN and ECU, so changing values can be captured without repeating the full discovery sweep.")
+                    Text("Refresh re-reads every identifier previously proven positive. A timeout or NO DATA on this pass does not delete earlier discovery evidence.")
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Divider().overlay(MBBrand.line)
+
+                    Button {
+                        connection.rescanManufacturerData(moduleID: module.id)
+                    } label: {
+                        Label(
+                            "Rescan full module data range",
+                            systemImage: "dot.radiowaves.left.and.right")
+                            .font(MBTypography.subheadlineBold)
+                            .foregroundStyle(MBBrand.silverBright)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(
+                                    cornerRadius: 11,
+                                    style: .continuous)
+                                    .fill(MBBrand.panelRaised))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!connection.isActive)
+                    .opacity(connection.isActive ? 1.0 : 0.45)
+
+                    Text("Rescan repeats the complete bounded read-only sweep so new factory identifiers can be added without erasing values discovered on earlier passes.")
                         .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
