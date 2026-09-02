@@ -92,7 +92,15 @@ jobs:
           grep -q 'return link_elm327_session_begin' src/elm327/session.c
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'LinkTaskTile(.dashboard) { MBDashboardView() }' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.vehicle)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.log)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.errors)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.dashboard)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.table)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.graph)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.tests)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkTaskTile(.services)' app/ios/MBLINK/MBLINKApp.swift
+          ! grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'diagnosticCapabilityText = controller.diagnosticCapabilityText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'return _shared.standardLiveValueRows;' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
