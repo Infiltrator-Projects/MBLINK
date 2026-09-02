@@ -181,7 +181,7 @@ static const char mblink_metrics_css[] =
     ".mblink-settings-note { font-size: 12px; }"
     ".mblink-about-dialog { background: #050608; }"
     ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
-    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { min-width: 100px; min-height: 42px; padding: 8px 18px; font-family: \"MB Corpo S Title WEB\"; font-size: 14px; font-weight: 700; }"
+    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".mblink-about-dialog label, .mblink-about-dialog textview, .mblink-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
     ".mblink-about-dialog textview, .mblink-about-dialog textview text { font-weight: 400; }"
     ".mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
