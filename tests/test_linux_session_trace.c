@@ -16,6 +16,21 @@ int main(void)
     CHECK(mblink_linux_graph_trace_index(UINT8_C(0xff)) ==
           MBLINK_LINUX_GRAPH_TRACE_COUNT);
 
+    CHECK(mblink_linux_trace_prefer_responder(
+        UINT32_C(0x7e8), false, true, UINT32_C(0x7e9), false));
+    CHECK(!mblink_linux_trace_prefer_responder(
+        UINT32_C(0x7e9), false, true, UINT32_C(0x7e8), false));
+    CHECK(mblink_linux_trace_prefer_responder(
+        UINT32_C(0x7e8), false, true, UINT32_C(0x7e8), false));
+    CHECK(mblink_linux_trace_prefer_responder(
+        UINT32_C(0x700), false, true, UINT32_C(0x18daf110), true));
+    CHECK(strcmp(
+        mblink_linux_trace_event_text(
+            LINK_DIAGNOSTIC_FLOW_EVENT_DIAGNOSTIC_CONTEXT_COMPLETE),
+        "Diagnostic context complete") == 0);
+    CHECK(mblink_linux_trace_event_text(
+        LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) == NULL);
+
     mblink_linux_trace_record_graph(&trace, UINT8_C(0x0c), 1000.0);
     mblink_linux_trace_record_graph(&trace, UINT8_C(0x0c), 1500.0);
     CHECK(trace.graph_history_count[0] == 2U);

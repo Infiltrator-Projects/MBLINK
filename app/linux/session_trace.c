@@ -147,3 +147,62 @@ size_t mblink_linux_trace_log_ordered_slot(
         ? 0U : trace->session_log_next;
     return (start + ordered_index) % MBLINK_LINUX_SESSION_LOG_CAPACITY;
 }
+
+const char *mblink_linux_trace_event_text(LinkDiagnosticFlowEventKind kind)
+{
+    switch (kind) {
+    case LINK_DIAGNOSTIC_FLOW_EVENT_ADAPTER_IDENTIFIED:
+        return "Adapter identified";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE:
+        return "Standard PID discovery complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN:
+        return "Standard VIN read complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_DTC_LIST:
+        return "Standard DTC inventory updated";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_READINESS:
+        return "Readiness monitors captured";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_FREEZE_FRAME_SAMPLE:
+        return "Freeze-frame sample captured";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_DIAGNOSTIC_CONTEXT_COMPLETE:
+        return "Diagnostic context complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_NO_DATA:
+        return "Live PID returned no data";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_UNSUPPORTED:
+        return "Live PID reported unsupported";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_NONE:
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE:
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED:
+        return NULL;
+    }
+    return NULL;
+}
+
+/*
+ * Generic Linux table/graph caches use one deterministic physical responder
+ * per PID. Never let arrival order alternate a PID between 7E8 and 7E9.
+ * Prefer the legislated engine responder, then 11-bit over 29-bit, then the
+ * lowest CAN identifier. A sample from the already-selected responder always
+ * refreshes its own value.
+ */
+bool mblink_linux_trace_prefer_responder(
+    uint32_t candidate,
+    bool candidate_extended,
+    bool current_valid,
+    uint32_t current,
+    bool current_extended)
+{
+    if (!current_valid) return true;
+    if (candidate == current && candidate_extended == current_extended)
+        return true;
+
+    const bool candidate_engine =
+        !candidate_extended && candidate == UINT32_C(0x7e8);
+    const bool current_engine =
+        !current_extended && current == UINT32_C(0x7e8);
+    if (candidate_engine != current_engine) return candidate_engine;
+
+    if (candidate_extended != current_extended)
+        return !candidate_extended;
+
+    return candidate < current;
+}

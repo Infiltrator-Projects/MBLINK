@@ -170,6 +170,7 @@ if(MBLINK_BUILD_LINUX_APP)
     add_executable(mblink-linux
         app/linux/main.c
         app/linux/session_trace.c
+        app/linux/style.c
         app/linux/about-dialog.c
         app/linux/c207-replay.c
         "${MBLINK_LINUX_RESOURCE_SOURCE}")

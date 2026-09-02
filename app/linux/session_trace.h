@@ -2,6 +2,9 @@
 #ifndef MBLINK_LINUX_SESSION_TRACE_H
 #define MBLINK_LINUX_SESSION_TRACE_H
 
+#include "link/diagnostic_flow.h"
+
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -38,5 +41,10 @@ void mblink_linux_trace_append_log(
     MblinkLinuxSessionTrace *trace, uint64_t now_ms, const char *message);
 size_t mblink_linux_trace_log_ordered_slot(
     const MblinkLinuxSessionTrace *trace, size_t ordered_index);
+
+bool mblink_linux_trace_prefer_responder(
+    uint32_t candidate, bool candidate_extended,
+    bool current_valid, uint32_t current, bool current_extended);
+const char *mblink_linux_trace_event_text(LinkDiagnosticFlowEventKind kind);
 
 #endif

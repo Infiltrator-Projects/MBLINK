@@ -2,6 +2,7 @@
 #include "about-dialog.h"
 #include "c207-replay.h"
 #include "session_trace.h"
+#include "style.h"
 #include "link-gtk-shell.h"
 #include "link-gtk-widgets.h"
 #include "link/dtc_knowledge.h"
@@ -15,7 +16,6 @@
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
 
-#include <fontconfig/fontconfig.h>
 #include <gtk/gtk.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -129,175 +129,10 @@ typedef struct MblinkLinuxContext {
 
 static void save_display_preferences(const MblinkLinuxContext *context);
 
-static const char mblink_css[] =
-    "window { background: #050608; color: #e8ecef; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    "window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }"
-    "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-connection-bar { background: #101318; border-color: #353a40; }"
-    ".link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
-    ".link-brand-subtitle { color: #aeb6bd; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-brand-version { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-section-summary { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-content-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-content-summary { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-card { background: linear-gradient(135deg,#171b20,#0d1014); border-color: #353a40; }"
-    ".link-card-kicker { color: #8c949b; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-detail-label { color: #7e858c; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-card-note { color: #9ca4ab; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-status-chip { border-color: #3b4147; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-toolbar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-link-button { background: #d7dde2; color: #111418; }"
-    ".link-save-session-button, .link-save-session-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-connection-status { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-settings-title { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-settings-description { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".state-warning { color: #d19e47; border-color: #72572f; }"
-    ".state-success { color: #63ab7c; border-color: #365f45; }"
-    ".mblink-settings-section { margin-top: 2px; }"
-    ".mblink-settings-row { padding: 10px 0; }"
-    ".mblink-settings-row dropdown { min-width: 210px; }"
-    ".mblink-settings-note { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-size: 11px; font-weight: 400; }";
-
-static const char mblink_metrics_css[] =
-
-    ".link-titlebar { background: #202125; border-bottom: 1px solid #353a40; }"
-    ".link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-
-
-    "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    ".mblink-settings-note { font-size: 12px; }"
-    ".mblink-about-dialog { background: #050608; }"
-    ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
-    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".mblink-about-dialog label, .mblink-about-dialog textview, .mblink-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
-    ".mblink-about-dialog textview, .mblink-about-dialog textview text { font-weight: 400; }"
-    ".mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
-
-static bool register_one_project_font(FcConfig *config, const char *filename)
-{
-    char *build_path;
-    char *install_path;
-    bool added = false;
-
-    if (config == NULL || filename == NULL) return false;
-    build_path = g_build_filename(MBLINK_FONT_BUILD_DIR, filename, NULL);
-    install_path = g_build_filename(MBLINK_FONT_INSTALL_DIR, filename, NULL);
-    if (build_path != NULL && g_file_test(build_path, G_FILE_TEST_IS_REGULAR))
-        added = FcConfigAppFontAddFile(
-            config, (const FcChar8 *)build_path) != FcFalse;
-    if (!added && install_path != NULL &&
-        g_file_test(install_path, G_FILE_TEST_IS_REGULAR))
-        added = FcConfigAppFontAddFile(
-            config, (const FcChar8 *)install_path) != FcFalse;
-    g_free(build_path);
-    g_free(install_path);
-    return added;
-}
-
-static bool register_project_fonts(void)
-{
-    static const char *const fonts[] = {
-        "mb_corpo_a_cond_regular.ttf",
-        "mb_corpo_s_bold.ttf",
-        "mb_corpo_s_regular.ttf"
-    };
-    FcConfig *config;
-    size_t index;
-
-    if (FcInit() == FcFalse) return false;
-    config = FcConfigGetCurrent();
-    if (config == NULL) return false;
-    for (index = 0U; index < G_N_ELEMENTS(fonts); ++index) {
-        if (!register_one_project_font(config, fonts[index]))
-            return false;
-    }
-    return FcConfigBuildFonts(config) != FcFalse;
-}
-
 static uint64_t monotonic_ms(void)
 {
     const gint64 value = g_get_monotonic_time();
     return value <= 0 ? 0U : (uint64_t)(value / 1000);
-}
-
-static const char *diagnostic_event_text(LinkDiagnosticFlowEventKind kind)
-{
-    switch (kind) {
-    case LINK_DIAGNOSTIC_FLOW_EVENT_ADAPTER_IDENTIFIED:
-        return "Adapter identified";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE:
-        return "Standard PID discovery complete";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN:
-        return "Standard VIN read complete";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_DTC_LIST:
-        return "Standard DTC inventory updated";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_READINESS:
-        return "Readiness monitors captured";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_FREEZE_FRAME_SAMPLE:
-        return "Freeze-frame sample captured";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_DIAGNOSTIC_CONTEXT_COMPLETE:
-        return "Diagnostic context complete";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_NO_DATA:
-        return "Live PID returned no data";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_UNSUPPORTED:
-        return "Live PID reported unsupported";
-    case LINK_DIAGNOSTIC_FLOW_EVENT_NONE:
-    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE:
-    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED:
-        return NULL;
-    }
-    return NULL;
-}
-
-/*
- * Generic Linux table/graph caches use one deterministic physical responder
- * per PID. Never let arrival order alternate a PID between 7E8 and 7E9.
- * Prefer the legislated engine responder, then 11-bit over 29-bit, then the
- * lowest CAN identifier. A sample from the already-selected responder always
- * refreshes its own value.
- */
-static bool prefer_obd_responder(
-    uint32_t candidate,
-    bool candidate_extended,
-    bool current_valid,
-    uint32_t current,
-    bool current_extended)
-{
-    if (!current_valid) return true;
-    if (candidate == current && candidate_extended == current_extended)
-        return true;
-
-    const bool candidate_engine =
-        !candidate_extended && candidate == UINT32_C(0x7e8);
-    const bool current_engine =
-        !current_extended && current == UINT32_C(0x7e8);
-    if (candidate_engine != current_engine) return candidate_engine;
-
-    if (candidate_extended != current_extended)
-        return !candidate_extended;
-
-    return candidate < current;
 }
 
 static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
@@ -2530,7 +2365,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     if (ready && !was_ready)
         mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), "Live diagnostics ready");
     if (event != NULL) {
-        const char *event_text = diagnostic_event_text(event->kind);
+        const char *event_text = mblink_linux_trace_event_text(event->kind);
         if (event_text != NULL)
             mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), event_text);
     }
@@ -2539,6 +2374,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
         (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
          event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED)) {
         const uint64_t now_ms = monotonic_ms();
+        bool graph_sample_dirty[256] = {false};
 
         for (size_t index = 0U;
              index < event->responder_decoded.count;
@@ -2550,7 +2386,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                 continue;
             }
             const uint8_t pid = entry->decoded.definition->pid;
-            if (!prefer_obd_responder(
+            if (!mblink_linux_trace_prefer_responder(
                     entry->responder_id, entry->extended_id,
                     context->decoded_sample_responder_valid[pid],
                     context->decoded_sample_responder[pid],
@@ -2574,7 +2410,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                     &event->responder_samples.samples[index];
                 if (!entry->responder_id_available) continue;
                 const uint8_t pid = entry->sample.pid;
-                if (!prefer_obd_responder(
+                if (!mblink_linux_trace_prefer_responder(
                         entry->responder_id, entry->extended_id,
                         context->sample_responder_valid[pid],
                         context->sample_responder[pid],
@@ -2587,9 +2423,15 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                 context->sample_responder[pid] = entry->responder_id;
                 context->sample_responder_extended[pid] =
                     entry->extended_id;
-                mblink_linux_trace_record_graph(
-                    &context->session_trace, pid, context->samples[pid].value);
+                graph_sample_dirty[pid] = true;
                 fuel_sample = &context->samples[pid];
+            }
+            for (size_t pid = 0U; pid < 256U; ++pid) {
+                if (graph_sample_dirty[pid]) {
+                    mblink_linux_trace_record_graph(
+                        &context->session_trace, (uint8_t)pid,
+                        context->samples[pid].value);
+                }
             }
             if (fuel_sample != NULL) {
                 (void)link_fuel_economy_observe_obd2(
@@ -2634,15 +2476,15 @@ static bool verify_display_preferences(void)
     char value[96];
 
     /* Arrival order must never make 7E9 displace the selected 7E8 stream. */
-    if (!prefer_obd_responder(
+    if (!mblink_linux_trace_prefer_responder(
             UINT32_C(0x7e8), false, true, UINT32_C(0x7e9), false)) {
         return false;
     }
-    if (prefer_obd_responder(
+    if (mblink_linux_trace_prefer_responder(
             UINT32_C(0x7e9), false, true, UINT32_C(0x7e8), false)) {
         return false;
     }
-    if (!prefer_obd_responder(
+    if (!mblink_linux_trace_prefer_responder(
             UINT32_C(0x7e8), false, true, UINT32_C(0x7e8), false)) {
         return false;
     }
@@ -2760,7 +2602,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!register_project_fonts()) {
+    if (!mblink_linux_style_register_fonts()) {
         (void)fprintf(stderr,
             "MBLINK: bundled MB Corpo font set unavailable; using platform fallback fonts.\n");
     }
@@ -2783,7 +2625,9 @@ int main(int argc, char **argv)
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
     descriptor.use_client_side_titlebar = true;
-    runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
+    runtime_css = g_strconcat(
+        mblink_linux_style_base_css(),
+        mblink_linux_style_metrics_css(), NULL);
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;
     descriptor.render_section = render_section;
