@@ -556,7 +556,15 @@ jobs:
             | head -n1)"
           test -n "$udid"
           xcrun simctl boot "$udid" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus "$udid" -b
+          booted=false
+          for attempt in $(seq 1 90); do
+            if xcrun simctl list devices | grep -F "$udid" | grep -Fq '(Booted)'; then
+              booted=true
+              break
+            fi
+            sleep 1
+          done
+          test "$booted" = true
           app="$derived/Build/Products/Debug-iphonesimulator/MBLINK.app"
           test -d "$app"
           xcrun simctl install "$udid" "$app"
