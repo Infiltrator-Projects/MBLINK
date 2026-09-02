@@ -73,6 +73,7 @@ static MblinkMercedesDataScanResult format_can_command(
 static void advance_identifier(MblinkMercedesDataScan *scan)
 {
     if (scan == NULL) return;
+    scan->current_no_response_retries = 0U;
     scan->attempted_count++;
 
     if (scan->identifier_list_active) {
@@ -302,7 +303,10 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_FLOW_CONTROL:
         return write_text("ATCFC1", buffer, buffer_size, written);
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_TIMEOUT:
-        return write_text("ATST20", buffer, buffer_size, written);
+        /* 0x64 * 4 ms = 400 ms.  The old ATST20 (128 ms) was
+         * proven too short by C207 captures: known-positive DIDs
+         * repeatedly fell through to ELM NO DATA at the timeout. */
+        return write_text("ATST64", buffer, buffer_size, written);
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_SET_HEADER:
         return format_can_command(
             "ATSH", scan->config.tx_can_id, scan->config.extended_id,
@@ -349,6 +353,17 @@ static MblinkMercedesDataScanResult accept_adapter_step(
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
+static bool retry_known_identifier_after_no_response(
+    MblinkMercedesDataScan *scan)
+{
+    if (scan == NULL || !scan->identifier_list_active ||
+        scan->current_no_response_retries >= 2U) {
+        return false;
+    }
+    scan->current_no_response_retries++;
+    return true;
+}
+
 static void accept_uds_identifier(
     MblinkMercedesDataScan *scan,
     const MblinkElm327Response *response)
@@ -359,6 +374,12 @@ static void accept_uds_identifier(
     MblinkUdsResult result;
 
     if (response->result != MBLINK_ELM327_RESULT_OK) {
+        /*
+         * A refresh list contains identifiers already proven positive.
+         * One ELM timeout is therefore not evidence that the DID vanished.
+         * Retry the same identifier twice before recording a miss.
+         */
+        if (retry_known_identifier_after_no_response(scan)) return;
         scan->no_response_count++;
         advance_identifier(scan);
         return;
@@ -394,6 +415,12 @@ static void accept_kwp_identifier(
     MblinkKwp2000Result result;
 
     if (response->result != MBLINK_ELM327_RESULT_OK) {
+        /*
+         * A refresh list contains identifiers already proven positive.
+         * One ELM timeout is therefore not evidence that the DID vanished.
+         * Retry the same identifier twice before recording a miss.
+         */
+        if (retry_known_identifier_after_no_response(scan)) return;
         scan->no_response_count++;
         advance_identifier(scan);
         return;

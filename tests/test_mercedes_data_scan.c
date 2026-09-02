@@ -59,7 +59,7 @@ static int configure_to_data(MblinkMercedesDataScan *scan)
     CHECK(accept_command(scan, "ATH0", ok) == 0);
     CHECK(accept_command(scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(scan, "ATST20", ok) == 0);
+    CHECK(accept_command(scan, "ATST64", ok) == 0);
     CHECK(accept_command(scan, "ATSH7E0", ok) == 0);
     CHECK(accept_command(scan, "ATCRA7E8", ok) == 0);
     CHECK(accept_command(scan, "1003", response_ok("5003001400C8")) == 0);
@@ -140,12 +140,27 @@ static int test_targeted_positive_identifier_refresh(void)
     CHECK(accept_command(&scan, "ATH0", ok) == 0);
     CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH64A", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA489", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
+
+    /*
+     * Regression for the C207 shrink-on-every-refresh fault: a known-positive
+     * identifier may hit the adapter timeout transiently.  It must remain the
+     * current identifier and be retried rather than being discarded.
+     */
+    CHECK(accept_command(&scan, "2158", response_no_data()) == 0);
+    CHECK(scan.current_identifier == UINT16_C(0x58));
+    CHECK(scan.no_response_count == 0U);
+    CHECK(scan.current_no_response_retries == 1U);
+    CHECK(accept_command(&scan, "2158", response_no_data()) == 0);
+    CHECK(scan.current_identifier == UINT16_C(0x58));
+    CHECK(scan.no_response_count == 0U);
+    CHECK(scan.current_no_response_retries == 2U);
     CHECK(accept_command(
               &scan, "2158", response_ok("61580090556800")) == 0);
+    CHECK(scan.current_no_response_retries == 0U);
     CHECK(scan.current_identifier == UINT16_C(0xe0));
     CHECK(accept_command(
               &scan, "21E0", response_ok("014\n0:61E000380406")) == 0);
@@ -203,7 +218,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     CHECK(accept_command(&scan, "ATH0", ok) == 0);
     CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH632", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA486", ok) == 0);
     CHECK(accept_command(
@@ -230,7 +245,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     CHECK(accept_command(&scan, "ATH0", ok) == 0);
     CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH64A", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA489", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
@@ -257,7 +272,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
     CHECK(accept_command(&scan, "ATH0", ok) == 0);
     CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH652", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA48A", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
@@ -292,7 +307,7 @@ static int test_kwp_local_identifier_scan(void)
     CHECK(accept_command(&scan, "ATH0", ok) == 0);
     CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
     CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
-    CHECK(accept_command(&scan, "ATST20", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH64A", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA489", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
