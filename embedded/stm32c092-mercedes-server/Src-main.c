@@ -31,6 +31,7 @@ void Error_Handler(void);
 
 #define MBLINK_STM32_CONSOLE_UART_TIMEOUT_MS UINT32_C(20)
 #define MBLINK_STM32_CONSOLE_RX_BUDGET 8U
+#define MBLINK_STM32_FUNCTIONAL_REQUEST_ID UINT32_C(0x7df)
 
 static const char target_vin[] = "WDD2073031A000001";
 
@@ -212,8 +213,10 @@ static bool mblink_stm32_server_init(void)
      * This STM32 target is the ECU/server, so receive the former and transmit
      * the latter.
      */
-    if (!link_stm32c092_hal_start_standard(
-            &stm32_hal, mercedes_state.endpoint->address.tx_can_id))
+    if (!link_stm32c092_hal_start_standard_dual(
+            &stm32_hal,
+            mercedes_state.endpoint->address.tx_can_id,
+            MBLINK_STM32_FUNCTIONAL_REQUEST_ID))
         return false;
 
     uds_config.enforce_session_sequence = true;
@@ -244,6 +247,15 @@ static bool mblink_stm32_server_init(void)
         mercedes_state.endpoint->address.tx_can_id;
     transport_config.address.addressing_mode = LINK_ISOTP_ADDRESSING_NORMAL;
     transport_config.address.target_type = LINK_ISOTP_TARGET_PHYSICAL;
+    transport_config.functional_address_enabled = true;
+    transport_config.functional_address.tx_can_id =
+        mercedes_state.endpoint->address.rx_can_id;
+    transport_config.functional_address.rx_can_id =
+        MBLINK_STM32_FUNCTIONAL_REQUEST_ID;
+    transport_config.functional_address.addressing_mode =
+        LINK_ISOTP_ADDRESSING_NORMAL;
+    transport_config.functional_address.target_type =
+        LINK_ISOTP_TARGET_FUNCTIONAL;
     transport_config.rx_block_size = 0U;
     transport_config.rx_stmin = 0U;
     transport_config.consecutive_timeout_us = UINT64_C(1000000);
@@ -270,6 +282,7 @@ static void mblink_stm32_process(void)
 {
     LinkStm32UdsServerResult result;
     uint8_t requested_reset = 0U;
+    uint32_t primask;
 
     /*
      * IRQ is the normal path. This main-loop drain is deliberate: the
@@ -277,7 +290,16 @@ static void mblink_stm32_process(void)
      * alone could lose an otherwise valid request when the board/IRQ path was
      * not delivered as expected.
      */
+    /*
+     * The RX queue is single-producer. The normal producer is the FDCAN IRQ;
+     * mask IRQs only around the fallback HAL FIFO drain so mainline and ISR
+     * can never write the queue concurrently. Restore the previous PRIMASK.
+     */
+    primask = __get_PRIMASK();
+    __disable_irq();
     link_stm32_can_rx_isr(&stm32_can);
+    if (primask == 0U) __enable_irq();
+
     link_uds_server_tick(&uds_server);
     result = link_stm32_uds_server_poll(&uds_transport);
 

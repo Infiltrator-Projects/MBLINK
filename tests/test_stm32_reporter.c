@@ -121,20 +121,31 @@ static void mock_push(MockCan *mock, const LinkIsoTpCanFrame *frame)
     mock->rx[mock->rx_head++ % MOCK_MAX_FRAMES] = *frame;
 }
 
-static void push_pcan_single_frame(
+static void push_pcan_single_frame_on_id(
     ReporterFixture *fixture,
+    uint32_t can_id,
     const uint8_t *pdu,
     size_t pdu_length)
 {
     LinkIsoTpCanFrame frame;
     memset(&frame, 0, sizeof(frame));
     memset(frame.data, 0xcc, 8U);
-    frame.can_id = fixture->mercedes.endpoint->address.tx_can_id;
+    frame.can_id = can_id;
     frame.length = 8U;
     frame.data[0] = (uint8_t)pdu_length;
     memcpy(frame.data + 1U, pdu, pdu_length);
     mock_push(&fixture->mock, &frame);
     link_stm32_can_rx_isr(&fixture->channel);
+}
+
+static void push_pcan_single_frame(
+    ReporterFixture *fixture,
+    const uint8_t *pdu,
+    size_t pdu_length)
+{
+    push_pcan_single_frame_on_id(
+        fixture, fixture->mercedes.endpoint->address.tx_can_id,
+        pdu, pdu_length);
 }
 
 static void push_pcan_flow_control(ReporterFixture *fixture)
@@ -196,6 +207,14 @@ static int fixture_init(ReporterFixture *fixture)
         fixture->mercedes.endpoint->address.tx_can_id;
     transport_config.address.addressing_mode = LINK_ISOTP_ADDRESSING_NORMAL;
     transport_config.address.target_type = LINK_ISOTP_TARGET_PHYSICAL;
+    transport_config.functional_address_enabled = true;
+    transport_config.functional_address.tx_can_id =
+        fixture->mercedes.endpoint->address.rx_can_id;
+    transport_config.functional_address.rx_can_id = UINT32_C(0x7df);
+    transport_config.functional_address.addressing_mode =
+        LINK_ISOTP_ADDRESSING_NORMAL;
+    transport_config.functional_address.target_type =
+        LINK_ISOTP_TARGET_FUNCTIONAL;
     transport_config.consecutive_timeout_us = UINT64_C(1000000);
     transport_config.flow_control_timeout_us = UINT64_C(1000000);
     transport_config.max_wait_frames = 3U;
@@ -211,8 +230,9 @@ static int fixture_init(ReporterFixture *fixture)
         fixture->tx_storage, sizeof(fixture->tx_storage)) ? 0 : 1;
 }
 
-static int run_transaction(
+static int run_transaction_on_id(
     ReporterFixture *fixture,
+    uint32_t request_can_id,
     const uint8_t *pdu,
     size_t pdu_length,
     size_t *tx_start_out,
@@ -224,7 +244,8 @@ static int run_transaction(
     unsigned int index;
 
     if (pdu == NULL || pdu_length == 0U || pdu_length > 7U) return 1;
-    push_pcan_single_frame(fixture, pdu, pdu_length);
+    push_pcan_single_frame_on_id(
+        fixture, request_can_id, pdu, pdu_length);
 
     for (index = 0U; index < 256U; ++index) {
         LinkStm32UdsServerResult result =
@@ -253,6 +274,18 @@ static int run_transaction(
         fixture->mock.tick_ms++;
     }
     return 1;
+}
+
+static int run_transaction(
+    ReporterFixture *fixture,
+    const uint8_t *pdu,
+    size_t pdu_length,
+    size_t *tx_start_out,
+    size_t *tx_end_out)
+{
+    return run_transaction_on_id(
+        fixture, fixture->mercedes.endpoint->address.tx_can_id,
+        pdu, pdu_length, tx_start_out, tx_end_out);
 }
 
 static int reassemble_response(
@@ -595,6 +628,53 @@ static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
     return 0;
 }
 
+static int test_reporter_functional_addressing_through_stm32_transport(void)
+{
+    ReporterFixture fixture;
+    uint8_t response[96U];
+    size_t response_length;
+    size_t tx_start;
+    size_t tx_end;
+    static const uint8_t tester_present[] = { 0x3eU, 0x00U };
+    static const uint8_t unsupported_service[] = { 0x99U };
+    static const uint8_t dtc_by_status[] = { 0x19U, 0x02U, 0xffU };
+
+    CHECK(fixture_init(&fixture) == 0);
+
+    CHECK(run_transaction_on_id(
+              &fixture, UINT32_C(0x7df),
+              tester_present, sizeof(tester_present),
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 2U);
+    CHECK(response[0] == 0x7eU && response[1] == 0x00U);
+
+    /* Functional NRC 0x11 is suppressed; no CAN response is emitted. */
+    CHECK(run_transaction_on_id(
+              &fixture, UINT32_C(0x7df),
+              unsupported_service, sizeof(unsupported_service),
+              &tx_start, &tx_end) == 0);
+    CHECK(tx_start == tx_end);
+
+    /*
+     * A functional 19 02 FF request may produce a segmented positive response.
+     * run_transaction_on_id supplies FlowControl on the physical 0x7E0 ID.
+     */
+    CHECK(run_transaction_on_id(
+              &fixture, UINT32_C(0x7df),
+              dtc_by_status, sizeof(dtc_by_status),
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 11U);
+    CHECK(response[0] == 0x59U && response[1] == 0x02U &&
+          response[2] == 0xffU);
+    return 0;
+}
+
 static int test_reporter_0x19_edge_semantics_through_stm32_transport(void)
 {
     static const MblinkUdsDtcRecord edge_records[] = {
@@ -838,6 +918,8 @@ int main(void)
     if (test_reporter_ecu_reset_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_all_0x19_shapes_through_stm32_transport() != 0)
+        return EXIT_FAILURE;
+    if (test_reporter_functional_addressing_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_0x19_edge_semantics_through_stm32_transport() != 0)
         return EXIT_FAILURE;

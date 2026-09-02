@@ -99,6 +99,31 @@ Notice that MBLINK no longer uses
 library example only. The Mercedes application now constructs the generic LINK
 server/transport itself and binds the MBLINK Mercedes handlers.
 
+## V6/V7 forensic migration
+
+The inherited Cube/Keil diagnostic stack must not be linked beside MBLINK/LINK.
+
+The supplied fixed-project map used 30,664 bytes of RW/ZI in a 30,720-byte
+configured RAM region. The legacy `uds_app_fdcan.o` alone reserved 29,272
+bytes of ZI. For the current target, keep the Cube HAL/startup files but remove
+the inherited `library/src` UDS/ISO-TP objects and `stm32c092` diagnostic
+transport/application objects. The exact source manifest is in
+`KEIL_V7_MIGRATION.md`.
+
+The old CubeMX IOC also contains `FDCAN1.NominalSyncJumpWidth=12`, while the
+verified generated FDCAN configuration uses SJW=2 with TSEG2=2. Use
+`FDCAN_Classic_Frame_Networking-MBLINK.ioc` before any CubeMX regeneration.
+
+The reporter project intentionally receives both physical request ID `0x7E0`
+and functional request ID `0x7DF`, with the ECU responding on `0x7E8`.
+LINK v0.14.79 now implements that path directly with one dual standard-ID
+hardware filter. Functional requests remain single-frame; segmented positive
+responses use the physical response path and accept FlowControl on `0x7E0`.
+
+The main-loop receive fallback now preserves PRIMASK while draining the FDCAN
+FIFO so it cannot race the normal interrupt producer into LINK's bounded RX
+queue.
+
 ## Reporter-derived hardware corrections
 
 The product target incorporates the useful STM32C092/PCAN findings:
@@ -183,7 +208,8 @@ vehicle/ECU data providers.
 
 ## PCAN checks
 
-On CAN ID `0x7E0`:
+On physical CAN ID `0x7E0`, or functional request ID `0x7DF` for a
+single-frame functional request:
 
 ```text
 02 10 01 CC CC CC CC CC

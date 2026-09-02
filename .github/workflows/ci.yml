@@ -56,6 +56,14 @@ jobs:
           ! grep -Fq 'reporter_store_has_positive_data' tests/test_stm32_reporter.c
           grep -Fq 'target_dtc_details' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'mblink_stm32_console_poll' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'MBLINK_STM32_FUNCTIONAL_REQUEST_ID UINT32_C(0x7df)' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'link_stm32c092_hal_start_standard_dual' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'functional_address_enabled = true' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq '__get_PRIMASK()' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'test_reporter_functional_addressing_through_stm32_transport' tests/test_stm32_reporter.c
+          grep -Fq 'functional_address.rx_can_id = UINT32_C(0x7df)' tests/test_stm32_reporter.c
+          grep -Fq 'FDCAN1.NominalSyncJumpWidth=2' embedded/stm32c092-mercedes-server/FDCAN_Classic_Frame_Networking-MBLINK.ioc
+          ! grep -Fq 'FDCAN1.NominalSyncJumpWidth=12' embedded/stm32c092-mercedes-server/FDCAN_Classic_Frame_Networking-MBLINK.ioc
           grep -Fq '#include "mblink/version.h"' embedded/stm32c092-mercedes-server/Src-main.c
           ! grep -Fq 'MBLINK_STM32_PRODUCT_VERSION' embedded/stm32c092-mercedes-server/Src-main.c
           ! grep -Fq 'printf("STM32C092 UDS_TEST' embedded/stm32c092-mercedes-server/Src-main.c
