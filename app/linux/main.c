@@ -1921,33 +1921,69 @@ static void append_application_settings(
     (void)context;
 }
 
+static void append_services(
+    GtkWidget *body,
+    const MblinkLinuxContext *context)
+{
+    GtkWidget *card =
+        link_gtk_card_new("SERVICES", "Supported Mercedes-Benz procedures");
+    link_gtk_card_append_status(
+        card,
+        context != NULL && context->diagnostic_ready
+            ? "NO VERIFIED PROCEDURE ENABLED"
+            : "CONNECT TO EVALUATE SERVICES",
+        "state-warning");
+    link_gtk_card_append_note(
+        card,
+        "Service procedures appear only when MBLINK has an explicitly verified target module, prerequisites, request sequence and safety contract. Unknown or destructive operations are not exposed merely because a protocol can encode them.");
+    gtk_box_append(GTK_BOX(body), card);
+}
+
 static void render_section(size_t section, GtkWidget *body, void *opaque)
 {
     MblinkLinuxContext *context = opaque;
     switch ((LinkWorkspaceSection)section) {
-    case LINK_WORKSPACE_VEHICLE: append_vehicle(body, context); break;
-    /*
-     * LINK's GTK shell renders the standards/capability OBD workspace before
-     * invoking the product renderer. MBLINK must acknowledge the shared enum
-     * value without replacing it with a Mercedes-specific page.
-     */
-    case LINK_WORKSPACE_OBD: break;
-    case LINK_WORKSPACE_MODULES: append_modules(body, context); break;
-    case LINK_WORKSPACE_FAULTS: append_faults(body, context); break;
-    case LINK_WORKSPACE_LIVE_DATA: append_parameters(body, false, context); break;
-    case LINK_WORKSPACE_TABLE: append_parameters(body, true, context); break;
-    case LINK_WORKSPACE_DASHBOARD: append_dashboard(body, context); break;
+    case LINK_WORKSPACE_VEHICLE:
+        append_vehicle(body, context);
+        append_modules(body, context);
+        break;
+    case LINK_WORKSPACE_FAULTS:
+        append_faults(body, context);
+        break;
+    case LINK_WORKSPACE_TABLE:
+        append_parameters(body, true, context);
+        break;
+    case LINK_WORKSPACE_DASHBOARD:
+        append_dashboard(body, context);
+        break;
     case LINK_WORKSPACE_GRAPHS:
-        append_generic_status(body, "INSTRUMENT TRACES", "Signal history",
-                              "Time-series traces receive real LINK telemetry samples from the active Linux diagnostic flow.", context); break;
+        append_generic_status(
+            body, "INSTRUMENT TRACES", "Signal history",
+            "Time-series traces receive real LINK telemetry samples from the active Linux diagnostic flow.",
+            context);
+        break;
+    case LINK_WORKSPACE_TESTS:
+        append_diagnostic_context(body, context);
+        break;
+    case LINK_WORKSPACE_SERVICES:
+        append_services(body, context);
+        break;
     case LINK_WORKSPACE_LOG:
-        append_generic_status(body, "SESSION RECORDER", "Diagnostic evidence",
-                              "The shared recorder/evidence path can consume the same real diagnostic events without inventing data.", context); break;
+        append_generic_status(
+            body, "SESSION RECORDER", "Diagnostic log and evidence",
+            "Chronological requests, responses, warnings and telemetry use the shared evidence path without inventing data.",
+            context);
+        break;
     case LINK_WORKSPACE_SETTINGS:
         append_measurement_settings(body, context);
         append_application_settings(body, context);
         break;
-    case LINK_WORKSPACE_SECTION_COUNT: break;
+    case LINK_WORKSPACE_SECTION_COUNT:
+        break;
+    case LINK_WORKSPACE_OBD:
+    case LINK_WORKSPACE_MODULES:
+    case LINK_WORKSPACE_LIVE_DATA:
+        break; /* compatibility-only internal IDs; never primary navigation */
     }
 }
 
