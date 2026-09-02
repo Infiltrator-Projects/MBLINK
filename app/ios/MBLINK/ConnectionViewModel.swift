@@ -387,6 +387,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         refresh()
     }
 
+    func rescanManufacturerData(moduleID: String) {
+        guard isActive else { return }
+        controller.rescanManufacturerData(
+            forModuleIdentifier: moduleID)
+        refresh()
+    }
+
     func toggleFavourite(stableKey: String) {
         guard let pid = pidForStableKey(stableKey) else { return }
         controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
@@ -403,7 +410,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func refreshPresentation() {
-        diagnosticParameters = loadDiagnosticParameters()
+        diagnosticParameters = loadPrimaryDiagnosticParameters()
         dashboardParameters = loadDashboardParameters()
     }
 
@@ -768,6 +775,28 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return result
     }
 
+    /*
+     * The top-level Table/Graphs surfaces must never use an aggregate
+     * "latest PID" stream, because several physical OBD responders can return
+     * the same PID with different legitimate values. Use one exact responder
+     * for those generic surfaces (0x7E8 when present); every other responder
+     * remains available through its own module screen.
+     */
+    private func loadPrimaryDiagnosticParameters() -> [DiagnosticParameter] {
+        let primary = diagnosticModules.first(where: {
+            !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
+                $0.livePIDCount > 0
+        }) ?? diagnosticModules.first(where: { $0.livePIDCount > 0 })
+
+        guard let primary else {
+            return loadDiagnosticParameters()
+        }
+        return loadDiagnosticParameters(
+            responderCANIdentifier: primary.responseCANIdentifier,
+            extendedID: primary.extendedID,
+            sourceLabel: "\(primary.name) · \(primary.addressText)")
+    }
+
     private func loadDashboardParameters() -> [DiagnosticParameter] {
         guard let engine = diagnosticModules.first(where: {
             !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
@@ -948,8 +977,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         isActive = controller.isActive
         isReady = controller.isReady
-        diagnosticParameters = loadDiagnosticParameters()
         diagnosticModules = loadDiagnosticModules()
+        diagnosticParameters = loadPrimaryDiagnosticParameters()
         manufacturerDataScanActive = controller.isManufacturerDataScanActive
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
         manufacturerDataScanModuleID = controller.manufacturerDataScanModuleIdentifier
