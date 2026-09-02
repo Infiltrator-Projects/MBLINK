@@ -111,7 +111,7 @@ Context:     freeze-frame/readiness values when available
 Source:      standards-backed definition
 ```
 
-The pinned LINK layer provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Freeze-frame/readiness association remains the next shared-flow step.
+The pinned LINK layer provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Readiness and capability-gated Mode 02 frame-zero context are integrated into the shared diagnostic flow and surfaced separately from current live data.
 
 ## Required Mercedes fault workflow
 
