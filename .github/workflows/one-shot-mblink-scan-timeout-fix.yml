@@ -72,7 +72,9 @@ jobs:
           text = tests.read_text().replace('"ATST20"', '"ATST64"')
           old = '''    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);\n    CHECK(accept_command(\n              &scan, "2158", response_ok("61580090556800")) == 0);'''
           new = '''    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);\n\n    /*\n     * Regression for the C207 shrink-on-every-refresh fault: a known-positive\n     * identifier may hit the adapter timeout transiently.  It must remain the\n     * current identifier and be retried rather than being discarded.\n     */\n    CHECK(accept_command(&scan, "2158", response_no_data()) == 0);\n    CHECK(scan.current_identifier == UINT16_C(0x58));\n    CHECK(scan.no_response_count == 0U);\n    CHECK(scan.current_no_response_retries == 1U);\n    CHECK(accept_command(&scan, "2158", response_no_data()) == 0);\n    CHECK(scan.current_identifier == UINT16_C(0x58));\n    CHECK(scan.no_response_count == 0U);\n    CHECK(scan.current_no_response_retries == 2U);\n    CHECK(accept_command(\n              &scan, "2158", response_ok("61580090556800")) == 0);\n    CHECK(scan.current_no_response_retries == 0U);'''
-          text = replace_once(text, old, new, 'targeted refresh retry regression')
+          if old not in text:
+              raise SystemExit('targeted refresh retry regression: anchor missing')
+          text = text.replace(old, new, 1)
           tests.write_text(text)
           PY
 
