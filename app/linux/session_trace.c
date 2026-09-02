@@ -43,10 +43,18 @@ void mblink_linux_trace_record_graph(
     }
 }
 
+static size_t bounded_length(const char *text, size_t maximum)
+{
+    size_t length = 0U;
+    if (text == NULL) return 0U;
+    while (length < maximum && text[length] != '\0') ++length;
+    return length;
+}
+
 static void append_text(char *output, size_t output_size, const char *text)
 {
     const size_t used =
-        output != NULL ? strnlen(output, output_size) : output_size;
+        output != NULL ? bounded_length(output, output_size) : output_size;
     if (output == NULL || output_size == 0U || used >= output_size) return;
     (void)snprintf(output + used, output_size - used, "%s", text);
 }
