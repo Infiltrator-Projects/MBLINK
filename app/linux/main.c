@@ -1972,20 +1972,6 @@ static void append_session_log(
     append_diagnostic_context(body, context);
 }
 
-static void append_generic_status(GtkWidget *body,
-                                  const char *kicker,
-                                  const char *title,
-                                  const char *note,
-                                  const MblinkLinuxContext *context)
-{
-    GtkWidget *card = link_gtk_card_new(kicker, title);
-    link_gtk_card_append_status(card, diagnostic_text(context),
-                                context->diagnostic_ready ? "state-success" : "state-warning");
-    link_gtk_card_append_note(card, note);
-    gtk_box_append(GTK_BOX(body), card);
-}
-
-
 static void append_preference_dropdown(
     GtkWidget *card,
     const char *title,
