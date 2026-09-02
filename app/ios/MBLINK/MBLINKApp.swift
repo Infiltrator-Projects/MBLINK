@@ -1197,7 +1197,7 @@ private struct MBModuleDetailView: View {
                         connection.discoverManufacturerData(moduleID: module.id)
                     } label: {
                         Label(
-                            "Refresh \(manufacturerValues.count) known factory value\(manufacturerValues.count == 1 ? "" : "s")",
+                            "Refresh \(manufacturerValues.count) factory value\(manufacturerValues.count == 1 ? "" : "s")",
                             systemImage: "arrow.clockwise")
                             .font(MBTypography.subheadlineBold)
                             .foregroundStyle(MBBrand.background)
