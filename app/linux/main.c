@@ -1968,6 +1968,7 @@ static void append_graphs(
         char minimum_text[96];
         char maximum_text[96];
         char responder[48];
+        char count_text[48];
         double minimum;
         double maximum;
         size_t start;
@@ -2017,10 +2018,20 @@ static void append_graphs(
             definition != NULL && definition->name != NULL
                 ? definition->name : "SAE parameter");
         (void)snprintf(
-            value, sizeof(value),
-            "%s · %zu sample%s · min %s · max %s · %s   %s",
-            current, count, count == 1U ? "" : "s",
-            minimum_text, maximum_text, responder, trace);
+            count_text, sizeof(count_text), "%zu sample%s",
+            count, count == 1U ? "" : "s");
+        value[0] = '\0';
+        g_strlcat(value, current, sizeof(value));
+        g_strlcat(value, " · ", sizeof(value));
+        g_strlcat(value, count_text, sizeof(value));
+        g_strlcat(value, " · min ", sizeof(value));
+        g_strlcat(value, minimum_text, sizeof(value));
+        g_strlcat(value, " · max ", sizeof(value));
+        g_strlcat(value, maximum_text, sizeof(value));
+        g_strlcat(value, " · ", sizeof(value));
+        g_strlcat(value, responder, sizeof(value));
+        g_strlcat(value, "   ", sizeof(value));
+        g_strlcat(value, trace, sizeof(value));
         link_gtk_card_append_detail(card, key, value);
         ++rendered;
     }
