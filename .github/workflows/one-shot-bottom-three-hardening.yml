@@ -1,0 +1,233 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK bottom-three forensic hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-bottom-three-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Apply trace semantics and Linux source split
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
+
+          main_path = Path('app/linux/main.c')
+          main = main_path.read_text()
+
+          # Concrete monolith reduction: move Linux CSS and font bootstrap out of main.c.
+          main = replace_once(
+              main,
+              '#include "session_trace.h"\n',
+              '#include "session_trace.h"\n#include "style.h"\n',
+              'style include')
+          main = replace_once(
+              main,
+              '#include <fontconfig/fontconfig.h>\n',
+              '',
+              'fontconfig include')
+
+          style_start = main.index('static const char mblink_css[] =')
+          style_end = main.index('static uint64_t monotonic_ms(void)')
+          style_block = main[style_start:style_end]
+          main = main[:style_start] + main[style_end:]
+          style_block = replace_once(
+              style_block,
+              'static bool register_project_fonts(void)',
+              'bool mblink_linux_style_register_fonts(void)',
+              'style font-registration export')
+
+          style_h = '''// SPDX-License-Identifier: GPL-3.0-or-later
+#ifndef MBLINK_LINUX_STYLE_H
+#define MBLINK_LINUX_STYLE_H
+
+#include <stdbool.h>
+
+const char *mblink_linux_style_base_css(void);
+const char *mblink_linux_style_metrics_css(void);
+bool mblink_linux_style_register_fonts(void);
+
+#endif
+'''
+          style_c = '''// SPDX-License-Identifier: GPL-3.0-or-later
+#include "style.h"
+
+#include <fontconfig/fontconfig.h>
+#include <glib.h>
+#include <stddef.h>
+
+''' + style_block + '''
+const char *mblink_linux_style_base_css(void)
+{
+    return mblink_css;
+}
+
+const char *mblink_linux_style_metrics_css(void)
+{
+    return mblink_metrics_css;
+}
+'''
+          Path('app/linux/style.h').write_text(style_h)
+          Path('app/linux/style.c').write_text(style_c)
+
+          main = replace_once(
+              main,
+              'if (!register_project_fonts()) {',
+              'if (!mblink_linux_style_register_fonts()) {',
+              'style font-registration call')
+          main = replace_once(
+              main,
+              'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);',
+              'runtime_css = g_strconcat(\n        mblink_linux_style_base_css(),\n        mblink_linux_style_metrics_css(), NULL);',
+              'style CSS composition')
+
+          # Move trace-specific semantic policy out of main.c beside the trace state.
+          event_start = main.index('static const char *diagnostic_event_text(')
+          responder_comment = '/*\n * Generic Linux table/graph caches use one deterministic physical responder'
+          event_end = main.index(responder_comment)
+          event_block = main[event_start:event_end]
+          main = main[:event_start] + main[event_end:]
+
+          responder_start = main.index(responder_comment)
+          engine_marker = 'static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)'
+          responder_end = main.index(engine_marker)
+          responder_block = main[responder_start:responder_end]
+          main = main[:responder_start] + main[responder_end:]
+
+          event_block = event_block.replace(
+              'static const char *diagnostic_event_text(',
+              'const char *mblink_linux_trace_event_text(', 1)
+          responder_block = responder_block.replace(
+              'static bool prefer_obd_responder(',
+              'bool mblink_linux_trace_prefer_responder(', 1)
+          main = main.replace('diagnostic_event_text(', 'mblink_linux_trace_event_text(')
+          main = main.replace('prefer_obd_responder(', 'mblink_linux_trace_prefer_responder(')
+
+          trace_h_path = Path('app/linux/session_trace.h')
+          trace_h = trace_h_path.read_text()
+          trace_h = replace_once(
+              trace_h,
+              '#include <stddef.h>\n#include <stdint.h>\n',
+              '#include "link/diagnostic_flow.h"\n\n#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n',
+              'trace header dependencies')
+          declarations = '''\nbool mblink_linux_trace_prefer_responder(\n    uint32_t candidate, bool candidate_extended,\n    bool current_valid, uint32_t current, bool current_extended);\nconst char *mblink_linux_trace_event_text(LinkDiagnosticFlowEventKind kind);\n'''
+          trace_h = replace_once(
+              trace_h,
+              '\n#endif\n',
+              declarations + '\n#endif\n',
+              'trace semantic declarations')
+          trace_h_path.write_text(trace_h)
+
+          trace_c_path = Path('app/linux/session_trace.c')
+          trace_c = trace_c_path.read_text().rstrip() + '\n\n' + event_block.strip() + '\n\n' + responder_block.strip() + '\n'
+          trace_c_path.write_text(trace_c)
+
+          # A live event may contain 7E9 before preferred 7E8. Select the winner
+          # throughout the event, then append exactly one graph point per PID.
+          live_anchor = '''    if (event != NULL &&\n        (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||\n         event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED)) {\n        const uint64_t now_ms = monotonic_ms();\n'''
+          live_replacement = live_anchor + '        bool graph_sample_dirty[256] = {false};\n'
+          main = replace_once(main, live_anchor, live_replacement, 'live event graph dirty state')
+          immediate_graph = '''                mblink_linux_trace_record_graph(\n                    &context->session_trace, pid, context->samples[pid].value);\n'''
+          main = replace_once(
+              main,
+              immediate_graph,
+              '                graph_sample_dirty[pid] = true;\n',
+              'defer graph recording')
+          fuel_anchor = '''            if (fuel_sample != NULL) {\n                (void)link_fuel_economy_observe_obd2(\n'''
+          graph_flush = '''            for (size_t pid = 0U; pid < 256U; ++pid) {\n                if (graph_sample_dirty[pid]) {\n                    mblink_linux_trace_record_graph(\n                        &context->session_trace, (uint8_t)pid,\n                        context->samples[pid].value);\n                }\n            }\n            if (fuel_sample != NULL) {\n                (void)link_fuel_economy_observe_obd2(\n'''
+          main = replace_once(main, fuel_anchor, graph_flush, 'one graph point per PID/event')
+          main_path.write_text(main)
+
+          # Strengthen the semantic regression test around responder choice and event labels.
+          test_path = Path('tests/test_linux_session_trace.c')
+          test = test_path.read_text()
+          test_anchor = '''    CHECK(mblink_linux_graph_trace_index(UINT8_C(0xff)) ==\n          MBLINK_LINUX_GRAPH_TRACE_COUNT);\n\n'''
+          test_insert = test_anchor + '''    CHECK(mblink_linux_trace_prefer_responder(\n        UINT32_C(0x7e8), false, true, UINT32_C(0x7e9), false));\n    CHECK(!mblink_linux_trace_prefer_responder(\n        UINT32_C(0x7e9), false, true, UINT32_C(0x7e8), false));\n    CHECK(mblink_linux_trace_prefer_responder(\n        UINT32_C(0x7e8), false, true, UINT32_C(0x7e8), false));\n    CHECK(mblink_linux_trace_prefer_responder(\n        UINT32_C(0x700), false, true, UINT32_C(0x18daf110), true));\n    CHECK(strcmp(\n        mblink_linux_trace_event_text(\n            LINK_DIAGNOSTIC_FLOW_EVENT_DIAGNOSTIC_CONTEXT_COMPLETE),\n        "Diagnostic context complete") == 0);\n    CHECK(mblink_linux_trace_event_text(\n        LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE) == NULL);\n\n'''
+          test = replace_once(test, test_anchor, test_insert, 'trace semantic tests')
+          test_path.write_text(test)
+
+          # Wire the extracted style translation unit into the Linux target.
+          cmake_path = Path('CMakeLists.txt')
+          cmake = cmake_path.read_text()
+          cmake = replace_once(
+              cmake,
+              '        app/linux/session_trace.c\n        app/linux/about-dialog.c',
+              '        app/linux/session_trace.c\n        app/linux/style.c\n        app/linux/about-dialog.c',
+              'Linux style source')
+          cmake_path.write_text(cmake)
+
+          # Update typography checks to the extracted style owner and stop main.c regrowth.
+          ci_path = Path('.github/workflows/ci.yml')
+          ci = ci_path.read_text()
+          ci = ci.replace("app/linux/main.c\n          test \"$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/main.c)\"", "app/linux/style.c\n          test \"$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/style.c)\"")
+          css_needles = [
+              '.link-section-title { color: #e7ebee;',
+              '.link-card-title { color: #eef1f3;',
+              '.link-detail-value { color: #eef1f3;',
+              'window *, popover, popover * { font-family:',
+              'button, button *, .link-toolbar-button,',
+              'dropdown, dropdown *, .link-adapter-combo,',
+              'entry, entry *, textview, textview *,',
+              '.link-toolbar-button, .link-toolbar-button * { font-family:',
+              '.mblink-about-dialog stackswitcher button',
+              '.mblink-about-dialog scrolledwindow { min-width:',
+              'static const char mblink_metrics_css[] =',
+              '.link-titlebar-label { font-family:'
+          ]
+          lines = []
+          for line in ci.splitlines(True):
+              if 'app/linux/main.c' in line and any(n in line for n in css_needles):
+                  line = line.replace('app/linux/main.c', 'app/linux/style.c')
+              if "grep -Eq '\\.link-(connection-bar|device-row|adapter-combo|toolbar-button|link-button|save-session-button|card|status-chip)" in line:
+                  line = line.replace('app/linux/main.c', 'app/linux/style.c')
+              lines.append(line)
+          ci = ''.join(lines)
+          ci = replace_once(
+              ci,
+              "          grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c\n",
+              "          grep -Fq 'mblink_linux_style_base_css()' app/linux/main.c\n"
+              "          grep -Fq 'mblink_linux_style_metrics_css()' app/linux/main.c\n",
+              'runtime style verification')
+          size_anchor = '''      - name: Verify independent display preferences\n'''
+          size_step = '''      - name: Enforce Linux main source-size budget\n        shell: bash\n        run: |\n          set -euo pipefail\n          bytes="$(wc -c < app/linux/main.c)"\n          echo "app/linux/main.c bytes: $bytes"\n          test "$bytes" -le 114000\n          grep -Fq '#include "style.h"' app/linux/main.c\n          grep -Fq 'app/linux/style.c' CMakeLists.txt\n      - name: Verify independent display preferences\n'''
+          ci = replace_once(ci, size_anchor, size_step, 'Linux source-size gate')
+          ci_path.write_text(ci)
+
+          # Self-remove the one-shot workflow before committing the real change.
+          Path('.github/workflows/one-shot-bottom-three-hardening.yml').unlink()
+          PY
+
+          test "$(wc -c < app/linux/main.c)" -le 114000
+          ! grep -Fq '#include "../link/src/' src/core/mblink.c
+          grep -Fq '../../src/link/src/core/transport.c' app/ios/MBLINK.xcodeproj/project.pbxproj
+          git diff --check
+          git diff --stat
+
+      - name: Commit hardening to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MBLINK release automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/linux/main.c app/linux/session_trace.c app/linux/session_trace.h app/linux/style.c app/linux/style.h tests/test_linux_session_trace.c CMakeLists.txt .github/workflows/ci.yml .github/workflows/one-shot-bottom-three-hardening.yml
+          git commit -m "Harden Linux trace semantics and source boundaries"
+          git push origin HEAD:main
