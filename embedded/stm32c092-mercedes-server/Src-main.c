@@ -22,6 +22,8 @@
 #include <string.h>
 
 extern FDCAN_HandleTypeDef hfdcan1;
+void SystemClock_Config(void);
+void Error_Handler(void);
 
 static const char target_vin[] = "WDD2073031A000001";
 

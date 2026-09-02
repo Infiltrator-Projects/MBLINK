@@ -42,6 +42,7 @@ jobs:
           grep -Fq 'NominalSyncJumpWidth = 2;' embedded/stm32c092-mercedes-server/Src-fdcan.c
           grep -Fq 'MX_USART2_UART_Init();' embedded/stm32c092-mercedes-server/Src-main.c
           ! grep -Fq 'MX_USART1_UART_Init();' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'void SystemClock_Config(void);' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'void SystemClock_Config(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'void Error_Handler(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'test_reporter_pcan_burst_during_19_02' tests/test_stm32_reporter.c
