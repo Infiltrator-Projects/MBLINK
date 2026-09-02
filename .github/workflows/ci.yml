@@ -47,6 +47,9 @@ jobs:
           grep -Fq 'void Error_Handler(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'test_reporter_pcan_burst_during_19_02' tests/test_stm32_reporter.c
           grep -Fq 'test_reporter_ecu_reset_through_stm32_transport' tests/test_stm32_reporter.c
+          grep -Fq 'test_reporter_0x19_edge_semantics_through_stm32_transport' tests/test_stm32_reporter.c
+          grep -Fq 'r06_fe_non_obd' tests/test_stm32_reporter.c
+          grep -Fq 'request_pdu[3] == 0x09U' tests/test_stm32_reporter.c
           grep -Fq 'reporter_dtc_details' tests/test_stm32_reporter.c
           grep -Fq 'mblink_uds_decode_read_dtc_information_response' tests/test_stm32_reporter.c
           grep -Fq 'response_pdu[0] == 0x59U' tests/test_stm32_reporter.c

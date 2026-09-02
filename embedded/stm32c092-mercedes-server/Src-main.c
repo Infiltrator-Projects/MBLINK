@@ -28,7 +28,7 @@ extern UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 void Error_Handler(void);
 
-#define MBLINK_STM32_PRODUCT_VERSION "0.7.140"
+#define MBLINK_STM32_PRODUCT_VERSION "0.7.141"
 #define MBLINK_STM32_CONSOLE_UART_TIMEOUT_MS UINT32_C(20)
 #define MBLINK_STM32_CONSOLE_RX_BUDGET 8U
 

@@ -476,6 +476,10 @@ static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
         request.record_number = UINT8_C(0x01);
         request.memory_selection = UINT8_C(0x01);
         request.functional_group_identifier = UINT8_C(0x33);
+        if (expected_subfunctions[index] == 0x42U) {
+            request.status_mask = UINT8_C(0x09);
+            request.severity_mask = UINT8_C(0x20);
+        }
 
         CHECK(mblink_uds_build_read_dtc_information_request(
                   &request, request_pdu, sizeof(request_pdu),
@@ -483,6 +487,12 @@ static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
         CHECK(request_pdu[0] == 0x19U);
         CHECK(request_pdu[1] == expected_subfunctions[index]);
         CHECK(request_length == expected_request_lengths[index]);
+        if (expected_subfunctions[index] == 0x42U) {
+            /* ISO 14229-1:2013: functional group, status mask, severity mask. */
+            CHECK(request_pdu[2] == 0x33U);
+            CHECK(request_pdu[3] == 0x09U);
+            CHECK(request_pdu[4] == 0x20U);
+        }
 
         CHECK(run_transaction(
                   &fixture, request_pdu, request_length,
@@ -585,6 +595,152 @@ static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
     return 0;
 }
 
+static int test_reporter_0x19_edge_semantics_through_stm32_transport(void)
+{
+    static const MblinkUdsDtcRecord edge_records[] = {
+        { UINT32_C(0x111111), UINT8_C(0x00) },
+        { UINT32_C(0x222222), LINK_UDS_DTC_STATUS_CONFIRMED_DTC }
+    };
+    static const uint8_t obd_ext[] = { UINT8_C(0xaa) };
+    static const LinkUdsServerDtcDetail edge_details[] = {
+        {
+            UINT32_C(0x111111),0x20U,0x01U,0x20U,1U,1U,
+            true,true,true,0x33U,0x01U,
+            0x01U,0U,NULL,0U,
+            0x01U,0U,NULL,0U,
+            0x01U,NULL,0U
+        },
+        {
+            UINT32_C(0x222222),0x40U,0x02U,0U,2U,2U,
+            false,true,false,0x33U,0x01U,
+            0U,0U,NULL,0U,
+            0U,0U,NULL,0U,
+            0x90U,obd_ext,sizeof(obd_ext)
+        }
+    };
+    static const uint8_t requests[][7] = {
+        {0x19U,0x0aU},
+        {0x19U,0x15U},
+        {0x19U,0x0bU},
+        {0x19U,0x04U,0x11U,0x11U,0x11U,0x01U},
+        {0x19U,0x05U,0x01U},
+        {0x19U,0x16U,0x01U},
+        {0x19U,0x06U,0x11U,0x11U,0x11U,0xfeU},
+        {0x19U,0x06U,0x22U,0x22U,0x22U,0xfeU}
+    };
+    static const uint8_t lengths[] = {2U,2U,2U,6U,3U,3U,6U,6U};
+    ReporterFixture fixture;
+    uint8_t response[96U];
+    size_t response_length;
+    size_t tx_start;
+    size_t tx_end;
+    size_t index;
+
+    CHECK(fixture_init(&fixture) == 0);
+    fixture.mercedes.dtc_store.records = edge_records;
+    fixture.mercedes.dtc_store.record_count =
+        sizeof(edge_records) / sizeof(edge_records[0]);
+    fixture.mercedes.dtc_store.details = edge_details;
+    fixture.mercedes.dtc_store.detail_count =
+        sizeof(edge_details) / sizeof(edge_details[0]);
+
+    for (index = 0U; index < 6U; ++index) {
+        CHECK(run_transaction(
+                  &fixture, requests[index], lengths[index],
+                  &tx_start, &tx_end) == 0);
+        CHECK(reassemble_response(
+                  &fixture, tx_start, tx_end,
+                  response, sizeof(response), &response_length) == 0);
+        CHECK(response_length >= 2U);
+        CHECK(response[0] == 0x59U);
+        CHECK(response[1] == requests[index][1]);
+    }
+
+    /* reportSupportedDTC must retain a supported DTC at status 0x00. */
+    CHECK(run_transaction(
+              &fixture, requests[0], lengths[0],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 11U);
+    CHECK(response[3] == 0x11U && response[4] == 0x11U &&
+          response[5] == 0x11U && response[6] == 0x00U);
+
+    /* 0x15 permanent and 0x0B historical first-failed survive status healing. */
+    CHECK(run_transaction(
+              &fixture, requests[1], lengths[1],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 7U && response[6] == 0x00U);
+
+    CHECK(run_transaction(
+              &fixture, requests[2], lengths[2],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 7U && response[6] == 0x00U);
+
+    /* Supported records with no current payload return positive minimal forms. */
+    CHECK(run_transaction(
+              &fixture, requests[3], lengths[3],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 6U && response[1] == 0x04U &&
+          response[2] == 0x11U && response[5] == 0x00U);
+
+    CHECK(run_transaction(
+              &fixture, requests[4], lengths[4],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 3U && response[1] == 0x05U &&
+          response[2] == 0x01U);
+
+    CHECK(run_transaction(
+              &fixture, requests[5], lengths[5],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 3U && response[1] == 0x16U &&
+          response[2] == 0x01U);
+
+    /*
+     * 0xFE means OBD extended records (0x90..0xEF). It must not match
+     * ordinary record 0x01, but it must match the 0x90 record.
+     */
+    CHECK(run_transaction(
+              &fixture, requests[6], lengths[6],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 3U);
+    CHECK(response[0] == 0x7fU && response[1] == 0x19U &&
+          response[2] == LINK_UDS_NRC_REQUEST_OUT_OF_RANGE);
+
+    CHECK(run_transaction(
+              &fixture, requests[7], lengths[7],
+              &tx_start, &tx_end) == 0);
+    CHECK(reassemble_response(
+              &fixture, tx_start, tx_end,
+              response, sizeof(response), &response_length) == 0);
+    CHECK(response_length == 8U);
+    CHECK(response[0] == 0x59U && response[1] == 0x06U &&
+          response[2] == 0x22U && response[3] == 0x22U &&
+          response[4] == 0x22U && response[5] == 0x08U &&
+          response[6] == 0x90U && response[7] == 0xaaU);
+
+    return 0;
+}
+
 static int test_reporter_pcan_burst_during_19_02(void)
 {
     ReporterFixture fixture;
@@ -682,6 +838,8 @@ int main(void)
     if (test_reporter_ecu_reset_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_all_0x19_shapes_through_stm32_transport() != 0)
+        return EXIT_FAILURE;
+    if (test_reporter_0x19_edge_semantics_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_pcan_burst_during_19_02() != 0) return EXIT_FAILURE;
     puts("MBLINK STM32C092 reporter/PCAN regressions passed");
