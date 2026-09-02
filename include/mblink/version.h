@@ -1,6 +1,6 @@
 #ifndef MBLINK_VERSION_H
 #define MBLINK_VERSION_H
 
-#define MBLINK_VERSION_STRING "0.7.149"
+#define MBLINK_VERSION_STRING "0.7.150"
 
 #endif
