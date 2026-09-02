@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "about-dialog.h"
 #include "c207-replay.h"
+#include "session_trace.h"
 #include "link-gtk-shell.h"
 #include "link-gtk-widgets.h"
 #include "link/dtc_knowledge.h"
@@ -101,14 +102,7 @@ typedef struct MblinkLinuxContext {
     bool decoded_sample_responder_valid[256];
     uint32_t decoded_sample_responder[256];
     bool decoded_sample_responder_extended[256];
-    double graph_history[8U][48U];
-    uint8_t graph_history_count[8U];
-    uint8_t graph_history_next[8U];
-    char session_log[24U][160U];
-    uint64_t session_log_time_ms[24U];
-    uint8_t session_log_count;
-    uint8_t session_log_next;
-    uint64_t session_log_started_ms;
+    MblinkLinuxSessionTrace session_trace;
     bool polling_enabled[256];
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
@@ -245,41 +239,6 @@ static uint64_t monotonic_ms(void)
 {
     const gint64 value = g_get_monotonic_time();
     return value <= 0 ? 0U : (uint64_t)(value / 1000);
-}
-
-static void clear_session_log(MblinkLinuxContext *context)
-{
-    if (context == NULL) return;
-    memset(context->session_log, 0, sizeof(context->session_log));
-    memset(context->session_log_time_ms, 0, sizeof(context->session_log_time_ms));
-    context->session_log_count = 0U;
-    context->session_log_next = 0U;
-    context->session_log_started_ms = monotonic_ms();
-}
-
-static void append_session_log_entry(
-    MblinkLinuxContext *context,
-    const char *message)
-{
-    uint8_t slot;
-    uint64_t now_ms;
-    if (context == NULL || message == NULL || message[0] == '\0') return;
-
-    slot = context->session_log_next;
-    now_ms = monotonic_ms();
-    if (context->session_log_started_ms == 0U)
-        context->session_log_started_ms = now_ms;
-
-    g_strlcpy(
-        context->session_log[slot], message,
-        sizeof(context->session_log[slot]));
-    context->session_log_time_ms[slot] =
-        now_ms >= context->session_log_started_ms
-            ? now_ms - context->session_log_started_ms : 0U;
-    context->session_log_next =
-        (uint8_t)((slot + 1U) % G_N_ELEMENTS(context->session_log));
-    if (context->session_log_count < G_N_ELEMENTS(context->session_log))
-        ++context->session_log_count;
 }
 
 static const char *diagnostic_event_text(LinkDiagnosticFlowEventKind kind)
@@ -428,88 +387,6 @@ static void initialise_polling_policy(MblinkLinuxContext *context)
     for (index = 0U;
          index < sizeof(default_pids) / sizeof(default_pids[0]); ++index) {
         context->polling_enabled[default_pids[index]] = true;
-    }
-}
-
-static const uint8_t mblink_graph_pids[8U] = {
-    UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
-    UINT8_C(0x2f), UINT8_C(0x11), UINT8_C(0x46), UINT8_C(0x49)
-};
-
-static size_t graph_trace_index_for_pid(uint8_t pid)
-{
-    size_t index;
-    for (index = 0U; index < G_N_ELEMENTS(mblink_graph_pids); ++index) {
-        if (mblink_graph_pids[index] == pid) return index;
-    }
-    return G_N_ELEMENTS(mblink_graph_pids);
-}
-
-static void reset_graph_history(MblinkLinuxContext *context)
-{
-    if (context == NULL) return;
-    memset(context->graph_history, 0, sizeof(context->graph_history));
-    memset(context->graph_history_count, 0, sizeof(context->graph_history_count));
-    memset(context->graph_history_next, 0, sizeof(context->graph_history_next));
-}
-
-static void record_graph_sample(
-    MblinkLinuxContext *context,
-    const LinkObd2Sample *sample)
-{
-    size_t trace;
-    uint8_t slot;
-    if (context == NULL || sample == NULL) return;
-    trace = graph_trace_index_for_pid(sample->pid);
-    if (trace >= G_N_ELEMENTS(mblink_graph_pids)) return;
-
-    slot = context->graph_history_next[trace];
-    context->graph_history[trace][slot] = sample->value;
-    context->graph_history_next[trace] =
-        (uint8_t)((slot + 1U) % G_N_ELEMENTS(context->graph_history[trace]));
-    if (context->graph_history_count[trace] <
-        G_N_ELEMENTS(context->graph_history[trace])) {
-        ++context->graph_history_count[trace];
-    }
-}
-
-static void format_graph_sparkline(
-    const double *history,
-    size_t count,
-    size_t next,
-    char *output,
-    size_t output_size)
-{
-    static const char *const blocks[] = {
-        "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"
-    };
-    double minimum;
-    double maximum;
-    size_t start;
-    size_t index;
-
-    if (output == NULL || output_size == 0U) return;
-    output[0] = '\0';
-    if (history == NULL || count == 0U) return;
-
-    start = count < 48U ? 0U : next;
-    minimum = history[start];
-    maximum = history[start];
-    for (index = 1U; index < count; ++index) {
-        const double value = history[(start + index) % 48U];
-        if (value < minimum) minimum = value;
-        if (value > maximum) maximum = value;
-    }
-
-    for (index = 0U; index < count; ++index) {
-        const double value = history[(start + index) % 48U];
-        unsigned int level = 3U;
-        if (maximum > minimum) {
-            const double scaled = ((value - minimum) / (maximum - minimum)) * 7.0;
-            level = (unsigned int)(scaled + 0.5);
-            if (level > 7U) level = 7U;
-        }
-        g_strlcat(output, blocks[level], output_size);
     }
 }
 
@@ -1957,9 +1834,9 @@ static void append_graphs(
         card, diagnostic_text(context),
         context->diagnostic_ready ? "state-success" : "state-warning");
 
-    for (index = 0U; index < G_N_ELEMENTS(mblink_graph_pids); ++index) {
-        const uint8_t pid = mblink_graph_pids[index];
-        const size_t count = context->graph_history_count[index];
+    for (index = 0U; index < MBLINK_LINUX_GRAPH_TRACE_COUNT; ++index) {
+        const uint8_t pid = mblink_linux_graph_pids[index];
+        const size_t count = context->session_trace.graph_history_count[index];
         const MblinkObd2PidDefinition *definition;
         char key[128];
         char trace[192];
@@ -1978,19 +1855,19 @@ static void append_graphs(
         if (count == 0U || !context->sample_valid[pid]) continue;
         definition = mblink_obd2_pid_definition(UINT8_C(0x01), pid);
         format_sample(&context->samples[pid], context, current, sizeof(current));
-        format_graph_sparkline(
-            context->graph_history[index], count,
-            context->graph_history_next[index], trace, sizeof(trace));
+        mblink_linux_trace_format_sparkline(
+            context->session_trace.graph_history[index], count,
+            context->session_trace.graph_history_next[index], trace, sizeof(trace));
 
-        start = count < G_N_ELEMENTS(context->graph_history[index])
-            ? 0U : context->graph_history_next[index];
-        minimum = context->graph_history[index][start];
+        start = count < G_N_ELEMENTS(context->session_trace.graph_history[index])
+            ? 0U : context->session_trace.graph_history_next[index];
+        minimum = context->session_trace.graph_history[index][start];
         maximum = minimum;
         for (sample_index = 1U; sample_index < count; ++sample_index) {
             const double sample_value =
-                context->graph_history[index][
+                context->session_trace.graph_history[index][
                     (start + sample_index) %
-                    G_N_ELEMENTS(context->graph_history[index])];
+                    G_N_ELEMENTS(context->session_trace.graph_history[index])];
             if (sample_value < minimum) minimum = sample_value;
             if (sample_value > maximum) maximum = sample_value;
         }
@@ -2095,22 +1972,21 @@ static void append_session_log(
                    context->manufacturer_scan.dtcs.count);
     link_gtk_card_append_detail(card, "Engine manufacturer fault records", value);
 
-    if (context->session_log_count != 0U) {
-        const size_t capacity = G_N_ELEMENTS(context->session_log);
-        const size_t start =
-            context->session_log_count < capacity
-                ? 0U : context->session_log_next;
+    if (context->session_trace.session_log_count != 0U) {
         size_t index;
-        for (index = 0U; index < context->session_log_count; ++index) {
-            const size_t slot = (start + index) % capacity;
-            const uint64_t elapsed = context->session_log_time_ms[slot];
+        for (index = 0U;
+             index < context->session_trace.session_log_count;
+             ++index) {
+            const size_t slot = mblink_linux_trace_log_ordered_slot(
+                &context->session_trace, index);
+            const uint64_t elapsed = context->session_trace.session_log_time_ms[slot];
             char when[32];
             (void)snprintf(
                 when, sizeof(when), "+%llu.%03llus",
                 (unsigned long long)(elapsed / UINT64_C(1000)),
                 (unsigned long long)(elapsed % UINT64_C(1000)));
             link_gtk_card_append_detail(
-                card, when, context->session_log[slot]);
+                card, when, context->session_trace.session_log[slot]);
         }
     } else {
         link_gtk_card_append_note(
@@ -2586,20 +2462,20 @@ static void connection_changed(LinkTransport *transport,
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
     if (connected) {
-        clear_session_log(context);
+        mblink_linux_trace_clear_log(&context->session_trace, monotonic_ms());
         (void)snprintf(
             log_message, sizeof(log_message), "Connected · %s",
             context->adapter_identity[0] != '\0'
                 ? context->adapter_identity : "diagnostic adapter");
-        append_session_log_entry(context, log_message);
+        mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), log_message);
     } else {
-        append_session_log_entry(context, "Disconnected");
+        mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), "Disconnected");
     }
     context->native_adapter_mode =
         connected && adapter_identity != NULL &&
         strstr(adapter_identity, "Mercedes me Adapter") != NULL;
     reset_manufacturer_scan(context);
-    reset_graph_history(context);
+    mblink_linux_trace_reset_graph(&context->session_trace);
     if (connected)
         link_fuel_economy_reset_trip(&context->fuel_economy, monotonic_ms());
     else
@@ -2618,7 +2494,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     context->diagnostic_ready = ready;
 
     if (flow == NULL) {
-        append_session_log_entry(context, "Diagnostic flow reset");
+        mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), "Diagnostic flow reset");
         context->diagnostic_valid = false;
         memset(&context->diagnostic, 0, sizeof(context->diagnostic));
         memset(context->sample_valid, 0, sizeof(context->sample_valid));
@@ -2643,7 +2519,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
         memset(
             context->decoded_sample_responder_extended, 0,
             sizeof(context->decoded_sample_responder_extended));
-        reset_graph_history(context);
+        mblink_linux_trace_reset_graph(&context->session_trace);
         link_fuel_economy_init(&context->fuel_economy);
         return;
     }
@@ -2652,11 +2528,11 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
     context->diagnostic_valid = true;
 
     if (ready && !was_ready)
-        append_session_log_entry(context, "Live diagnostics ready");
+        mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), "Live diagnostics ready");
     if (event != NULL) {
         const char *event_text = diagnostic_event_text(event->kind);
         if (event_text != NULL)
-            append_session_log_entry(context, event_text);
+            mblink_linux_trace_append_log(&context->session_trace, monotonic_ms(), event_text);
     }
 
     if (event != NULL &&
@@ -2711,7 +2587,8 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                 context->sample_responder[pid] = entry->responder_id;
                 context->sample_responder_extended[pid] =
                     entry->extended_id;
-                record_graph_sample(context, &context->samples[pid]);
+                mblink_linux_trace_record_graph(
+                    &context->session_trace, pid, context->samples[pid].value);
                 fuel_sample = &context->samples[pid];
             }
             if (fuel_sample != NULL) {
@@ -2815,12 +2692,13 @@ static bool verify_display_preferences(void)
     sample.pid = UINT8_C(0x0c);
     sample.unit = LINK_OBD2_UNIT_RPM;
     sample.value = 1500.0;
-    record_graph_sample(&context, &sample);
-    if (context.graph_history_count[0] != 1U) return false;
-    reset_graph_history(&context);
-    if (context.graph_history_count[0] != 0U ||
-        context.graph_history_next[0] != 0U ||
-        context.graph_history[0][0] != 0.0) {
+    mblink_linux_trace_record_graph(
+        &context.session_trace, sample.pid, sample.value);
+    if (context.session_trace.graph_history_count[0] != 1U) return false;
+    mblink_linux_trace_reset_graph(&context.session_trace);
+    if (context.session_trace.graph_history_count[0] != 0U ||
+        context.session_trace.graph_history_next[0] != 0U ||
+        context.session_trace.graph_history[0][0] != 0.0) {
         return false;
     }
 
