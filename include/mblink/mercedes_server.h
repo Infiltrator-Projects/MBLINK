@@ -37,12 +37,24 @@ typedef struct {
     const char *endpoint_key;
     const MblinkUdsDtcRecord *dtcs;
     size_t dtc_count;
+
+    /*
+     * Optional rich ISO 14229 DTC metadata. The compact dtcs[] list remains
+     * the authoritative DTC/status set; details supplies the additional
+     * snapshot, extended-data, severity, memory and WWH-OBD fields required
+     * to answer the complete ReadDTCInformation surface truthfully.
+     */
+    const LinkUdsServerDtcDetail *dtc_details;
+    size_t dtc_detail_count;
+    uint8_t wwh_dtc_format_identifier;
+
     MblinkMercedesServerDidReadFn read_did;
     void *did_context;
 } MblinkMercedesServerConfig;
 
 #define MBLINK_MERCEDES_SERVER_CONFIG_INIT \
-    { NULL, MBLINK_MERCEDES_MODULE_ENGINE, NULL, NULL, 0U, NULL, NULL }
+    { NULL, MBLINK_MERCEDES_MODULE_ENGINE, NULL, NULL, 0U, \
+      NULL, 0U, UINT8_C(0x04), NULL, NULL }
 
 typedef struct {
     char vin[MBLINK_MERCEDES_VIN_LENGTH + 1U];

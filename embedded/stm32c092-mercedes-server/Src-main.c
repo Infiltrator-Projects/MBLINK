@@ -33,6 +33,43 @@ static const MblinkUdsDtcRecord target_dtcs[] = {
     { UINT32_C(0xabcdef), LINK_UDS_DTC_STATUS_CONFIRMED_DTC }
 };
 
+/*
+ * Deterministic bench data for every ISO 14229-1:2013 0x19 response family.
+ * These are demonstration records for the reporter's STM32C092/PCAN
+ * qualification target, not claims about a production Mercedes ECU.
+ */
+static const uint8_t target_snapshot_1[] = {
+    0x12U, 0x34U, 0x56U, 0x78U
+};
+static const uint8_t target_snapshot_2[] = {
+    0x12U, 0x35U, 0x9aU
+};
+static const uint8_t target_stored_1[] = {
+    0x22U, 0x01U, 0x55U
+};
+static const uint8_t target_stored_2[] = {
+    0x22U, 0x02U, 0x66U
+};
+static const uint8_t target_ext_1[] = { 0x05U, 0x09U };
+static const uint8_t target_ext_2[] = { 0x03U, 0x08U };
+
+static const LinkUdsServerDtcDetail target_dtc_details[] = {
+    {
+        UINT32_C(0x123456), 0x20U, 0x01U, 0x20U,
+        1U, 1U, true, true, true, 0x33U, 0x01U,
+        0x01U, 0x01U, target_snapshot_1, sizeof(target_snapshot_1),
+        0x01U, 0x01U, target_stored_1, sizeof(target_stored_1),
+        0x01U, target_ext_1, sizeof(target_ext_1)
+    },
+    {
+        UINT32_C(0xabcdef), 0x40U, 0x02U, 0x10U,
+        0U, 2U, true, true, false, 0x33U, 0x01U,
+        0x01U, 0x01U, target_snapshot_2, sizeof(target_snapshot_2),
+        0x01U, 0x01U, target_stored_2, sizeof(target_stored_2),
+        0x01U, target_ext_2, sizeof(target_ext_2)
+    }
+};
+
 static MblinkMercedesServerState mercedes_state;
 static LinkStm32C092Hal stm32_hal;
 static LinkStm32Can stm32_can;
@@ -63,6 +100,10 @@ static bool mblink_stm32_server_init(void)
     mercedes.endpoint_key = "c207-om651-engine-eobd-11bit";
     mercedes.dtcs = target_dtcs;
     mercedes.dtc_count = sizeof(target_dtcs) / sizeof(target_dtcs[0]);
+    mercedes.dtc_details = target_dtc_details;
+    mercedes.dtc_detail_count =
+        sizeof(target_dtc_details) / sizeof(target_dtc_details[0]);
+    mercedes.wwh_dtc_format_identifier = UINT8_C(0x04);
 
     if (!mblink_mercedes_server_init(&mercedes_state, &mercedes))
         return false;

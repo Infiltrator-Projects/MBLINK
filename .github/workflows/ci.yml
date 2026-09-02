@@ -47,6 +47,11 @@ jobs:
           grep -Fq 'void Error_Handler(void)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'test_reporter_pcan_burst_during_19_02' tests/test_stm32_reporter.c
           grep -Fq 'test_reporter_ecu_reset_through_stm32_transport' tests/test_stm32_reporter.c
+          grep -Fq 'reporter_dtc_details' tests/test_stm32_reporter.c
+          grep -Fq 'mblink_uds_decode_read_dtc_information_response' tests/test_stm32_reporter.c
+          grep -Fq 'response_pdu[0] == 0x59U' tests/test_stm32_reporter.c
+          ! grep -Fq 'reporter_store_has_positive_data' tests/test_stm32_reporter.c
+          grep -Fq 'target_dtc_details' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'LINK_UDS_ECU_RESET_SUPPORT_HARD' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'LINK_UDS_ECU_RESET_SUPPORT_SOFT' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'rapid_power_shutdown_supported = false' embedded/stm32c092-mercedes-server/Src-main.c

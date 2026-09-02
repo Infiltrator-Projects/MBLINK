@@ -25,7 +25,10 @@ bool mblink_mercedes_server_init(
     const MblinkMercedesEcuEndpointDefinition *endpoint;
 
     if (state == NULL || config == NULL || config->vin == NULL ||
-        (config->dtc_count != 0U && config->dtcs == NULL)) {
+        (config->dtc_count != 0U && config->dtcs == NULL) ||
+        (config->dtc_detail_count != 0U && config->dtc_details == NULL) ||
+        (config->wwh_dtc_format_identifier != UINT8_C(0x02) &&
+         config->wwh_dtc_format_identifier != UINT8_C(0x04))) {
         return false;
     }
 
@@ -56,6 +59,10 @@ bool mblink_mercedes_server_init(
     state->dtc_store.status_availability_mask = LINK_UDS_DTC_STATUS_MASK_ALL;
     state->dtc_store.severity_availability_mask = UINT8_C(0xff);
     state->dtc_store.dtc_format_identifier = UINT8_C(0x01);
+    state->dtc_store.details = config->dtc_details;
+    state->dtc_store.detail_count = config->dtc_detail_count;
+    state->dtc_store.wwh_dtc_format_identifier =
+        config->wwh_dtc_format_identifier;
     state->read_did = config->read_did;
     state->did_context = config->did_context;
     return true;

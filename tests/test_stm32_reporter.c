@@ -45,6 +45,38 @@ static const MblinkUdsDtcRecord reporter_dtcs[] = {
     { UINT32_C(0xabcdef), LINK_UDS_DTC_STATUS_CONFIRMED_DTC }
 };
 
+static const uint8_t reporter_snapshot_1[] = {
+    0x12U, 0x34U, 0x56U, 0x78U
+};
+static const uint8_t reporter_snapshot_2[] = {
+    0x12U, 0x35U, 0x9aU
+};
+static const uint8_t reporter_stored_1[] = {
+    0x22U, 0x01U, 0x55U
+};
+static const uint8_t reporter_stored_2[] = {
+    0x22U, 0x02U, 0x66U
+};
+static const uint8_t reporter_ext_1[] = { 0x05U, 0x09U };
+static const uint8_t reporter_ext_2[] = { 0x03U, 0x08U };
+
+static const LinkUdsServerDtcDetail reporter_dtc_details[] = {
+    {
+        UINT32_C(0x123456), 0x20U, 0x01U, 0x20U,
+        1U, 1U, true, true, true, 0x33U, 0x01U,
+        0x01U, 0x01U, reporter_snapshot_1, sizeof(reporter_snapshot_1),
+        0x01U, 0x01U, reporter_stored_1, sizeof(reporter_stored_1),
+        0x01U, reporter_ext_1, sizeof(reporter_ext_1)
+    },
+    {
+        UINT32_C(0xabcdef), 0x40U, 0x02U, 0x10U,
+        0U, 2U, true, true, false, 0x33U, 0x01U,
+        0x01U, 0x01U, reporter_snapshot_2, sizeof(reporter_snapshot_2),
+        0x01U, 0x01U, reporter_stored_2, sizeof(reporter_stored_2),
+        0x01U, reporter_ext_2, sizeof(reporter_ext_2)
+    }
+};
+
 static bool mock_receive(void *context, LinkIsoTpCanFrame *frame)
 {
     MockCan *mock = (MockCan *)context;
@@ -134,6 +166,10 @@ static int fixture_init(ReporterFixture *fixture)
     mercedes.endpoint_key = "c207-om651-engine-eobd-11bit";
     mercedes.dtcs = reporter_dtcs;
     mercedes.dtc_count = sizeof(reporter_dtcs) / sizeof(reporter_dtcs[0]);
+    mercedes.dtc_details = reporter_dtc_details;
+    mercedes.dtc_detail_count =
+        sizeof(reporter_dtc_details) / sizeof(reporter_dtc_details[0]);
+    mercedes.wwh_dtc_format_identifier = UINT8_C(0x04);
     if (!mblink_mercedes_server_init(&fixture->mercedes, &mercedes)) return 1;
 
     ops.context = &fixture->mock;
@@ -267,22 +303,6 @@ static int reassemble_response(
     if (copied != total) return 1;
     *pdu_length = total;
     return 0;
-}
-
-static bool reporter_store_has_positive_data(uint8_t subfunction)
-{
-    switch (subfunction) {
-    case 0x01U:
-    case 0x02U:
-    case 0x0aU:
-    case 0x0bU:
-    case 0x0cU:
-    case 0x0dU:
-    case 0x0eU:
-        return true;
-    default:
-        return false;
-    }
 }
 
 static int test_reporter_single_request_services(void)
@@ -472,15 +492,94 @@ static int test_reporter_all_0x19_shapes_through_stm32_transport(void)
                   response_pdu, sizeof(response_pdu),
                   &response_length) == 0);
 
-        if (reporter_store_has_positive_data(expected_subfunctions[index])) {
+        {
+            MblinkUdsDtcInformationResponse decoded;
             CHECK(response_length >= 2U);
             CHECK(response_pdu[0] == 0x59U);
             CHECK(response_pdu[1] == expected_subfunctions[index]);
-        } else {
-            CHECK(response_length == 3U);
-            CHECK(response_pdu[0] == 0x7fU);
-            CHECK(response_pdu[1] == 0x19U);
-            CHECK(response_pdu[2] == LINK_UDS_NRC_REQUEST_OUT_OF_RANGE);
+            CHECK(mblink_uds_decode_read_dtc_information_response(
+                      expected_subfunctions[index],
+                      response_pdu, response_length, &decoded) ==
+                  LINK_UDS_RESULT_OK);
+        }
+
+        /*
+         * Pin the layouts that were missing from the old status-only demo.
+         * These checks run after the real STM32 CAN/ISO-TP transport path.
+         */
+        switch (expected_subfunctions[index]) {
+        case 0x03U:
+            CHECK(response_length == 10U);
+            CHECK(response_pdu[2] == 0x12U &&
+                  response_pdu[3] == 0x34U &&
+                  response_pdu[4] == 0x56U &&
+                  response_pdu[5] == 0x01U);
+            break;
+        case 0x04U:
+            CHECK(response_pdu[2] == 0x12U &&
+                  response_pdu[3] == 0x34U &&
+                  response_pdu[4] == 0x56U &&
+                  response_pdu[5] == 0x09U &&
+                  response_pdu[6] == 0x01U &&
+                  response_pdu[7] == 0x01U);
+            break;
+        case 0x05U:
+            CHECK(response_pdu[2] == 0x01U &&
+                  response_pdu[3] == 0x12U &&
+                  response_pdu[4] == 0x34U &&
+                  response_pdu[5] == 0x56U &&
+                  response_pdu[6] == 0x09U);
+            break;
+        case 0x06U:
+        case 0x10U:
+            CHECK(response_pdu[2] == 0x12U &&
+                  response_pdu[3] == 0x34U &&
+                  response_pdu[4] == 0x56U &&
+                  response_pdu[5] == 0x09U &&
+                  response_pdu[6] == 0x01U);
+            break;
+        case 0x08U:
+        case 0x09U:
+            CHECK(response_pdu[2] == 0xffU);
+            CHECK(response_pdu[3] == 0x20U &&
+                  response_pdu[4] == 0x01U &&
+                  response_pdu[5] == 0x12U &&
+                  response_pdu[6] == 0x34U &&
+                  response_pdu[7] == 0x56U &&
+                  response_pdu[8] == 0x09U);
+            break;
+        case 0x14U:
+            CHECK(response_pdu[2] == 0x12U &&
+                  response_pdu[3] == 0x34U &&
+                  response_pdu[4] == 0x56U &&
+                  response_pdu[5] == 0x20U);
+            break;
+        case 0x17U:
+            CHECK(response_pdu[2] == 0x01U &&
+                  response_pdu[3] == 0xffU);
+            break;
+        case 0x18U:
+        case 0x19U:
+            CHECK(response_pdu[2] == 0x01U &&
+                  response_pdu[3] == 0x12U &&
+                  response_pdu[4] == 0x34U &&
+                  response_pdu[5] == 0x56U &&
+                  response_pdu[6] == 0x09U);
+            break;
+        case 0x42U:
+            CHECK(response_pdu[2] == 0x33U &&
+                  response_pdu[3] == 0xffU &&
+                  response_pdu[4] == 0xffU &&
+                  response_pdu[5] == 0x04U &&
+                  response_pdu[6] == 0x20U);
+            break;
+        case 0x55U:
+            CHECK(response_pdu[2] == 0x33U &&
+                  response_pdu[3] == 0xffU &&
+                  response_pdu[4] == 0x04U);
+            break;
+        default:
+            break;
         }
     }
     return 0;
