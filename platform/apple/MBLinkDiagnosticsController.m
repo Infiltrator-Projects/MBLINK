@@ -96,6 +96,8 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 - (void)updateMercedesModuleScanSummary;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
+- (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
+                                        forceFullScan:(BOOL)forceFullScan;
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
                                                 attempt:(NSUInteger)attempt;
@@ -135,6 +137,7 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     NSMutableDictionary<NSNumber *, MBLinkStandardDataSnapshot *> *
         _standardDataLatest;
     NSUInteger _manufacturerDataRequestGeneration;
+    BOOL _manufacturerDataForceFullScan;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -158,6 +161,38 @@ static NSString *MBLinkStandardDataKey(uint8_t pid, uint32_t responder, BOOL ext
 {
     return [NSString stringWithFormat:@"%@:%08X:%02X",
         extended ? @"29" : @"11", (unsigned int)responder, (unsigned int)pid];
+}
+
+/*
+ * Generic callers must never be "last responder wins". A Mode 01 PID can be
+ * returned by several ECUs with legitimately different values. Keep the exact
+ * responder-keyed snapshots as the source of truth and make the compatibility
+ * "latest" view deterministic: prefer the legislated engine responder 0x7E8,
+ * then 11-bit over 29-bit, then the lowest CAN identifier.
+ */
+static BOOL MBLinkStandardSnapshotPreferred(
+    MBLinkStandardDataSnapshot *candidate,
+    MBLinkStandardDataSnapshot *current)
+{
+    if (candidate == nil) return NO;
+    if (current == nil) return YES;
+    if (candidate.responderCANIdentifier == current.responderCANIdentifier &&
+        candidate.isExtendedID == current.isExtendedID) {
+        return YES;
+    }
+
+    const BOOL candidateEngine =
+        !candidate.isExtendedID &&
+        candidate.responderCANIdentifier == UINT32_C(0x7e8);
+    const BOOL currentEngine =
+        !current.isExtendedID &&
+        current.responderCANIdentifier == UINT32_C(0x7e8);
+    if (candidateEngine != currentEngine) return candidateEngine;
+
+    if (candidate.isExtendedID != current.isExtendedID)
+        return !candidate.isExtendedID;
+
+    return candidate.responderCANIdentifier < current.responderCANIdentifier;
 }
 
 static NSString *MBLinkDecodedRawHex(const LinkObd2DecodedPid *decoded)
@@ -603,6 +638,7 @@ static bool MBLinkSimulatorResponder(
     _manufacturerDataByModule = [[NSMutableDictionary alloc] init];
     _standardDataByResponder = [[NSMutableDictionary alloc] init];
     _standardDataLatest = [[NSMutableDictionary alloc] init];
+    _manufacturerDataForceFullScan = NO;
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -690,6 +726,7 @@ static bool MBLinkSimulatorResponder(
     _moduleScanActive = NO;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
+    _manufacturerDataForceFullScan = NO;
     ++_manufacturerDataRequestGeneration;
     [_shared disconnect];
 }
@@ -960,7 +997,10 @@ static bool MBLinkSimulatorResponder(
             snapshot.rawHex = MBLinkDecodedRawHex(&entry->decoded);
             _standardDataByResponder[MBLinkStandardDataKey(
                 snapshot.pid, snapshot.responderCANIdentifier, snapshot.extendedID)] = snapshot;
-            _standardDataLatest[@(snapshot.pid)] = snapshot;
+            MBLinkStandardDataSnapshot *current =
+                _standardDataLatest[@(snapshot.pid)];
+            if (MBLinkStandardSnapshotPreferred(snapshot, current))
+                _standardDataLatest[@(snapshot.pid)] = snapshot;
         }
         [self persistCapabilitiesFromFlowEvent:event];
         [self notifyDelegate];
@@ -1134,26 +1174,44 @@ static bool MBLinkSimulatorResponder(
 
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
 {
+    [self beginManufacturerDataScanForModuleIdentifier:identifier
+                                         forceFullScan:NO];
+}
+
+- (void)rescanManufacturerDataForModuleIdentifier:(NSString *)identifier
+{
+    [self beginManufacturerDataScanForModuleIdentifier:identifier
+                                         forceFullScan:YES];
+}
+
+- (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
+                                        forceFullScan:(BOOL)forceFullScan
+{
     if (identifier.length == 0U || !_shared.isActive) return;
 
     if (self.manufacturerDataScanActive) {
-        if ([self.manufacturerDataScanModuleIdentifier
-                isEqualToString:identifier]) {
-            return;
-        }
+        self.manufacturerDataScanStatusText =
+            [self.manufacturerDataScanModuleIdentifier
+                isEqualToString:identifier]
+                ? @"This module scan is already in progress"
+                : @"Another module scan is already in progress";
+        [self notifyDelegate];
         return;
     }
 
     /*
-     * Keep the last values visible, but permit an explicit refresh.  When a
-     * module has already completed a discovery pass the next scan re-reads only
-     * those module-scoped identifiers that previously returned positive data,
-     * avoiding another 256-request sweep.
+     * Refresh is deliberately non-destructive: it re-reads the identifiers
+     * already proven positive. Full rescan searches the bounded safe range
+     * again so newly responding identifiers can be added. Neither path is
+     * allowed to erase historical positive evidence merely because one pass
+     * times out or returns NO DATA.
      */
+    _manufacturerDataForceFullScan = forceFullScan;
     const NSUInteger generation = ++_manufacturerDataRequestGeneration;
     self.manufacturerDataScanModuleIdentifier = identifier;
-    self.manufacturerDataScanStatusText =
-        @"Waiting for a safe gap in live polling";
+    self.manufacturerDataScanStatusText = forceFullScan
+        ? @"Waiting for a safe gap to rescan the full module data range"
+        : @"Waiting for a safe gap to refresh known module data";
     [self notifyDelegate];
 
     [self tryBeginManufacturerDataScanForModuleIdentifier:identifier
@@ -1178,6 +1236,7 @@ static bool MBLinkSimulatorResponder(
         self.manufacturerDataScanStatusText =
             @"The selected Mercedes module is no longer in the active VIN profile";
         self.manufacturerDataScanModuleIdentifier = nil;
+        _manufacturerDataForceFullScan = NO;
         [self notifyDelegate];
         return;
     }
@@ -1197,6 +1256,7 @@ static bool MBLinkSimulatorResponder(
         self.manufacturerDataScanStatusText =
             @"Could not pause standard live polling for the Mercedes data scan";
         self.manufacturerDataScanModuleIdentifier = nil;
+        _manufacturerDataForceFullScan = NO;
         [self notifyDelegate];
         return;
     }
@@ -1238,6 +1298,7 @@ static bool MBLinkSimulatorResponder(
     const NSUInteger knownIdentifierCount =
         knownValues.count != 0U ? knownValues.count : persistedIdentifiers.count;
     BOOL targetedRefresh =
+        !_manufacturerDataForceFullScan &&
         knownIdentifierCount > 0U &&
         knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
     MblinkMercedesDataScanResult result;
@@ -1290,6 +1351,7 @@ static bool MBLinkSimulatorResponder(
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_result_name(result))];
         self.manufacturerDataScanModuleIdentifier = nil;
+        _manufacturerDataForceFullScan = NO;
         [self notifyDelegate];
         return;
     }
@@ -1304,7 +1366,10 @@ static bool MBLinkSimulatorResponder(
                 mblink_mercedes_data_scan_stage_name(
                     _manufacturerDataScan.stage))]
         : [NSString stringWithFormat:
-            @"Reading Mercedes manufacturer data · %@",
+            @"%@ · %@",
+            _manufacturerDataForceFullScan
+                ? @"Rescanning full Mercedes manufacturer-data range"
+                : @"Reading Mercedes manufacturer data",
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_stage_name(
                     _manufacturerDataScan.stage))];
@@ -1434,7 +1499,43 @@ static bool MBLinkSimulatorResponder(
         [values addObject:snapshot];
     }
 
-    _manufacturerDataByModule[identifier] = [values copy];
+    /*
+     * A positive response is durable discovery evidence. A later timeout or
+     * NO DATA is not proof that the identifier ceased to exist, especially on
+     * a busy in-vehicle CAN network. Merge refreshed values into the previous
+     * module set instead of replacing the set with only this pass.
+     */
+    NSArray<MBLinkMercedesDataSnapshot *> *previous =
+        _manufacturerDataByModule[identifier] ?: @[];
+    NSMutableDictionary<NSString *, MBLinkMercedesDataSnapshot *> *merged =
+        [[NSMutableDictionary alloc] initWithCapacity:
+            previous.count + values.count];
+
+    for (MBLinkMercedesDataSnapshot *snapshot in previous) {
+        NSString *key = [NSString stringWithFormat:@"%02X:%04X",
+            (unsigned int)snapshot.service,
+            (unsigned int)snapshot.identifier];
+        merged[key] = snapshot;
+    }
+    for (MBLinkMercedesDataSnapshot *snapshot in values) {
+        NSString *key = [NSString stringWithFormat:@"%02X:%04X",
+            (unsigned int)snapshot.service,
+            (unsigned int)snapshot.identifier];
+        merged[key] = snapshot;
+    }
+
+    NSArray<MBLinkMercedesDataSnapshot *> *retained =
+        [[merged allValues] sortedArrayUsingComparator:
+            ^NSComparisonResult(
+                MBLinkMercedesDataSnapshot *left,
+                MBLinkMercedesDataSnapshot *right) {
+                if (left.service < right.service) return NSOrderedAscending;
+                if (left.service > right.service) return NSOrderedDescending;
+                if (left.identifier < right.identifier) return NSOrderedAscending;
+                if (left.identifier > right.identifier) return NSOrderedDescending;
+                return NSOrderedSame;
+            }];
+    _manufacturerDataByModule[identifier] = retained;
 }
 
 - (void)finishManufacturerDataScanWithStatus:(NSString *)status
@@ -1452,13 +1553,15 @@ static bool MBLinkSimulatorResponder(
         mblink_mercedes_data_scan_record_count(&_manufacturerDataScan);
     const size_t attempted = _manufacturerDataScan.attempted_count;
     NSString *module = self.manufacturerDataScanModuleIdentifier ?: @"Module";
+    const NSUInteger retained =
+        _manufacturerDataByModule[module].count;
     self.manufacturerDataScanStatusText = [NSString stringWithFormat:
-        @"%@ · %@ · %zu checked · %zu positive Mercedes data ID%@",
-        module, status, attempted, positive,
-        positive == 1U ? @"" : @"s"];
+        @"%@ · %@ · %zu checked · %zu responded this pass · %lu retained",
+        module, status, attempted, positive, (unsigned long)retained];
 
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
+    _manufacturerDataForceFullScan = NO;
     ++_manufacturerDataRequestGeneration;
 
     if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
