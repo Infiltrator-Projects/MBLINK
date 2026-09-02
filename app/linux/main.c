@@ -376,6 +376,14 @@ static size_t graph_trace_index_for_pid(uint8_t pid)
     return G_N_ELEMENTS(mblink_graph_pids);
 }
 
+static void reset_graph_history(MblinkLinuxContext *context)
+{
+    if (context == NULL) return;
+    memset(context->graph_history, 0, sizeof(context->graph_history));
+    memset(context->graph_history_count, 0, sizeof(context->graph_history_count));
+    memset(context->graph_history_next, 0, sizeof(context->graph_history_next));
+}
+
 static void record_graph_sample(
     MblinkLinuxContext *context,
     const LinkObd2Sample *sample)
@@ -2432,6 +2440,7 @@ static void connection_changed(LinkTransport *transport,
         connected && adapter_identity != NULL &&
         strstr(adapter_identity, "Mercedes me Adapter") != NULL;
     reset_manufacturer_scan(context);
+    reset_graph_history(context);
     if (connected)
         link_fuel_economy_reset_trip(&context->fuel_economy, monotonic_ms());
     else
@@ -2473,6 +2482,7 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
         memset(
             context->decoded_sample_responder_extended, 0,
             sizeof(context->decoded_sample_responder_extended));
+        reset_graph_history(context);
         link_fuel_economy_init(&context->fuel_economy);
         return;
     }
@@ -2633,6 +2643,18 @@ static bool verify_display_preferences(void)
     format_fuel_volume(10.0, &context, value, sizeof(value));
     if (strcmp(value, "2.64 US gal") != 0) return false;
 
+    sample.pid = UINT8_C(0x0c);
+    sample.unit = LINK_OBD2_UNIT_RPM;
+    sample.value = 1500.0;
+    record_graph_sample(&context, &sample);
+    if (context.graph_history_count[0] != 1U) return false;
+    reset_graph_history(&context);
+    if (context.graph_history_count[0] != 0U ||
+        context.graph_history_next[0] != 0U ||
+        context.graph_history[0][0] != 0.0) {
+        return false;
+    }
+
     {
         MblinkObd2DecodedPid decoded = {0};
         decoded.signal_count = 3U;
@@ -2653,7 +2675,7 @@ static bool verify_display_preferences(void)
     }
 
     (void)printf(
-        "MBLINK settings verified: 8 independent measurement preferences + structured SAE display\n");
+        "MBLINK settings verified: 8 independent measurement preferences + structured SAE display + graph-session reset\n");
     return true;
 }
 
