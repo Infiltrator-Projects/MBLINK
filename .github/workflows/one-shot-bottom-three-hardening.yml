@@ -29,12 +29,19 @@ jobs:
           git diff --check
           git diff --stat
 
-      - name: Commit hardening to main
+          # The GitHub Actions token has contents:write but not workflows:write.
+          # Keep the validated source/CMake/test transformation, but restore
+          # workflow/script paths so this push contains no workflow mutation.
+          git checkout -- .github/workflows/ci.yml
+          git checkout -- .github/workflows/one-shot-bottom-three-hardening.yml
+          git checkout -- tools/one-shot-bottom3.py
+
+      - name: Commit source hardening to main
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "MBLINK release automation"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
+          git add app/linux/main.c app/linux/session_trace.c app/linux/session_trace.h app/linux/style.c app/linux/style.h tests/test_linux_session_trace.c CMakeLists.txt
           git commit -m "Harden Linux trace semantics and source boundaries"
           git push origin HEAD:main
