@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK self-hosted typography diagnosis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-typography-selfhosted.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, Linux, X64, linux-native]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - name: Trace typography predicates on self-hosted runner
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "display_count=$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)"
+          echo "cond_count=$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/main.c)"
+          grep -Fq '.link-brand { color: #eef1f3; font-family: "MB Corpo A Title Cond WEB"; font-weight: 400; }' app/linux/main.c
+          test "$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/main.c)" -eq 1
+          grep -Fq '.link-section-title { color: #e7ebee; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-card-title { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
+          grep -Fq '.link-detail-value { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'window *, popover, popover * { font-family: "MB Corpo S Title WEB"; }' app/linux/main.c
+          grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }' app/linux/main.c
+          ! grep -Eq '\.link-(connection-bar|device-row|adapter-combo|toolbar-button|link-button|save-session-button|card|status-chip)[^{]*\{[^}]*((min|max)-(width|height)|padding|border-radius)' app/linux/main.c
+          ! grep -Fq 'adapter_combo_width' app/linux/main.c src/link/platform/linux/link-gtk-shell.h
+          grep -Fq 'gtk_widget_set_hexpand(shell->device_combo, TRUE);' src/link/platform/linux/link-gtk-shell.c
+          grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }' app/linux/main.c
+          grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
+          grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'static let title2 = bold(22, relativeTo: .title2)' app/ios/MBLINK/MBLINKApp.swift
+          test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 2
+          grep -Fq 'display: MBTypography.display(29, relativeTo: .title),' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq '.font(MBTypography.display(29, relativeTo: .title))' app/ios/MBLINK/MBLINKApp.swift
