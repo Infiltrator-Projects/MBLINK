@@ -2643,7 +2643,7 @@ int main(int argc, char **argv)
     descriptor.brand_name = "MBLINK";
     descriptor.brand_subtitle = replay_mode
         ? "MERCEDES-BENZ · C207 / OM651 · OFFLINE REPLAY"
-        : "MERCEDES-BENZ · C207 / OM651";
+        : "MERCEDES-BENZ · LINK DIAGNOSTICS";
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
     descriptor.use_client_side_titlebar = true;
