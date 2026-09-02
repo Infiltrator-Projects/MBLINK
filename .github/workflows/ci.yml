@@ -56,6 +56,13 @@ jobs:
           ! grep -Fq 'reporter_store_has_positive_data' tests/test_stm32_reporter.c
           grep -Fq 'target_dtc_details' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'mblink_stm32_console_poll' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq '#include "mblink/version.h"' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'MBLINK_STM32_PRODUCT_VERSION' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'printf("STM32C092 UDS_TEST' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'void CAN_Init(void)' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'CANFD_SendClassicMessage' embedded/stm32c092-mercedes-server/Src-main.c
+          mblink_version="$(tr -d '[:space:]' < VERSION)"
+          grep -Fq "#define MBLINK_VERSION_STRING \"$mblink_version\"" include/mblink/version.h
           grep -Fq 'HAL_UART_Receive(&huart2, &byte, 1U, 0U)' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'MBLINK_STM32_CONSOLE_RX_BUDGET 8U' embedded/stm32c092-mercedes-server/Src-main.c
           grep -Fq 'mblink-test-embedded-console tests/test_embedded_console.c' CMakeLists.txt

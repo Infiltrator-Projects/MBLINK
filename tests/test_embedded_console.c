@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/embedded_console.h"
+#include "mblink/version.h"
+#include "link/version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +48,7 @@ static int test_console_commands(void)
         { UINT32_C(0xabcdef), UINT8_C(0x08) }
     };
     MblinkEmbeddedConsoleSnapshot snapshot = {
-        "0.7.140", "0.14.75", "WDD2073031A000001",
+        MBLINK_VERSION_STRING, LINK_VERSION_STRING, "WDD2073031A000001",
         UINT32_C(0x7e0), UINT32_C(0x7e8), true,
         UINT8_C(0x01), UINT8_C(0x19), 0U,
         12U, 11U, 1U, 0U, 12U, 0U, 0U,
@@ -57,8 +59,9 @@ static int test_console_commands(void)
 
     mblink_embedded_console_init(&console);
     mblink_embedded_console_print_banner(&snapshot, sink_write, &sink);
-    CHECK(strstr(
-        sink.output, "MBLINK STM32C092 v0.7.140 / LINK v0.14.75") != NULL);
+    CHECK(strstr(sink.output, "MBLINK STM32C092 v") != NULL);
+    CHECK(strstr(sink.output, MBLINK_VERSION_STRING) != NULL);
+    CHECK(strstr(sink.output, LINK_VERSION_STRING) != NULL);
 
     send_text(&console, "status\r\n", &snapshot, &sink);
     CHECK(strstr(

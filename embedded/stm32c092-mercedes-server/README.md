@@ -8,6 +8,33 @@ pulls its pinned LINK revision for CAN/FDCAN, ISO-TP and UDS.
 
 Do not build LINK's demo server as the Mercedes product.
 
+## Reporter V7 handoff
+
+For the STM32C092/PCAN reporter, **replace the old V7 `Core/Src/main.c` with
+`embedded/stm32c092-mercedes-server/Src-main.c`**. Do not paste only selected
+blocks from that file into the older V7 source.
+
+The posted V7 `main.c` is useful evidence, but it is not the current MBLINK
+target: it omits the engineering console, contains an infinite `for (;;)`
+before a later `printf()`/second loop (making that lower code unreachable),
+and retains unused legacy `CAN_Init()` / `CANFD_SendClassicMessage()`
+routines beside LINK's FDCAN adapter. The canonical MBLINK target has one
+application loop only:
+
+```text
+mblink_stm32_process();
+mblink_stm32_console_poll();
+```
+
+Use the matching `Src-fdcan.c` from this directory as well. LINK's HAL adapter
+owns the active receive filter, FDCAN start, TX-event tracking and CAN I/O for
+this target; do not call a second application-owned `CAN_Init()`.
+
+The STM32 console reports the product version from
+`include/mblink/version.h`; CI verifies that header against the repository
+`VERSION` file so the board banner cannot silently lag the published release
+again.
+
 ## Ownership
 
 MBLINK owns:

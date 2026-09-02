@@ -12,6 +12,7 @@
 
 #include "mblink/embedded_console.h"
 #include "mblink/mercedes_server.h"
+#include "mblink/version.h"
 
 #include "link/uds_server.h"
 #include "link/version.h"
@@ -28,7 +29,6 @@ extern UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 void Error_Handler(void);
 
-#define MBLINK_STM32_PRODUCT_VERSION "0.7.141"
 #define MBLINK_STM32_CONSOLE_UART_TIMEOUT_MS UINT32_C(20)
 #define MBLINK_STM32_CONSOLE_RX_BUDGET 8U
 
@@ -129,7 +129,7 @@ static void mblink_stm32_console_snapshot(
     if (snapshot == NULL) return;
     memset(snapshot, 0, sizeof(*snapshot));
 
-    snapshot->product_version = MBLINK_STM32_PRODUCT_VERSION;
+    snapshot->product_version = MBLINK_VERSION_STRING;
     snapshot->link_version = LINK_VERSION_STRING;
     snapshot->vin = mercedes_state.vin;
     snapshot->request_can_id = mercedes_state.endpoint->address.tx_can_id;
