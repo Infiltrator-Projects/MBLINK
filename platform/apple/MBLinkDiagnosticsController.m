@@ -641,6 +641,30 @@ static bool MBLinkSimulatorResponder(
 {
     return _shared.freezeFrameContext;
 }
+- (NSString *)diagnosticCapabilityText
+{
+    return _shared.diagnosticCapabilityText;
+}
+- (NSString *)diagnosticCapabilityDetailText
+{
+    return _shared.diagnosticCapabilityDetailText;
+}
+- (NSString *)standardResponderSummary
+{
+    return _shared.standardResponderSummary;
+}
+- (NSString *)supportedPIDSummary
+{
+    return _shared.supportedPIDSummary;
+}
+- (NSString *)standardVINText
+{
+    return _shared.standardVINText;
+}
+- (NSArray<NSString *> *)standardLiveValueRows
+{
+    return _shared.standardLiveValueRows;
+}
 - (BOOL)isActive { return _shared.isActive; }
 - (BOOL)isReady { return _shared.isReady; }
 - (NSUInteger)recordedSampleCount { return _shared.recordedSampleCount; }
