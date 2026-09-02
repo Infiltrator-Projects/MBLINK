@@ -555,16 +555,9 @@ jobs:
             -derivedDataPath "$derived" CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
 
-          udid="$(xcrun simctl list devices available -j | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-for devices in data.get("devices", {}).values():
-    for device in devices:
-        if device.get("isAvailable") and str(device.get("name", "")).startswith("iPhone"):
-            print(device["udid"])
-            raise SystemExit(0)
-raise SystemExit("No available iPhone simulator")
-')"
+          udid="$(xcrun simctl list devices available \
+            | sed -nE 's/.*iPhone[^()]*\(([0-9A-Fa-f-]{36})\).*/\1/p' \
+            | head -n1)"
           test -n "$udid"
           xcrun simctl boot "$udid" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$udid" -b
