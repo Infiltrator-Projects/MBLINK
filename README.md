@@ -160,7 +160,7 @@ This repository uses `main` as its working branch. Development changes are made 
 
 Every push to `main` runs MBLINK CI. Ordinary commits do not publish. A commit is release-eligible only when its subject begins with the exact source version as `Release <version>` and every required CI job succeeds.
 
-The release job re-checks that the tested SHA is still the exact current `main`, verifies the complete artifact set, creates the version tag and publishes the atomic release. Existing version tags and published releases are immutable and are never moved, replaced or edited in place.
+The release job re-checks that the tested SHA is still an ancestor of the current `main`, verifies the complete artifact set, creates the version tag and publishes that exact tested SHA as the atomic release. This allows later non-release commits to land without invalidating an already-tested release candidate. Existing version tags and published releases are immutable and are never moved, replaced or edited in place.
 
 Manually runnable build/smoke workflows are diagnostic helpers only and are not release-approval mechanisms.
 
