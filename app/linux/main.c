@@ -1963,8 +1963,16 @@ static void append_graphs(
         const MblinkObd2PidDefinition *definition;
         char key[128];
         char trace[192];
-        char value[320];
+        char value[512];
         char current[96];
+        char minimum_text[96];
+        char maximum_text[96];
+        char responder[48];
+        double minimum;
+        double maximum;
+        size_t start;
+        size_t sample_index;
+        LinkObd2Sample boundary_sample;
 
         if (count == 0U || !context->sample_valid[pid]) continue;
         definition = mblink_obd2_pid_definition(UINT8_C(0x01), pid);
@@ -1973,12 +1981,46 @@ static void append_graphs(
             context->graph_history[index], count,
             context->graph_history_next[index], trace, sizeof(trace));
 
+        start = count < G_N_ELEMENTS(context->graph_history[index])
+            ? 0U : context->graph_history_next[index];
+        minimum = context->graph_history[index][start];
+        maximum = minimum;
+        for (sample_index = 1U; sample_index < count; ++sample_index) {
+            const double sample_value =
+                context->graph_history[index][
+                    (start + sample_index) %
+                    G_N_ELEMENTS(context->graph_history[index])];
+            if (sample_value < minimum) minimum = sample_value;
+            if (sample_value > maximum) maximum = sample_value;
+        }
+        boundary_sample = context->samples[pid];
+        boundary_sample.value = minimum;
+        format_sample(
+            &boundary_sample, context, minimum_text, sizeof(minimum_text));
+        boundary_sample.value = maximum;
+        format_sample(
+            &boundary_sample, context, maximum_text, sizeof(maximum_text));
+
+        if (context->sample_responder_valid[pid]) {
+            (void)snprintf(
+                responder, sizeof(responder),
+                context->sample_responder_extended[pid]
+                    ? "ECU 0x%08X" : "ECU 0x%03X",
+                (unsigned int)context->sample_responder[pid]);
+        } else {
+            (void)snprintf(responder, sizeof(responder), "ECU unknown");
+        }
+
         (void)snprintf(
             key, sizeof(key), "PID 0x%02X · %s",
             (unsigned int)pid,
             definition != NULL && definition->name != NULL
                 ? definition->name : "SAE parameter");
-        (void)snprintf(value, sizeof(value), "%s   %s", current, trace);
+        (void)snprintf(
+            value, sizeof(value),
+            "%s · %zu sample%s · min %s · max %s · %s   %s",
+            current, count, count == 1U ? "" : "s",
+            minimum_text, maximum_text, responder, trace);
         link_gtk_card_append_detail(card, key, value);
         ++rendered;
     }
@@ -1990,7 +2032,7 @@ static void append_graphs(
     } else {
         link_gtk_card_append_note(
             card,
-            "Each sparkline is a rolling history of real responder-scoped samples; no interpolation or synthetic values are added.");
+            "Each trace shows current, sample count, session minimum/maximum and the selected physical responder. No interpolation or synthetic values are added.");
     }
     gtk_box_append(GTK_BOX(body), card);
 }
