@@ -33,6 +33,13 @@ jobs:
           fi
           test -f src/link/VERSION
           test -f src/link/src/infiltratr-common/VERSION
+          test -f embedded/stm32c092-mercedes-server/Src-main.c
+          test -f embedded/stm32c092-mercedes-server/Src-fdcan.c
+          grep -Fq '#include "link-stm32-uds-server.h"' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'mblink_mercedes_server_bind(&uds_server, &mercedes_state)' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'NVIC_SystemReset();' embedded/stm32c092-mercedes-server/Src-main.c
+          ! grep -Fq 'link-stm32c092-server-example.h' embedded/stm32c092-mercedes-server/Src-main.c
+          grep -Fq 'NominalSyncJumpWidth = 2;' embedded/stm32c092-mercedes-server/Src-fdcan.c
           grep -q 'src/uds/uds_services.c' src/link/CMakeLists.txt
           grep -q 'link_uds_standard_service_count' src/link/src/uds/uds_services.c
           grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c

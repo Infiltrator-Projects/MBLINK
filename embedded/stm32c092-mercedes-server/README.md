@@ -1,92 +1,113 @@
-# STM32C092 Mercedes ECU/server application
+# STM32C092 Mercedes product target
 
-This directory is the MBLINK half of the STM32C092 work requested in MBLINK
-issues #27 and #38.
+This directory is the **MBLINK STM32C092 Mercedes target**.
 
-The architecture is intentionally split:
+MBLINK is the product. LINK is the shared library layer underneath it. A user
+who wants to run the STM32C092 work against a Mercedes uses MBLINK and MBLINK
+pulls its pinned LINK revision for CAN/FDCAN, ISO-TP and UDS.
 
-- **LINK** owns FDCAN, Classical CAN/CAN FD, ISO-TP, extended FF_DL,
-  allocation-free UDS server dispatch and the portable STM32C092 transport.
-- **MBLINK** owns Mercedes-Benz VIN/profile selection, Mercedes ECU endpoint
-  selection, DID policy, DTC state and the target application's ECU personality.
+Do not build LINK's demo server as the Mercedes product.
 
-The generic LINK server has now been physically confirmed by the reporter in
-LINK issue #18 ("link-stm32c092-server-example.c is working!!!!"). This MBLINK
-layer therefore does not fork or duplicate the working transport.
+## Ownership
 
-## Build relationship
+MBLINK owns:
 
-Clone MBLINK recursively. Its `src/link` gitlink is the exact LINK revision
-used by this project.
+- Mercedes VIN/profile selection;
+- Mercedes ECU/module endpoint selection;
+- Mercedes DID policy and DTC state;
+- the STM32C092 Mercedes application entry point;
+- the target's 500 kbit/s FDCAN setup;
+- the actual MCU reset action after UDS 0x11 has replied.
 
-For the STM32C092 KEIL/Cube target, keep the Cube-generated clock/GPIO/FDCAN
-and startup files from the hardware project and compile these project-owned
-pieces:
+LINK owns:
 
-From LINK:
+- FDCAN adapter primitives;
+- bounded CAN RX queues;
+- Classical CAN/CAN FD framing;
+- ISO-TP;
+- UDS dispatch/session handling;
+- response segmentation and Flow Control;
+- burst-request retention and transport regression tests.
+
+The reporter's STM32C092/PCAN testing is used to improve those two layers in
+their proper places; her submitted project is test evidence, not a separate
+product fork.
+
+## Files
+
+The product-side target files are:
+
+```text
+embedded/stm32c092-mercedes-server/Src-main.c
+embedded/stm32c092-mercedes-server/Src-fdcan.c
+```
+
+Use those with the Cube-generated startup/clock/GPIO files for the target.
+
+Compile the MBLINK Mercedes product sources:
+
+```text
+src/mercedes/mercedes.c
+src/mercedes/vin.c
+src/mercedes/server.c
+```
+
+and the pinned LINK library sources required by the STM32 transport:
 
 ```text
 src/link/src/core/isotp.c
 src/link/src/uds/uds.c
 src/link/src/uds/uds_services.c
 src/link/src/uds/uds_server.c
+src/link/src/infiltratr-common/src/core.c
 src/link/platform/stm32/link-stm32-can.c
 src/link/platform/stm32/link-stm32-uds-server.c
 src/link/examples/stm32c092/link-stm32c092-hal.c
-src/link/examples/stm32c092/link-stm32c092-server-example.c
 ```
 
-From MBLINK:
+Notice that MBLINK no longer uses
+`link-stm32c092-server-example.c` as its application. That file is a LINK
+library example only. The Mercedes application now constructs the generic LINK
+server/transport itself and binds the MBLINK Mercedes handlers.
+
+## Reporter-derived hardware corrections
+
+The product target incorporates the useful STM32C092/PCAN findings:
+
+- for a 48 MHz FDCAN kernel clock and 500 kbit/s Classical CAN:
+  `Prescaler=6, TSEG1=13, TSEG2=2, SJW=2`;
+- the RX interrupt remains the normal path, but the main loop also drains the
+  bounded LINK RX queue as a fallback;
+- short Classical CAN transport frames use LINK's configured `0xCC` padding;
+- FDCAN TX completion comes from the TX event FIFO;
+- ordinary tester requests racing a segmented response are retained by LINK's
+  bounded deferred FIFO while Flow Control is handled immediately;
+- ECUReset `0x11` sends the positive response first, then MBLINK performs
+  `NVIC_SystemReset()` after the response-drain interval.
+
+## Mercedes endpoint
+
+The demonstration target selects the existing C207/OM651 engine endpoint:
 
 ```text
-src/mercedes/mercedes.c
-src/mercedes/vin.c
-src/mercedes/server.c
-embedded/stm32c092-mercedes-server/Src-main.c
+tester -> ECU request : 0x7E0
+ECU -> tester response: 0x7E8
 ```
 
-The normal MBLINK headers and LINK include directories must be on the include
-path.
+The VIN and two DTC records in `Src-main.c` are explicit bench/demo data, not
+claims about the reporter's vehicle. Production firmware must supply the real
+vehicle/ECU data providers.
 
-## Mercedes behaviour
+## PCAN checks
 
-`MblinkMercedesServerState` validates the VIN as Mercedes-Benz, selects the
-narrowest MBLINK vehicle profile justified by that VIN, and selects the
-Mercedes ECU endpoint for the requested module.
-
-The server binds:
-
-- `0x22 ReadDataByIdentifier`: standardized `F190` returns the configured
-  target Mercedes VIN. Other Mercedes DIDs are only served when MBLINK has a
-  definition for that DID and the application supplies live bytes; MBLINK does
-  not invent proprietary values.
-- `0x19 ReadDTCInformation`: delegates all LINK-supported report types to the
-  target Mercedes DTC store.
-
-LINK continues to provide the built-in `0x10 DiagnosticSessionControl` and
-`0x3E TesterPresent` behaviour and the generic callback mechanism for the
-other UDS services.
-
-## CAN direction
-
-MBLINK's Mercedes endpoint definitions are tester-oriented:
+On CAN ID `0x7E0`:
 
 ```text
-endpoint.address.tx_can_id  = tester -> ECU request
-endpoint.address.rx_can_id  = ECU -> tester response
+02 10 01 CC CC CC CC CC
+03 19 02 FF CC CC CC CC
+03 22 F1 90 CC CC CC CC
 ```
 
-For the C207/OM651 profile currently captured in MBLINK that is `0x7E0` /
-`0x7E8`. Other Mercedes profiles can select different endpoints without
-changing LINK.
-
-## About the example identity
-
-`Src-main.c` contains an explicitly labelled demonstration C207/OM651 VIN
-and two demonstration DTCs so the application is self-testing. They are not
-claims about the reporter's vehicle. Replace them with the actual target ECU
-identity/DTC provider for production firmware.
-
-The purpose of keeping this application in MBLINK is exactly to keep
-Mercedes-specific behaviour out of LINK while retaining one tested UDS/ISO-TP
-implementation.
+The `19 02 FF` response is multi-frame with the two demo DTCs, so the tester
+must send Flow Control after the First Frame. LINK owns that ISO-TP exchange;
+MBLINK owns the Mercedes data returned through it.
