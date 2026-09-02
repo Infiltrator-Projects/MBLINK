@@ -104,6 +104,11 @@ typedef struct MblinkLinuxContext {
     double graph_history[8U][48U];
     uint8_t graph_history_count[8U];
     uint8_t graph_history_next[8U];
+    char session_log[24U][160U];
+    uint64_t session_log_time_ms[24U];
+    uint8_t session_log_count;
+    uint8_t session_log_next;
+    uint64_t session_log_started_ms;
     bool polling_enabled[256];
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
@@ -240,6 +245,70 @@ static uint64_t monotonic_ms(void)
 {
     const gint64 value = g_get_monotonic_time();
     return value <= 0 ? 0U : (uint64_t)(value / 1000);
+}
+
+static void clear_session_log(MblinkLinuxContext *context)
+{
+    if (context == NULL) return;
+    memset(context->session_log, 0, sizeof(context->session_log));
+    memset(context->session_log_time_ms, 0, sizeof(context->session_log_time_ms));
+    context->session_log_count = 0U;
+    context->session_log_next = 0U;
+    context->session_log_started_ms = monotonic_ms();
+}
+
+static void append_session_log_entry(
+    MblinkLinuxContext *context,
+    const char *message)
+{
+    uint8_t slot;
+    uint64_t now_ms;
+    if (context == NULL || message == NULL || message[0] == '\0') return;
+
+    slot = context->session_log_next;
+    now_ms = monotonic_ms();
+    if (context->session_log_started_ms == 0U)
+        context->session_log_started_ms = now_ms;
+
+    g_strlcpy(
+        context->session_log[slot], message,
+        sizeof(context->session_log[slot]));
+    context->session_log_time_ms[slot] =
+        now_ms >= context->session_log_started_ms
+            ? now_ms - context->session_log_started_ms : 0U;
+    context->session_log_next =
+        (uint8_t)((slot + 1U) % G_N_ELEMENTS(context->session_log));
+    if (context->session_log_count < G_N_ELEMENTS(context->session_log))
+        ++context->session_log_count;
+}
+
+static const char *diagnostic_event_text(LinkDiagnosticFlowEventKind kind)
+{
+    switch (kind) {
+    case LINK_DIAGNOSTIC_FLOW_EVENT_ADAPTER_IDENTIFIED:
+        return "Adapter identified";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE:
+        return "Standard PID discovery complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_STANDARD_VIN:
+        return "Standard VIN read complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_DTC_LIST:
+        return "Standard DTC inventory updated";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_READINESS:
+        return "Readiness monitors captured";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_FREEZE_FRAME_SAMPLE:
+        return "Freeze-frame sample captured";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_DIAGNOSTIC_CONTEXT_COMPLETE:
+        return "Diagnostic context complete";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_NO_DATA:
+        return "Live PID returned no data";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_UNSUPPORTED:
+        return "Live PID reported unsupported";
+    case LINK_DIAGNOSTIC_FLOW_EVENT_NONE:
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE:
+    case LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED:
+        return NULL;
+    }
+    return NULL;
 }
 
 /*
@@ -1973,9 +2042,31 @@ static void append_session_log(
                    context->manufacturer_scan.dtcs.count);
     link_gtk_card_append_detail(card, "Engine manufacturer fault records", value);
 
+    if (context->session_log_count != 0U) {
+        const size_t capacity = G_N_ELEMENTS(context->session_log);
+        const size_t start =
+            context->session_log_count < capacity
+                ? 0U : context->session_log_next;
+        size_t index;
+        for (index = 0U; index < context->session_log_count; ++index) {
+            const size_t slot = (start + index) % capacity;
+            const uint64_t elapsed = context->session_log_time_ms[slot];
+            char when[32];
+            (void)snprintf(
+                when, sizeof(when), "+%llu.%03llus",
+                (unsigned long long)(elapsed / UINT64_C(1000)),
+                (unsigned long long)(elapsed % UINT64_C(1000)));
+            link_gtk_card_append_detail(
+                card, when, context->session_log[slot]);
+        }
+    } else {
+        link_gtk_card_append_note(
+            card, "No chronological session events have been recorded yet.");
+    }
+
     link_gtk_card_append_note(
         card,
-        "These values are taken from the active diagnostic/evidence state. Use Save Session in the shared LINK toolbar to persist the full evidence bundle.");
+        "The bounded event history above is presentation-only. Save Session remains the authoritative full evidence bundle.");
     gtk_box_append(GTK_BOX(body), card);
     append_diagnostic_context(body, context);
 }
@@ -2409,6 +2500,10 @@ static void manufacturer_finished(bool complete, void *opaque)
 {
     MblinkLinuxContext *context = opaque;
     if (context == NULL) return;
+    append_session_log_entry(
+        context,
+        complete ? "Mercedes manufacturer scan complete"
+                 : "Mercedes manufacturer scan incomplete");
     context->manufacturer_scan_active = false;
     context->module_scan_active = false;
     if (!complete) {
@@ -2432,10 +2527,21 @@ static void connection_changed(LinkTransport *transport,
                                void *opaque)
 {
     MblinkLinuxContext *context = opaque;
+    char log_message[192];
     context->connected = connected;
     context->transport = *transport;
     (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
                    connected && adapter_identity != NULL ? adapter_identity : "");
+    if (connected) {
+        clear_session_log(context);
+        (void)snprintf(
+            log_message, sizeof(log_message), "Connected · %s",
+            context->adapter_identity[0] != '\0'
+                ? context->adapter_identity : "diagnostic adapter");
+        append_session_log_entry(context, log_message);
+    } else {
+        append_session_log_entry(context, "Disconnected");
+    }
     context->native_adapter_mode =
         connected && adapter_identity != NULL &&
         strstr(adapter_identity, "Mercedes me Adapter") != NULL;
@@ -2454,10 +2560,12 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
                                void *opaque)
 {
     MblinkLinuxContext *context = opaque;
+    const bool was_ready = context->diagnostic_ready;
     context->diagnostic_active = active;
     context->diagnostic_ready = ready;
 
     if (flow == NULL) {
+        append_session_log_entry(context, "Diagnostic flow reset");
         context->diagnostic_valid = false;
         memset(&context->diagnostic, 0, sizeof(context->diagnostic));
         memset(context->sample_valid, 0, sizeof(context->sample_valid));
@@ -2489,6 +2597,14 @@ static void diagnostic_changed(const LinkDiagnosticFlow *flow,
 
     context->diagnostic = *flow;
     context->diagnostic_valid = true;
+
+    if (ready && !was_ready)
+        append_session_log_entry(context, "Live diagnostics ready");
+    if (event != NULL) {
+        const char *event_text = diagnostic_event_text(event->kind);
+        if (event_text != NULL)
+            append_session_log_entry(context, event_text);
+    }
 
     if (event != NULL &&
         (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
