@@ -29,8 +29,11 @@
  *   TX = 0x602 + (slot * 8)
  *
  * Slots 0..46 therefore cover RX 0x480..0x4AE and TX 0x602..0x772.
- * Six independently evidenced C207 routes land exactly on this lattice.
- * Two known Daimler routes sit outside it (0x607->0x587 and 0x4E0->0x5FF).
+ * Six source-backed 204/207/212 routes land exactly on this lattice.  The
+ * 2026-09-03 C207 field capture independently observed five of the lattice
+ * routes (0x602, 0x612, 0x632, 0x64A and 0x652) with their expected response
+ * identifiers. Two known Daimler routes sit outside it (0x607->0x587 and
+ * 0x4E0->0x5FF).
  * The eight ISO 15765-4 physical OBD slots are appended so powertrain
  * responders remain part of the saved whole-vehicle profile.
  */
@@ -60,28 +63,28 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
         "eis-ezs", "EIS_212 / EIS_204",
-        "Daimler production VIN cascade and CaesarSuite EIS trace: 0x612 -> 0x482, UDS 22 F1 A0"
+        "Daimler production VIN cascade and CaesarSuite EIS trace: 0x612 -> 0x482, UDS 22 F1 A0; independently observed on a 2026-09-03 C207 field capture"
     },
     {
         UINT32_C(0x632), UINT32_C(0x486),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
         "esp", "ABR2XT",
-        "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486"
+        "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486; independently observed on a 2026-09-03 C207 field capture"
     },
     {
         UINT32_C(0x64a), UINT32_C(0x489),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_NONE,
         "restraints-orc", "ORC_212",
-        "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489"
+        "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489; independently observed on a 2026-09-03 C207 field capture"
     },
     {
         UINT32_C(0x652), UINT32_C(0x48a),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_NONE,
         "audio-headunit", "HU_204",
-        "Public HU_204 Monaco trace: HSCAN_KW2C3PE_500, tester 0x652, response 0x48A"
+        "Public HU_204 Monaco trace: HSCAN_KW2C3PE_500, tester 0x652, response 0x48A; independently observed on a 2026-09-03 C207 field capture"
     },
     {
         UINT32_C(0x6b2), UINT32_C(0x496),
@@ -95,7 +98,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
         NULL, "Daimler VIN-cascade ECU 602",
-        "Daimler/T-Systems production MSA_VIN_cascade: Ecu602 0x602 -> 0x480, UDS 22 F1 A0"
+        "Daimler/T-Systems production MSA_VIN_cascade: Ecu602 0x602 -> 0x480, UDS 22 F1 A0; independently observed on a 2026-09-03 C207 field capture"
     },
     {
         UINT32_C(0x607), UINT32_C(0x587),
