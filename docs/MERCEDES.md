@@ -119,7 +119,7 @@ That covers request IDs `0x602..0x772` and exact response IDs
 `0x480..0x4AE`. The independently evidenced `0x607 -> 0x587` and
 `0x4E0 -> 0x5FF` routes sit outside that lattice and are appended explicitly,
 as are the eight legislated OBD physical slots `0x7E0..0x7E7`. The resulting
-normal census is 57 exact-filter targets rather than the 759-target forensic
+normal census is 57 exact-filter targets rather than the 760-target forensic
 address sweep. Dead targets receive only bounded read-only presence probes;
 deeper reads run only after a responder is proved.
 
@@ -130,8 +130,8 @@ identity text or a standards-defined functional route supports that
 classification, and reads each responder's protocol-appropriate DTC memory.
 KWP routes are retained without applying UDS identity semantics to them.
 
-The explicit **DEEP RESCAN** on Linux retains the exhaustive 759-target
-forensic plan: the broad 11-bit diagnostic range plus 29-bit normal-fixed
+The explicit **DEEP RESCAN** on Linux retains the exhaustive 760-target
+forensic plan (505 11-bit targets plus 255 29-bit normal-fixed targets): the broad 11-bit diagnostic range plus 29-bit normal-fixed
 logical addressing. FULL may try DTC/VIN fallbacks after a missed TesterPresent
 and, for otherwise unknown 11-bit routes, may temporarily use headered receive
 learning to discover a valid non-`TX+8` response before immediately re-locking
@@ -636,6 +636,48 @@ assigned until an independent Mercedes/Whisper/CAESAR definition or a
 reproducible mapping proves it.
 
 The same capture repeated the already established module fault evidence:
-ORC `9B51/E0`, ESP UDS DTC `39475C/00`, and the unclassified
-`0x602 -> 0x480` UDS DTC `7BD181`. Only the source-backed ORC meaning is
-promoted; the ESP and `0x602` meanings remain raw.
+ORC `9B51/E0` and the ESP fault fragment. The unclassified
+`0x602 -> 0x480` response is preserved as the complete UDS PDU
+`59 02 7B D1 81 00 50`. Under the standard `0x19/0x02` response envelope
+this is status-availability mask `0x7B`, DTC `D18100`, status `0x50`;
+`0x7B` is not part of the DTC number. Only the source-backed ORC meaning is
+promoted; the ESP and `0x602` meanings remain raw until independently
+defined.
+
+
+## 0.7.153 C207 completed forensic capture
+
+The 2026-09-03 C207/Vgate evidence export was produced by MBLINK 0.7.153 /
+LINK 0.14.81. That version predates the current 47-slot mobile-census code, so
+the capture does **not** validate the new scanner implementation. It remains
+strong vehicle-side evidence because it records the actual ECU replies.
+
+The completed pass independently observed seven diagnostic responders:
+`0x602 -> 0x480`, `0x612 -> 0x482`, `0x632 -> 0x486`,
+`0x64A -> 0x489`, `0x652 -> 0x48A`, `0x7E0 -> 0x7E8` and
+`0x7E1 -> 0x7E9`. The first five proprietary responders all match the
+request/response pairs used by the compact Mercedes census. No 29-bit responder
+was observed during the completed forensic pass.
+
+The two legislated OBD responders retained independently different vehicle
+state. PID `30` reported 31 warm-ups from `0x7E8` and 56 from `0x7E9`;
+PID `31` reported 1650 km and 2796 km respectively. These are regression
+evidence that responder attribution must be retained and that a secondary
+EOBD responder must never overwrite the engine's value merely because it
+answered the same PID.
+
+The same drive vehicle-verified SAE PID `2F` fuel-level replies spanning
+approximately 96.47% to 100%. Accelerator-pedal channels `49`/`4A`
+remained distinct from absolute throttle-valve PID `11`, preserving the
+product distinction between driver demand and the ECU-controlled diesel intake
+throttle.
+
+One ESP `0x632 -> 0x486` indexed ELM response ended at the fragment
+`59 02 39 47 5C 00`. After the availability mask this leaves only three
+bytes, not a complete four-byte DTC/status record. Current regression tests
+therefore require that fragment to be rejected as malformed rather than
+inventing a status byte or promoting a guessed DTC.
+
+A sanitised fixture under `tests/support/c207_20260903_evidence.h` retains
+these vehicle-side facts without the VIN and replays them against current
+decoders and module-scan behaviour.
