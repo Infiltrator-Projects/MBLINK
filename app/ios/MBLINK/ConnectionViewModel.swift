@@ -1218,10 +1218,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 $0.responseCANIdentifier == 0x7E9
         }) else { return [] }
 
-        let values = Dictionary(
-            uniqueKeysWithValues: manufacturerData(moduleID: module.id)
-                .filter { $0.service == 0x21 }
-                .map { ($0.identifier, $0) })
+        var values = [UInt16: MercedesModuleDataValue]()
+        for value in manufacturerData(moduleID: module.id)
+            where value.service == 0x21 {
+            values[value.identifier] = value
+        }
         let source = "\(module.name) · \(module.addressText)"
         var result = [DiagnosticParameter]()
 
@@ -1239,7 +1240,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 id: id,
                 protocolName: "kwp2000",
                 moduleIdentifier: 0x7E1,
-                parameterIdentifier: UInt16(0x2100) | identifier,
+                parameterIdentifier: UInt32(0x2100) | UInt32(identifier),
                 shortName: shortName,
                 title: title,
                 suffix: suffix,
@@ -1269,7 +1270,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 id: id,
                 protocolName: "kwp2000",
                 moduleIdentifier: 0x7E1,
-                parameterIdentifier: UInt16(0x2100) | identifier,
+                parameterIdentifier: UInt32(0x2100) | UInt32(identifier),
                 shortName: shortName,
                 title: title,
                 suffix: "",
