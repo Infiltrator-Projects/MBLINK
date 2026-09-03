@@ -307,13 +307,11 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         : mblink_mercedes_module_scan_kind(
             entry->tx_can_id, entry->extended_id);
     /*
-     * Migrate VIN profiles saved before the 7E1/7E9 responder was recognised
-     * as the standardized TCM slot.  Do not override a stronger saved family.
+     * Route-only classification is deliberately conservative.  In particular,
+     * the captured 7E1/7E9 responder is a real secondary EOBD ECU but did not
+     * return Mercedes identity, so old cached "transmission" guesses are
+     * demoted below unless returned identity proves a family.
      */
-    if (entry->kind == MBLINK_MERCEDES_MODULE_OTHER) {
-        entry->kind = mblink_mercedes_module_scan_kind(
-            entry->tx_can_id, entry->extended_id);
-    }
     entry->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
     entry->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
 
@@ -332,6 +330,12 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         dictionary[@"hardware"], entry->hardware_number,
         sizeof(entry->hardware_number),
         &entry->hardware_number_available);
+    if (!entry->extended_id &&
+        entry->tx_can_id == UINT32_C(0x7e1) &&
+        entry->rx_can_id == UINT32_C(0x7e9)) {
+        entry->kind = MBLINK_MERCEDES_MODULE_OTHER;
+        entry->definition = NULL;
+    }
     if (entry->identity_available)
         mblink_mercedes_module_scan_classify_identity(entry);
     if (!entry->extended_id) {
@@ -908,7 +912,7 @@ static bool MBLinkSimulatorResponder(
         snapshot.name = requestID == UINT32_C(0x7e0)
             ? @"Engine ECU"
             : requestID == UINT32_C(0x7e1)
-                ? @"Transmission ECU candidate"
+                ? @"Secondary EOBD powertrain ECU"
                 : [NSString stringWithFormat:
                     @"OBD responder 0x%03X", (unsigned int)responseID];
         snapshot.designation = @"Observed legislated-OBD responder";
