@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_data_scan.h"
+#include "mblink/kwp2000.h"
 
 #include <stdio.h>
 #include <string.h>
