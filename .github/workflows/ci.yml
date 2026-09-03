@@ -356,8 +356,12 @@ jobs:
           $icon = 'app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png'
           if (-not (Test-Path $icon)) { throw 'Canonical MBLINK AppIcon PNG is missing' }
           $ui = 'src/link/platform/windows/link-discover-ui.c'
-          foreach ($needle in @('create_main_menu','IDM_HELP_ABOUT','TaskDialogIndirect','InitCommonControlsEx','LINK_PRODUCT_WEBSITE')) {
+          foreach ($needle in @('create_main_menu','IDM_HELP_ABOUT','InitCommonControlsEx','LINK_PRODUCT_WEBSITE')) {
             if (-not (Select-String -Path $ui -SimpleMatch $needle -Quiet)) { throw "Missing shared Windows feature: $needle" }
+          }
+          $about = 'src/link/platform/windows/link-windows-about.c'
+          foreach ($needle in @('link_windows_show_about','TaskDialogIndirect')) {
+            if (-not (Select-String -Path $about -SimpleMatch $needle -Quiet)) { throw "Missing shared Windows About feature: $needle" }
           }
           if (-not (Test-Path 'src/link/platform/windows/smoke-launch.ps1')) { throw 'Missing launch smoke test' }
           if (Test-Path 'app/windows/mblink.ico') { throw 'Independent MBLINK ICO must not be maintained' }
