@@ -573,7 +573,7 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
 
 static const uint8_t k_transmission_read_ids[] = {
     UINT8_C(0x30), UINT8_C(0x31), UINT8_C(0x32), UINT8_C(0x33),
-    UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3), UINT8_C(0xe4),
+    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3), UINT8_C(0xe4),
     UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7), UINT8_C(0xe8),
     UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
 };
@@ -598,6 +598,7 @@ const char *mblink_mercedes_transmission_kwp_read_identifier_name(uint8_t id)
     case UINT8_C(0x31): return "Transmission speed sensors / RLI 31";
     case UINT8_C(0x32): return "Transmission driving dynamics / RLI 32";
     case UINT8_C(0x33): return "Transmission hydraulics and solenoids / RLI 33";
+    case UINT8_C(0xe0): return "Development data";
     case UINT8_C(0xe1): return "ECU serial number";
     case UINT8_C(0xe2): return "DBCom communication-matrix data";
     case UINT8_C(0xe3): return "Operating-system version";
