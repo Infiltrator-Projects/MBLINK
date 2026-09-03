@@ -88,6 +88,7 @@ typedef struct MblinkMercedesDataScan {
      * The list is copied into the scan so callers do not own its lifetime.
      */
     bool identifier_list_active;
+    bool identifier_list_retry_no_response;
     size_t identifier_count;
     size_t identifier_index;
     /*
@@ -135,6 +136,18 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
  * module-scoped list of responsive IDs.
  */
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const uint16_t *identifiers,
+    size_t identifier_count);
+
+/**
+ * Begin an explicit source-backed candidate list without treating every item
+ * as previously proven positive. Unlike begin_identifiers(), NO DATA advances
+ * immediately instead of retrying twice. This is appropriate for safe
+ * read-only Mercedes capability discovery lists such as GS RLI 30-33/E0-EB.
+ */
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_identifiers(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config,
     const uint16_t *identifiers,
