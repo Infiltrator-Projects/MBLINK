@@ -449,6 +449,15 @@ jobs:
           grep -Fq 'mblink_mercedes_module_scan_begin_mobile_census(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Fq 'mblink_mercedes_module_scan_begin(&_mercedesModuleScan)' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS' include/mblink/mercedes_module_scan.h
+          grep -Fq 'mblink_mercedes_data_runtime_candidate_identifier_count_for_route' include/mblink/mercedes_data_scan.h
+          grep -Fq 'mblink_mercedes_data_identifier_is_runtime_refreshable' src/mercedes/data_scan.c
+          grep -Fq 'runAutomaticManufacturerDataRefreshWithGeneration' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'candidateIdentifiers:candidates' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'MBLinkAutomaticManufacturerRefreshDelayMs' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'UINT16_C(0x2001)' src/mercedes/data_scan.c
+          grep -Fq 'UINT16_C(0x0058)' src/mercedes/data_scan.c
+          grep -Fq 'UINT16_C(0x0001)' src/mercedes/data_scan.c
+          grep -Fq 'test_runtime_candidate_catalog' tests/test_mercedes_data_scan.c
           grep -Fq 'mblink_mercedes_module_scan_begin_cached' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'MBLinkVehicleProfileSchemaVersion = 5' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'mblink.vehicleProfiles.v1' platform/apple/MBLinkDiagnosticsController.m
