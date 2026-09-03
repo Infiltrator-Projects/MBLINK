@@ -7,6 +7,7 @@
 #import "mblink/mercedes_probe.h"
 #import "mblink/mercedes_module_scan.h"
 #import "mblink/mercedes_data_scan.h"
+#import "mblink/mercedes_transmission.h"
 #import "mblink/uds_dtc.h"
 
 #include <stdio.h>
@@ -1393,6 +1394,11 @@ static bool MBLinkSimulatorResponder(
         knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
     MblinkMercedesDataScanResult result;
 
+    const BOOL sourceBackedTransmissionRoute =
+        !module->extended_id &&
+        module->tx_can_id == UINT32_C(0x7e1) &&
+        module->rx_can_id == UINT32_C(0x7e9);
+
     if (targetedRefresh) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
@@ -1421,15 +1427,32 @@ static bool MBLinkSimulatorResponder(
             : mblink_mercedes_data_scan_begin(
                 &_manufacturerDataScan, &config);
         if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
-            /*
-             * Cached presentation data must never make discovery impossible.
-             * If a stale/invalid cached list cannot initialise, fall back to
-             * the normal bounded range scan.
-             */
             targetedRefresh = NO;
             result = mblink_mercedes_data_scan_begin(
                 &_manufacturerDataScan, &config);
         }
+    } else if (sourceBackedTransmissionRoute) {
+        /*
+         * Do not brute-force reserved KWP local identifiers. The public
+         * EGS/Daimler evidence gives us a precise read-only list:
+         * transmission actual-value groups 30-33 plus standard ECU
+         * identification records E1-EB. Unsupported records simply return an
+         * NRC/NO DATA and are retained as unsupported for this vehicle.
+         */
+        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t identifierCount = 0U;
+        const size_t sourceCount =
+            mblink_mercedes_transmission_kwp_read_identifier_count();
+        for (size_t index = 0U;
+             index < sourceCount &&
+             identifierCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
+             ++index) {
+            identifiers[identifierCount++] =
+                (uint16_t)mblink_mercedes_transmission_kwp_read_identifier_at(
+                    index);
+        }
+        result = mblink_mercedes_data_scan_begin_identifiers(
+            &_manufacturerDataScan, &config, identifiers, identifierCount);
     } else {
         result = mblink_mercedes_data_scan_begin(
             &_manufacturerDataScan, &config);
@@ -1569,23 +1592,42 @@ static bool MBLinkSimulatorResponder(
         snapshot.rawHex = MBLinkStringFromCString(raw);
 
         double numeric = 0.0;
-        const char *name = NULL;
+        const char *numericName = NULL;
         const char *unit = NULL;
-        if (mblink_mercedes_data_record_decode_known_numeric_for_route(
+        char structured[1024];
+        const char *structuredName = NULL;
+        const BOOL numericMapped =
+            mblink_mercedes_data_record_decode_known_numeric_for_route(
                 module->tx_can_id,
                 module->rx_can_id,
                 module->extended_id,
                 module->kind,
-                record, &numeric, &name, &unit)) {
+                record, &numeric, &numericName, &unit);
+        const BOOL structuredMapped =
+            mblink_mercedes_data_record_format_known_for_route(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                module->kind,
+                record, structured, sizeof(structured), &structuredName);
+
+        if (numericMapped || structuredMapped) {
             snapshot.mapped = YES;
-            snapshot.numericValueAvailable = YES;
-            snapshot.numericValue = numeric;
-            snapshot.name = MBLinkStringFromCString(name);
-            snapshot.unit = MBLinkStringFromCString(unit);
-            snapshot.formattedValue =
-                [snapshot.unit isEqualToString:@"°C"]
-                    ? [NSString stringWithFormat:@"%.1f %@", numeric, snapshot.unit]
-                    : [NSString stringWithFormat:@"%.3f %@", numeric, snapshot.unit];
+            snapshot.numericValueAvailable = numericMapped;
+            snapshot.numericValue = numericMapped ? numeric : 0.0;
+            snapshot.name = MBLinkStringFromCString(
+                structuredName != NULL ? structuredName : numericName);
+            snapshot.unit = numericMapped
+                ? MBLinkStringFromCString(unit) : nil;
+            if (structuredMapped) {
+                snapshot.formattedValue =
+                    MBLinkStringFromCString(structured);
+            } else {
+                snapshot.formattedValue =
+                    [snapshot.unit isEqualToString:@"°C"]
+                        ? [NSString stringWithFormat:@"%.1f %@", numeric, snapshot.unit]
+                        : [NSString stringWithFormat:@"%.3f %@", numeric, snapshot.unit];
+            }
         } else {
             snapshot.mapped = NO;
             snapshot.numericValueAvailable = NO;
@@ -1879,11 +1921,11 @@ static bool MBLinkSimulatorResponder(
         _cachedModuleRefreshActive = NO;
 
         /*
-         * One evidence-gated automatic read makes the source-corroborated
-         * 7E1/7E9 21 30 transmission-temperature candidate visible without
-         * requiring the driver to open the module screen first. It is only
-         * attempted once per connection; continuous polling remains disabled
-         * until the development car confirms the response shape/value.
+         * One evidence-gated automatic read makes the source-backed
+         * 7E1/7E9 transmission factory-data set visible without requiring the
+         * driver to open the module screen first. The read-only list includes
+         * KWP 30-33 plus Daimler identity records E1-EB; unsupported records
+         * simply reject or stay quiet on a given transmission generation.
          */
         NSString *temperatureModule =
             [self automaticTransmissionTemperatureModuleIdentifier];
