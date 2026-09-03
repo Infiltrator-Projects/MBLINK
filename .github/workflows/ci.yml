@@ -558,7 +558,9 @@ jobs:
           grep -Fq 'vehicleProfileStatusText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MercedesVehicleIdentity' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MBVehicleFactGrid' app/ios/MBLINK/MBLINKApp.swift
-          ! grep -Fq 'Text(detail)' app/ios/MBLINK/MBLINKApp.swift
+          # Text(detail) is legitimate in ECU evidence rows; only the removed
+          # legacy About implementation must stay absent.
+          ! grep -Fq 'private struct MBLINKAboutView: View' app/ios/MBLINK/MBLINKApp.swift
           grep -q 'Image("MBLINKEmblem")' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'Copyright © 2026 Shannon Smith' app/ios/MBLINK.xcodeproj/project.pbxproj
       - name: Build and test portable C11 core on macOS
