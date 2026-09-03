@@ -745,7 +745,7 @@ private struct MBCommandCentreView: View {
                 MBSectionHeader(title: "Vehicle setup", kicker: "Saved VIN profiles")
                 MBCompactLink(
                     "Saved Vehicles & PIDs",
-                    "Load a scanned VIN, open its controllers and choose every PID offline",
+                    "Load a scanned VIN and configure each controller's advertised PIDs offline",
                     "list.bullet.rectangle.portrait.fill"
                 ) { MBPIDSetupView() }
             }
@@ -973,8 +973,8 @@ private struct MBPIDModuleSetupView: View {
                         }
 
                         MBSectionHeader(
-                            title: "PID catalogue",
-                            kicker: "Selection is allowed whether advertised or not")
+                            title: "Advertised SAE PIDs",
+                            kicker: "Scoped to this controller")
 
                         ForEach(items) { item in
                             pidRow(item)
@@ -1022,11 +1022,9 @@ private struct MBPIDModuleSetupView: View {
                     Text(item.title)
                         .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.silverBright)
-                    Text(item.advertised
-                         ? "Advertised by this controller on the last scan"
-                         : "Not advertised / not yet observed — still selectable")
+                    Text("Advertised by this controller on the last capability scan")
                         .font(MBTypography.caption2)
-                        .foregroundStyle(item.advertised ? MBBrand.success : MBBrand.muted)
+                        .foregroundStyle(MBBrand.success)
                 }
 
                 Spacer()
@@ -1324,7 +1322,7 @@ private struct MBModulesView: View {
                                 kicker: connection.isActive
                                     ? "Current + saved"
                                     : "Saved VIN profile")
-                            Text("Open the controller/PID manager to choose values even when the car is disconnected, and even when a PID was not advertised on the last scan.")
+                            Text("Open the controller/PID manager to choose the SAE PIDs actually advertised by each controller, including from a saved VIN profile while disconnected.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                             NavigationLink { MBPIDSetupView() } label: {

@@ -440,7 +440,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         let advertised = pidSupportByModule[moduleID] ?? []
         let selected = modulePIDSelectionSet(moduleID: moduleID)
         let count = mblink_obd2_pid_definition_count()
-        guard count > 0 else { return [] }
+        guard count > 0, !advertised.isEmpty else { return [] }
 
         var result = [PIDConfigurationItem]()
         for index in 0..<count {
@@ -450,6 +450,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             let pid = metadata.pid
             // 00/20/40/... are bitmap capability queries, not user data values.
             guard (pid & 0x1F) != 0 else { continue }
+            // Controller pages are responder-scoped, not copies of the global
+            // SAE catalogue. Only values positively advertised/observed on this
+            // exact CAN responder belong in this module.
+            guard advertised.contains(pid) else { continue }
 
             let scalar = mblink_parameter_obd2_definition(pid)
             let title = scalar != nil
@@ -466,7 +470,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 title: title,
                 pollingEnabled: selected.contains(stableKey),
                 favourite: controller.favourite(forPID: pid),
-                advertised: advertised.contains(pid)))
+                advertised: true))
         }
         return result.sorted {
             if $0.pid != $1.pid { return $0.pid < $1.pid }
@@ -479,7 +483,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         moduleID: String,
         stableKey: String
     ) {
-        guard pidForStableKey(stableKey) != nil else { return }
+        guard let pid = pidForStableKey(stableKey),
+              (pidSupportByModule[moduleID] ?? []).contains(pid)
+        else { return }
         var selection = modulePIDSelectionSet(moduleID: moduleID)
         if enabled { selection.insert(stableKey) }
         else { selection.remove(stableKey) }
@@ -500,11 +506,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     var configuredPollingCount: Int {
-        guard let vin = effectivePIDConfigurationVIN else {
+        guard effectivePIDConfigurationVIN != nil else {
             return storedPollingKeys().count
         }
-        let modules = storedPIDSelectionsByVehicle()[vin] ?? [:]
-        return Set(modules.values.flatMap { $0 }).count
+        return Set(pidConfigurationModules.flatMap {
+            modulePIDSelectionSet(moduleID: $0.id)
+        }).count
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -679,31 +686,49 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return result
     }
 
+    private func supportedStableKeys(moduleID: String) -> Set<String> {
+        let advertised = pidSupportByModule[moduleID] ?? []
+        return Set(advertised.compactMap { pid in
+            guard (pid & 0x1F) != 0,
+                  mblink_obd2_pid_definition(0x01, pid) != nil
+            else { return nil }
+            return standardStableKey(for: pid)
+        })
+    }
+
     private func modulePIDSelectionSet(moduleID: String) -> Set<String> {
+        let supported = supportedStableKeys(moduleID: moduleID)
+        guard !supported.isEmpty else { return [] }
+
         guard let vin = effectivePIDConfigurationVIN else {
-            return storedPollingKeys()
+            return storedPollingKeys().intersection(supported)
         }
         let root = storedPIDSelectionsByVehicle()
         if let values = root[vin]?[moduleID] {
-            return Set(values)
+            return Set(values).intersection(supported)
         }
-        // Migrate the old global selection lazily until this module is edited.
-        return storedPollingKeys()
+        // Legacy global choices may seed a module only where that exact
+        // responder actually advertised the PID. This prevents one controller's
+        // choices from appearing under every other controller.
+        return storedPollingKeys().intersection(supported)
     }
 
     private func storeModulePIDSelection(
         _ selection: Set<String>,
         moduleID: String
     ) {
+        let boundedSelection =
+            selection.intersection(supportedStableKeys(moduleID: moduleID))
+
         guard let vin = effectivePIDConfigurationVIN else {
             UserDefaults.standard.set(
-                Array(selection).sorted(), forKey: Self.pollingDefaultsKey)
+                Array(boundedSelection).sorted(), forKey: Self.pollingDefaultsKey)
             return
         }
 
         var root = storedPIDSelectionsByVehicle()
         var vehicle = root[vin] ?? [:]
-        vehicle[moduleID] = Array(selection).sorted()
+        vehicle[moduleID] = Array(boundedSelection).sorted()
         root[vin] = vehicle
         UserDefaults.standard.set(
             root, forKey: Self.pidSelectionsByVehicleDefaultsKey)
@@ -711,20 +736,17 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private func applyConfiguredPollingForSelectedVehicle() {
         let selectedKeys: Set<String>
-        if let vin = effectivePIDConfigurationVIN {
-            let root = storedPIDSelectionsByVehicle()
-            if let vehicle = root[vin], !vehicle.isEmpty {
-                selectedKeys = Set(vehicle.values.flatMap { $0 })
-            } else {
-                selectedKeys = storedPollingKeys()
-            }
+        if effectivePIDConfigurationVIN != nil {
+            selectedKeys = Set(pidConfigurationModules.flatMap {
+                modulePIDSelectionSet(moduleID: $0.id)
+            })
         } else {
             selectedKeys = storedPollingKeys()
         }
 
-        // Keep the legacy/global polling key in sync with the union so the
-        // existing live-data engine continues to poll each requested Mode 01
-        // PID once, while the UI selection itself remains controller-specific.
+        // Keep the legacy/global polling key in sync with the responder-bounded
+        // union so the existing live-data engine polls each requested Mode 01
+        // PID once without leaking unsupported selections between modules.
         UserDefaults.standard.set(
             Array(selectedKeys).sorted(), forKey: Self.pollingDefaultsKey)
 
