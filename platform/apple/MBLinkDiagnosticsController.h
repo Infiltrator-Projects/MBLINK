@@ -101,8 +101,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemKeys;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemNames;
 @property(nonatomic, copy, readonly) NSString *selectedMeasurementSystemKey;
-@property(nonatomic, readonly) BOOL preferFavouriteSignals;
-@property(nonatomic, readonly) BOOL showUnavailableParameters;
 
 - (void)start;
 - (void)startSimulated;
@@ -110,8 +108,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)localizedTextForKey:(NSString *)key;
 - (void)setSelectedLanguageTag:(NSString *)tag;
 - (void)setSelectedMeasurementSystemKey:(NSString *)key;
-- (void)setPreferFavouriteSignals:(BOOL)enabled;
-- (void)setShowUnavailableParameters:(BOOL)enabled;
 
 /**
  * Discover read-only Mercedes manufacturer data identifiers on one exact ECU

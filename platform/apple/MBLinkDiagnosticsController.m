@@ -761,13 +761,9 @@ static bool MBLinkSimulatorResponder(
 - (NSArray<NSString *> *)availableMeasurementSystemKeys { return _shared.availableMeasurementSystemKeys; }
 - (NSArray<NSString *> *)availableMeasurementSystemNames { return _shared.availableMeasurementSystemNames; }
 - (NSString *)selectedMeasurementSystemKey { return _shared.selectedMeasurementSystemKey; }
-- (BOOL)preferFavouriteSignals { return _shared.preferFavouriteSignals; }
-- (BOOL)showUnavailableParameters { return _shared.showUnavailableParameters; }
 - (NSString *)localizedTextForKey:(NSString *)key { return [_shared localizedTextForKey:key]; }
 - (void)setSelectedLanguageTag:(NSString *)tag { [_shared setSelectedLanguageTag:tag]; }
 - (void)setSelectedMeasurementSystemKey:(NSString *)key { [_shared setSelectedMeasurementSystemKey:key]; }
-- (void)setPreferFavouriteSignals:(BOOL)enabled { [_shared setPreferFavouriteSignals:enabled]; }
-- (void)setShowUnavailableParameters:(BOOL)enabled { [_shared setShowUnavailableParameters:enabled]; }
 
 - (void)start
 {

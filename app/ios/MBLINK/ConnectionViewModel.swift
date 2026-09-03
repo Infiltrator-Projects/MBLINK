@@ -185,14 +185,9 @@ struct MercedesVehicleIdentity: Equatable {
 }
 
 private func mblinkLocalized(_ key: String) -> String {
-    let stored = UserDefaults.standard.string(forKey: "mblink.language") ?? "en-AU"
-    let language: String
-    switch stored {
-    case "en": language = "en-AU"
-    case "de": language = "de-DE"
-    case "pl": language = "pl-PL"
-    default: language = stored
-    }
+    let stored = UserDefaults.standard.string(
+        forKey: "link.displayLanguage") ?? "en-AU"
+    let language = MBInterfaceLanguage.canonical(stored)
     guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
           let bundle = Bundle(path: path) else {
         return key
@@ -252,12 +247,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var recordedSampleCount = 0
     @Published private(set) var csvExportURL: URL?
     @Published private(set) var isPreparingCSV = false
-    @Published private(set) var languageOptions = [LinkSettingOption]()
-    @Published private(set) var selectedLanguageID = "system"
-    @Published private(set) var measurementOptions = [LinkSettingOption]()
-    @Published private(set) var selectedMeasurementID = "system"
-    @Published private(set) var preferFavouriteSignals = true
-    @Published private(set) var showUnavailableParameters = true
+    @Published private(set) var languageTags = [String]()
+    @Published private(set) var languageNames = [String]()
+    @Published private(set) var selectedLanguageID = "en-AU"
+    @Published private(set) var measurementKeys = [String]()
+    @Published private(set) var measurementNames = [String]()
+    @Published private(set) var selectedMeasurementID = "metric"
 
     private let controller = MBLinkDiagnosticsController()
     private var lastConnectionAlertText: String?
@@ -565,10 +560,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     var interfaceLocaleIdentifier: String {
-        let requested = selectedLanguageID == "system"
-            ? (Locale.preferredLanguages.first ?? "en-AU")
-            : selectedLanguageID
-        return MBInterfaceLanguage.canonical(requested)
+        MBInterfaceLanguage.canonical(selectedLanguageID)
     }
 
     func localizedText(_ key: String) -> String {
@@ -582,16 +574,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     func selectMeasurementSystem(_ id: String) {
         controller.setSelectedMeasurementSystemKey(id)
-        refresh()
-    }
-
-    func setPreferFavouriteSignals(_ enabled: Bool) {
-        controller.setPreferFavouriteSignals(enabled)
-        refresh()
-    }
-
-    func setShowUnavailableParameters(_ enabled: Bool) {
-        controller.setShowUnavailableParameters(enabled)
         refresh()
     }
 
@@ -856,14 +838,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private var unitProfile: MBLINKUnitProfile {
-        switch controller.selectedMeasurementSystemKey {
-        case "us-customary":
-            return .usCustomary
-        case "metric":
-            return .metric
-        default:
-            return Locale.current.measurementSystem == .metric ? .metric : .usCustomary
-        }
+        controller.selectedMeasurementSystemKey == "us-customary"
+            ? .usCustomary : .metric
     }
 
     private func migrateLegacySharedSettings() {
@@ -871,7 +847,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         if defaults.object(forKey: "link.displayLanguage") == nil,
            let legacy = defaults.string(forKey: "mblink.language") {
-            controller.setSelectedLanguageTag(MBInterfaceLanguage.canonical(legacy))
+            controller.setSelectedLanguageTag(
+                MBInterfaceLanguage.canonical(legacy))
         }
 
         if defaults.object(forKey: "link.measurementSystem") == nil,
@@ -879,18 +856,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             controller.setSelectedMeasurementSystemKey(
                 legacy == MBLINKUnitProfile.usCustomary.rawValue
                     ? "us-customary" : "metric")
-        }
-
-        if defaults.object(forKey: "link.preferFavouriteSignals") == nil,
-           defaults.object(forKey: "mblink.preferFavouriteSignals") != nil {
-            controller.setPreferFavouriteSignals(
-                defaults.bool(forKey: "mblink.preferFavouriteSignals"))
-        }
-
-        if defaults.object(forKey: "link.showUnavailableParameters") == nil,
-           defaults.object(forKey: "mblink.showUnavailableParameters") != nil {
-            controller.setShowUnavailableParameters(
-                defaults.bool(forKey: "mblink.showUnavailableParameters"))
         }
     }
 
@@ -1689,18 +1654,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         standardVINText = controller.standardVINText
         standardLiveValueRows = controller.standardLiveValueRows
 
-        languageOptions = zip(
-            controller.availableLanguageTags,
-            controller.availableLanguageNames
-        ).map { LinkSettingOption(id: $0.0, title: $0.1) }
+        languageTags = controller.availableLanguageTags
+        languageNames = controller.availableLanguageNames
         selectedLanguageID = controller.selectedLanguageTag
-        measurementOptions = zip(
-            controller.availableMeasurementSystemKeys,
-            controller.availableMeasurementSystemNames
-        ).map { LinkSettingOption(id: $0.0, title: $0.1) }
+        measurementKeys = controller.availableMeasurementSystemKeys
+        measurementNames = controller.availableMeasurementSystemNames
         selectedMeasurementID = controller.selectedMeasurementSystemKey
-        preferFavouriteSignals = controller.preferFavouriteSignals
-        showUnavailableParameters = controller.showUnavailableParameters
 
         isActive = controller.isActive
         isReady = controller.isReady

@@ -2302,7 +2302,6 @@ private struct MBDataTableView: View {
     private var sorted: [DiagnosticParameter] {
         connection.diagnosticParameters
             .filter { showUnsupportedParameters || $0.isSupported || $0.isAvailable }
-            .filter { connection.showUnavailableParameters || $0.isAvailable }
             .sorted { $0.title < $1.title }
     }
 
@@ -2373,18 +2372,6 @@ private struct MBDashboardView: View {
             available.first { $0.id == "mercedes.transmission.actual_gear" },
             available.first { $0.id == "mercedes.transmission.oil_temperature" }
         ].compactMap { $0 }
-        let favourites = available.filter(\.favourite)
-
-        if connection.preferFavouriteSignals && !favourites.isEmpty {
-            var result = Array(favourites.prefix(
-                max(0, 8 - transmissionPriority.count)))
-            for parameter in transmissionPriority.reversed()
-                where !result.contains(where: { $0.id == parameter.id }) {
-                result.insert(parameter, at: 0)
-            }
-            return result
-        }
-
         let preferred = defaultKeys.compactMap { key in
             available.first { $0.id == key }
         }
@@ -2656,10 +2643,7 @@ private struct MBGraphsView: View {
         let withHistory = connection.diagnosticParameters.filter {
             $0.pollingEnabled && !$0.history.isEmpty
         }
-        let favourites = withHistory.filter(\.favourite)
-        let source = connection.preferFavouriteSignals && !favourites.isEmpty
-            ? favourites : withHistory
-        return Array(source.prefix(4))
+        return Array(withHistory.prefix(4))
     }
 
     var body: some View {
@@ -2908,48 +2892,118 @@ private struct MBSettingsView: View {
     }
 
     var body: some View {
-        LinkDiagnosticSettingsView(
-            languageOptions: connection.languageOptions,
-            selectedLanguageID: Binding(
-                get: { connection.selectedLanguageID },
-                set: { connection.selectLanguage($0) }),
-            measurementOptions: connection.measurementOptions,
-            selectedMeasurementID: Binding(
-                get: { connection.selectedMeasurementID },
-                set: { connection.selectMeasurementSystem($0) }),
-            preferFavouriteSignals: Binding(
-                get: { connection.preferFavouriteSignals },
-                set: { connection.setPreferFavouriteSignals($0) }),
-            showUnavailableParameters: Binding(
-                get: { connection.showUnavailableParameters },
-                set: { connection.setShowUnavailableParameters($0) }),
-            productName: "MBLINK",
-            productVersion: version,
-            adapterName: connection.peripheralName,
-            adapterIdentity: connection.adapterIdentifier,
-            connectionStatus: connection.statusText,
-            bundleIdentifier: Bundle.main.bundleIdentifier ?? "Unknown",
-            coreSummary: "LINK 0.14.86 · shared Settings baseline promoted from MBLINK")
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBPanel {
+                        VStack(spacing: 4) {
+                            MBInfoRow(label: "Adapter", value: connection.peripheralName)
+                            MBInfoRow(label: "Identity", value: connection.adapterIdentifier, monospaced: true)
+                            MBInfoRow(label: "Status", value: connection.statusText)
+                            MBInfoRow(label: "Version", value: version, monospaced: true)
+                            MBInfoRow(label: "Bundle", value: Bundle.main.bundleIdentifier ?? "Unknown", monospaced: true)
+                        }
+                    }
+
+                    MBPanel {
+                        NavigationLink {
+                            MBLanguageSelectionView(
+                                tags: connection.languageTags,
+                                names: connection.languageNames,
+                                selection: Binding(
+                                    get: { connection.selectedLanguageID },
+                                    set: { connection.selectLanguage($0) }))
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "globe")
+                                    .font(MBTypography.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text("Language")
+                                    .font(MBTypography.headline)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Spacer()
+                                Text(languageName)
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                Image(systemName: "chevron.right")
+                                    .font(MBTypography.captionBold)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    MBPanel {
+                        HStack(spacing: 12) {
+                            Image(systemName: "ruler")
+                                .font(MBTypography.title3)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("Unit system")
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Spacer()
+                            Picker(
+                                "Unit system",
+                                selection: Binding(
+                                    get: { connection.selectedMeasurementID },
+                                    set: { connection.selectMeasurementSystem($0) })
+                            ) {
+                                ForEach(
+                                    Array(connection.measurementKeys.indices),
+                                    id: \.self
+                                ) { index in
+                                    let title = index < connection.measurementNames.count
+                                        ? connection.measurementNames[index]
+                                        : connection.measurementKeys[index]
+                                    Text(LocalizedStringKey(title))
+                                        .tag(connection.measurementKeys[index])
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(MBBrand.silverBright)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Settings")
+    }
+
+    private var languageName: String {
+        guard let index = connection.languageTags.firstIndex(
+            of: connection.selectedLanguageID),
+              index < connection.languageNames.count else {
+            return MBInterfaceLanguage.displayName(
+                for: connection.selectedLanguageID)
+        }
+        return connection.languageNames[index]
     }
 }
 
 private struct MBLanguageSelectionView: View {
+    let tags: [String]
+    let names: [String]
     @Binding var selection: String
 
     var body: some View {
         ZStack {
             MBBackground()
             List {
-                ForEach(MBInterfaceLanguage.all) { item in
+                ForEach(Array(tags.indices), id: \.self) { index in
+                    let tag = tags[index]
+                    let title = index < names.count ? names[index] : tag
                     Button {
-                        selection = item.id
+                        selection = tag
                     } label: {
                         HStack(spacing: 12) {
-                            Text(item.nativeName)
+                            Text(title)
                                 .font(MBTypography.bodyBold)
                                 .foregroundStyle(MBBrand.silverBright)
                             Spacer()
-                            if MBInterfaceLanguage.canonical(selection) == item.id {
+                            if selection == tag {
                                 Image(systemName: "checkmark")
                                     .font(MBTypography.bodyBold)
                                     .foregroundStyle(MBBrand.silverBright)
