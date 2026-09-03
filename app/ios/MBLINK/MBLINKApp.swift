@@ -1953,11 +1953,36 @@ private struct MBDashboardView: View {
     ]
 
     private var displayed: [DiagnosticParameter] {
-        let available = connection.dashboardParameters.filter { $0.pollingEnabled && $0.isAvailable }
+        let available = connection.dashboardParameters.filter {
+            $0.pollingEnabled && $0.isAvailable
+        }
+        let transmissionTemperature = available.first {
+            $0.id == "mercedes.transmission.oil_temperature"
+        }
         let favourites = available.filter(\.favourite)
-        if preferFavouriteSignals && !favourites.isEmpty { return Array(favourites.prefix(8)) }
-        let preferred = defaultKeys.compactMap { key in available.first { $0.id == key } }
-        return preferred.isEmpty ? Array(available.prefix(6)) : preferred
+
+        if preferFavouriteSignals && !favourites.isEmpty {
+            var result = Array(favourites.prefix(
+                transmissionTemperature == nil ? 8 : 7))
+            if let transmissionTemperature,
+               !result.contains(where: { $0.id == transmissionTemperature.id }) {
+                result.insert(transmissionTemperature, at: 0)
+            }
+            return result
+        }
+
+        let preferred = defaultKeys.compactMap { key in
+            available.first { $0.id == key }
+        }
+        if !preferred.isEmpty { return preferred }
+
+        var fallback = Array(available.prefix(
+            transmissionTemperature == nil ? 6 : 5))
+        if let transmissionTemperature,
+           !fallback.contains(where: { $0.id == transmissionTemperature.id }) {
+            fallback.insert(transmissionTemperature, at: 0)
+        }
+        return fallback
     }
 
     var body: some View {
