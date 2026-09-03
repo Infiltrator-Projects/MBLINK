@@ -119,9 +119,9 @@ int main(void)
     MblinkElm327Response no_data = response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
     MblinkElm327Response dtcs = response(MBLINK_ELM327_RESULT_OK,
         "5902FF12345609ABCDEF28", false);
-    MblinkElm327Response kwp_tester = response(
+    MblinkElm327Response gs_kwp_tester = response(
         MBLINK_ELM327_RESULT_OK, "7E", false);
-    MblinkElm327Response kwp_dtcs = response(
+    MblinkElm327Response gs_kwp_dtcs = response(
         MBLINK_ELM327_RESULT_OK, "58019B51E0", false);
     MblinkElm327Response engine_identity = response(
         MBLINK_ELM327_RESULT_OK, "62F19743524433", false);
@@ -194,7 +194,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(command, "3E01") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &kwp_tester) ==
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &gs_kwp_tester) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.module_count == 2U);
     CHECK(scan.modules[1].tx_can_id == UINT32_C(0x7e1));
@@ -215,7 +215,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(command, "1802FF00") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &kwp_dtcs) ==
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &gs_kwp_dtcs) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.modules[1].dtc_result ==
           MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
