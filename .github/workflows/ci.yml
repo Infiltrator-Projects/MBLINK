@@ -20,7 +20,7 @@ concurrency:
 jobs:
   portable-core:
     name: linux-native / C11
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,7 +130,7 @@ jobs:
 
   sanitizers:
     name: Local Linux / ASan + UBSan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,7 +145,7 @@ jobs:
 
   linux-app:
     name: Linux / GTK4 app
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -618,7 +618,7 @@ jobs:
     name: Publish complete atomic release
     needs: [portable-core, sanitizers, linux-app, windows-discover, windows-release-launch, apple-ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, linux-native]
     permissions:
       contents: write
     steps:
