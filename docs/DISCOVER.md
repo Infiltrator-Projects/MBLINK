@@ -43,7 +43,9 @@ The current Discover baseline provides:
 
 The routine path remains bounded and fast. On iPhone, a new VIN is learned with a compact Mercedes gateway census: 47 exact 11-bit request/response slots (`TX = 0x602 + 8×slot`, `RX = 0x480 + slot`, slots 0..46), the source-backed out-of-grid Daimler routes, and the eight legislated OBD physical slots. This keeps the BLE adapter on exact receive filters instead of opening the live CAN bus.
 
-`FULL SWEEP` is deliberately separate and remains the workstation forensic path. It exhaustively searches the broader 11/29-bit diagnostic space and may temporarily learn an unknown 11-bit response identifier from a headered diagnostic reply. Every transmitted probe and received response remains evidence-recorded.
+`FULL SWEEP` is deliberately separate and remains the workstation forensic path. It exhaustively searches the broader 11/29-bit diagnostic space and may temporarily learn an unknown 11-bit response identifier from a headered diagnostic reply. The current Mercedes plan contains exactly 760 targets: 505 11-bit targets (the 0x600..0x7F7 range plus the externally evidenced 0x4E0 route) and 255 ISO 15765 normal-fixed 29-bit targets. Every transmitted probe and received response remains evidence-recorded.
+
+A completed 2026-09-03 C207 field capture, made with the older MBLINK 0.7.153 / LINK 0.14.81 build, independently observed proprietary responders `0x602 -> 0x480`, `0x612 -> 0x482`, `0x632 -> 0x486`, `0x64A -> 0x489` and `0x652 -> 0x48A`, plus the two EOBD responders `0x7E0 -> 0x7E8` and `0x7E1 -> 0x7E9`. No 29-bit responder was observed in that completed pass. The old software version is provenance, not a validation of the current scanner implementation; the raw ECU response shapes are retained as sanitised regression evidence and replayed against current code.
 
 ## Intended evolution
 
