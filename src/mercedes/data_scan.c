@@ -260,11 +260,12 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
     return initialise_scan(scan, config);
 }
 
-MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
+static MblinkMercedesDataScanResult begin_identifier_list(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config,
     const uint16_t *identifiers,
-    size_t identifier_count)
+    size_t identifier_count,
+    bool retry_no_response)
 {
     MblinkMercedesDataScanResult result;
     size_t index;
@@ -295,10 +296,31 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
     }
 
     scan->identifier_list_active = true;
+    scan->identifier_list_retry_no_response = retry_no_response;
     scan->identifier_count = identifier_count;
     scan->identifier_index = 0U;
     scan->current_identifier = scan->identifiers[0U];
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
+}
+
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const uint16_t *identifiers,
+    size_t identifier_count)
+{
+    return begin_identifier_list(
+        scan, config, identifiers, identifier_count, true);
+}
+
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_identifiers(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const uint16_t *identifiers,
+    size_t identifier_count)
+{
+    return begin_identifier_list(
+        scan, config, identifiers, identifier_count, false);
 }
 
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
@@ -378,6 +400,7 @@ static bool retry_known_identifier_after_no_response(
     MblinkMercedesDataScan *scan)
 {
     if (scan == NULL || !scan->identifier_list_active ||
+        !scan->identifier_list_retry_no_response ||
         scan->current_no_response_retries >= 2U) {
         return false;
     }
