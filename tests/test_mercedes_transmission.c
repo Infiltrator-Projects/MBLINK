@@ -264,9 +264,9 @@ static int test_kwp_records(void)
     CHECK(d33.mpc_actual_current_raw == UINT16_C(0x010C));
     CHECK(d33.tcc_pwm_raw == UINT8_C(0x80));
 
-    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count() == 15U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count() == 16U);
     CHECK(mblink_mercedes_transmission_kwp_read_identifier_at(0U) == UINT8_C(0x30));
-    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at(14U) == UINT8_C(0xEB));
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at(4U) == UINT8_C(0xE0));\n    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at(15U) == UINT8_C(0xEB));
     CHECK(strcmp(mblink_mercedes_transmission_kwp_read_identifier_name(
         UINT8_C(0xE1)), "ECU serial number") == 0);
     return 0;
