@@ -599,6 +599,24 @@ and raw response bytes; MBLINK does not invent a name, unit or scaling formula.
 
 Positive manufacturer identifiers are persisted against the VIN-keyed module profile. After one successful full discovery pass, later sessions can refresh only the exact UDS DIDs / KWP local identifiers that previously responded, avoiding a repeated full-range sweep. Historical Mercedes-me runtime/app-data is therefore useful optional evidence, not a dependency of manufacturer-data discovery.
 
+The iPhone runtime now continues that rule after discovery instead of treating
+manufacturer actual values as one-shot scan results. It briefly pauses the SAE
+Mode 01 scheduler, re-reads only proven runtime identifiers, restores the
+standard channel and repeats in a bounded round-robin. The transmission route
+`0x7E1 -> 0x7E9` receives priority so responding KWP actual-value groups
+`30..33` continue to update; the static Daimler identification/configuration
+records `E0..EB` are explicitly excluded from the live loop.
+
+The 2026-09-03 C207 evidence also supplies exact positive raw candidates that
+are safe to observe again without claiming semantics: UDS `0x632 -> 0x486 /
+DID 0x2001`, KWP `0x64A -> 0x489 / local ID 0x58`, and KWP
+`0x652 -> 0x48A / local ID 0x01`. MBLINK tries each exact route/identifier
+candidate once per session when no persisted positive exists. A positive result
+then joins the runtime refresh set and every changing payload remains visible
+as `RAW` and is retained in the diagnostic CSV until independent evidence
+proves its meaning. A failed or negative candidate is not expanded into a
+broader automatic sweep.
+
 The first exact numeric mapping remains CRD3 UDS DID `0x2007`, battery voltage,
 decoded as a two-byte big-endian value multiplied by `0.0078125 V`. Other
 positive manufacturer identifiers are deliberately shown as `RAW` until the
