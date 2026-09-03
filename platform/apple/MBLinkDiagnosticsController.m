@@ -1454,7 +1454,7 @@ static bool MBLinkSimulatorResponder(
                 (uint16_t)mblink_mercedes_transmission_kwp_read_identifier_at(
                     index);
         }
-        result = mblink_mercedes_data_scan_begin_identifiers(
+        result = mblink_mercedes_data_scan_begin_probe_identifiers(
             &_manufacturerDataScan, &config, identifiers, identifierCount);
     } else {
         result = mblink_mercedes_data_scan_begin(
