@@ -511,8 +511,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         const link_discover_sweep_plan *plan =
             mblink_discover_full_sweep_plan();
-        MblinkElm327Response tester_response =
-            response(MBLINK_ELM327_RESULT_OK, "7E00", false);
 
         CHECK(link_discover_sweep_plan_is_valid(plan));
         CHECK(mblink_mercedes_module_scan_begin_mobile_census(&scan) ==
@@ -529,11 +527,25 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "ATST20") == 0);
 
-        /* A dead 11-bit address advances after TesterPresent alone. */
+        /*
+         * Generic 11-bit targets are not allowed to assume request+8.  Open
+         * the receive filter only for the bounded TesterPresent probe so the
+         * real responder CAN identifier can be learned from the returned
+         * header.
+         */
         CHECK(mblink_mercedes_module_scan_set_full_target(
                   &scan, full_target_index_for_tx(UINT32_C(0x600))));
+        CHECK(!scan.candidate_route_locked);
         scan.stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        CHECK(send_ok(&scan, "ATSH600") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE);
+        CHECK(send_ok(&scan, "ATCRA") == 0);
+        CHECK(send_ok(&scan, "ATCF000") == 0);
+        CHECK(send_ok(&scan, "ATCM000") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.full_target_index ==
@@ -543,18 +555,38 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
 
-        /* A real response on the plan-defined RX route gets deeper reads. */
-        CHECK(mblink_mercedes_module_scan_set_full_target(
-                  &scan, full_target_index_for_tx(UINT32_C(0x600))));
-        scan.stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester_response) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.module_count == 1U);
-        CHECK(scan.modules[0].tx_can_id == UINT32_C(0x600));
-        CHECK(scan.modules[0].rx_can_id == UINT32_C(0x608));
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+        /*
+         * A valid headered response may use a completely different Mercedes
+         * RX identifier.  Learn it, record that exact route and immediately
+         * restore headers-off plus an exact receive filter for deeper reads.
+         */
+        {
+            MblinkElm327Response non_plus_eight =
+                response(MBLINK_ELM327_RESULT_OK, "4A0027E00", false);
+            CHECK(mblink_mercedes_module_scan_set_full_target(
+                      &scan, full_target_index_for_tx(UINT32_C(0x600))));
+            CHECK(!scan.candidate_route_locked);
+            scan.stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+            CHECK(send_ok(&scan, "ATSH600") == 0);
+            CHECK(send_ok(&scan, "ATCRA") == 0);
+            CHECK(send_ok(&scan, "ATCF000") == 0);
+            CHECK(send_ok(&scan, "ATCM000") == 0);
+            CHECK(mblink_mercedes_module_scan_accept(
+                      &scan, &non_plus_eight) ==
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+            CHECK(scan.candidate_route_locked);
+            CHECK(scan.candidate_rx == UINT32_C(0x4a0));
+            CHECK(scan.module_count == 1U);
+            CHECK(scan.modules[0].tx_can_id == UINT32_C(0x600));
+            CHECK(scan.modules[0].rx_can_id == UINT32_C(0x4a0));
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF);
+            CHECK(send_ok(&scan, "ATH0") == 0);
+            CHECK(send_ok(&scan, "ATCRA4A0") == 0);
+            CHECK(scan.stage ==
+                  MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+        }
 
         /*
          * Published EIS_212 route evidence overrides request+8. Even when
