@@ -179,6 +179,25 @@ bool mblink_mercedes_data_record_decode_known_numeric(
     const char **name,
     const char **unit);
 
+/**
+ * Route-aware numeric decoder for definitions whose meaning is tied to a
+ * specific physical ECU endpoint rather than only a coarse module kind.
+ *
+ * The 0x7E1 -> 0x7E9 Mercedes transmission-temperature candidate is one such
+ * definition: public Mercedes-owner validation uses request 0x21 0x30 and the
+ * 12th response byte minus 50 degrees C, while the exact VGS/EGS family can
+ * remain unidentified.
+ */
+bool mblink_mercedes_data_record_decode_known_numeric_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record,
+    double *value,
+    const char **name,
+    const char **unit);
+
 #ifdef __cplusplus
 }
 #endif
