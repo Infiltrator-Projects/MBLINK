@@ -95,10 +95,23 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly, getter=isActive) BOOL active;
 @property(nonatomic, readonly, getter=isReady) BOOL ready;
 @property(nonatomic, readonly) NSUInteger recordedSampleCount;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *availableLanguageTags;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *availableLanguageNames;
+@property(nonatomic, copy, readonly) NSString *selectedLanguageTag;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemKeys;
+@property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemNames;
+@property(nonatomic, copy, readonly) NSString *selectedMeasurementSystemKey;
+@property(nonatomic, readonly) BOOL preferFavouriteSignals;
+@property(nonatomic, readonly) BOOL showUnavailableParameters;
 
 - (void)start;
 - (void)startSimulated;
 - (void)disconnect;
+- (NSString *)localizedTextForKey:(NSString *)key;
+- (void)setSelectedLanguageTag:(NSString *)tag;
+- (void)setSelectedMeasurementSystemKey:(NSString *)key;
+- (void)setPreferFavouriteSignals:(BOOL)enabled;
+- (void)setShowUnavailableParameters:(BOOL)enabled;
 
 /**
  * Discover read-only Mercedes manufacturer data identifiers on one exact ECU

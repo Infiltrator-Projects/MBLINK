@@ -45,6 +45,7 @@
 		D1A900000000000000000010 /* link_language_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000011 /* link_language_pack.c */; };
 		A22100000000000000000001 /* link_workspace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000001 /* link_workspace.c */; };
 		A22100000000000000000002 /* link_fuel_economy.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000002 /* link_fuel_economy.c */; };
+		A22100000000000000000016 /* link_units.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000016 /* link_units.c */; };
 		A22100000000000000000003 /* link_diagnostic_request.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000003 /* link_diagnostic_request.c */; };
 		A22100000000000000000004 /* link_doip.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000004 /* link_doip.c */; };
 		A22100000000000000000005 /* link_diagnostic_flow.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000005 /* link_diagnostic_flow.c */; };
@@ -148,6 +149,7 @@
 		D1A900000000000000000034 /* id-ID */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id-ID"; path = "MBLINK/id-ID.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000001 /* link_workspace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_workspace.c"; path = "../../src/link/src/core/workspace.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000002 /* link_fuel_economy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_fuel_economy.c"; path = "../../src/link/src/core/fuel_economy.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000016 /* link_units.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_units.c"; path = "../../src/link/src/core/units.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000003 /* link_diagnostic_request.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_diagnostic_request.c"; path = "../../src/link/src/core/diagnostic_request.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000004 /* link_doip.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_doip.c"; path = "../../src/link/src/core/doip.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000005 /* link_diagnostic_flow.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_diagnostic_flow.c"; path = "../../src/link/src/core/diagnostic_flow.c"; sourceTree = SOURCE_ROOT; };
@@ -232,6 +234,7 @@
 			children = (
 				A22000000000000000000001 /* link_workspace.c */,
 				A22000000000000000000002 /* link_fuel_economy.c */,
+				A22000000000000000000016 /* link_units.c */,
 				A22000000000000000000003 /* link_diagnostic_request.c */,
 				A22000000000000000000004 /* link_doip.c */,
 				A22000000000000000000005 /* link_diagnostic_flow.c */,
@@ -496,6 +499,7 @@
 			files = (
 				A22100000000000000000001 /* link_workspace.c in Sources */,
 				A22100000000000000000002 /* link_fuel_economy.c in Sources */,
+				A22100000000000000000016 /* link_units.c in Sources */,
 				A22100000000000000000003 /* link_diagnostic_request.c in Sources */,
 				A22100000000000000000004 /* link_doip.c in Sources */,
 				A22100000000000000000005 /* link_diagnostic_flow.c in Sources */,

@@ -549,7 +549,6 @@ struct MBLINKApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var connection = ConnectionViewModel()
     @State private var showingAbout = false
-    @AppStorage("mblink.language") private var language = "en-AU"
 
     init() {
         MBTypography.verifyBundledFonts()
@@ -559,13 +558,12 @@ struct MBLINKApp: App {
         WindowGroup {
             MBCommandCentreView()
                 .linkDiagnosticTheme(mbLinkTheme)
+                .linkDiagnosticLocalization { connection.localizedText($0) }
                 .environmentObject(connection)
                 .environment(\.font, MBTypography.body)
-                .environment(\.locale, Locale(identifier: MBInterfaceLanguage.canonical(language)))
-                .environment(\.layoutDirection, MBInterfaceLanguage.canonical(language).hasPrefix("ar") ? .rightToLeft : .leftToRight)
+                .environment(\.locale, Locale(identifier: connection.interfaceLocaleIdentifier))
+                .environment(\.layoutDirection, connection.interfaceLocaleIdentifier.hasPrefix("ar") ? .rightToLeft : .leftToRight)
                 .onAppear {
-                    let canonical = MBInterfaceLanguage.canonical(language)
-                    if language != canonical { language = canonical }
                     UIApplication.shared.isIdleTimerDisabled = true
                 }
                 .onChange(of: scenePhase) { _, phase in
@@ -736,6 +734,7 @@ private struct MBCommandCentreView: View {
             LinkTaskTile(.graph) { MBGraphsView() }
             LinkTaskTile(.tests) { MBTestsView() }
             LinkTaskTile(.services) { MBServicesView() }
+            LinkTaskTile(.settings) { MBSettingsView() }
         }
     }
 
@@ -748,9 +747,6 @@ private struct MBCommandCentreView: View {
                     "Load a scanned VIN, open its controllers and choose every PID offline",
                     "list.bullet.rectangle.portrait.fill"
                 ) { MBPIDSetupView() }
-                Divider().overlay(MBBrand.line)
-                MBSectionHeader(title: "Settings", kicker: "Application")
-                MBCompactLink("Settings", "Adapter, units and app preferences", "gearshape.fill") { MBSettingsView() }
             }
         }
     }
@@ -2306,6 +2302,7 @@ private struct MBDataTableView: View {
     private var sorted: [DiagnosticParameter] {
         connection.diagnosticParameters
             .filter { showUnsupportedParameters || $0.isSupported || $0.isAvailable }
+            .filter { connection.showUnavailableParameters || $0.isAvailable }
             .sorted { $0.title < $1.title }
     }
 
@@ -2358,7 +2355,6 @@ private struct MBDataTableView: View {
 
 private struct MBDashboardView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
 
     private let defaultKeys = [
         "obd2.engine.rpm", "obd2.vehicle.speed",
@@ -2379,7 +2375,7 @@ private struct MBDashboardView: View {
         ].compactMap { $0 }
         let favourites = available.filter(\.favourite)
 
-        if preferFavouriteSignals && !favourites.isEmpty {
+        if connection.preferFavouriteSignals && !favourites.isEmpty {
             var result = Array(favourites.prefix(
                 max(0, 8 - transmissionPriority.count)))
             for parameter in transmissionPriority.reversed()
@@ -2657,9 +2653,13 @@ private struct MBGraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     private var graphed: [DiagnosticParameter] {
-        let withHistory = connection.diagnosticParameters.filter { $0.pollingEnabled && !$0.history.isEmpty }
+        let withHistory = connection.diagnosticParameters.filter {
+            $0.pollingEnabled && !$0.history.isEmpty
+        }
         let favourites = withHistory.filter(\.favourite)
-        return Array((favourites.isEmpty ? withHistory : favourites).prefix(4))
+        let source = connection.preferFavouriteSignals && !favourites.isEmpty
+            ? favourites : withHistory
+        return Array(source.prefix(4))
     }
 
     var body: some View {
@@ -2901,91 +2901,39 @@ private struct MBServicesView: View {
 
 private struct MBSettingsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
-    @AppStorage("mblink.showUnavailableParameters") private var showUnavailableParameters = true
-    @AppStorage("mblink.language") private var language = "en"
-    @AppStorage("mblink.units") private var units = MBLINKUnitProfile.metric.rawValue
 
     private var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
     var body: some View {
-        ZStack {
-            MBBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 15) {
-                    MBPanel {
-                        VStack(spacing: 4) {
-                            MBInfoRow(label: "Adapter", value: connection.peripheralName)
-                            MBInfoRow(label: "Identity", value: connection.adapterIdentifier, monospaced: true)
-                            MBInfoRow(label: "Status", value: connection.statusText)
-                            MBInfoRow(label: "Version", value: version, monospaced: true)
-                            MBInfoRow(label: "Bundle", value: Bundle.main.bundleIdentifier ?? "Unknown", monospaced: true)
-                        }
-                    }
-                    MBPanel {
-                        NavigationLink {
-                            MBLanguageSelectionView(selection: $language)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "globe")
-                                    .font(MBTypography.title3)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                Text("Language")
-                                    .font(MBTypography.headline)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                Spacer()
-                                Text(MBInterfaceLanguage.displayName(for: language))
-                                    .font(MBTypography.subheadline)
-                                    .foregroundStyle(MBBrand.silver)
-                                Image(systemName: "chevron.right")
-                                    .font(MBTypography.captionBold)
-                                    .foregroundStyle(MBBrand.muted)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    MBPanel {
-                        HStack(spacing: 12) {
-                            Image(systemName: "ruler")
-                                .font(MBTypography.title3)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Text("Unit system")
-                                .font(MBTypography.headline)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Spacer()
-                            Picker("Unit system", selection: $units) {
-                                ForEach(MBLINKUnitProfile.allCases) { profile in
-                                    Text(LocalizedStringKey(profile.displayName)).tag(profile.rawValue)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .tint(MBBrand.silverBright)
-                        }
-                    }
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Toggle("Prefer favourites on Dashboard and Graphs", isOn: $preferFavouriteSignals)
-                                .tint(MBBrand.silverBright)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Divider().overlay(MBBrand.line)
-                            Toggle("Show unavailable values in Data Table", isOn: $showUnavailableParameters)
-                                .tint(MBBrand.silverBright)
-                                .foregroundStyle(MBBrand.silverBright)
-                        }
-                    }
-                }
-                .padding(16)
-            }
-        }
-        .onChange(of: units) { _, _ in connection.refreshPresentation() }
-        .mbDiagnosticScreen("Settings")
+        LinkDiagnosticSettingsView(
+            languageOptions: connection.languageOptions,
+            selectedLanguageID: Binding(
+                get: { connection.selectedLanguageID },
+                set: { connection.selectLanguage($0) }),
+            measurementOptions: connection.measurementOptions,
+            selectedMeasurementID: Binding(
+                get: { connection.selectedMeasurementID },
+                set: { connection.selectMeasurementSystem($0) }),
+            preferFavouriteSignals: Binding(
+                get: { connection.preferFavouriteSignals },
+                set: { connection.setPreferFavouriteSignals($0) }),
+            showUnavailableParameters: Binding(
+                get: { connection.showUnavailableParameters },
+                set: { connection.setShowUnavailableParameters($0) }),
+            productName: "MBLINK",
+            productVersion: version,
+            adapterName: connection.peripheralName,
+            adapterIdentity: connection.adapterIdentifier,
+            connectionStatus: connection.statusText,
+            bundleIdentifier: Bundle.main.bundleIdentifier ?? "Unknown",
+            coreSummary: "LINK 0.14.86 · shared Settings baseline promoted from MBLINK")
     }
 }
 
-private struct MBLanguageSelectionView: View {
+private struct MBLanguageSelectionView: View {private struct MBLanguageSelectionView: View {
     @Binding var selection: String
 
     var body: some View {
