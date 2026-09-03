@@ -312,10 +312,10 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         : mblink_mercedes_module_scan_kind(
             entry->tx_can_id, entry->extended_id);
     /*
-     * Route-only classification is deliberately conservative.  In particular,
-     * the captured 7E1/7E9 responder is a real secondary EOBD ECU but did not
-     * return Mercedes identity, so old cached "transmission" guesses are
-     * demoted below unless returned identity proves a family.
+     * Exact family identity remains evidence-gated, but Mercedes CAN
+     * definitions explicitly name 0x7E1/0x7E9 as GS gearbox-control
+     * diagnostic request/response. Route classification may therefore retain
+     * transmission kind even when the ECU declines the UDS identity DIDs.
      */
     entry->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
     entry->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
@@ -338,8 +338,10 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     if (!entry->extended_id &&
         entry->tx_can_id == UINT32_C(0x7e1) &&
         entry->rx_can_id == UINT32_C(0x7e9)) {
-        entry->kind = MBLINK_MERCEDES_MODULE_OTHER;
+        entry->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
         entry->definition = NULL;
+        entry->identification_status =
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
     }
     if (entry->identity_available)
         mblink_mercedes_module_scan_classify_identity(entry);
@@ -918,7 +920,7 @@ static bool MBLinkSimulatorResponder(
         snapshot.name = requestID == UINT32_C(0x7e0)
             ? @"Engine ECU"
             : requestID == UINT32_C(0x7e1)
-                ? @"Secondary EOBD powertrain ECU"
+                ? @"Transmission ECU / GS"
                 : [NSString stringWithFormat:
                     @"OBD responder 0x%03X", (unsigned int)responseID];
         snapshot.designation = @"Observed legislated-OBD responder";
