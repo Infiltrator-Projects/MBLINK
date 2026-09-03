@@ -369,6 +369,87 @@ static int test_7e1_transmission_temperature_candidate(void)
     return 0;
 }
 
+static int test_transmission_standard_kwp_metadata(void)
+{
+    MblinkMercedesDataRecord record;
+    char text[512];
+    const char *name = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service = MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
+
+    record.identifier = UINT16_C(0xe1);
+    record.data_length = 4U;
+    record.data[0] = UINT8_C(0x01);
+    record.data[1] = UINT8_C(0x02);
+    record.data[2] = UINT8_C(0x03);
+    record.data[3] = UINT8_C(0x04);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "ECU serial number") == 0);
+    CHECK(strstr(text, "retained raw") != NULL);
+
+    record.identifier = UINT16_C(0xe5);
+    record.data_length = 4U;
+    record.data[0] = UINT8_C(0x11);
+    record.data[1] = UINT8_C(0x22);
+    record.data[2] = UINT8_C(0x33);
+    record.data[3] = UINT8_C(0x44);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Vehicle information") == 0);
+    CHECK(strstr(text, "model year 0x11") != NULL);
+    CHECK(strstr(text, "country 0x44") != NULL);
+
+    record.identifier = UINT16_C(0xe8);
+    record.data_length = 15U;
+    for (size_t index = 0U; index < record.data_length; ++index)
+        record.data[index] = (uint8_t)(index + 1U);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "System-diagnostic general parameters") == 0);
+    CHECK(strstr(text, "SDCOM version 02.03.04") != NULL);
+    CHECK(strstr(text, "checksum 0D0E0F") != NULL);
+
+    record.identifier = UINT16_C(0xe9);
+    record.data_length = 7U;
+    record.data[0] = UINT8_C(3);
+    record.data[1] = UINT8_C(4);
+    record.data[2] = UINT8_C(0x01);
+    record.data[3] = UINT8_C(0x23);
+    record.data[4] = UINT8_C(0xaa);
+    record.data[5] = UINT8_C(0xbb);
+    record.data[6] = UINT8_C(0xcc);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "System-diagnostic global parameters") == 0);
+    CHECK(strstr(text, "global analog values 3") != NULL);
+    CHECK(strstr(text, "first CAN data-frame position 291") != NULL);
+    CHECK(strstr(text, "3 descriptor bytes retained") != NULL);
+
+    record.identifier = UINT16_C(0xeb);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x22);
+    record.data[1] = UINT8_C(0x10);
+    record.data[2] = UINT8_C(0x03);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Diagnostic protocol information") == 0);
+    CHECK(strstr(text, "diagnostic level 3") != NULL);
+
+    return 0;
+}
+
 static int test_kwp_local_identifier_scan(void)
 {
     MblinkMercedesDataScan scan;
@@ -418,6 +499,7 @@ int main(void)
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
+    if (test_transmission_standard_kwp_metadata() != 0) return 1;
     if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
