@@ -702,6 +702,13 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
 }
 
 
+static uint32_t data_be24(const uint8_t *data)
+{
+    return ((uint32_t)data[0] << 16U) |
+           ((uint32_t)data[1] << 8U) |
+           (uint32_t)data[2];
+}
+
 static bool record_is_gs_kwp(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
@@ -900,6 +907,41 @@ bool mblink_mercedes_data_record_format_known_for_route(
     }
     case UINT8_C(0xe0):
         *name = "Development data";
+        /*
+         * DaimlerChrysler KWP2000 Requirements Definition 2.2, table
+         * 4.4.4-9: processor type followed by communication-matrix, CAN
+         * driver, network-management, KWP, transport, DBKOM and Flexer
+         * versions. Version bytes are BCD, so display the wire representation
+         * directly rather than pretending a decimal conversion is valid for
+         * malformed vendor data.
+         */
+        if (record->data_length >= 18U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "processor 0x%02X%02X · matrix week/year %02X/%02X · "
+                "CAN %02X.%02X · NM %02X.%02X · KWP %02X.%02X · "
+                "transport %02X.%02X · DBKOM %02X.%02X · "
+                "Flexer %02X.%02X · reserved %02X%02X",
+                (unsigned int)record->data[0],
+                (unsigned int)record->data[1],
+                (unsigned int)record->data[2],
+                (unsigned int)record->data[3],
+                (unsigned int)record->data[4],
+                (unsigned int)record->data[5],
+                (unsigned int)record->data[6],
+                (unsigned int)record->data[7],
+                (unsigned int)record->data[8],
+                (unsigned int)record->data[9],
+                (unsigned int)record->data[10],
+                (unsigned int)record->data[11],
+                (unsigned int)record->data[12],
+                (unsigned int)record->data[13],
+                (unsigned int)record->data[14],
+                (unsigned int)record->data[15],
+                (unsigned int)record->data[16],
+                (unsigned int)record->data[17]);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xe1):
         *name = "ECU serial number";
@@ -911,9 +953,42 @@ bool mblink_mercedes_data_record_format_known_for_route(
         break;
     case UINT8_C(0xe2):
         *name = "DBCom communication-matrix data";
+        /*
+         * Table 4.4.4-11 defines three 24-bit address/size pairs for Flash,
+         * RAM and EEPROM plus the Flash data-format identifier.
+         */
+        if (record->data_length >= 19U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "Flash 0x%06X +%u bytes (format 0x%02X) · "
+                "RAM 0x%06X +%u bytes · EEPROM 0x%06X +%u bytes",
+                (unsigned int)data_be24(&record->data[0]),
+                (unsigned int)data_be24(&record->data[4]),
+                (unsigned int)record->data[3],
+                (unsigned int)data_be24(&record->data[7]),
+                (unsigned int)data_be24(&record->data[10]),
+                (unsigned int)data_be24(&record->data[13]),
+                (unsigned int)data_be24(&record->data[16]));
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xe3):
         *name = "Operating-system version";
+        if (record->data_length != 0U) {
+            size_t used = 0U;
+            count = snprintf(buffer, buffer_size, "0x");
+            if (count < 0 || (size_t)count >= buffer_size) return false;
+            used = (size_t)count;
+            for (size_t index = 0U; index < record->data_length; ++index) {
+                count = snprintf(
+                    buffer + used, buffer_size - used, "%02X",
+                    (unsigned int)record->data[index]);
+                if (count < 0 || (size_t)count >= buffer_size - used)
+                    return false;
+                used += (size_t)count;
+            }
+            return true;
+        }
         break;
     case UINT8_C(0xe4):
         *name = "ECU reprogramming identification";
@@ -937,6 +1012,12 @@ bool mblink_mercedes_data_record_format_known_for_route(
         break;
     case UINT8_C(0xe7):
         *name = "Flash information 2";
+        if (record->data_length == 19U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "19-byte hardware-scan/programming-statistics record retained raw");
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xe8):
         *name = "System-diagnostic general parameters";
