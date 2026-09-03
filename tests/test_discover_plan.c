@@ -43,6 +43,37 @@ static int check_kwp_target(
     return 0;
 }
 
+static int check_probe_payload(
+    const link_discover_sweep_probe *probe,
+    const uint8_t *expected,
+    size_t expected_length)
+{
+    CHECK(probe != NULL);
+    CHECK(expected != NULL);
+    CHECK(probe->payload_length == expected_length);
+    CHECK(memcmp(probe->payload, expected, expected_length) == 0);
+    return 0;
+}
+
+static size_t find_target_index(
+    const link_discover_sweep_plan *plan,
+    uint32_t tx,
+    uint32_t rx)
+{
+    link_discover_sweep_target target;
+    size_t index;
+    if (!link_discover_sweep_plan_is_valid(plan)) return (size_t)-1;
+    for (index = 0U; index < plan->target_count; ++index) {
+        if (link_discover_sweep_plan_target_at(plan, index, &target) &&
+            !target.extended_id &&
+            target.tx_can_id == tx &&
+            target.rx_can_id == rx) {
+            return index;
+        }
+    }
+    return (size_t)-1;
+}
+
 static int check_uds_f1a0_target(
     const link_discover_sweep_plan *plan,
     size_t index,
@@ -87,6 +118,9 @@ int main(void)
         UINT32_C(0x607), UINT32_C(0x4e0), UINT32_C(0x7e1)
     };
     static const uint8_t kwp_2105[] = {0x21U, 0x05U};
+    static const uint8_t obd_0902[] = {0x09U, 0x02U};
+    static const uint8_t uds_f1a0[] = {0x22U, 0xf1U, 0xa0U};
+    static const uint8_t kwp_1a90[] = {0x1aU, 0x90U};
 
     CHECK(link_discover_sweep_plan_is_valid(plan));
     CHECK(plan->target_count == 760U);
@@ -112,14 +146,59 @@ int main(void)
               plan, 5U, UINT32_C(0x602), UINT32_C(0x480)) == 0);
     CHECK(check_uds_f1a0_target(
               plan, 6U, UINT32_C(0x607), UINT32_C(0x587)) == 0);
-    CHECK(check_kwp_target(
-              plan, 7U, UINT32_C(0x4e0), UINT32_C(0x5ff),
-              kwp_2105, sizeof(kwp_2105)) == 0);
+    {
+        const link_discover_sweep_probe *probes = NULL;
+        size_t probe_count = 0U;
+        const link_discover_sweep_probe *identity = NULL;
+        link_discover_sweep_decode_identity_fn decoder = NULL;
+
+        CHECK(link_discover_sweep_plan_target_at(plan, 7U, &target));
+        CHECK(link_discover_sweep_plan_probes_for_target(
+                  plan, &target, &probes, &probe_count, &identity, &decoder));
+        CHECK(probe_count == 5U);
+        CHECK(check_probe_payload(&probes[2], kwp_2105, sizeof(kwp_2105)) == 0);
+        CHECK(check_probe_payload(&probes[3], uds_f1a0, sizeof(uds_f1a0)) == 0);
+        CHECK(check_probe_payload(&probes[4], kwp_1a90, sizeof(kwp_1a90)) == 0);
+        CHECK(identity == NULL);
+        CHECK(decoder == NULL);
+    }
     CHECK(check_kwp_target(
               plan, 8U, UINT32_C(0x7e1), UINT32_C(0x7e9),
               NULL, 0U) == 0);
-    CHECK(check_uds_f1a0_target(
-              plan, 0U, UINT32_C(0x612), UINT32_C(0x482)) == 0);
+    {
+        const link_discover_sweep_probe *probes = NULL;
+        size_t probe_count = 0U;
+        const link_discover_sweep_probe *identity = NULL;
+        link_discover_sweep_decode_identity_fn decoder = NULL;
+
+        CHECK(link_discover_sweep_plan_target_at(plan, 0U, &target));
+        CHECK(link_discover_sweep_plan_probes_for_target(
+                  plan, &target, &probes, &probe_count, &identity, &decoder));
+        CHECK(probe_count == 4U);
+        CHECK(check_probe_payload(&probes[2], uds_f1a0, sizeof(uds_f1a0)) == 0);
+        CHECK(check_probe_payload(&probes[3], kwp_2105, sizeof(kwp_2105)) == 0);
+        CHECK(identity != NULL);
+        CHECK(decoder != NULL);
+    }
+    {
+        const link_discover_sweep_probe *probes = NULL;
+        size_t probe_count = 0U;
+        const link_discover_sweep_probe *identity = NULL;
+        link_discover_sweep_decode_identity_fn decoder = NULL;
+        size_t motor_index = find_target_index(
+            plan, UINT32_C(0x7e0), UINT32_C(0x7e8));
+
+        CHECK(motor_index != (size_t)-1);
+        CHECK(link_discover_sweep_plan_target_at(plan, motor_index, &target));
+        CHECK(link_discover_sweep_plan_probes_for_target(
+                  plan, &target, &probes, &probe_count, &identity, &decoder));
+        CHECK(probe_count == 5U);
+        CHECK(check_probe_payload(&probes[2], obd_0902, sizeof(obd_0902)) == 0);
+        CHECK(check_probe_payload(&probes[3], uds_f1a0, sizeof(uds_f1a0)) == 0);
+        CHECK(check_probe_payload(&probes[4], kwp_1a90, sizeof(kwp_1a90)) == 0);
+        CHECK(identity != NULL);
+        CHECK(decoder != NULL);
+    }
 
     {
         const MblinkMercedesKnownRoute *route =

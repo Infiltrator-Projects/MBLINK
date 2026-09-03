@@ -399,6 +399,82 @@ static int mercedes_target_probes(
             "Daimler MSA VIN cascade UDS F1A0"
         }
     };
+    static const link_discover_sweep_probe motor_vin_cascade_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x00)},
+            2U,
+            "Mercedes UDS TesterPresent"
+        },
+        {
+            {UINT8_C(0x19), UINT8_C(0x02), UINT8_C(0xff)},
+            3U,
+            "Mercedes UDS ReadDTCInformation"
+        },
+        {
+            {UINT8_C(0x09), UINT8_C(0x02)},
+            2U,
+            "Daimler MSA VIN cascade OBD Mode 09 PID 02"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0xa0)},
+            3U,
+            "Daimler MSA VIN cascade UDS F1A0"
+        },
+        {
+            {UINT8_C(0x1a), UINT8_C(0x90)},
+            2U,
+            "Daimler MSA VIN cascade KWP2000 1A 90"
+        }
+    };
+    static const link_discover_sweep_probe ecu4e0_vin_cascade_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x01)},
+            2U,
+            "Mercedes KWP2000 TesterPresent (response required)"
+        },
+        {
+            {UINT8_C(0x18), UINT8_C(0x02), UINT8_C(0xff), UINT8_C(0x00)},
+            4U,
+            "Mercedes KWP2000 ReadDiagnosticTroubleCodesByStatus"
+        },
+        {
+            {UINT8_C(0x21), UINT8_C(0x05)},
+            2U,
+            "Daimler MSA VIN cascade KWP2000 21 05"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0xa0)},
+            3U,
+            "Daimler MSA VIN cascade UDS F1A0"
+        },
+        {
+            {UINT8_C(0x1a), UINT8_C(0x90)},
+            2U,
+            "Daimler MSA VIN cascade KWP2000 1A 90"
+        }
+    };
+    static const link_discover_sweep_probe ecu612_vin_cascade_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x00)},
+            2U,
+            "Mercedes UDS TesterPresent"
+        },
+        {
+            {UINT8_C(0x19), UINT8_C(0x02), UINT8_C(0xff)},
+            3U,
+            "Mercedes UDS ReadDTCInformation"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0xa0)},
+            3U,
+            "Daimler MSA VIN cascade UDS F1A0"
+        },
+        {
+            {UINT8_C(0x21), UINT8_C(0x05)},
+            2U,
+            "Daimler MSA VIN cascade KWP2000 21 05"
+        }
+    };
     const MblinkMercedesKnownRoute *route;
 
     if (target == NULL || presence_probes == NULL ||
@@ -408,8 +484,38 @@ static int mercedes_target_probes(
     }
     if (target->extended_id) return 1;
 
+    /*
+     * Reproduce the exact read-only production VIN cascade where the APK
+     * supplied more than one protocol fallback for the same physical route.
+     * These overrides are deliberately exact-TX/RX only.
+     */
+    if (target->tx_can_id == UINT32_C(0x7e0) &&
+        target->rx_can_id == UINT32_C(0x7e8)) {
+        *presence_probes = motor_vin_cascade_probes;
+        *presence_probe_count = sizeof(motor_vin_cascade_probes) /
+            sizeof(motor_vin_cascade_probes[0]);
+        return 1;
+    }
+
     route = mblink_mercedes_known_route_for_tx(target->tx_can_id);
     if (route == NULL || route->rx_can_id != target->rx_can_id) return 1;
+
+    if (target->tx_can_id == UINT32_C(0x4e0) &&
+        target->rx_can_id == UINT32_C(0x5ff)) {
+        *presence_probes = ecu4e0_vin_cascade_probes;
+        *presence_probe_count = sizeof(ecu4e0_vin_cascade_probes) /
+            sizeof(ecu4e0_vin_cascade_probes[0]);
+        *identity_probe = NULL;
+        *decode_identity = NULL;
+        return 1;
+    }
+    if (target->tx_can_id == UINT32_C(0x612) &&
+        target->rx_can_id == UINT32_C(0x482)) {
+        *presence_probes = ecu612_vin_cascade_probes;
+        *presence_probe_count = sizeof(ecu612_vin_cascade_probes) /
+            sizeof(ecu612_vin_cascade_probes[0]);
+        return 1;
+    }
 
     if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0) {
         *presence_probes = uds_f1a0_presence_probes;
