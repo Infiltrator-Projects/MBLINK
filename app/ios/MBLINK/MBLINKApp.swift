@@ -1945,9 +1945,11 @@ private struct MBDashboardView: View {
     @AppStorage("mblink.preferFavouriteSignals") private var preferFavouriteSignals = true
 
     private let defaultKeys = [
-        "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
-        "obd2.diesel.rail_pressure", "obd2.fuel.tank_level",
-        "obd2.dpf.bank1_delta_pressure", "obd2.aftertreatment.egt_b1s1"
+        "obd2.engine.rpm", "obd2.vehicle.speed",
+        "mercedes.transmission.oil_temperature",
+        "obd2.engine.coolant", "obd2.diesel.rail_pressure",
+        "obd2.fuel.tank_level", "obd2.dpf.bank1_delta_pressure",
+        "obd2.aftertreatment.egt_b1s1"
     ]
 
     private var displayed: [DiagnosticParameter] {
