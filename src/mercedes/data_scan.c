@@ -215,7 +215,9 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
      * local-identifier request 0x21 0x30 on the legislated 0x7E1 -> 0x7E9
      * physical route for transmission oil temperature. Keep this narrowly
      * route-scoped: the responder can remain family-unidentified while this
-     * exact read-only value is probed.
+     * exact read-only transmission actual-value groups are probed. The
+     * controller can additionally target the non-contiguous E1-EB identity
+     * records through mblink_mercedes_data_scan_begin_identifiers().
      */
     if (!extended_id &&
         tx_can_id == UINT32_C(0x7e1) &&
@@ -223,7 +225,7 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
         config.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
         config.request_extended_session = false;
         config.first_identifier = UINT16_C(0x0030);
-        config.last_identifier = UINT16_C(0x0030);
+        config.last_identifier = UINT16_C(0x0033);
         return config;
     }
 
@@ -674,6 +676,246 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
     }
 
     return false;
+}
+
+
+static bool record_is_gs_kwp(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    const MblinkMercedesDataRecord *record)
+{
+    return !extended_id &&
+        tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9) &&
+        record != NULL &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
+}
+
+static bool format_ascii_payload(
+    const uint8_t *data,
+    size_t data_length,
+    char *buffer,
+    size_t buffer_size)
+{
+    size_t length = data_length;
+    if (data == NULL || buffer == NULL || buffer_size == 0U)
+        return false;
+    while (length > 0U &&
+           (data[length - 1U] == UINT8_C(0x00) ||
+            data[length - 1U] == UINT8_C(0xff))) {
+        --length;
+    }
+    if (length == 0U || length + 1U > buffer_size) return false;
+    for (size_t index = 0U; index < length; ++index) {
+        if (data[index] < UINT8_C(0x20) || data[index] > UINT8_C(0x7e))
+            return false;
+        buffer[index] = (char)data[index];
+    }
+    buffer[length] = '\0';
+    return true;
+}
+
+bool mblink_mercedes_data_record_format_known_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    int count;
+    (void)module_kind;
+    if (name != NULL) *name = NULL;
+    if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
+    if (record == NULL || buffer == NULL || buffer_size == 0U ||
+        name == NULL || !record_is_gs_kwp(
+            tx_can_id, rx_can_id, extended_id, record)) {
+        return false;
+    }
+
+    switch ((uint8_t)record->identifier) {
+    case UINT8_C(0x30): {
+        MblinkMercedesKwpRli30 decoded;
+        MblinkMercedesTransmission2130 compact;
+        *name = "Transmission actual values";
+        if (mblink_mercedes_transmission_decode_kwp_rli30(
+                record->data, record->data_length, &decoded)) {
+            count = snprintf(
+                buffer, buffer_size,
+                "ATF %.1f °C · actual %s · target %s · "
+                "TCC state %u · TCC Δspeed %u · TCC speed %u · "
+                "TCC pressure raw %u · output speed raw %u · "
+                "engine torque raw %u · converter torque raw %u · "
+                "selector 0x%02X · program 0x%02X · "
+                "kickdown %s · emergency %s · ASR %s · "
+                "solenoids 12/45=%s 2/3=%s 3/4=%s",
+                decoded.atf_temperature_c,
+                mblink_mercedes_transmission_actual_gear_name(
+                    decoded.actual_gear_code),
+                mblink_mercedes_transmission_target_gear_name(
+                    decoded.target_gear_code),
+                (unsigned int)decoded.tcc_status,
+                (unsigned int)decoded.tcc_delta_speed_raw,
+                (unsigned int)decoded.tcc_speed_raw,
+                (unsigned int)decoded.tcc_pressure_raw,
+                (unsigned int)decoded.output_speed_raw,
+                (unsigned int)decoded.engine_torque_raw,
+                (unsigned int)decoded.converter_torque_raw,
+                (unsigned int)decoded.selector_position,
+                (unsigned int)decoded.drive_program,
+                decoded.kickdown ? "yes" : "no",
+                decoded.emergency_mode ? "yes" : "no",
+                decoded.asr_active ? "active" : "inactive",
+                decoded.solenoid_1245 ? "on" : "off",
+                decoded.solenoid_23 ? "on" : "off",
+                decoded.solenoid_34 ? "on" : "off");
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (mblink_mercedes_transmission_decode_2130(
+                record->data, record->data_length, &compact)) {
+            count = snprintf(
+                buffer, buffer_size,
+                "ATF %.1f °C · current gear %s",
+                compact.oil_temperature_c,
+                mblink_mercedes_transmission_actual_gear_name(
+                    compact.actual_gear_code));
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        return false;
+    }
+    case UINT8_C(0x31): {
+        MblinkMercedesKwpRli31 decoded;
+        *name = "Transmission speed sensors";
+        if (!mblink_mercedes_transmission_decode_kwp_rli31(
+                record->data, record->data_length, &decoded)) {
+            return false;
+        }
+        count = snprintf(
+            buffer, buffer_size,
+            "N2 %u · N3 %u · input %u rpm · engine %u rpm · "
+            "wheel raw FL %u FR %u RL %u RR %u · "
+            "vehicle-speed raw rear %u front %u",
+            (unsigned int)decoded.n2_pulse_count,
+            (unsigned int)decoded.n3_pulse_count,
+            (unsigned int)decoded.input_rpm,
+            (unsigned int)decoded.engine_rpm,
+            (unsigned int)decoded.front_left_wheel_speed_raw,
+            (unsigned int)decoded.front_right_wheel_speed_raw,
+            (unsigned int)decoded.rear_left_wheel_speed_raw,
+            (unsigned int)decoded.rear_right_wheel_speed_raw,
+            (unsigned int)decoded.rear_vehicle_speed_raw,
+            (unsigned int)decoded.front_vehicle_speed_raw);
+        return count >= 0 && (size_t)count < buffer_size;
+    }
+    case UINT8_C(0x32): {
+        MblinkMercedesKwpRli32 decoded;
+        *name = "Transmission driving dynamics";
+        if (!mblink_mercedes_transmission_decode_kwp_rli32(
+                record->data, record->data_length, &decoded)) {
+            return false;
+        }
+        count = snprintf(
+            buffer, buffer_size,
+            "pedal %u%% · pedal Δ %u · upshift Δrpm raw %u · "
+            "downshift Δrpm raw %u · pitch raw %u · "
+            "driving state 0x%02X · warmup shift 0x%02X · "
+            "requested gear range %u..%u",
+            (unsigned int)decoded.pedal_percent,
+            (unsigned int)decoded.pedal_delta_percent,
+            (unsigned int)decoded.upshift_delta_rpm_raw,
+            (unsigned int)decoded.downshift_delta_rpm_raw,
+            (unsigned int)decoded.pitch_raw,
+            (unsigned int)decoded.driving_status,
+            (unsigned int)decoded.engine_warmup_shift_state,
+            (unsigned int)decoded.requested_low_gear_limit,
+            (unsigned int)decoded.requested_high_gear_limit);
+        return count >= 0 && (size_t)count < buffer_size;
+    }
+    case UINT8_C(0x33): {
+        MblinkMercedesKwpRli33 decoded;
+        *name = "Transmission hydraulics and solenoids";
+        if (!mblink_mercedes_transmission_decode_kwp_rli33(
+                record->data, record->data_length, &decoded)) {
+            return false;
+        }
+        count = snprintf(
+            buffer, buffer_size,
+            "valves 0x%02X/state %u · SPC pressure raw %u · "
+            "MPC pressure raw %u · SPC target/actual current raw %u/%u · "
+            "MPC target/actual current raw %u/%u · TCC PWM raw %u",
+            (unsigned int)decoded.valve_flag,
+            (unsigned int)decoded.shift_valve_state,
+            (unsigned int)decoded.spc_pressure_raw,
+            (unsigned int)decoded.mpc_pressure_raw,
+            (unsigned int)decoded.spc_target_current_raw,
+            (unsigned int)decoded.spc_actual_current_raw,
+            (unsigned int)decoded.mpc_target_current_raw,
+            (unsigned int)decoded.mpc_actual_current_raw,
+            (unsigned int)decoded.tcc_pwm_raw);
+        return count >= 0 && (size_t)count < buffer_size;
+    }
+    case UINT8_C(0xe1):
+        *name = "ECU serial number";
+        return format_ascii_payload(
+            record->data, record->data_length, buffer, buffer_size);
+    case UINT8_C(0xe2):
+        *name = "DBCom communication-matrix data";
+        break;
+    case UINT8_C(0xe3):
+        *name = "Operating-system version";
+        break;
+    case UINT8_C(0xe4):
+        *name = "ECU reprogramming identification";
+        break;
+    case UINT8_C(0xe5):
+        *name = "Vehicle information";
+        break;
+    case UINT8_C(0xe6):
+        *name = "Flash information 1";
+        break;
+    case UINT8_C(0xe7):
+        *name = "Flash information 2";
+        break;
+    case UINT8_C(0xe8):
+        *name = "System-diagnostic general parameters";
+        break;
+    case UINT8_C(0xe9):
+        *name = "System-diagnostic global parameters";
+        break;
+    case UINT8_C(0xea):
+        *name = "ECU configuration";
+        break;
+    case UINT8_C(0xeb):
+        *name = "Diagnostic protocol information";
+        if (record->data_length >= 3U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "KWP requirements version 0x%02X · "
+                "flash requirements version 0x%02X · "
+                "diagnostic level %u",
+                (unsigned int)record->data[0],
+                (unsigned int)record->data[1],
+                (unsigned int)record->data[2]);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        break;
+    default:
+        return false;
+    }
+
+    /*
+     * The Daimler KWP standard defines these record identities, but several
+     * payload formats are ECU/program-specific. Preserve bytes losslessly and
+     * label the record without inventing a decoder.
+     */
+    count = snprintf(
+        buffer, buffer_size, "Source-defined record · %zu byte%s retained raw",
+        record->data_length, record->data_length == 1U ? "" : "s");
+    return count >= 0 && (size_t)count < buffer_size;
 }
 
 bool mblink_mercedes_data_record_decode_known_numeric(
