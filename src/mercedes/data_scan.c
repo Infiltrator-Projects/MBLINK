@@ -709,15 +709,19 @@ static uint32_t data_be24(const uint8_t *data)
            (uint32_t)data[2];
 }
 
-static bool record_is_gs_kwp(
+static bool record_is_transmission_kwp(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
     bool extended_id,
+    MblinkMercedesModuleKind module_kind,
     const MblinkMercedesDataRecord *record)
 {
-    return !extended_id &&
+    const bool explicit_gs_route =
+        !extended_id &&
         tx_can_id == UINT32_C(0x7e1) &&
-        rx_can_id == UINT32_C(0x7e9) &&
+        rx_can_id == UINT32_C(0x7e9);
+    return (module_kind == MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+            explicit_gs_route) &&
         record != NULL &&
         record->service ==
             MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
@@ -758,12 +762,11 @@ bool mblink_mercedes_data_record_format_known_for_route(
     const char **name)
 {
     int count;
-    (void)module_kind;
     if (name != NULL) *name = NULL;
     if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
     if (record == NULL || buffer == NULL || buffer_size == 0U ||
-        name == NULL || !record_is_gs_kwp(
-            tx_can_id, rx_can_id, extended_id, record)) {
+        name == NULL || !record_is_transmission_kwp(
+            tx_can_id, rx_can_id, extended_id, module_kind, record)) {
         return false;
     }
 
