@@ -858,6 +858,9 @@ bool mblink_mercedes_data_record_format_known_for_route(
             (unsigned int)decoded.tcc_pwm_raw);
         return count >= 0 && (size_t)count < buffer_size;
     }
+    case UINT8_C(0xe0):
+        *name = "Development data";
+        break;
     case UINT8_C(0xe1):
         *name = "ECU serial number";
         return format_ascii_payload(
