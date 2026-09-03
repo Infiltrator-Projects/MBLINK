@@ -338,13 +338,33 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
     /*
-     * The product-owned sweep plan defines both sides of every physical
-     * route.  Keep that route locked from the outset.  Widening the ELM receive
-     * mask on a live Mercedes CAN bus admits normal broadcast traffic and can
-     * flood the single-command ELM parser before the requested UDS reply
-     * arrives.
+     * Only lock routes whose RX identifier is authoritative.  Source-backed
+     * Mercedes routes carry independently evidenced TX/RX pairs, 29-bit normal
+     * fixed addressing defines both identifiers, and ISO 15765-4 legislated
+     * OBD physical requests 0x7E0..0x7E7 have the standard +8 response slots.
+     *
+     * Every other 11-bit sweep entry uses TX+8 only as an initial placeholder.
+     * Leave those candidates unlocked so the existing headered discovery path
+     * can temporarily widen the ELM receive filter, learn the ECU's real reply
+     * CAN ID from a valid UDS response, then immediately lock back onto it.
      */
-    scan->candidate_route_locked = true;
+    {
+        const MblinkMercedesKnownRoute *known_route =
+            !target.extended_id
+                ? mblink_mercedes_known_route_for_tx(target.tx_can_id)
+                : NULL;
+        const bool standard_obd_route =
+            !target.extended_id &&
+            target.tx_can_id >= UINT32_C(0x7e0) &&
+            target.tx_can_id <= UINT32_C(0x7e7) &&
+            target.rx_can_id == target.tx_can_id + UINT32_C(8);
+
+        scan->candidate_route_locked =
+            target.extended_id ||
+            (known_route != NULL &&
+             known_route->rx_can_id == target.rx_can_id) ||
+            standard_obd_route;
+    }
     return true;
 }
 
@@ -1051,10 +1071,11 @@ static inline int mblink_mercedes_module_scan_hex_value(char value)
 }
 
 /*
- * Legacy 11-bit route-learning support. The production C207 sweep now uses
- * the explicit TX/RX pair in the product-owned target plan so it can keep an
- * exact ELM receive filter throughout discovery. This parser remains available
- * for controlled evidence/replay work where an unknown route must be learned.
+ * Headered 11-bit route learning for generic Mercedes sweep candidates.
+ * Source-backed routes and standardized OBD slots stay on exact receive
+ * filters, while an otherwise unknown physical request temporarily accepts
+ * headered traffic and uses a valid UDS positive/negative response to learn
+ * the ECU's actual response CAN identifier before re-locking the filter.
  */
 static inline bool mblink_mercedes_module_scan_headered_11_route(
     const MblinkElm327Response *response,
