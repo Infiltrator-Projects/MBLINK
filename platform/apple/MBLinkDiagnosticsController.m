@@ -1388,12 +1388,6 @@ static bool MBLinkSimulatorResponder(
 
     const NSUInteger knownIdentifierCount =
         knownValues.count != 0U ? knownValues.count : persistedIdentifiers.count;
-    BOOL targetedRefresh =
-        !_manufacturerDataForceFullScan &&
-        knownIdentifierCount > 0U &&
-        knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
-    MblinkMercedesDataScanResult result;
-
     const BOOL sourceBackedTransmissionRoute =
         mblink_mercedes_module_scan_entry_protocol(module) ==
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
@@ -1401,6 +1395,18 @@ static bool MBLinkSimulatorResponder(
          (!module->extended_id &&
           module->tx_can_id == UINT32_C(0x7e1) &&
           module->rx_can_id == UINT32_C(0x7e9)));
+    /*
+     * Transmission knowledge can expand when MBLINK gains a new source-backed
+     * read identifier. Always run the small non-retrying source list for a
+     * transmission route, even if an older profile only remembers 21 30.
+     * Ordinary modules still use known-positive refreshes.
+     */
+    BOOL targetedRefresh =
+        !sourceBackedTransmissionRoute &&
+        !_manufacturerDataForceFullScan &&
+        knownIdentifierCount > 0U &&
+        knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
+    MblinkMercedesDataScanResult result;
 
     if (targetedRefresh) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
