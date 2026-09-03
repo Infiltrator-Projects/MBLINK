@@ -659,15 +659,17 @@ static int test_runtime_candidate_catalog(void)
     CHECK(strcmp(
         mblink_mercedes_data_profile_key_for_controller(
             "esp", "ABR2XT", NULL, NULL),
-        "esp") == 0);
+        "esp-abr2xt") == 0);
+    CHECK(mblink_mercedes_data_profile_key_for_controller(
+        "esp", "ESP212", NULL, NULL) == NULL);
     CHECK(strcmp(
         mblink_mercedes_data_profile_key_for_controller(
             "restraints-orc", "ORC_212", NULL, NULL),
-        "restraints-orc") == 0);
+        "restraints-orc212") == 0);
     CHECK(strcmp(
         mblink_mercedes_data_profile_key_for_controller(
             "audio-headunit", "HU_204", NULL, NULL),
-        "audio-headunit") == 0);
+        "headunit-hu204") == 0);
 
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
         "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 1U);
@@ -680,14 +682,14 @@ static int test_runtime_candidate_catalog(void)
     CHECK(strcmp(entry->name, "Battery voltage") == 0);
 
     entry = mblink_mercedes_controller_data_profile_find(
-        "esp", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001));
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001));
     CHECK(entry != NULL && entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
-        "restraints-orc", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
     CHECK(entry != NULL && entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
-        "audio-headunit", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0001));
     CHECK(entry != NULL && entry->live);
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(

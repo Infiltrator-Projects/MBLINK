@@ -4,6 +4,7 @@
 #include "mblink/elm327_can.h"
 #include "mblink/kwp2000.h"
 #include "mblink/mercedes_transmission.h"
+#include "mblink/mercedes_module_catalog.h"
 #include "mblink/uds.h"
 
 #include <ctype.h>
@@ -241,21 +242,21 @@ static const MblinkMercedesControllerDataProfileEntry
         "C207 capture independently proves the positive response."
     },
     {
-        "esp", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT16_C(0x2001), true, "Vehicle-verified raw data 0x2001",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         "2026-09-03 C207 capture proves a positive 0x2001 response on the "
         "source-corroborated ABR2XT/ESP controller family; semantics unknown."
     },
     {
-        "restraints-orc", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058), true, "Vehicle-verified raw local record 0x58",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         "2026-09-03 C207 capture proves local record 0x58 on ORC_212; "
         "semantics unknown."
     },
     {
-        "audio-headunit", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0001), true, "Vehicle-verified raw local record 0x01",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         "2026-09-03 C207 capture proves local record 0x01 on HU_204; "
@@ -263,68 +264,30 @@ static const MblinkMercedesControllerDataProfileEntry
     }
 };
 
-static bool profile_text_contains_ci(const char *text, const char *needle)
-{
-    size_t text_length;
-    size_t needle_length;
-    size_t start_index;
-    size_t offset;
-
-    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
-    text_length = strlen(text);
-    needle_length = strlen(needle);
-    if (needle_length > text_length) return false;
-
-    for (start_index = 0U;
-         start_index + needle_length <= text_length;
-         ++start_index) {
-        for (offset = 0U; offset < needle_length; ++offset) {
-            if (toupper((unsigned char)text[start_index + offset]) !=
-                toupper((unsigned char)needle[offset])) {
-                break;
-            }
-        }
-        if (offset == needle_length) return true;
-    }
-    return false;
-}
-
-static bool profile_any_text_contains(
-    const char *identity,
-    const char *software_number,
-    const char *hardware_number,
-    const char *needle)
-{
-    return profile_text_contains_ci(identity, needle) ||
-           profile_text_contains_ci(software_number, needle) ||
-           profile_text_contains_ci(hardware_number, needle);
-}
-
 const char *mblink_mercedes_data_profile_key_for_controller(
     const char *module_key,
     const char *identity,
     const char *software_number,
     const char *hardware_number)
 {
-    if (profile_any_text_contains(
-            identity, software_number, hardware_number, "CRD3") ||
-        profile_any_text_contains(
-            identity, software_number, hardware_number, "CDID3")) {
-        return "engine-crd3";
-    }
-
-    if (module_key == NULL || module_key[0] == '\0') return NULL;
+    const MblinkMercedesControllerFamilyDefinition *family =
+        mblink_mercedes_controller_family_definition_for_evidence(
+            module_key, identity, software_number, hardware_number);
+    if (family == NULL) return NULL;
 
     /*
-     * "engine-cdi" is intentionally not enough to select CRD3. EDC17 and
-     * other diesel controllers share the broad CDI module family but not
-     * necessarily the same 0x20xx namespace.
+     * Only families with independently source-backed/captured read identifiers
+     * are active data profiles. All other controller families can still be
+     * identified and displayed without inheriting guessed services.
      */
-    if (strcmp(module_key, "esp") == 0 ||
-        strcmp(module_key, "restraints-orc") == 0 ||
-        strcmp(module_key, "audio-headunit") == 0) {
-        return module_key;
-    }
+    if (strcmp(family->key, "engine-crd3") == 0)
+        return "engine-crd3";
+    if (strcmp(family->key, "esp-abr2xt") == 0)
+        return "esp-abr2xt";
+    if (strcmp(family->key, "restraints-orc212") == 0)
+        return "restraints-orc212";
+    if (strcmp(family->key, "headunit-hu204") == 0)
+        return "headunit-hu204";
     return NULL;
 }
 

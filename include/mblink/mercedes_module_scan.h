@@ -145,6 +145,7 @@ typedef struct MblinkMercedesModuleScanEntry {
     bool hardware_number_available;
     char hardware_number[64];
     const MblinkMercedesModuleDefinition *definition;
+    const MblinkMercedesControllerFamilyDefinition *controller_family;
     MblinkMercedesDefinitionStatus identification_status;
     MblinkMercedesModuleDtcResult dtc_result;
     MblinkUdsResult dtc_uds_result;
@@ -228,6 +229,8 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
 static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMercedesModuleScanEntry *module)
 {
     if (module == NULL) return "Mercedes ECU";
+    if (module->controller_family != NULL)
+        return module->controller_family->display_name;
     if (module->definition != NULL) return module->definition->display_name;
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e0)) return "Engine ECU";
     if (module->identity_available && module->identity[0] != '\0') return module->identity;
@@ -253,8 +256,9 @@ static inline MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t
     /*
      * Mercedes CAN definitions explicitly name 0x7E1 D_RQ_GS (KWP2000
      * diagnostic request to gearbox control) and 0x7E9 D_RS_GS (diagnostic
-     * response from gearbox control). The development C207 independently
-     * proves 0x7E9 is live. Exact VGS/EGS family still requires identity, but
+     * response from gearbox control). Field evidence independently proves
+     * 0x7E9 is live on at least one supported Mercedes configuration. Exact
+     * VGS/EGS family still requires identity, but
      * the module class itself is source-backed transmission/GS.
      */
     if (!extended_id && tx_can_id == UINT32_C(0x7e1))
@@ -690,7 +694,7 @@ static inline MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_record_
             mblink_mercedes_module_scan_known_route(scan);
         if (route != NULL) {
             const MblinkMercedesModuleDefinition *definition =
-                mblink_mercedes_c207_module_definition_for_key(
+                mblink_mercedes_module_definition_for_key(
                     route->module_key);
             if (definition != NULL) {
                 module->definition = definition;
@@ -769,21 +773,37 @@ static inline bool mblink_mercedes_module_scan_capture_text_did(
     return true;
 }
 
+static inline void mblink_mercedes_module_scan_classify_controller_family(
+    MblinkMercedesModuleScanEntry *module)
+{
+    const char *module_key;
+
+    if (module == NULL || module->definition == NULL) return;
+    module_key = module->definition->key;
+    module->controller_family =
+        mblink_mercedes_controller_family_definition_for_evidence(
+            module_key,
+            module->identity_available ? module->identity : NULL,
+            module->software_number_available ? module->software_number : NULL,
+            module->hardware_number_available ? module->hardware_number : NULL);
+}
+
 static inline void mblink_mercedes_module_scan_classify_identity(
     MblinkMercedesModuleScanEntry *module)
 {
     const MblinkMercedesModuleDefinition *definition;
 
-    if (module == NULL || !module->identity_available ||
-        module->identity[0] == '\0') {
-        return;
+    if (module == NULL) return;
+    if (module->identity_available && module->identity[0] != '\0') {
+        definition =
+            mblink_mercedes_module_definition_for_identity(module->identity);
+        if (definition != NULL) {
+            module->definition = definition;
+            module->kind = definition->kind;
+            module->identification_status = definition->status;
+        }
     }
-    definition =
-        mblink_mercedes_c207_module_definition_for_identity(module->identity);
-    if (definition == NULL) return;
-    module->definition = definition;
-    module->kind = definition->kind;
-    module->identification_status = definition->status;
+    mblink_mercedes_module_scan_classify_controller_family(module);
 }
 
 static inline void mblink_mercedes_module_scan_capture_identity(
@@ -1061,7 +1081,7 @@ mblink_mercedes_module_scan_begin_cached(
                 mblink_mercedes_module_scan_known_entry_route(destination);
             if (route != NULL) {
                 const MblinkMercedesModuleDefinition *definition =
-                    mblink_mercedes_c207_module_definition_for_key(
+                    mblink_mercedes_module_definition_for_key(
                         route->module_key);
                 destination->protocol = route->protocol;
                 if (definition != NULL) {
@@ -1597,6 +1617,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                     response, UINT16_C(0xf188),
                     module->software_number,
                     sizeof(module->software_number));
+            mblink_mercedes_module_scan_classify_controller_family(module);
         }
         scan->stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE;
@@ -1609,6 +1630,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                     response, UINT16_C(0xf191),
                     module->hardware_number,
                     sizeof(module->hardware_number));
+            mblink_mercedes_module_scan_classify_controller_family(module);
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;

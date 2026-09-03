@@ -341,6 +341,8 @@ MBLinkMercedesDataProfileKeyForModule(
     const MblinkMercedesModuleScanEntry *module)
 {
     if (module == NULL) return NULL;
+    if (module->controller_family != NULL)
+        return module->controller_family->key;
     return mblink_mercedes_data_profile_key_for_controller(
         module->definition != NULL ? module->definition->key : NULL,
         module->identity_available ? module->identity : NULL,
@@ -452,13 +454,14 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
             mblink_mercedes_known_route_for_tx(entry->tx_can_id);
         if (route != NULL && route->rx_can_id == entry->rx_can_id) {
             const MblinkMercedesModuleDefinition *definition =
-                mblink_mercedes_c207_module_definition_for_key(
+                mblink_mercedes_module_definition_for_key(
                     route->module_key);
             entry->protocol = route->protocol;
             if (definition != NULL) {
                 entry->definition = definition;
                 entry->kind = definition->kind;
                 entry->identification_status = definition->status;
+                mblink_mercedes_module_scan_classify_controller_family(entry);
             }
         }
     }

@@ -265,74 +265,125 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         const MblinkMercedesModuleDefinition *definition;
 
-        CHECK(mblink_mercedes_c207_module_definition_count() >= 23U);
+        CHECK(mblink_mercedes_module_definition_count() >= 23U);
+        CHECK(mblink_mercedes_controller_family_definition_count() >= 30U);
+        {
+            MblinkMercedesModuleScanEntry classified;
+            memset(&classified, 0, sizeof(classified));
+            classified.identity_available = true;
+            strcpy(classified.identity, "CRD3-651-WMA4BD3");
+            mblink_mercedes_module_scan_classify_identity(&classified);
+            CHECK(classified.definition != NULL);
+            CHECK(strcmp(classified.definition->key, "engine-cdi") == 0);
+            CHECK(classified.controller_family != NULL);
+            CHECK(strcmp(classified.controller_family->key,
+                         "engine-crd3") == 0);
+            CHECK(strcmp(mblink_mercedes_module_scan_module_name(&classified),
+                         "CRD3 / CDID3 diesel ECU") == 0);
+        }
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "engine-cdi", "CRD3-651-WMA4BD3", NULL, NULL)->key,
+            "engine-crd3") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "engine-cdi", "EDC17CP46", NULL, NULL)->key,
+            "engine-edc17") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "engine-me", "MED17.7.2", NULL, NULL)->key,
+            "engine-med17") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "transmission-vgs", "EGS52", NULL, NULL)->key,
+            "transmission-egs52") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "transmission-vgs", "VGS3_0402 722.9", NULL, NULL)->key,
+            "transmission-vgs-nag2") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "esp", "ABR2XT", NULL, NULL)->key,
+            "esp-abr2xt") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "restraints-orc", "ORC_212", NULL, NULL)->key,
+            "restraints-orc212") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                "central-gateway", "CGW_212", NULL, NULL)->key,
+            "gateway-cgw212") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "CRD3-651-WMA4BD3");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_ENGINE);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
+                definition->key, "CRD3-651-WMA4BD3", NULL, NULL)->key,
+            "engine-crd3") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "VGS3_0402");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "ORC_212");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "IC_204");
         CHECK(definition != NULL);
         CHECK(definition->kind ==
               MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "HU_204");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "audio-headunit") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "CGW_212");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "central-gateway") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "SAMF_212");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "front-sam") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "SAMR_212");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "rear-sam") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "HVAC_212");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_CLIMATE);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "RBTMFL_204");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "RBTMFR_204");
         CHECK(definition != NULL);
         CHECK(definition->kind == MBLINK_MERCEDES_MODULE_RESTRAINTS);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "SEATD_212");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "seat-driver") == 0);
         definition =
-            mblink_mercedes_c207_module_definition_for_identity(
+            mblink_mercedes_module_definition_for_identity(
                 "SEATP_204");
         CHECK(definition != NULL);
         CHECK(strcmp(definition->key, "seat-passenger") == 0);
-        CHECK(mblink_mercedes_c207_module_definition_for_identity(
+        CHECK(mblink_mercedes_module_definition_for_identity(
                   "TOTALLY_UNKNOWN_ECU") == NULL);
 
         CHECK(mblink_mercedes_module_scan_begin_gateway(&scan) ==
