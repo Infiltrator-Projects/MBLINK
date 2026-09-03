@@ -1078,7 +1078,9 @@ bool mblink_mercedes_data_record_format_known_for_route(
     case UINT8_C(0xe9):
         *name = "System-diagnostic global parameters";
         if (record->data_length >= 4U) {
-            const uint16_t first_can_position = be16(&record->data[2]);
+            const uint16_t first_can_position =
+                (uint16_t)(((uint16_t)record->data[2] << 8U) |
+                           (uint16_t)record->data[3]);
             count = snprintf(
                 buffer, buffer_size,
                 "global analog values %u · global states %u · "
