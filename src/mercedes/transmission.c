@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_transmission.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static uint64_t payload_le64(const uint8_t *payload)
@@ -569,6 +570,237 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
 
     *decoded = value;
     return true;
+}
+
+
+bool mblink_mercedes_transmission_format_can_frame(
+    MblinkMercedesTransmissionFamily family,
+    uint32_t can_id,
+    const uint8_t *payload,
+    size_t payload_length,
+    char *buffer,
+    size_t buffer_size)
+{
+    int count;
+    if (payload == NULL || buffer == NULL || buffer_size == 0U) return false;
+    buffer[0] = '\0';
+
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51 &&
+        can_id == MBLINK_MERCEDES_GS_218_CAN_ID) {
+        MblinkMercedesEgs51Gs218 d;
+        if (!mblink_mercedes_transmission_decode_egs51_gs218(
+                payload, payload_length, &d)) return false;
+        count = snprintf(
+            buffer, buffer_size,
+            "EGS51 GS_218 · torque %.1f · target %s · actual %s · "
+            "TCC %s · program-ok %s · limp %s · shifting %s · "
+            "kickdown %s · start %s · P/N %s · FWD %s · error %u",
+            d.torque_request,
+            mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
+            mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
+            mblink_mercedes_transmission_tcc_name(d.torque_converter),
+            d.gearbox_program_ok ? "yes" : "no",
+            d.limp_home ? "yes" : "no",
+            d.shifting ? "yes" : "no",
+            d.kickdown ? "yes" : "no",
+            d.start_enabled ? "enabled" : "blocked",
+            d.park_or_neutral ? "yes" : "no",
+            d.front_wheel_drive ? "yes" : "no",
+            (unsigned int)d.error_counter);
+        return count >= 0 && (size_t)count < buffer_size;
+    }
+
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52) {
+        if (can_id == MBLINK_MERCEDES_GS_218_CAN_ID) {
+            MblinkMercedesGs218 d;
+            if (!mblink_mercedes_transmission_decode_gs218(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS52 GS_218 · target %s · actual %s · TCC %s · "
+                "shift %s · manual %s · gearbox-ok %s · limp %s · "
+                "overtemp %s · kickdown %s · program %u · "
+                "torque-request raw %u · error-state %u/%u",
+                mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
+                mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
+                mblink_mercedes_transmission_tcc_name(d.torque_converter),
+                d.shifting ? "yes" : "no",
+                d.manual_shift_mode ? "yes" : "no",
+                d.gearbox_ok ? "yes" : "no",
+                d.limp_home ? "yes" : "no",
+                d.overtemperature ? "yes" : "no",
+                d.kickdown ? "yes" : "no",
+                (unsigned int)d.drive_program_code,
+                (unsigned int)d.requested_engine_torque_raw,
+                (unsigned int)d.error_check_state,
+                (unsigned int)d.error_counter);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_GS_338_CAN_ID) {
+            MblinkMercedesGs338 d;
+            if (!mblink_mercedes_transmission_decode_gs338(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS52 GS_338 · output %u rpm · turbine %u rpm · "
+                "race-start %u · MIL %s · power-free-D %s · "
+                "pilot-torque raw %u · starting-torque raw %u",
+                (unsigned int)d.output_speed_rpm,
+                (unsigned int)d.turbine_speed_rpm,
+                (unsigned int)d.race_start_state,
+                d.mil_request ? "requested" : "off",
+                d.power_free_in_drive ? "yes" : "no",
+                (unsigned int)d.pilot_torque_raw,
+                (unsigned int)d.starting_area_torque_raw);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_GS_418_CAN_ID) {
+            MblinkMercedesGs418 d;
+            if (!mblink_mercedes_transmission_decode_gs418(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS52 GS_418 · display 0x%02X · program 0x%02X · "
+                "ATF %.1f °C · target %s · actual %s · selector %s · "
+                "AWD %s · FWD %s · CVT %s · mech %u · "
+                "kickdown %s · torque-loss raw %u · wheel-factor raw %u",
+                (unsigned int)d.display_position_code,
+                (unsigned int)d.drive_program_code,
+                d.transmission_temperature_c,
+                mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
+                mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
+                mblink_mercedes_transmission_selector_name(d.selector_position_code),
+                d.all_wheel_drive ? "yes" : "no",
+                d.front_wheel_drive ? "yes" : "no",
+                d.cvt ? "yes" : "no",
+                (unsigned int)d.mechanism_variant,
+                d.kickdown ? "yes" : "no",
+                (unsigned int)d.torque_loss_raw,
+                (unsigned int)d.wheel_torque_factor_raw);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+    }
+
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) {
+        if (can_id == MBLINK_MERCEDES_EGS53_TCM_A1_CAN_ID) {
+            MblinkMercedesEgs53TcmA1 d;
+            if (!mblink_mercedes_transmission_decode_egs53_tcm_a1(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 TCM_A1 · ATF %.1f °C · clutch %u · limp %s · "
+                "overtemp %s · selector %s · manual %s · program %u · "
+                "drive-shaft torque %u Nm",
+                d.oil_temperature_c, (unsigned int)d.clutch_state,
+                d.limp_home ? "yes" : "no",
+                d.overtemperature ? "yes" : "no",
+                mblink_mercedes_transmission_selector_name(d.selector_position_code),
+                d.manual_program_active ? "yes" : "no",
+                (unsigned int)d.drive_program_code,
+                (unsigned int)d.drive_shaft_torque_nm);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_TCM_A2_CAN_ID) {
+            MblinkMercedesEgs53TcmA2 d;
+            if (!mblink_mercedes_transmission_decode_egs53_tcm_a2(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 TCM_A2 · duty %.1f%% · turbine %u rpm · "
+                "desired slip %u rpm · MIL %s · CALID/CVN 0x%02X · error %u/%u",
+                d.requested_current_duty_percent,
+                (unsigned int)d.turbine_rpm,
+                (unsigned int)d.desired_slip_rpm,
+                d.mil_request ? "requested" : "off",
+                (unsigned int)d.calid_cvn_data,
+                (unsigned int)d.error_check_state,
+                (unsigned int)d.calid_cvn_error_counter);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_ENG_RQ1_CAN_ID) {
+            MblinkMercedesEgs53EngRq1 d;
+            if (!mblink_mercedes_transmission_decode_egs53_eng_rq1(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 ENG_RQ1 · requested torque %.1f Nm · "
+                "requested engine %u rpm · intervention %u · downshift %u · "
+                "sync %.2f s · start-enable %s · emergency-off %s",
+                d.requested_engine_torque_nm,
+                (unsigned int)d.requested_engine_rpm,
+                (unsigned int)d.intervention_mode,
+                (unsigned int)d.downshift_mode,
+                d.engine_sync_time_s,
+                d.engine_start_enable_request ? "yes" : "no",
+                d.emergency_engine_off_request ? "yes" : "no");
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_ENG_RQ2_CAN_ID) {
+            MblinkMercedesEgs53EngRq2 d;
+            if (!mblink_mercedes_transmission_decode_egs53_eng_rq2(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 ENG_RQ2 · target %s · actual %s · ratio %.2f · "
+                "engine/wheel ratio %.2f · loss %.2f Nm · "
+                "drive-style %u · transmission-style %u · mechanics %u · shift-style %u",
+                mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
+                mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
+                d.transmission_ratio,
+                d.engine_to_wheel_torque_ratio,
+                d.transmission_torque_loss_nm,
+                (unsigned int)d.vehicle_drive_style,
+                (unsigned int)d.transmission_style,
+                (unsigned int)d.transmission_mechanics_style,
+                (unsigned int)d.transmission_shift_style);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_ENG_RQ3_CAN_ID) {
+            MblinkMercedesEgs53EngRq3 d;
+            if (!mblink_mercedes_transmission_decode_egs53_eng_rq3(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 ENG_RQ3 · max-acceleration state %u · wet clutch torque %.1f Nm",
+                (unsigned int)d.maximum_acceleration_state,
+                d.wet_driveaway_clutch_torque_nm);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_SBW_RS_TCM_CAN_ID) {
+            MblinkMercedesEgs53SbwRsTcm d;
+            if (!mblink_mercedes_transmission_decode_egs53_sbw_rs_tcm(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 SBW_RS_TCM · sender %u · starter lockout %s · "
+                "selector valve %u · selector request %u · sensor %.1f%%",
+                (unsigned int)d.message_transmitter_id,
+                d.starter_lockout ? "yes" : "no",
+                (unsigned int)d.selector_valve_position,
+                (unsigned int)d.selector_position_request,
+                d.selector_sensor_percent);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+        if (can_id == MBLINK_MERCEDES_EGS53_TCM_DISP_RQ_CAN_ID) {
+            MblinkMercedesEgs53TcmDisplayRequest d;
+            if (!mblink_mercedes_transmission_decode_egs53_tcm_display_request(
+                    payload, payload_length, &d)) return false;
+            count = snprintf(
+                buffer, buffer_size,
+                "EGS53 TCM_DISP_RQ · position 0x%02X · program 0x%02X · "
+                "shift recommendation %u · SBW message %u · target display 0x%02X · "
+                "race-start display %u",
+                (unsigned int)d.display_position_code,
+                (unsigned int)d.display_program_code,
+                (unsigned int)d.shift_recommendation,
+                (unsigned int)d.shift_by_wire_message,
+                (unsigned int)d.target_gear_display_code,
+                (unsigned int)d.race_start_display_state);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
+    }
+
+    return false;
 }
 
 static const uint8_t k_transmission_read_ids[] = {
