@@ -1070,6 +1070,7 @@ private struct MBVehicleView: View {
             identity.engineFamily.map { MBVehicleFact(label: "Family", value: $0, monospaced: true) },
             identity.displacementCC.map { MBVehicleFact(label: "Capacity", value: formattedNumber($0) + " cc") },
             identity.ratedPowerKW.map { MBVehicleFact(label: "Factory output", value: "\($0) kW") },
+            identity.ratedTorqueNM.map { MBVehicleFact(label: "Factory torque", value: "\($0) N·m") },
             identity.fuel.map { MBVehicleFact(label: "Fuel", value: $0) }
         ].compactMap { $0 }
     }

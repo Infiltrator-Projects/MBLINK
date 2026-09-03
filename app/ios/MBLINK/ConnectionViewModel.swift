@@ -177,6 +177,7 @@ struct MercedesVehicleIdentity: Equatable {
     let engineFamily: String?
     let displacementCC: UInt32?
     let ratedPowerKW: UInt32?
+    let ratedTorqueNM: UInt32?
     let fuel: String?
     let plant: String?
     let country: String?
@@ -1898,6 +1899,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             engineFamily: definition.flatMap { nonempty(string(from: $0.engine_family)) },
             displacementCC: definition.flatMap { $0.displacement_cc == 0 ? nil : $0.displacement_cc },
             ratedPowerKW: definition.flatMap { $0.rated_power_kw == 0 ? nil : $0.rated_power_kw },
+            ratedTorqueNM: definition.flatMap { $0.rated_torque_nm == 0 ? nil : $0.rated_torque_nm },
             fuel: definition.flatMap {
                 nonempty(string(from: mblink_mercedes_fuel_type_name($0.fuel))).map {
                     $0.prefix(1).uppercased() + $0.dropFirst()

@@ -74,11 +74,16 @@ static int test_c207_e250_cdi_identity_card_source(void)
     CHECK(strcmp(decoded.baumuster, "207303") == 0);
     CHECK(strcmp(decoded.baumuster_definition->chassis_family, "C207") == 0);
     CHECK(strcmp(decoded.baumuster_definition->body_style, "Coupe") == 0);
-    CHECK(strcmp(decoded.baumuster_definition->model, "E 250 CDI") == 0);
+    CHECK(strcmp(decoded.baumuster_definition->model,
+                 "E 250 CDI BlueEFFICIENCY") == 0);
     CHECK(strcmp(decoded.baumuster_definition->engine_code, "OM651.911") == 0);
     CHECK(strcmp(decoded.baumuster_definition->engine_family, "OM651") == 0);
     CHECK(decoded.baumuster_definition->displacement_cc == 2143U);
     CHECK(decoded.baumuster_definition->rated_power_kw == 150U);
+    CHECK(decoded.baumuster_definition->rated_torque_nm == 500U);
+    CHECK(decoded.baumuster_definition->factory_spec_provenance != NULL);
+    CHECK(strstr(decoded.baumuster_definition->factory_spec_provenance,
+                 "Vehicle Specification API") != NULL);
     CHECK(decoded.baumuster_definition->fuel == MBLINK_MERCEDES_FUEL_DIESEL);
     CHECK(decoded.steering == MBLINK_MERCEDES_STEERING_RIGHT_HAND_DRIVE);
     CHECK(decoded.plant_definition != NULL);

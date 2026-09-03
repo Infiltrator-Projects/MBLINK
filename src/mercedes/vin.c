@@ -48,7 +48,7 @@ static const MblinkMercedesPlantDefinition mercedes_plants[] = {
 static const MblinkMercedesBaumusterDefinition mercedes_baumuster[] = {
     {"207301","C207","207","Coupe","E 220 BlueTEC","OM651.911","OM651",MBLINK_MERCEDES_FUEL_DIESEL,2143U,130U,"2010-2016","Mercedes club/aftermarket catalogues"},
     {"207302","C207","207","Coupe","E 220 CDI / d","OM651.911","OM651",MBLINK_MERCEDES_FUEL_DIESEL,2143U,0U,"2010-2016","Mercedes club/aftermarket catalogues"},
-    {"207303","C207","207","Coupe","E 250 CDI","OM651.911","OM651",MBLINK_MERCEDES_FUEL_DIESEL,2143U,150U,"2009-2016","Mercedes club/aftermarket catalogues"},
+    {"207303","C207","207","Coupe","E 250 CDI BlueEFFICIENCY","OM651.911","OM651",MBLINK_MERCEDES_FUEL_DIESEL,2143U,150U,"2009-2016","Mercedes club/aftermarket catalogues",500U,"Mercedes-Benz Vehicle Specification API: Baumuster 207303, E 250 CDI BlueEFFICIENCY Coupe, 2143 cc, 150 kW and 500 Nm; VIN-specific options intentionally not generalised"},
     {"207304","C207","207","Coupe","E 250 BlueTEC / d","OM651.911","OM651",MBLINK_MERCEDES_FUEL_DIESEL,2143U,150U,"2009-2016","Mercedes club/aftermarket catalogues"},
     {"207322","C207","207","Coupe","E 350 CDI","OM642.836","OM642",MBLINK_MERCEDES_FUEL_DIESEL,2987U,0U,"2009-2011","Mercedes club/aftermarket catalogues"},
     {"207323","C207","207","Coupe","E 350 CDI BlueEFFICIENCY","OM642.838","OM642",MBLINK_MERCEDES_FUEL_DIESEL,2987U,0U,"2011-2013","Mercedes club/aftermarket catalogues"},

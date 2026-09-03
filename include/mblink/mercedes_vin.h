@@ -66,6 +66,15 @@ typedef struct {
     unsigned int rated_power_kw;
     const char *production_years;
     const char *provenance;
+
+    /*
+     * Optional factory-spec corroboration. These fields are populated only
+     * where Mercedes-Benz Vehicle Specification evidence is available and
+     * safe to generalise to the Baumuster. VIN-specific option combinations
+     * are deliberately not stored here.
+     */
+    unsigned int rated_torque_nm;
+    const char *factory_spec_provenance;
 } MblinkMercedesBaumusterDefinition;
 
 typedef struct {

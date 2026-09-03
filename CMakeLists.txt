@@ -134,7 +134,7 @@ add_library(mblink STATIC
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
-    src/mercedes/signal_catalog.c src/mercedes/transmission.c)
+    src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
 if(MBLINK_SOURCE_REVISION)
@@ -302,6 +302,7 @@ if(BUILD_TESTING)
     target_include_directories(mblink-test-stm32-reporter PRIVATE
         ${MBLINK_LINK_DIR}/platform/stm32)
     mblink_add_test(mblink-test-mercedes-vin tests/test_mercedes_vin.c)
+    mblink_add_test(mblink-test-mercedes-factory-data tests/test_mercedes_factory_data.c)
     mblink_add_test(mblink-test-mercedes-crd3 tests/test_mercedes_crd3.c)
     mblink_add_test(mblink-test-mercedes-om651 tests/test_mercedes_om651.c)
     mblink_add_test(mblink-test-mercedes-did-lab tests/test_mercedes_did_lab.c)
