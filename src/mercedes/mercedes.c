@@ -1168,6 +1168,145 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         "mercedes.backend.warning_engine_light",
         "Mercedes MBSDK proves this backend semantic exists in the connected-vehicle model. Exact ECU, protocol mapping, DID, encoding and model/year applicability remain intentionally unmapped.",
         "https://github.com/mercedes-benz/MBSDK-CarKit-iOS/blob/master/MBCarKit/MBCarKit/Models/DTO/VehicleStatusDTO.swift"
+    },
+    {
+        "mercedes.transmission.7229.actual_gear", "Actual gear",
+        "VGS / NAG2 / 722.9", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "gear", NULL,
+        "Mercedes/XENTRY 722.9 actual-value material exposes actual gear. The public 21 30 community record also carries a gear-like field, but conflicting P/R code reports prevent promoting one family-wide encoding.",
+        "Mercedes 722.9 XENTRY/service-data evidence"
+    },
+    {
+        "mercedes.transmission.7229.oil_temperature",
+        "Transmission oil temperature",
+        "VGS / NAG2 / 722.9", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", NULL,
+        "722.9 XENTRY actual-value material exposes transmission oil temperature. MBLINK separately implements the source-backed KWP 21 30 raw-minus-50 candidate on the GS diagnostic route.",
+        "Mercedes 722.9 XENTRY/service-data evidence"
+    },
+    {
+        "mercedes.transmission.7229.adaptation.cold",
+        "Shift adaptation counters · cold region",
+        "VGS / NAG2 / 722.9", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "counter", NULL,
+        "Published 722.9 service data separates shift adaptation information into COLD/WARM/HOT temperature regions. Exact read-only wire identifier and payload layout remain unmapped.",
+        "Mercedes 722.9 adaptation/service-data evidence"
+    },
+    {
+        "mercedes.transmission.7229.adaptation.warm",
+        "Shift adaptation counters · warm region",
+        "VGS / NAG2 / 722.9", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "counter", NULL,
+        "Published 722.9 service data separates shift adaptation information into COLD/WARM/HOT temperature regions. Exact read-only wire identifier and payload layout remain unmapped.",
+        "Mercedes 722.9 adaptation/service-data evidence"
+    },
+    {
+        "mercedes.transmission.7229.adaptation.hot",
+        "Shift adaptation counters · hot region",
+        "VGS / NAG2 / 722.9", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "counter", NULL,
+        "Published 722.9 service data separates shift adaptation information into COLD/WARM/HOT temperature regions. Exact read-only wire identifier and payload layout remain unmapped.",
+        "Mercedes 722.9 adaptation/service-data evidence"
+    },
+    {
+        "mercedes.transmission.7240.general_actual_values",
+        "General transmission actual values",
+        "724.0 7G-DCT", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "group", NULL,
+        "XENTRY material for the 724.0 exposes a General actual values group. Exact UDS DIDs are not present in the public material, so the group is tracked without a fabricated identifier.",
+        "Mercedes 724.0 7G-DCT XENTRY service material"
+    },
+    {
+        "mercedes.transmission.7240.engine_speeds",
+        "Transmission engine/speed values",
+        "724.0 7G-DCT", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "rpm", NULL,
+        "XENTRY material for the 724.0 exposes an Engine speeds actual-value group. Exact UDS DIDs and scaling remain unmapped.",
+        "Mercedes 724.0 7G-DCT XENTRY service material"
+    },
+    {
+        "mercedes.transmission.7240.pressure_sensors",
+        "Transmission pressure sensors",
+        "724.0 7G-DCT", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure", NULL,
+        "XENTRY material for the 724.0 exposes a Pressure sensors actual-value group. Exact UDS DIDs and scaling remain unmapped.",
+        "Mercedes 724.0 7G-DCT XENTRY service material"
+    },
+    {
+        "mercedes.transmission.7240.position_sensors",
+        "Transmission position sensors",
+        "724.0 7G-DCT", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "position", NULL,
+        "XENTRY material for the 724.0 exposes a Position sensors actual-value group. Exact UDS DIDs and scaling remain unmapped.",
+        "Mercedes 724.0 7G-DCT XENTRY service material"
+    },
+    {
+        "mercedes.transmission.7240.temperature_sensors",
+        "Transmission temperature sensors",
+        "724.0 7G-DCT", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", NULL,
+        "XENTRY material for the 724.0 exposes a Temperature sensors actual-value group, including transmission-oil temperature. Exact UDS DIDs and scaling remain unmapped.",
+        "Mercedes 724.0 7G-DCT XENTRY service material"
+    },
+    {
+        "mercedes.transmission.7250.rpm_sensors",
+        "Transmission RPM sensors",
+        "725.0 9G-Tronic", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "rpm", NULL,
+        "725.0 technical/service material describes an integrated TCU sensor system containing RPM sensors. Exact read-only diagnostic DIDs remain unmapped.",
+        "Mercedes 725.0 9G-Tronic technical/service material"
+    },
+    {
+        "mercedes.transmission.7250.temperature_sensors",
+        "Transmission temperature sensors",
+        "725.0 9G-Tronic", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "°C", NULL,
+        "725.0 technical/XENTRY material exposes transmission temperature sensing including oil temperature. Exact read-only diagnostic DIDs remain unmapped.",
+        "Mercedes 725.0 9G-Tronic technical/service material"
+    },
+    {
+        "mercedes.transmission.7250.pressure_sensors",
+        "Transmission pressure sensors",
+        "725.0 9G-Tronic", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "pressure", NULL,
+        "725.0 technical material describes pressure sensors integrated with the TCU sensor system. Exact read-only diagnostic DIDs remain unmapped.",
+        "Mercedes 725.0 9G-Tronic technical/service material"
+    },
+    {
+        "mercedes.transmission.7250.position_sensors",
+        "Transmission position sensors",
+        "725.0 9G-Tronic", MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
+        false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
+        0.0, 0.0, "position", NULL,
+        "725.0 technical material describes position sensors integrated with the TCU sensor system. Exact read-only diagnostic DIDs remain unmapped.",
+        "Mercedes 725.0 9G-Tronic technical/service material"
     }
 
 };
