@@ -309,7 +309,7 @@ static int test_7e1_transmission_temperature_candidate(void)
     CHECK(config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
     CHECK(!config.request_extended_session);
     CHECK(config.first_identifier == UINT16_C(0x30));
-    CHECK(config.last_identifier == UINT16_C(0x30));
+    CHECK(config.last_identifier == UINT16_C(0x33));
 
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
@@ -329,6 +329,10 @@ static int test_7e1_transmission_temperature_candidate(void)
     CHECK(accept_command(
               &scan, "2130",
               response_ok("613000000000000000000064")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER);
+    CHECK(accept_command(&scan, "2131", response_no_data()) == 0);
+    CHECK(accept_command(&scan, "2132", response_no_data()) == 0);
+    CHECK(accept_command(&scan, "2133", response_no_data()) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     CHECK(scan.positive_count == 1U);
 
@@ -346,6 +350,16 @@ static int test_7e1_transmission_temperature_candidate(void)
     CHECK(value == 50.0);
     CHECK(strcmp(name, "Transmission oil temperature") == 0);
     CHECK(strcmp(unit, "°C") == 0);
+    {
+        char structured[256];
+        const char *structured_name = NULL;
+        CHECK(mblink_mercedes_data_record_format_known_for_route(
+            UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION,
+            record, structured, sizeof(structured), &structured_name));
+        CHECK(strcmp(structured_name, "Transmission actual values") == 0);
+        CHECK(strstr(structured, "ATF 50.0 °C") != NULL);
+    }
 
     /* The same bytes must not be promoted on an unrelated ECU route. */
     CHECK(!mblink_mercedes_data_record_decode_known_numeric_for_route(
