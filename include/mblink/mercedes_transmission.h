@@ -399,7 +399,7 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
 /**
  * Source-backed read-only local identifiers worth probing on a GS/TCM KWP
  * endpoint. The list contains DAS-compatible EGS52 actual-value groups 30-33
- * plus the DaimlerChrysler KWP2000 standard identification records E1-EB.
+ * plus the DaimlerChrysler KWP2000 standard identification records E0-EB.
  */
 size_t mblink_mercedes_transmission_kwp_read_identifier_count(void);
 uint8_t mblink_mercedes_transmission_kwp_read_identifier_at(size_t index);
