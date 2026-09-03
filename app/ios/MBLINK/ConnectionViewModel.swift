@@ -1332,14 +1332,15 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 seenResponderKeys.insert(responderKey)
                 support[moduleID] = pids
 
+                let offlineName = (saved["name"] as? String) ??
+                    offlineModuleName(
+                        tx: tx, rx: rx, extended: extended, kind: kind)
                 modules.append(DiagnosticModule(
                     id: moduleID,
-                    name: (saved["name"] as? String) ??
-                        offlineModuleName(
-                            tx: tx, rx: rx, extended: extended, kind: kind),
+                    name: offlineName,
                     designation: "Saved vehicle controller",
                     network: "Saved VIN profile",
-                    kind: "saved",
+                    kind: offlineName.lowercased(),
                     protocolName: (saved["protocolName"] as? String) ??
                         (tx == 0x7E1 ? "KWP2000 / SAE OBD-II" : "Saved diagnostic route"),
                     requestCANIdentifier: tx,
