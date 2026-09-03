@@ -544,6 +544,21 @@ struct MBInterfaceLanguage: Identifiable, Hashable {
     }
 }
 
+private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
+    LinkDiagnosticAboutInfo(
+        productName: "MBLINK",
+        subtitle: "MERCEDES DIAGNOSTICS",
+        version: Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
+        summary: "A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith.",
+        authors: ["Shannon Smith"],
+        copyright: "Copyright © 2026 Shannon Smith",
+        website: URL(string: "https://github.com/Infiltrator-Projects/MBLINK"),
+        licenseName: "GPL-3.0-or-later",
+        licenseText: "MBLINK is free software licensed under the GNU General Public License version 3 or, at your option, any later version (GPL-3.0-or-later).\n\nSee LICENSE in the source package for the complete licence text.",
+        credits: ["Shannon Smith — Author and project maintainer"])
+}
+
 @main
 struct MBLINKApp: App {
     @Environment(\.scenePhase) private var scenePhase
@@ -572,36 +587,22 @@ struct MBLINKApp: App {
                 .preferredColorScheme(.dark)
                 .tint(MBBrand.silverBright)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Button {
-                        showingAbout = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text("MBLINK")
-                                .font(MBTypography.captionBold)
-                                .tracking(1.0)
-                            Text("© 2026 Shannon Smith")
-                                .foregroundStyle(MBBrand.muted)
-                            Spacer()
-                            Label("About", systemImage: "info.circle")
+                    LinkDiagnosticAboutButton(
+                        productName: "MBLINK",
+                        copyright: "© 2026 Shannon Smith") {
+                            showingAbout = true
                         }
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.silver)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .frame(maxWidth: .infinity)
-                        .background(MBBrand.chrome)
-                        .overlay(alignment: .top) {
-                            Rectangle().fill(MBBrand.line).frame(height: 1)
-                        }
-                    }
-                    .buttonStyle(.plain)
+                        .linkDiagnosticTheme(mbLinkTheme)
                 }
                 .sheet(isPresented: $showingAbout) {
-                    MBLINKAboutView {
-                        showingAbout = false
-                    }
-                    .preferredColorScheme(.dark)
-                    .tint(MBBrand.silverBright)
+                    LinkDiagnosticAboutView(
+                        info: mblinkAboutInfo,
+                        onClose: { showingAbout = false }) {
+                            MBLogoMark(size: 82)
+                        }
+                        .linkDiagnosticTheme(mbLinkTheme)
+                        .preferredColorScheme(.dark)
+                        .tint(MBBrand.silverBright)
                 }
         }
     }
@@ -3018,105 +3019,5 @@ private struct MBLanguageSelectionView: View {
             .scrollContentBackground(.hidden)
         }
         .mbDiagnosticScreen("Language")
-    }
-}
-
-private enum MBLINKAboutDetail: String, Identifiable {
-    case credits
-    case license
-    var id: String { rawValue }
-}
-
-private struct MBLINKAboutView: View {
-    let onClose: () -> Void
-    @State private var detail: MBLINKAboutDetail?
-
-    private var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
-    }
-
-    var body: some View {
-        ZStack {
-            MBBackground()
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 17) {
-                        MBLogoMark(size: 82)
-                            .padding(.top, 30)
-                        VStack(spacing: 4) {
-                            Text("MBLINK")
-                                .font(MBTypography.bold(34, relativeTo: .largeTitle))
-                                .tracking(2.0)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Text("MERCEDES DIAGNOSTICS")
-                                .font(MBTypography.caption2Bold)
-                                .tracking(1.7)
-                                .foregroundStyle(MBBrand.silver)
-                        }
-                        Text("Version \(version)")
-                            .font(MBTypography.subheadline)
-                            .foregroundStyle(MBBrand.muted)
-                        Text("A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith.")
-                            .font(MBTypography.body)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(MBBrand.silverBright)
-                            .padding(.horizontal, 28)
-                        Text("Copyright © 2026 Shannon Smith")
-                            .font(MBTypography.subheadline)
-                            .foregroundStyle(MBBrand.muted)
-                        Link(
-                            "Project Website",
-                            destination: URL(string: "https://github.com/Infiltrator-Projects/MBLINK")!
-                        )
-                        .font(MBTypography.bodyBold)
-                        .foregroundStyle(MBBrand.silverBright)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-
-                HStack(spacing: 10) {
-                    Button("Credits") { detail = .credits }
-                        .buttonStyle(.bordered)
-                    Button("License") { detail = .license }
-                        .buttonStyle(.bordered)
-                    Button("Close") { onClose() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(MBBrand.silverBright)
-                        .foregroundStyle(Color.black)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(MBBrand.chrome)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(MBBrand.line).frame(height: 1)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .sheet(item: $detail) { item in
-            NavigationStack {
-                ZStack {
-                    MBBackground()
-                    MBPanel {
-                        Text(item == .credits
-                             ? "Shannon Smith — Author and project maintainer"
-                             : "MBLINK is free software licensed under GPL-3.0-or-later. See LICENSE in the source package for the complete licence text.")
-                            .foregroundStyle(MBBrand.silverBright)
-                    }
-                    .padding(16)
-                }
-                .navigationTitle(item == .credits ? "Credits" : "License")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(MBBrand.chrome, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Close") { detail = nil }
-                    }
-                }
-            }
-        }
     }
 }

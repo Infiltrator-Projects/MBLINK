@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "about-dialog.h"
 #include "c207-replay.h"
 #include "session_trace.h"
 #include "style.h"
@@ -31,6 +30,7 @@
 #include "link/fuel_economy.h"
 #include "link/workspace.h"
 #include "mblink/mblink.h"
+#include "mblink/project_info.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_engine_scan.h"
 #include "mblink/fault_investigation.h"
@@ -2102,10 +2102,13 @@ static void render_section(size_t section, GtkWidget *body, void *opaque)
     }
 }
 
-static void show_about(GtkWindow *window, void *context)
+static const char *mblink_linux_build_label(const char *profile)
 {
-    (void)context;
-    mblink_linux_show_about(window);
+    if (g_strcmp0(profile, "native") == 0)
+        return "Native / local machine compile";
+    if (g_strcmp0(profile, "generic") == 0)
+        return "Generic / APT package";
+    return "Source / development build";
 }
 
 static MblinkMercedesModuleScanResult begin_module_scan(
@@ -2627,6 +2630,9 @@ int main(int argc, char **argv)
     MblinkLinuxContext context = {0};
     MblinkC207ReplayTransport replay;
     LinkGtkShellDescriptor descriptor = {0};
+    LinkAboutInfo about_info = {0};
+    const InfiltratrProjectInfo *project_info;
+    char *about_description = NULL;
     bool replay_mode = false;
     bool replay_verify = false;
     bool settings_verify = false;
@@ -2668,6 +2674,28 @@ int main(int argc, char **argv)
     initialise_polling_policy(&context);
     initialise_display_preferences(&context);
     link_fuel_economy_init(&context.fuel_economy);
+
+    project_info = mblink_project_info();
+    about_description = g_strdup_printf(
+        "%s\n\nBuild: %s",
+        project_info->comments,
+        mblink_linux_build_label(project_info->build_profile));
+    if (about_description == NULL) return 6;
+    about_info.product_name = project_info->program_name;
+    about_info.subtitle = "MERCEDES-BENZ · LINK DIAGNOSTICS";
+    about_info.version = project_info->version;
+    about_info.description = about_description;
+    about_info.authors = "Shannon Smith";
+    about_info.copyright = project_info->copyright_text;
+    about_info.website = project_info->website;
+    about_info.license_name = project_info->license_id;
+    about_info.license_text =
+        "MBLINK is free software licensed under the GNU General Public "
+        "License version 3 or, at your option, any later version "
+        "(GPL-3.0-or-later).\n\n"
+        "See LICENSE in the source package for the complete licence text.";
+    about_info.credits = "Shannon Smith — Author and project maintainer";
+
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
     descriptor.window_title = replay_mode
         ? "MBLINK · C207 Offline Replay"
@@ -2685,7 +2713,7 @@ int main(int argc, char **argv)
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;
     descriptor.render_section = render_section;
-    descriptor.show_about = show_about;
+    descriptor.about = &about_info;
     descriptor.connection_changed = connection_changed;
     descriptor.diagnostic_changed = diagnostic_changed;
     descriptor.polling_enabled = mblink_polling_enabled;
@@ -2703,5 +2731,6 @@ int main(int argc, char **argv)
     descriptor.context = &context;
     status = link_gtk_shell_run(argc, argv, &descriptor);
     g_free(runtime_css);
+    g_free(about_description);
     return status;
 }

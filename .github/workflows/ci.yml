@@ -108,6 +108,11 @@ jobs:
           grep -Fq 'LinkTaskTile(.graph)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LinkTaskTile(.tests)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LinkTaskTile(.services)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkDiagnosticAboutButton' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkDiagnosticAboutView' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'descriptor.about = &about_info;' app/linux/main.c
+          test ! -e app/linux/about-dialog.c
+          test ! -e app/linux/about-dialog.h
           ! grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'diagnosticCapabilityText = controller.diagnosticCapabilityText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'return _shared.standardLiveValueRows;' platform/apple/MBLinkDiagnosticsController.m

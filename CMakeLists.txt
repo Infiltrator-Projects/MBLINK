@@ -171,12 +171,10 @@ if(MBLINK_BUILD_LINUX_APP)
         app/linux/main.c
         app/linux/session_trace.c
         app/linux/style.c
-        app/linux/about-dialog.c
         app/linux/c207-replay.c
         "${MBLINK_LINUX_RESOURCE_SOURCE}")
     set_source_files_properties(
         app/linux/main.c
-        app/linux/about-dialog.c
         app/linux/c207-replay.c
         PROPERTIES
         COMPILE_OPTIONS "-include;${MBLINK_LINK_DIR}/platform/linux/link-gtk-i18n.h")
@@ -226,7 +224,11 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     endif()
     link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
         PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
-        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics" PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLINK"
+        PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics"
+        PRODUCT_DESCRIPTION "A C-first, open-source Mercedes vehicle diagnostics platform."
+        PRODUCT_AUTHORS "Shannon Smith"
+        PRODUCT_LICENSE_NAME "GPL-3.0-or-later"
+        PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLINK"
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
         FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
     target_link_libraries(mblink-discover PRIVATE mblink)
