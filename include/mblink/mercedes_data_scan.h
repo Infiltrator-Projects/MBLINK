@@ -123,6 +123,40 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     MblinkMercedesDiagnosticProtocol protocol,
     MblinkMercedesModuleKind module_kind);
 
+/**
+ * Return the small runtime-observation candidate list for an exact Mercedes
+ * physical route.  Candidates are read-only identifiers backed either by a
+ * published actual-value definition or by a positive response captured from a
+ * real vehicle.  Unknown candidates remain RAW; inclusion here does not claim
+ * a name, unit or scaling formula.
+ *
+ * This list is intentionally much smaller than a discovery sweep.  It lets
+ * mobile clients learn whether already-observed raw values change over time
+ * without repeatedly scanning every possible UDS/KWP identifier.
+ */
+size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id);
+uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    size_t index);
+
+/**
+ * Decide whether a proven-positive identifier is suitable for periodic
+ * runtime refresh.  Static Daimler KWP identification records E0-EB are
+ * deliberately excluded; discovered actual-value/raw records remain eligible
+ * so later captures can establish their semantics by correlation.
+ */
+bool mblink_mercedes_data_identifier_is_runtime_refreshable(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier);
+
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config);
