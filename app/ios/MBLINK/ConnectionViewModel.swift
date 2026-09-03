@@ -94,6 +94,15 @@ struct DiagnosticModule: Identifiable {
     }
 }
 
+struct PIDConfigurationItem: Identifiable {
+    let id: String
+    let pid: UInt8
+    let shortName: String
+    let title: String
+    let pollingEnabled: Bool
+    let favourite: Bool
+}
+
 struct MercedesModuleDataValue: Identifiable {
     let id: String
     let moduleID: String
@@ -221,6 +230,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
     @Published private(set) var dashboardParameters = [DiagnosticParameter]()
     @Published private(set) var diagnosticModules = [DiagnosticModule]()
+    @Published private(set) var pidConfigurationModules = [DiagnosticModule]()
+    @Published private(set) var pidConfigurationSourceText =
+        "Connect once to learn which PIDs each controller supports"
     @Published private(set) var manufacturerDataScanActive = false
     @Published private(set) var manufacturerDataScanStatusText = "Not scanned"
     @Published private(set) var manufacturerDataScanModuleID: String?
@@ -240,6 +252,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
      */
     private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"
     private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
+    private static let vehicleProfilesDefaultsKey = "mblink.vehicleProfiles.v1"
+    private var pidSupportByModule = [String: Set<UInt8>]()
     private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
         "obd2.diesel.rail_pressure", "obd2.engine.throttle",
@@ -362,6 +376,63 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             responderCANIdentifier: module.responseCANIdentifier,
             extendedID: module.extendedID,
             sourceLabel: "\(module.name) · \(module.addressText)")
+    }
+
+    func pidConfigurationItems(moduleID: String) -> [PIDConfigurationItem] {
+        let supported = pidSupportByModule[moduleID] ?? []
+        guard !supported.isEmpty else { return [] }
+
+        let enabled = storedPollingKeys()
+        let count = mblink_obd2_pid_definition_count()
+        guard count > 0 else { return [] }
+
+        var result = [PIDConfigurationItem]()
+        for index in 0..<count {
+            guard let definition = mblink_obd2_pid_definition_at(index) else { continue }
+            let metadata = definition.pointee
+            guard metadata.mode == 0x01 else { continue }
+            let pid = metadata.pid
+            guard (pid & 0x1F) != 0, supported.contains(pid) else { continue }
+
+            let scalar = mblink_parameter_obd2_definition(pid)
+            let title = scalar != nil
+                ? string(from: scalar!.pointee.name)
+                : string(from: metadata.name)
+            let shortName = scalar != nil
+                ? string(from: scalar!.pointee.short_name)
+                : String(format: "PID %02X", pid)
+            let stableKey = standardStableKey(for: pid)
+            result.append(PIDConfigurationItem(
+                id: stableKey,
+                pid: pid,
+                shortName: shortName,
+                title: title,
+                pollingEnabled: enabled.contains(stableKey),
+                favourite: controller.favourite(forPID: pid)))
+        }
+        return result.sorted {
+            if $0.pid != $1.pid { return $0.pid < $1.pid }
+            return $0.title < $1.title
+        }
+    }
+
+    func setPolling(_ enabled: Bool, moduleID: String) {
+        let items = pidConfigurationItems(moduleID: moduleID)
+        guard !items.isEmpty else { return }
+
+        var enabledKeys = storedPollingKeys()
+        for item in items {
+            if enabled { enabledKeys.insert(item.id) }
+            else { enabledKeys.remove(item.id) }
+            controller.setPollingEnabled(enabled, forPID: item.pid)
+        }
+        UserDefaults.standard.set(
+            Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)
+        refresh()
+    }
+
+    var configuredPollingCount: Int {
+        storedPollingKeys().count
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -963,6 +1034,231 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return parameters
     }
 
+    private func offlineModuleName(
+        tx: UInt32,
+        rx: UInt32,
+        extended: Bool,
+        kind: Int
+    ) -> String {
+        if !extended && tx == 0x7E0 && rx == 0x7E8 { return "Engine ECU" }
+        if !extended && tx == 0x7E1 && rx == 0x7E9 {
+            return "Transmission ECU / GS"
+        }
+
+        // Persisted module-kind values are useful even when the exact family
+        // identity has not been saved into the profile.
+        switch kind {
+        case 1: return "Engine control unit"
+        case 2: return "Transmission control unit"
+        case 3: return "ABS / ESP control unit"
+        case 4: return "Airbag / restraint control unit"
+        case 5: return "Instrument cluster"
+        case 6: return "Body control unit"
+        case 7: return "Gateway control unit"
+        default:
+            if extended {
+                return String(format: "Mercedes ECU 0x%08X", tx)
+            }
+            return String(format: "Mercedes ECU 0x%03X", tx)
+        }
+    }
+
+    private func loadSavedPIDConfiguration() -> (
+        modules: [DiagnosticModule],
+        support: [String: Set<UInt8>],
+        label: String
+    ) {
+        let defaults = UserDefaults.standard
+        guard let profiles =
+            defaults.dictionary(forKey: Self.vehicleProfilesDefaultsKey),
+              !profiles.isEmpty else {
+            return ([], [:],
+                    "Connect once to learn which PIDs each controller supports")
+        }
+
+        let currentVIN = mercedesVINText.count == 17 ? mercedesVINText : nil
+        var selectedVIN: String?
+        var selectedProfile: [String: Any]?
+
+        if let currentVIN,
+           let profile = profiles[currentVIN] as? [String: Any] {
+            selectedVIN = currentVIN
+            selectedProfile = profile
+        } else {
+            for (vin, value) in profiles {
+                guard let profile = value as? [String: Any] else { continue }
+                let updated = (profile["updatedAt"] as? NSNumber)?.doubleValue ?? 0
+                let selectedUpdated =
+                    (selectedProfile?["updatedAt"] as? NSNumber)?.doubleValue ?? -1
+                if selectedProfile == nil || updated > selectedUpdated {
+                    selectedVIN = vin
+                    selectedProfile = profile
+                }
+            }
+        }
+
+        guard let profile = selectedProfile else {
+            return ([], [:],
+                    "Connect once to learn which PIDs each controller supports")
+        }
+
+        var responderPIDs = [String: Set<UInt8>]()
+        if let responders = profile["liveResponders"] as? [[String: Any]] {
+            for responder in responders {
+                guard let rxNumber = responder["rx"] as? NSNumber else { continue }
+                let extended =
+                    (responder["extended"] as? NSNumber)?.boolValue ?? false
+                let rx = rxNumber.uint32Value
+                let key = String(format: "%@:%08X",
+                                 extended ? "29" : "11", rx)
+                let pids = (responder["pids"] as? [NSNumber] ?? [])
+                    .compactMap { UInt8(exactly: $0.uintValue) }
+                responderPIDs[key, default: []].formUnion(pids)
+            }
+        }
+
+        var modules = [DiagnosticModule]()
+        var support = [String: Set<UInt8>]()
+        var seenResponderKeys = Set<String>()
+
+        if let savedModules = profile["modules"] as? [[String: Any]] {
+            for saved in savedModules {
+                guard let txNumber = saved["tx"] as? NSNumber,
+                      let rxNumber = saved["rx"] as? NSNumber else { continue }
+                let tx = txNumber.uint32Value
+                let rx = rxNumber.uint32Value
+                let extended =
+                    (saved["extended"] as? NSNumber)?.boolValue ?? false
+                let kind = (saved["kind"] as? NSNumber)?.intValue ?? 0
+                let moduleID = String(
+                    format: "%@:%08X:%08X",
+                    extended ? "29" : "11", tx, rx)
+                let responderKey = String(
+                    format: "%@:%08X", extended ? "29" : "11", rx)
+                let pids = responderPIDs[responderKey] ?? []
+                seenResponderKeys.insert(responderKey)
+                support[moduleID] = pids
+
+                modules.append(DiagnosticModule(
+                    id: moduleID,
+                    name: (saved["name"] as? String) ??
+                        offlineModuleName(
+                            tx: tx, rx: rx, extended: extended, kind: kind),
+                    designation: "Saved vehicle controller",
+                    network: "Saved VIN profile",
+                    kind: "saved",
+                    protocolName: (saved["protocolName"] as? String) ??
+                        (tx == 0x7E1 ? "KWP2000 / SAE OBD-II" : "Saved diagnostic route"),
+                    requestCANIdentifier: tx,
+                    responseCANIdentifier: rx,
+                    extendedID: extended,
+                    identityText: saved["identity"] as? String,
+                    partNumber: saved["sparePart"] as? String,
+                    softwareNumber: saved["software"] as? String,
+                    hardwareNumber: saved["hardware"] as? String,
+                    faultStatus: "Saved vehicle profile",
+                    faultCount: 0,
+                    faults: [],
+                    evidenceDetails: [],
+                    obdAdvertisedPIDCount: pids.count,
+                    livePIDCount: pids.filter {
+                        ($0 & 0x1F) != 0 &&
+                        mblink_obd2_pid_definition(0x01, $0) != nil
+                    }.count))
+            }
+        }
+
+        /*
+         * A functional Mode 01 responder can be learned before Mercedes module
+         * identity is available. Do not lose it from offline PID setup.
+         */
+        for (responderKey, pids) in responderPIDs
+            where !seenResponderKeys.contains(responderKey) {
+            let parts = responderKey.split(separator: ":")
+            guard parts.count == 2,
+                  let rx = UInt32(parts[1], radix: 16) else { continue }
+            let extended = parts[0] == "29"
+            let tx: UInt32
+            if !extended && rx >= 8 { tx = rx - 8 }
+            else { tx = rx }
+            let moduleID = String(
+                format: "%@:%08X:%08X",
+                extended ? "29" : "11", tx, rx)
+            support[moduleID] = pids
+            modules.append(DiagnosticModule(
+                id: moduleID,
+                name: offlineModuleName(
+                    tx: tx, rx: rx, extended: extended, kind: 0),
+                designation: "Saved SAE OBD-II responder",
+                network: "Saved VIN profile",
+                kind: "saved",
+                protocolName: "SAE Mode 01 / ISO 15765-4",
+                requestCANIdentifier: tx,
+                responseCANIdentifier: rx,
+                extendedID: extended,
+                identityText: nil,
+                partNumber: nil,
+                softwareNumber: nil,
+                hardwareNumber: nil,
+                faultStatus: "Saved vehicle profile",
+                faultCount: 0,
+                faults: [],
+                evidenceDetails: [],
+                obdAdvertisedPIDCount: pids.count,
+                livePIDCount: pids.filter {
+                    ($0 & 0x1F) != 0 &&
+                    mblink_obd2_pid_definition(0x01, $0) != nil
+                }.count))
+        }
+
+        let label: String
+        if let vin = selectedVIN, vin.count == 17 {
+            label = "Saved vehicle profile · (modules.count) controllers · available offline"
+        } else {
+            label = "Saved vehicle profile · available offline"
+        }
+
+        return (
+            modules.sorted {
+                if $0.requestCANIdentifier != $1.requestCANIdentifier {
+                    return $0.requestCANIdentifier < $1.requestCANIdentifier
+                }
+                return $0.name < $1.name
+            },
+            support,
+            label)
+    }
+
+    private func refreshPIDConfiguration() {
+        let live = diagnosticModules
+        if !live.isEmpty {
+            var support = [String: Set<UInt8>]()
+            for module in live {
+                let pids = controller.observedPIDs(
+                    forResponderCANIdentifier: module.responseCANIdentifier,
+                    extendedID: module.extendedID)
+                    .compactMap { UInt8(exactly: $0.uintValue) }
+                support[module.id] = Set(pids)
+            }
+            pidSupportByModule = support
+            pidConfigurationModules = live.sorted {
+                if $0.requestCANIdentifier != $1.requestCANIdentifier {
+                    return $0.requestCANIdentifier < $1.requestCANIdentifier
+                }
+                return $0.name < $1.name
+            }
+            pidConfigurationSourceText = isActive
+                ? "Current vehicle · controller capability map"
+                : "Last active vehicle · controller capability map"
+            return
+        }
+
+        let saved = loadSavedPIDConfiguration()
+        pidSupportByModule = saved.support
+        pidConfigurationModules = saved.modules
+        pidConfigurationSourceText = saved.label
+    }
+
     private func loadDiagnosticModules() -> [DiagnosticModule] {
         controller.mercedesModuleSnapshots.map { snapshot in
             let advertised = controller.observedPIDs(
@@ -1131,6 +1427,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         isActive = controller.isActive
         isReady = controller.isReady
         diagnosticModules = loadDiagnosticModules()
+        refreshPIDConfiguration()
         diagnosticParameters = loadPrimaryDiagnosticParameters()
         manufacturerDataScanActive = controller.isManufacturerDataScanActive
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
