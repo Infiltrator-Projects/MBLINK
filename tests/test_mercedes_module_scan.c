@@ -845,9 +845,12 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(scan.modules[0].identity, "ESP") == 0);
         CHECK(scan.modules[0].definition != NULL);
         CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_ABS_ESP);
+        CHECK(scan.modules[0].controller_family != NULL);
+        CHECK(strcmp(scan.modules[0].controller_family->key,
+                     "esp-generic") == 0);
         CHECK(strcmp(
                   mblink_mercedes_module_scan_module_name(&scan.modules[0]),
-                  "Electronic Stability Program (ESP) control unit") == 0);
+                  "ESP / ABS / BAS controller") == 0);
         CHECK(accept_identity_metadata(
                   &scan, &no_data, &no_data, &no_data) == 0);
         CHECK(scan.full_target_index == 1U);
