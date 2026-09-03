@@ -1568,10 +1568,10 @@ static inline size_t mblink_mercedes_module_scan_classified_count(
     for (index = 0U; index < scan->module_count; ++index) {
         const MblinkMercedesModuleScanEntry *module = &scan->modules[index];
         /*
-         * A returned textual identity is the strongest classifier, but a
-         * standardized live EOBD role such as 7E0/7E8 ECM or 7E1/7E9 TCM is
-         * still a useful functional classification.  It remains a candidate
-         * until Mercedes identity evidence names the exact family.
+         * A returned textual identity is the strongest classifier. The
+         * legislated 7E0/7E8 engine route is useful functional evidence, but a
+         * second EOBD responder such as 7E1/7E9 stays OTHER until returned
+         * Mercedes identity or another defensible source names its family.
          */
         if (module->definition != NULL ||
             module->kind != MBLINK_MERCEDES_MODULE_OTHER) {
