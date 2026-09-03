@@ -287,6 +287,73 @@ static int test_c207_vehicle_verified_raw_positives(void)
     return 0;
 }
 
+static int test_7e1_transmission_temperature_candidate(void)
+{
+    MblinkMercedesDataScan scan;
+    MblinkMercedesDataScanConfig config =
+        mblink_mercedes_data_scan_default_config(
+            UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+            MBLINK_MERCEDES_MODULE_OTHER);
+    MblinkElm327Response ok = response_ok("OK");
+    const MblinkMercedesDataRecord *record;
+    double value = 0.0;
+    const char *name = NULL;
+    const char *unit = NULL;
+
+    /*
+     * The route stays family-unidentified, but its source-backed 21 30
+     * temperature read uses the KWP/legacy local-identifier service.
+     */
+    CHECK(config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+    CHECK(!config.request_extended_session);
+    CHECK(config.first_identifier == UINT16_C(0x30));
+    CHECK(config.last_identifier == UINT16_C(0x30));
+
+    CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH7E1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA7E9", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7F3E12")) == 0);
+
+    /*
+     * Synthetic positive response shape used only to exercise the published
+     * L-50 formula.  0x64 at complete-response byte 11 = 50 deg C.
+     */
+    CHECK(accept_command(
+              &scan, "2130",
+              response_ok("613000000000000000000064")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    CHECK(scan.positive_count == 1U);
+
+    record = mblink_mercedes_data_scan_record_at(&scan, 0U);
+    CHECK(record != NULL);
+    CHECK(record->service ==
+          MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER);
+    CHECK(record->identifier == UINT16_C(0x30));
+    CHECK(record->data_length == 10U);
+    CHECK(record->data[9] == UINT8_C(0x64));
+    CHECK(mblink_mercedes_data_record_decode_known_numeric_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        record, &value, &name, &unit));
+    CHECK(value == 50.0);
+    CHECK(strcmp(name, "Transmission oil temperature") == 0);
+    CHECK(strcmp(unit, "°C") == 0);
+
+    /* The same bytes must not be promoted on an unrelated ECU route. */
+    CHECK(!mblink_mercedes_data_record_decode_known_numeric_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_MODULE_RESTRAINTS,
+        record, &value, &name, &unit));
+    return 0;
+}
+
 static int test_kwp_local_identifier_scan(void)
 {
     MblinkMercedesDataScan scan;
@@ -335,6 +402,7 @@ int main(void)
 {
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
+    if (test_7e1_transmission_temperature_candidate() != 0) return 1;
     if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
