@@ -320,6 +320,35 @@ MBLINK therefore separates **fitment evidence**, **capability evidence**, **prot
 
 The same principle applies to Mercedes DTC descriptions: MBLINK should be comprehensive, but comprehensiveness must come from sourced definitions rather than fabricated interpretations.
 
+## Mercedes 7E1/7E9 transmission oil temperature candidate
+
+Multiple independent Mercedes owner/tool reports use physical request header
+`0x7E1` with request `21 30` and response-side equation `L - 50` degrees
+Celsius for transmission oil temperature. RaceChrono documents the same mapping
+as `bytesToUint(raw, 11, 1) - 50.0`, i.e. byte 11 of the complete positive
+response. The reports include W204 and W212-family vehicles and independent
+722.9 service use.
+
+MBLINK treats this as **source-corroborated, vehicle-unverified** until the
+development C207 returns a positive `61 30 ...` response. The mapping is
+strictly route-scoped to `0x7E1 -> 0x7E9`; it does not imply that every
+Mercedes transmission or every ECU local identifier `0x30` shares the same
+layout.
+
+On iPhone, once the module census proves a live `0x7E1 -> 0x7E9` responder,
+MBLINK performs one bounded read-only `21 30` probe automatically. A positive
+response is decoded and displayed as **Transmission oil temperature** in the
+module's Factory Data and on the Dashboard. A negative/no-response result is
+retained as evidence and no temperature is invented. Continuous polling is
+deliberately held back until a real C207 capture verifies the response shape
+and scaling on the development vehicle.
+
+Sources retained for this candidate include:
+- MBWorld W204/C63 transmission-temperature discussion;
+- MBWorld W212 transmission-temperature discussion;
+- PeachParts 722.9 ATF-temperature service discussion;
+- RaceChrono Mercedes custom-PID discussion/equation reference.
+
 ## Secondary EOBD responder
 
 The development C207/OM651 independently returns legislated OBD traffic on
