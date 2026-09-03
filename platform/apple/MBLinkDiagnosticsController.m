@@ -279,13 +279,39 @@ static NSString *MBLinkMercedesModuleIdentifier(
         (unsigned int)module->rx_can_id];
 }
 
+static BOOL
+MBLinkMercedesModuleIsTransmissionController(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (module == NULL ||
+        module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION) {
+        return NO;
+    }
+
+    if (module->definition != NULL && module->definition->key != NULL &&
+        strcmp(module->definition->key, "selector") == 0) {
+        return NO;
+    }
+
+    if (module->identity_available) {
+        NSString *identity =
+            [MBLinkStringFromCString(module->identity) uppercaseString];
+        if ([identity containsString:@"DIRECT SELECT"] ||
+            [identity hasPrefix:@"ISM"] ||
+            [identity hasPrefix:@"EWM"] ||
+            [identity hasPrefix:@"ESM"]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 static MblinkMercedesTransmissionFamily
 MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
 {
     MblinkMercedesTransmissionFamily family;
 
-    if (module == NULL ||
-        module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION) {
+    if (!MBLinkMercedesModuleIsTransmissionController(module)) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
     }
 
@@ -1291,8 +1317,7 @@ static bool MBLinkSimulatorResponder(
         const MblinkMercedesModuleScanEntry *module =
             mblink_mercedes_module_scan_module_at(
                 &_mercedesModuleScan, index);
-        if (module == NULL ||
-            module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+        if (!MBLinkMercedesModuleIsTransmissionController(module) ||
             mblink_mercedes_module_scan_entry_protocol(module) !=
                 MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
             continue;
@@ -1401,7 +1426,7 @@ static bool MBLinkSimulatorResponder(
                                                 identifier:identifier]];
     NSMutableArray<NSNumber *> *candidates = [[NSMutableArray alloc] init];
 
-    if (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+    if (MBLinkMercedesModuleIsTransmissionController(module) &&
         mblink_mercedes_module_scan_entry_protocol(module) ==
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         const MblinkMercedesTransmissionFamily family =
@@ -1508,7 +1533,7 @@ static bool MBLinkSimulatorResponder(
                                              identifier:identifier];
         if (runtime.count == 0U && candidates.count == 0U) continue;
 
-        if (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION) {
+        if (MBLinkMercedesModuleIsTransmissionController(module)) {
             transmissionModule = identifier;
         } else {
             [otherModules addObject:identifier];
@@ -1716,7 +1741,7 @@ static bool MBLinkSimulatorResponder(
     const MblinkMercedesTransmissionFamily transmissionFamily =
         MBLinkTransmissionFamilyForModule(module);
     const BOOL profiledTransmissionModule =
-        module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+        MBLinkMercedesModuleIsTransmissionController(module) &&
         mblink_mercedes_module_scan_entry_protocol(module) ==
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
         mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
@@ -2038,7 +2063,7 @@ static bool MBLinkSimulatorResponder(
                 module->kind,
                 record, structured, sizeof(structured), &structuredName);
         const char *profileName =
-            module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+            MBLinkMercedesModuleIsTransmissionController(module) &&
             record->service ==
                 MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER
                 ? mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
