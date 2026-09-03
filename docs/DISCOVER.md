@@ -41,7 +41,9 @@ The current Discover baseline provides:
 - JSON Lines evidence export and operator annotations;
 - product-branded Windows presentation.
 
-The routine path remains bounded and fast. `FULL SWEEP` is deliberately separate because its exhaustive diagnostic-address search is an engineering operation rather than normal daily behaviour. Every transmitted probe and received response remains evidence-recorded.
+The routine path remains bounded and fast. On iPhone, a new VIN is learned with a compact Mercedes gateway census: 47 exact 11-bit request/response slots (`TX = 0x602 + 8×slot`, `RX = 0x480 + slot`, slots 0..46), the source-backed out-of-grid Daimler routes, and the eight legislated OBD physical slots. This keeps the BLE adapter on exact receive filters instead of opening the live CAN bus.
+
+`FULL SWEEP` is deliberately separate and remains the workstation forensic path. It exhaustively searches the broader 11/29-bit diagnostic space and may temporarily learn an unknown 11-bit response identifier from a headered diagnostic reply. Every transmitted probe and received response remains evidence-recorded.
 
 ## Intended evolution
 
