@@ -1400,13 +1400,6 @@ static bool MBLinkSimulatorResponder(
 {
     if (module == NULL || identifier.length == 0U) return @[];
 
-    if (!module->extended_id &&
-        module->tx_can_id == UINT32_C(0x7e1) &&
-        module->rx_can_id == UINT32_C(0x7e9) &&
-        _automaticTransmissionTemperatureProbeAttempted) {
-        return @[];
-    }
-
     NSSet<NSNumber *> *known = [NSSet setWithArray:
         [self runtimeManufacturerDataIdentifiersForModule:module
                                                 identifier:identifier]];
@@ -2088,6 +2081,32 @@ static bool MBLinkSimulatorResponder(
         mblink_mercedes_data_scan_record_count(&_manufacturerDataScan);
     const size_t attempted = _manufacturerDataScan.attempted_count;
     NSString *module = self.manufacturerDataScanModuleIdentifier ?: @"Module";
+    const MblinkMercedesModuleScanEntry *finishedModule =
+        [self moduleEntryForIdentifier:
+            self.manufacturerDataScanModuleIdentifier];
+    if (finishedModule != NULL &&
+        !finishedModule->extended_id &&
+        finishedModule->tx_can_id == UINT32_C(0x7e1) &&
+        finishedModule->rx_can_id == UINT32_C(0x7e9) &&
+        _automaticTransmissionTemperatureProbeAttempted) {
+        const size_t candidateCount =
+            mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+                finishedModule->tx_can_id,
+                finishedModule->rx_can_id,
+                finishedModule->extended_id);
+        for (size_t index = 0U; index < candidateCount; ++index) {
+            const uint16_t candidate =
+                mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+                    finishedModule->tx_can_id,
+                    finishedModule->rx_can_id,
+                    finishedModule->extended_id,
+                    index);
+            NSString *attemptKey = [NSString stringWithFormat:
+                @"%@:%04X", self.manufacturerDataScanModuleIdentifier,
+                (unsigned int)candidate];
+            [_automaticManufacturerCandidateAttempts addObject:attemptKey];
+        }
+    }
     const NSUInteger retained =
         _manufacturerDataByModule[module].count;
     self.manufacturerDataScanStatusText = [NSString stringWithFormat:
