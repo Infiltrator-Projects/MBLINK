@@ -490,6 +490,13 @@ static int test_transmission_standard_kwp_metadata(void)
     CHECK(strcmp(name, "ECU serial number") == 0);
     CHECK(strstr(text, "retained raw") != NULL);
 
+    /* Standard Daimler KWP metadata is not tied to the 7E1/7E9 route. */
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x0640), UINT32_C(0x0480), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "ECU serial number") == 0);
+
     record.identifier = UINT16_C(0xe5);
     record.data_length = 4U;
     record.data[0] = UINT8_C(0x11);
