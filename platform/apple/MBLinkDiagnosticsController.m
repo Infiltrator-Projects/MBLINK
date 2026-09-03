@@ -866,6 +866,16 @@ static bool MBLinkSimulatorResponder(
                     _mercedesProbe.ecu_hardware_number);
             }
             snapshot.evidenceDetails = engineEvidence;
+        } else if (!module->extended_id &&
+                   module->tx_can_id == UINT32_C(0x7e1) &&
+                   module->rx_can_id == UINT32_C(0x7e9)) {
+            snapshot.evidenceDetails = @[
+                @"Mercedes GS route · D_RQ_GS 0x7E1 → D_RS_GS 0x7E9",
+                @"Read-only 21 30 · ATF temperature + current-gear candidate",
+                @"Passive GS 0x218 · target/actual gear · converter · shift · limp · overheat · kickdown",
+                @"Passive GS 0x338 · gearbox output speed + turbine-speed raw values",
+                @"Passive GS 0x418 · selector/program · temperature raw · target/actual gear"
+            ];
         } else {
             snapshot.evidenceDetails = @[];
         }
@@ -923,7 +933,9 @@ static bool MBLinkSimulatorResponder(
                 ? @"Transmission ECU / GS"
                 : [NSString stringWithFormat:
                     @"OBD responder 0x%03X", (unsigned int)responseID];
-        snapshot.designation = @"Observed legislated-OBD responder";
+        snapshot.designation = requestID == UINT32_C(0x7e1)
+            ? @"GS gearbox-control diagnostic responder"
+            : @"Observed legislated-OBD responder";
         snapshot.network = @"Powertrain CAN / legislated OBD";
         snapshot.kind = MBLinkStringFromCString(
             mblink_mercedes_module_kind_name(kind));
@@ -935,11 +947,22 @@ static bool MBLinkSimulatorResponder(
             @"Live responder observed · module fault state not established";
         snapshot.faultCount = 0U;
         snapshot.faults = @[];
-        snapshot.evidenceDetails = @[
-            [NSString stringWithFormat:
-                @"Live Mode 01 responder · %lu confirmed PID%@",
-                (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"]
-        ];
+        if (requestID == UINT32_C(0x7e1)) {
+            snapshot.evidenceDetails = @[
+                [NSString stringWithFormat:
+                    @"Live Mode 01 responder · %lu confirmed PID%@",
+                    (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"],
+                @"Mercedes GS route · D_RQ_GS 0x7E1 → D_RS_GS 0x7E9",
+                @"Read-only 21 30 · ATF temperature + current-gear candidate",
+                @"Passive GS 0x218 / 0x338 / 0x418 decoder support compiled"
+            ];
+        } else {
+            snapshot.evidenceDetails = @[
+                [NSString stringWithFormat:
+                    @"Live Mode 01 responder · %lu confirmed PID%@",
+                    (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"]
+            ];
+        }
         [snapshots addObject:snapshot];
     }
     return [snapshots copy];
