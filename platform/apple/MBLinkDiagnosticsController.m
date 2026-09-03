@@ -1818,7 +1818,32 @@ static bool MBLinkSimulatorResponder(
     }
     if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
         _mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED) {
-        self.mercedesProbeStatusText = [self mercedesProbeFailureText];
+        NSString *failureText = [self mercedesProbeFailureText];
+        self.mercedesProbeStatusText = failureText;
+
+        /*
+         * The official Mercedes me VIN cascade does not make complete vehicle
+         * discovery depend on one 7E0/7E8 UDS TesterPresent path.  If that
+         * endpoint is simply silent or returns an undecodable diagnostic PDU,
+         * continue into the source-backed multi-route census.  Channel/setup
+         * failures remain fatal because they indicate the adapter itself is
+         * not ready for another ECU request.
+         */
+        if (_mercedesProbe.failure ==
+                MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR ||
+            _mercedesProbe.failure ==
+                MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR) {
+            self.mercedesIdentitySummaryText =
+                @"Engine-specific UDS probe unavailable; continuing Mercedes production module census";
+            self.mercedesCrd3SummaryText =
+                @"Engine fingerprint deferred until a responding ECU is identified";
+            self.mercedesUDSFaultStatusText =
+                @"Engine probe unavailable; continuing multi-route Mercedes discovery";
+            [self notifyDelegate];
+            [self beginMercedesModuleScan];
+            return;
+        }
+
         self.mercedesIdentitySummaryText = @"Probe did not complete";
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
