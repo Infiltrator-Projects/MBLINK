@@ -63,12 +63,12 @@ static const char mblink_metrics_css[] =
 
 
     ".mblink-settings-note { font-size: 12px; }"
-    ".mblink-about-dialog { background: #050608; }"
-    ".mblink-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
-    ".mblink-about-dialog stackswitcher button, .mblink-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".mblink-about-dialog label, .mblink-about-dialog textview, .mblink-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
-    ".mblink-about-dialog textview, .mblink-about-dialog textview text { font-weight: 400; }"
-    ".mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
+    ".link-about-dialog { background: #050608; }"
+    ".link-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
+    ".link-about-dialog stackswitcher button, .link-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
+    ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
+    ".link-about-dialog textview, .link-about-dialog textview text { font-weight: 400; }"
+    ".link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
 
 static bool register_one_project_font(FcConfig *config, const char *filename)
 {

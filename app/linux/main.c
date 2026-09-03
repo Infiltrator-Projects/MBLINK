@@ -18,8 +18,8 @@
  * dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }
  * entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }
  * .link-toolbar-button, .link-toolbar-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * .mblink-about-dialog stackswitcher button
- * .mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }
+ * .link-about-dialog stackswitcher button
+ * .link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }
  * static const char mblink_metrics_css[] =
  * runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
  * .link-titlebar-label { font-family: "MB Corpo S Title WEB"; font-weight: 700; }

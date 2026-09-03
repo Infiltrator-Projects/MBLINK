@@ -284,24 +284,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'mblink_linux_show_about' app/linux/main.c
-          grep -Fq 'gtk_window_set_default_size(GTK_WINDOW(widget), 560, 560);' app/linux/about-dialog.c
-          grep -Fq 'gtk_widget_set_size_request(widget, 520, 500);' app/linux/about-dialog.c
-          grep -Fq 'gtk_widget_add_css_class(widget, "mblink-about-dialog");' app/linux/about-dialog.c
-          grep -Fq '.mblink-about-dialog stackswitcher button' app/linux/main.c
-          grep -Fq '.mblink-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/main.c
-          grep -Fq 'static const char mblink_metrics_css[] =' app/linux/main.c
-          grep -Fq 'runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);' app/linux/main.c
+          grep -Fq 'descriptor.about = &about_info;' app/linux/main.c
+          grep -Fq 'link_gtk_show_about' src/link/platform/linux/link-gtk-about.c
+          grep -Fq 'gtk_window_set_default_size(GTK_WINDOW(widget), 560, 560);' src/link/platform/linux/link-gtk-about.c
+          grep -Fq 'gtk_widget_set_size_request(widget, 520, 500);' src/link/platform/linux/link-gtk-about.c
+          grep -Fq 'gtk_widget_add_css_class(widget, "link-about-dialog");' src/link/platform/linux/link-gtk-about.c
+          grep -Fq '.link-about-dialog stackswitcher button' app/linux/style.c
+          grep -Fq '.link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/style.c
+          grep -Fq 'font-family: \"MB Corpo S Title WEB\"' app/linux/style.c
           grep -Fq 'g_free(runtime_css);' app/linux/main.c
+          grep -Fq 'g_free(about_description);' app/linux/main.c
           grep -Fq 'descriptor.use_client_side_titlebar = true;' app/linux/main.c
           grep -Fq '.link-titlebar-label { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/main.c
           grep -Fq 'bool use_client_side_titlebar;' src/link/platform/linux/link-gtk-shell.h
           grep -Fq 'gtk_window_set_titlebar(shell->window, titlebar);' src/link/platform/linux/link-gtk-shell.c
-          grep -Fq 'mblink_project_info()' app/linux/about-dialog.c
-          grep -Fq 'info->copyright_text' app/linux/about-dialog.c
-          grep -Fq 'mblink_linux_build_label(info->build_profile)' app/linux/about-dialog.c
-          grep -Fq 'Generic / APT package' app/linux/about-dialog.c
-          grep -Fq 'Native / local machine compile' app/linux/about-dialog.c
+          grep -Fq 'mblink_project_info()' app/linux/main.c
+          grep -Fq 'about_info.copyright = project_info->copyright_text;' app/linux/main.c
+          grep -Fq 'mblink_linux_build_label(project_info->build_profile)' app/linux/main.c
+          grep -Fq 'Generic / APT package' app/linux/main.c
+          grep -Fq 'Native / local machine compile' app/linux/main.c
+          test ! -e app/linux/about-dialog.c
+          test ! -e app/linux/about-dialog.h
           test -s app/linux/assets/mblink-emblem.png
       - name: Package DEB and native RUN
         shell: bash
