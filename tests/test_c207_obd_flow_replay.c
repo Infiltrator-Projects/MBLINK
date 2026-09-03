@@ -12,6 +12,7 @@
  * optional Mode 0A inventory aborts before the Mercedes extension.
  */
 #include "link/diagnostic_flow.h"
+#include "support/c207_20260903_evidence.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -324,6 +325,91 @@ int main(void)
                   &response, UINT8_C(0x23), &sample) ==
               LINK_OBD2_RESULT_OK);
         CHECK(sample.value == 400.0);
+    }
+
+    /*
+     * Replay the 2026-09-03 drive evidence.  This was captured by the older
+     * 0.7.153 product, but the ECU payloads are vehicle-side evidence.  Keep
+     * exact responder identity so a secondary EOBD ECU can never overwrite
+     * the engine's values in a generic latest-value view.
+     */
+    {
+        LinkObd2ResponderSampleList responders;
+
+        response = ok_response(MBLINK_C207_20260903_PID30_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x30), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 2U);
+        CHECK(responders.samples[0].responder_id == UINT32_C(0x7e8));
+        CHECK(responders.samples[0].sample.value == 31.0);
+        CHECK(responders.samples[1].responder_id == UINT32_C(0x7e9));
+        CHECK(responders.samples[1].sample.value == 56.0);
+
+        response = ok_response(MBLINK_C207_20260903_PID31_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x31), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 2U);
+        CHECK(responders.samples[0].responder_id == UINT32_C(0x7e8));
+        CHECK(responders.samples[0].sample.value == 1650.0);
+        CHECK(responders.samples[1].responder_id == UINT32_C(0x7e9));
+        CHECK(responders.samples[1].sample.value == 2796.0);
+
+        response = ok_response(MBLINK_C207_20260903_PID2F_96_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x2f), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 1U);
+        CHECK(responders.samples[0].responder_id == UINT32_C(0x7e8));
+        CHECK(responders.samples[0].sample.value > 96.47 &&
+              responders.samples[0].sample.value < 96.48);
+
+        response = ok_response(MBLINK_C207_20260903_PID2F_98_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x2f), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 1U);
+        CHECK(responders.samples[0].sample.value > 98.03 &&
+              responders.samples[0].sample.value < 98.04);
+
+        response = ok_response(MBLINK_C207_20260903_PID2F_100_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x2f), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 1U);
+        CHECK(responders.samples[0].sample.value == 100.0);
+
+        /*
+         * At the same no/low-demand operating point the throttle valve and
+         * accelerator-pedal channels are intentionally very different.  This
+         * protects the UI/model distinction that the field data exposed.
+         */
+        response = ok_response(MBLINK_C207_20260903_PID11_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x11), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 1U);
+        CHECK(responders.samples[0].sample.value > 87.84 &&
+              responders.samples[0].sample.value < 87.85);
+
+        response = ok_response(MBLINK_C207_20260903_PID49_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x49), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 2U);
+        CHECK(responders.samples[0].sample.value > 5.49 &&
+              responders.samples[0].sample.value < 5.50);
+        CHECK(responders.samples[1].sample.value > 5.49 &&
+              responders.samples[1].sample.value < 5.50);
+
+        response = ok_response(MBLINK_C207_20260903_PID4A_REPLY, false);
+        CHECK(link_obd2_decode_live_pid_responders(
+                  &response, UINT8_C(0x4a), &responders) ==
+              LINK_OBD2_RESULT_OK);
+        CHECK(responders.count == 1U);
+        CHECK(responders.samples[0].sample.value > 5.88 &&
+              responders.samples[0].sample.value < 5.89);
     }
 
     puts("Captured C207 OBD-flow replay tests passed");
