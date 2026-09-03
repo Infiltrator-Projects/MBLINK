@@ -387,11 +387,35 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     func moduleParameters(moduleID: String) -> [DiagnosticParameter] {
-        guard let module = diagnosticModule(id: moduleID) else { return [] }
+        guard let module =
+            diagnosticModule(id: moduleID) ?? pidConfigurationModule(id: moduleID)
+        else { return [] }
+
+        let selected = modulePIDSelectionSet(moduleID: moduleID)
         return loadDiagnosticParameters(
             responderCANIdentifier: module.responseCANIdentifier,
             extendedID: module.extendedID,
             sourceLabel: "\(module.name) · \(module.addressText)")
+            .map { parameter in
+                DiagnosticParameter(
+                    id: parameter.id,
+                    protocolName: parameter.protocolName,
+                    moduleIdentifier: parameter.moduleIdentifier,
+                    parameterIdentifier: parameter.parameterIdentifier,
+                    shortName: parameter.shortName,
+                    title: parameter.title,
+                    suffix: parameter.suffix,
+                    formattedValue: parameter.formattedValue,
+                    value: parameter.value,
+                    structuredValue: parameter.structuredValue,
+                    rawHex: parameter.rawHex,
+                    vehicleSupported: parameter.vehicleSupported,
+                    favourite: parameter.favourite,
+                    pollingEnabled: selected.contains(parameter.id),
+                    history: parameter.history,
+                    sourceLabel: parameter.sourceLabel,
+                    qualityNote: parameter.qualityNote)
+            }
     }
 
     func pidConfigurationModule(id: String) -> DiagnosticModule? {
