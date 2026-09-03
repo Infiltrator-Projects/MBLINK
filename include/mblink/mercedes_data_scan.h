@@ -126,20 +126,57 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     MblinkMercedesModuleKind module_kind);
 
 /**
- * Return the small runtime-observation candidate list for an exact Mercedes
- * physical route.  Candidates are read-only identifiers backed either by a
- * published actual-value definition or by a positive response captured from a
- * real vehicle.  Unknown candidates remain RAW; inclusion here does not claim
- * a name, unit or scaling formula.
- *
- * This list is intentionally much smaller than a discovery sweep.  It lets
- * mobile clients learn whether already-observed raw values change over time
- * without repeatedly scanning every possible UDS/KWP identifier.
+ * Legacy compatibility only. Automatic probing must use controller profiles,
+ * never a diagnostic CAN address. These route functions intentionally return
+ * no candidates.
  */
 size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
     bool extended_id);
+typedef struct MblinkMercedesControllerDataProfileEntry {
+    const char *profile_key;
+    MblinkMercedesDiagnosticProtocol protocol;
+    uint16_t identifier;
+    bool live;
+    const char *name;
+    MblinkMercedesDefinitionStatus status;
+    const char *provenance;
+} MblinkMercedesControllerDataProfileEntry;
+
+/**
+ * Select the narrowest controller-data profile justified by ECU-family
+ * evidence. A broad module kind or diagnostic CAN address is never sufficient.
+ *
+ * module_key is the classified Mercedes module family (for example "esp" or
+ * "engine-cdi"). Identity/software/hardware strings may refine that family,
+ * such as CRD3 versus another diesel engine controller.
+ */
+const char *mblink_mercedes_data_profile_key_for_controller(
+    const char *module_key,
+    const char *identity,
+    const char *software_number,
+    const char *hardware_number);
+
+size_t mblink_mercedes_controller_data_profile_identifier_count(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol);
+const MblinkMercedesControllerDataProfileEntry *
+mblink_mercedes_controller_data_profile_identifier_at(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    size_t index);
+const MblinkMercedesControllerDataProfileEntry *
+mblink_mercedes_controller_data_profile_find(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier);
+
+/**
+ * Legacy compatibility only. Automatic probing must use controller profiles,
+ * not route-derived candidates. These functions intentionally return no
+ * candidates.
+ */
 uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,

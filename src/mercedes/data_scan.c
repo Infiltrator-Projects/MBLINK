@@ -6,6 +6,7 @@
 #include "mblink/mercedes_transmission.h"
 #include "mblink/uds.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -221,65 +222,174 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
 }
 
 /*
- * Runtime-observation candidates are intentionally exact-route scoped.
+ * Controller-scoped read-only data profiles.
  *
- *  - 7E0/7E8 DID 2007 is the source-backed CRD3 battery-voltage actual value.
- * Transmission local identifiers are intentionally absent here: their meaning
- * is controller-family specific and is selected by mercedes_transmission.
- *  - 632/486 DID 2001, 64A/489 local 58 and 652/48A local 01 are exact positive
- *    raw responses captured from the 2026-09-03 C207 drive. Their semantics
- *    remain unknown; refreshing them exists specifically to collect changing
- *    evidence without inventing a decoder.
+ * These are deliberately keyed by ECU family rather than CAN route. The same
+ * address or broad module kind can host different controller generations with
+ * different diagnostic namespaces.
+ *
+ * The three raw records below are vehicle-verified only as positive identifiers
+ * on the named C207 controller families; their semantics remain unknown.
  */
-static const uint16_t runtime_engine_candidates[] = {
-    UINT16_C(0x2007)
-};
-static const uint16_t runtime_esp_candidates[] = {
-    UINT16_C(0x2001)
-};
-static const uint16_t runtime_orc_candidates[] = {
-    UINT16_C(0x0058)
-};
-static const uint16_t runtime_headunit_candidates[] = {
-    UINT16_C(0x0001)
+static const MblinkMercedesControllerDataProfileEntry
+    controller_data_profile[] = {
+    {
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT16_C(0x2007), true, "Battery voltage",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "CaesarSuite CRD3 DT_2007 documents DID 0x2007 and its scaling; "
+        "C207 capture independently proves the positive response."
+    },
+    {
+        "esp", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT16_C(0x2001), true, "Vehicle-verified raw data 0x2001",
+        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+        "2026-09-03 C207 capture proves a positive 0x2001 response on the "
+        "source-corroborated ABR2XT/ESP controller family; semantics unknown."
+    },
+    {
+        "restraints-orc", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        UINT16_C(0x0058), true, "Vehicle-verified raw local record 0x58",
+        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+        "2026-09-03 C207 capture proves local record 0x58 on ORC_212; "
+        "semantics unknown."
+    },
+    {
+        "audio-headunit", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        UINT16_C(0x0001), true, "Vehicle-verified raw local record 0x01",
+        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
+        "2026-09-03 C207 capture proves local record 0x01 on HU_204; "
+        "semantics unknown."
+    }
 };
 
-static const uint16_t *runtime_candidate_list_for_route(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id,
-    size_t *count)
+static bool profile_text_contains_ci(const char *text, const char *needle)
 {
-    if (count != NULL) *count = 0U;
-    if (extended_id) return NULL;
+    size_t text_length;
+    size_t needle_length;
+    size_t start_index;
+    size_t offset;
 
-    if (tx_can_id == UINT32_C(0x7e0) &&
-        rx_can_id == UINT32_C(0x7e8)) {
-        if (count != NULL)
-            *count = sizeof(runtime_engine_candidates) /
-                sizeof(runtime_engine_candidates[0]);
-        return runtime_engine_candidates;
+    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
+    text_length = strlen(text);
+    needle_length = strlen(needle);
+    if (needle_length > text_length) return false;
+
+    for (start_index = 0U;
+         start_index + needle_length <= text_length;
+         ++start_index) {
+        for (offset = 0U; offset < needle_length; ++offset) {
+            if (toupper((unsigned char)text[start_index + offset]) !=
+                toupper((unsigned char)needle[offset])) {
+                break;
+            }
+        }
+        if (offset == needle_length) return true;
     }
-    if (tx_can_id == UINT32_C(0x632) &&
-        rx_can_id == UINT32_C(0x486)) {
-        if (count != NULL)
-            *count = sizeof(runtime_esp_candidates) /
-                sizeof(runtime_esp_candidates[0]);
-        return runtime_esp_candidates;
+    return false;
+}
+
+static bool profile_any_text_contains(
+    const char *identity,
+    const char *software_number,
+    const char *hardware_number,
+    const char *needle)
+{
+    return profile_text_contains_ci(identity, needle) ||
+           profile_text_contains_ci(software_number, needle) ||
+           profile_text_contains_ci(hardware_number, needle);
+}
+
+const char *mblink_mercedes_data_profile_key_for_controller(
+    const char *module_key,
+    const char *identity,
+    const char *software_number,
+    const char *hardware_number)
+{
+    if (profile_any_text_contains(
+            identity, software_number, hardware_number, "CRD3") ||
+        profile_any_text_contains(
+            identity, software_number, hardware_number, "CDID3")) {
+        return "engine-crd3";
     }
-    if (tx_can_id == UINT32_C(0x64a) &&
-        rx_can_id == UINT32_C(0x489)) {
-        if (count != NULL)
-            *count = sizeof(runtime_orc_candidates) /
-                sizeof(runtime_orc_candidates[0]);
-        return runtime_orc_candidates;
+
+    if (module_key == NULL || module_key[0] == '\0') return NULL;
+
+    /*
+     * "engine-cdi" is intentionally not enough to select CRD3. EDC17 and
+     * other diesel controllers share the broad CDI module family but not
+     * necessarily the same 0x20xx namespace.
+     */
+    if (strcmp(module_key, "esp") == 0 ||
+        strcmp(module_key, "restraints-orc") == 0 ||
+        strcmp(module_key, "audio-headunit") == 0) {
+        return module_key;
     }
-    if (tx_can_id == UINT32_C(0x652) &&
-        rx_can_id == UINT32_C(0x48a)) {
-        if (count != NULL)
-            *count = sizeof(runtime_headunit_candidates) /
-                sizeof(runtime_headunit_candidates[0]);
-        return runtime_headunit_candidates;
+    return NULL;
+}
+
+size_t mblink_mercedes_controller_data_profile_identifier_count(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol)
+{
+    size_t count = 0U;
+    size_t index;
+
+    if (profile_key == NULL || profile_key[0] == '\0') return 0U;
+    for (index = 0U;
+         index < sizeof(controller_data_profile) /
+             sizeof(controller_data_profile[0]);
+         ++index) {
+        if (controller_data_profile[index].protocol == protocol &&
+            strcmp(controller_data_profile[index].profile_key,
+                   profile_key) == 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+const MblinkMercedesControllerDataProfileEntry *
+mblink_mercedes_controller_data_profile_identifier_at(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    size_t requested_index)
+{
+    size_t match_index = 0U;
+    size_t index;
+
+    if (profile_key == NULL || profile_key[0] == '\0') return NULL;
+    for (index = 0U;
+         index < sizeof(controller_data_profile) /
+             sizeof(controller_data_profile[0]);
+         ++index) {
+        const MblinkMercedesControllerDataProfileEntry *entry =
+            &controller_data_profile[index];
+        if (entry->protocol != protocol ||
+            strcmp(entry->profile_key, profile_key) != 0) {
+            continue;
+        }
+        if (match_index == requested_index) return entry;
+        ++match_index;
+    }
+    return NULL;
+}
+
+const MblinkMercedesControllerDataProfileEntry *
+mblink_mercedes_controller_data_profile_find(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier)
+{
+    size_t index;
+    const size_t count =
+        mblink_mercedes_controller_data_profile_identifier_count(
+            profile_key, protocol);
+    for (index = 0U; index < count; ++index) {
+        const MblinkMercedesControllerDataProfileEntry *entry =
+            mblink_mercedes_controller_data_profile_identifier_at(
+                profile_key, protocol, index);
+        if (entry != NULL && entry->identifier == identifier) return entry;
     }
     return NULL;
 }
@@ -289,10 +399,10 @@ size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
     uint32_t rx_can_id,
     bool extended_id)
 {
-    size_t count = 0U;
-    (void)runtime_candidate_list_for_route(
-        tx_can_id, rx_can_id, extended_id, &count);
-    return count;
+    (void)tx_can_id;
+    (void)rx_can_id;
+    (void)extended_id;
+    return 0U;
 }
 
 uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
@@ -301,10 +411,11 @@ uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
     bool extended_id,
     size_t index)
 {
-    size_t count = 0U;
-    const uint16_t *list = runtime_candidate_list_for_route(
-        tx_can_id, rx_can_id, extended_id, &count);
-    return list != NULL && index < count ? list[index] : 0U;
+    (void)tx_can_id;
+    (void)rx_can_id;
+    (void)extended_id;
+    (void)index;
+    return 0U;
 }
 
 bool mblink_mercedes_data_identifier_is_runtime_refreshable(

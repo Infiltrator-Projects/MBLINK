@@ -630,35 +630,68 @@ static int test_kwp_local_identifier_scan(void)
 
 static int test_runtime_candidate_catalog(void)
 {
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x7e0), UINT32_C(0x7e8), false) == 1U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x7e0), UINT32_C(0x7e8), false, 0U) ==
-        UINT16_C(0x2007));
+    const MblinkMercedesControllerDataProfileEntry *entry;
 
+    /*
+     * Automatic candidates are no longer inferred from a CAN route.
+     */
     CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 0U);
+        UINT32_C(0x7e0), UINT32_C(0x7e8), false) == 0U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x632), UINT32_C(0x486), false) == 0U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false) == 0U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x652), UINT32_C(0x48a), false) == 0U);
 
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x632), UINT32_C(0x486), false) == 1U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x632), UINT32_C(0x486), false, 0U) ==
-        UINT16_C(0x2001));
+    CHECK(strcmp(
+        mblink_mercedes_data_profile_key_for_controller(
+            "engine-cdi", "CRD3", NULL, NULL),
+        "engine-crd3") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_data_profile_key_for_controller(
+            "engine-cdi", "CDID3 Delphi", NULL, NULL),
+        "engine-crd3") == 0);
+    CHECK(mblink_mercedes_data_profile_key_for_controller(
+        "engine-cdi", "EDC17", NULL, NULL) == NULL);
+    CHECK(mblink_mercedes_data_profile_key_for_controller(
+        "engine-me", "MED17", NULL, NULL) == NULL);
+    CHECK(strcmp(
+        mblink_mercedes_data_profile_key_for_controller(
+            "esp", "ABR2XT", NULL, NULL),
+        "esp") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_data_profile_key_for_controller(
+            "restraints-orc", "ORC_212", NULL, NULL),
+        "restraints-orc") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_data_profile_key_for_controller(
+            "audio-headunit", "HU_204", NULL, NULL),
+        "audio-headunit") == 0);
 
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x64a), UINT32_C(0x489), false) == 1U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x64a), UINT32_C(0x489), false, 0U) ==
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 1U);
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) == 0U);
+    entry = mblink_mercedes_controller_data_profile_identifier_at(
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS, 0U);
+    CHECK(entry != NULL && entry->identifier == UINT16_C(0x2007));
+    CHECK(entry->live);
+    CHECK(strcmp(entry->name, "Battery voltage") == 0);
+
+    entry = mblink_mercedes_controller_data_profile_find(
+        "esp", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001));
+    CHECK(entry != NULL && entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "restraints-orc", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
-
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x652), UINT32_C(0x48a), false) == 1U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x652), UINT32_C(0x48a), false, 0U) ==
+    CHECK(entry != NULL && entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "audio-headunit", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0001));
-
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x632), UINT32_C(0x486), true) == 0U);
+    CHECK(entry != NULL && entry->live);
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "engine-me", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 0U);
 
     CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false,
@@ -669,9 +702,6 @@ static int test_runtime_candidate_catalog(void)
     CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x00eb)));
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001)));
     return 0;
 }
 
