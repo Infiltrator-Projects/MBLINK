@@ -397,6 +397,19 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
     MblinkMercedesEgs53TcmDisplayRequest *decoded);
 
 /**
+ * Decode and format one passive Mercedes transmission CAN frame using the
+ * explicitly selected generation. This is the transport-neutral entry point
+ * for OpenPort/J2534, SocketCAN, STM32 and future raw-CAN capture paths.
+ */
+bool mblink_mercedes_transmission_format_can_frame(
+    MblinkMercedesTransmissionFamily family,
+    uint32_t can_id,
+    const uint8_t *payload,
+    size_t payload_length,
+    char *buffer,
+    size_t buffer_size);
+
+/**
  * Source-backed read-only local identifiers worth probing on a GS/TCM KWP
  * endpoint. The list contains DAS-compatible EGS52 actual-value groups 30-33
  * plus the DaimlerChrysler KWP2000 standard identification records E0-EB.
