@@ -516,7 +516,7 @@ private extension DiagnosticParameter {
     }
 }
 
-private struct MBInterfaceLanguage: Identifiable, Hashable {
+struct MBInterfaceLanguage: Identifiable, Hashable {
     let id: String
     let nativeName: String
 
