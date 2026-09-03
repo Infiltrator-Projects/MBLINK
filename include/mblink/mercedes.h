@@ -76,6 +76,40 @@ typedef struct {
 } MblinkMercedesDtcLookupReference;
 
 /**
+ * A source-scoped five-character Mercedes reference DTC. Unlike the
+ * module-scoped KWP/UDS definitions below, this catalogue deliberately retains
+ * duplicate and conflicting meanings because the supplied lists often omit the
+ * ECU family or vehicle generation needed to disambiguate them.
+ */
+typedef struct {
+    const char *code;
+    /** Optional Mercedes subcode such as "01", "02" or "004". */
+    const char *subcode;
+    const char *description;
+    const char *area;
+    const char *applicability;
+    const char *source_label;
+    const char *source_reference;
+    MblinkMercedesDtcEvidenceTier evidence_tier;
+} MblinkMercedesReferenceDtcDefinition;
+
+#define MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH 6U
+#define MBLINK_MERCEDES_REFERENCE_DTC_TITLE_LENGTH 192U
+#define MBLINK_MERCEDES_REFERENCE_DTC_AREA_LENGTH 48U
+#define MBLINK_MERCEDES_REFERENCE_DTC_SOURCE_LENGTH 112U
+#define MBLINK_MERCEDES_REFERENCE_DTC_APPLICABILITY_LENGTH 192U
+
+typedef struct {
+    bool ambiguous;
+    size_t match_count;
+    char code[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    char title[MBLINK_MERCEDES_REFERENCE_DTC_TITLE_LENGTH];
+    char area[MBLINK_MERCEDES_REFERENCE_DTC_AREA_LENGTH];
+    char source[MBLINK_MERCEDES_REFERENCE_DTC_SOURCE_LENGTH];
+    char applicability[MBLINK_MERCEDES_REFERENCE_DTC_APPLICABILITY_LENGTH];
+} MblinkMercedesReferenceDtcKnowledge;
+
+/**
  * A manufacturer fault definition whose numeric code is meaningful only in
  * the named Mercedes module/protocol namespace.  The raw ECU status byte is
  * deliberately not part of this table: it remains live evidence and must not
@@ -168,6 +202,33 @@ const char *mblink_mercedes_dtc_evidence_tier_name(
 size_t mblink_mercedes_dtc_lookup_reference_count(void);
 const MblinkMercedesDtcLookupReference *
 mblink_mercedes_dtc_lookup_reference_at(size_t index);
+
+/** Source-scoped Mercedes reference catalogue supplied to the project. */
+size_t mblink_mercedes_reference_dtc_count(void);
+const MblinkMercedesReferenceDtcDefinition *
+mblink_mercedes_reference_dtc_at(size_t index);
+
+/**
+ * Count/find exact reference rows. With subcode == NULL or empty, only base
+ * rows without a subcode match; subcoded variants are never silently applied.
+ */
+size_t mblink_mercedes_reference_dtc_match_count(
+    const char *code,
+    const char *subcode);
+const MblinkMercedesReferenceDtcDefinition *
+mblink_mercedes_reference_dtc_match_at(
+    const char *code,
+    const char *subcode,
+    size_t match_index);
+
+/**
+ * Resolve a base Mercedes reference code. Returns false when the catalogue has
+ * no base rows. The ambiguous flag is true when the supplied sources retain
+ * more than one distinct textual meaning and module/subcode context is needed.
+ */
+bool mblink_mercedes_reference_dtc_resolve(
+    const char *code,
+    MblinkMercedesReferenceDtcKnowledge *knowledge);
 
 bool mblink_mercedes_kwp_dtc_format(
     const char *module_key,
