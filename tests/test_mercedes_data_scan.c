@@ -631,6 +631,59 @@ static int test_kwp_local_identifier_scan(void)
     return 0;
 }
 
+static int test_runtime_candidate_catalog(void)
+{
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x7e0), UINT32_C(0x7e8), false) == 1U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x7e0), UINT32_C(0x7e8), false, 0U) ==
+        UINT16_C(0x2007));
+
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 4U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false, 0U) ==
+        UINT16_C(0x0030));
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false, 3U) ==
+        UINT16_C(0x0033));
+
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x632), UINT32_C(0x486), false) == 1U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x632), UINT32_C(0x486), false, 0U) ==
+        UINT16_C(0x2001));
+
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false) == 1U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false, 0U) ==
+        UINT16_C(0x0058));
+
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x652), UINT32_C(0x48a), false) == 1U);
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+        UINT32_C(0x652), UINT32_C(0x48a), false, 0U) ==
+        UINT16_C(0x0001));
+
+    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+        UINT32_C(0x632), UINT32_C(0x486), true) == 0U);
+
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x0030)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x00e0)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x00eb)));
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001)));
+    return 0;
+}
+
 int main(void)
 {
     if (test_uds_data_scan() != 0) return 1;
@@ -641,6 +694,7 @@ int main(void)
     if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
     if (test_source_candidate_identifier_probe() != 0) return 1;
+    if (test_runtime_candidate_catalog() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;
 }
