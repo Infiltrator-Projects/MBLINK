@@ -664,11 +664,17 @@ static void append_dtc_list(GtkWidget *card,
 
     for (index = 0U; index < list->count; ++index) {
         LinkDtcKnowledge knowledge = {0};
+        MblinkMercedesReferenceDtcKnowledge mercedes_reference = {0};
         char label[64];
         char classification[192];
         char definition[320];
         const char *code = list->entries[index].code;
         const bool resolved = link_dtc_resolve(code, &knowledge);
+        const bool has_mercedes_reference =
+            resolved && !knowledge.definition_known &&
+            knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC &&
+            mblink_mercedes_reference_dtc_resolve(
+                code, &mercedes_reference);
 
         (void)snprintf(
             label, sizeof(label), "%s %zu · code", prefix, index + 1U);
@@ -698,6 +704,32 @@ static void append_dtc_list(GtkWidget *card,
                 definition, sizeof(definition),
                 "%s · raw code preserved",
                 link_dtc_source_name(knowledge.source));
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · definition",
+                prefix, index + 1U);
+            link_gtk_card_append_detail(card, label, definition);
+        } else if (has_mercedes_reference) {
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · meaning", prefix, index + 1U);
+            link_gtk_card_append_detail(
+                card, label, mercedes_reference.title);
+
+            (void)snprintf(
+                classification, sizeof(classification), "%s · %s · %s",
+                link_dtc_system_name(knowledge.system),
+                mercedes_reference.area,
+                mercedes_reference.ambiguous
+                    ? "Mercedes manufacturer reference · ambiguous"
+                    : "Mercedes manufacturer reference");
+            (void)snprintf(
+                label, sizeof(label), "%s %zu · classification",
+                prefix, index + 1U);
+            link_gtk_card_append_detail(card, label, classification);
+
+            (void)snprintf(
+                definition, sizeof(definition), "%s · %s · raw code preserved",
+                mercedes_reference.source,
+                mercedes_reference.applicability);
             (void)snprintf(
                 label, sizeof(label), "%s %zu · definition",
                 prefix, index + 1U);
