@@ -1439,7 +1439,7 @@ static bool MBLinkSimulatorResponder(
          * Do not brute-force reserved KWP local identifiers. The public
          * EGS/Daimler evidence gives us a precise read-only list:
          * transmission actual-value groups 30-33 plus standard ECU
-         * identification records E1-EB. Unsupported records simply return an
+         * identification records E0-EB. Unsupported records simply return an
          * NRC/NO DATA and are retained as unsupported for this vehicle.
          */
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
@@ -1927,7 +1927,7 @@ static bool MBLinkSimulatorResponder(
          * One evidence-gated automatic read makes the source-backed
          * 7E1/7E9 transmission factory-data set visible without requiring the
          * driver to open the module screen first. The read-only list includes
-         * KWP 30-33 plus Daimler identity records E1-EB; unsupported records
+         * KWP 30-33 plus Daimler identity records E0-EB; unsupported records
          * simply reject or stay quiet on a given transmission generation.
          */
         NSString *temperatureModule =
