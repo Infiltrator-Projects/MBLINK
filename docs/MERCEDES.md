@@ -106,14 +106,22 @@ IC_204, SAMF_212, SAMR_212 and HVAC_212 are independently corroborated as real 2
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
-The deeper discovery path uses the one Mercedes-owned full target plan. On a
-new VIN, iPhone first probes the source-backed physical routes above, including
-the exact `0x4E0` route outside the generic range, then performs a bounded
-**mobile census** across the remainder of the `0x600–0x7F7` 11-bit range plus
-all ISO 15765 normal-fixed 29-bit logical targets except tester address `F1`.
-Linux uses the same ordered census for a normal connection. Dead targets
-receive only bounded read-only presence probes; deeper reads run only after a
-responder is proved.
+Normal mobile/desktop discovery and forensic discovery now use separate
+Mercedes-owned target plans.
+
+For a new VIN, the iPhone and the normal Linux scan use the compact
+**47-slot gateway census** reconstructed from the source-backed C207/W212
+request/response pattern:
+
+`TX = 0x602 + 8 * slot`, `RX = 0x480 + slot`, for slots `0..46`.
+
+That covers request IDs `0x602..0x772` and exact response IDs
+`0x480..0x4AE`. The independently evidenced `0x607 -> 0x587` and
+`0x4E0 -> 0x5FF` routes sit outside that lattice and are appended explicitly,
+as are the eight legislated OBD physical slots `0x7E0..0x7E7`. The resulting
+normal census is 57 exact-filter targets rather than the 759-target forensic
+address sweep. Dead targets receive only bounded read-only presence probes;
+deeper reads run only after a responder is proved.
 
 For UDS responders MBLINK retains the physical route and reads read-only `F197`
 system name plus `F187` spare-part number, `F188` software number and `F191`
@@ -122,15 +130,25 @@ identity text or a standards-defined functional route supports that
 classification, and reads each responder's protocol-appropriate DTC memory.
 KWP routes are retained without applying UDS identity semantics to them.
 
-The explicit **DEEP RESCAN** on Linux enables the slower forensic fallback policy for unusually quiet ECUs. The target range is the same, but the full mode may try DTC/VIN fallbacks after a missed TesterPresent instead of advancing immediately. DEEP RESCAN is an in-session manufacturer rescan: LINK lets any in-flight live PID request finish, pauses live polling, runs the full Mercedes extension on the existing Bluetooth/USB transport, restores the normal ELM channel and resumes the existing live scheduler. It does not disconnect/reconnect the adapter or repeat standard PID/VIN discovery.
+The explicit **DEEP RESCAN** on Linux retains the exhaustive 759-target
+forensic plan: the broad 11-bit diagnostic range plus 29-bit normal-fixed
+logical addressing. FULL may try DTC/VIN fallbacks after a missed TesterPresent
+and, for otherwise unknown 11-bit routes, may temporarily use headered receive
+learning to discover a valid non-`TX+8` response before immediately re-locking
+the exact filter. DEEP RESCAN is an in-session manufacturer rescan: LINK lets
+any in-flight live PID request finish, pauses live polling, runs the full
+Mercedes extension on the existing Bluetooth/USB transport, restores the
+normal ELM channel and resumes the existing live scheduler. It does not
+disconnect/reconnect the adapter or repeat standard PID/VIN discovery.
 
 The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps an exact receive route active for each 11-bit probe instead of opening the whole CAN bus.
 
 That capture also disproved a second assumption: a Mercedes 11-bit diagnostic response is **not always request+8**. Public CAESAR/Vediamo traces publish independent `CP_REQUEST_CANIDENTIFIER` and `CP_RESPONSE_CANIDENTIFIER` values and give concrete 204/212-family examples: EIS `0x612 -> 0x482`, ABR2XT `0x632 -> 0x486` and EPS212 `0x6B2 -> 0x496`. MBLINK now treats those published pairs as source-corroborated routes and never extrapolates unobserved pairs from them.
 
-For an ordinary address whose response route is unknown, the existing bounded
-plan still uses the conventional request+8 candidate. For a source-corroborated
-UDS route, MBLINK keeps the published receive ID and first performs the same
+The normal 47-slot census never opens a promiscuous receive window: each lattice
+slot already has an exact request/response pair. Unknown-response learning is
+reserved for the explicit FULL forensic scan. For a source-corroborated UDS
+route, MBLINK keeps the published receive ID and first performs the same
 transient extended-session handshake (`10 03`) shown by the public
 EIS_212/EIS_204 CAESAR and DTS traces. That session change is non-persistent and
 is used only to make diagnostic read services available; it does not alter
@@ -240,6 +258,23 @@ MBLINK must maintain an evidence-backed Mercedes diagnostic knowledge layer able
 The raw 24-bit DTC and status byte remain part of the record even after a description is resolved. Unknown Mercedes codes must be shown as unknown with raw evidence preserved; MBLINK must never invent a likely-sounding Mercedes description.
 
 Generic UDS status interpretation belongs in LINK. Mercedes-specific DTC definitions and module/component meanings belong in MBLINK. The full normative requirement is in `FAULT_DIAGNOSTICS.md`.
+
+MBLINK now carries two deliberately different Mercedes knowledge sets. The
+exact KWP/UDS layer remains module-scoped and evidence-gated. Alongside it is a
+299-row source-scoped five-character reference catalogue reconstructed from the
+material supplied to the project: 78 BenzWorld body/chassis rows, 104 Mercedes
+P1xxx reference rows, all 38 TaT teaser rows (including explicit subcodes and
+duplicate meanings), and 79 supplied SprinterManual reference rows. The
+reference layer retains duplicates rather than selecting an arbitrary meaning.
+For example, `B1000` and `P2004` remain explicitly ambiguous until module or
+subcode context resolves them. Standards-defined generic meanings in LINK take
+precedence and are never overwritten by a Mercedes reference row.
+
+On iPhone, a LINK-classified manufacturer-specific OBD code that has no shared
+definition is passed through this Mercedes reference resolver. A unique
+source-scoped meaning is shown with its area and source; an ambiguous result is
+labelled as such rather than pretending that one of several supplied meanings
+is authoritative.
 
 The Faults workspace is expected to present Mercedes faults as diagnostic records, not just hexadecimal rows. A useful record includes at least the raw DTC, resolved title when known, module, status, subsystem/category and source/provenance. A successful clean scan, an unperformed scan and a failed scan must remain visibly distinct.
 
