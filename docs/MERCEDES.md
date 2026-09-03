@@ -339,9 +339,11 @@ On iPhone, once the module census proves a live `0x7E1 -> 0x7E9` responder,
 MBLINK performs one bounded read-only `21 30` probe automatically. A positive
 response is decoded and displayed as **Transmission oil temperature** in the
 module's Factory Data and on the Dashboard. A negative/no-response result is
-retained as evidence and no temperature is invented. Continuous polling is
-deliberately held back until a real C207 capture verifies the response shape
-and scaling on the development vehicle.
+retained as evidence and no temperature is invented. The read is deliberately non-destructive. Because the request is
+read-only, MBLINK does not suppress the source-backed value merely because the
+development C207 has not yet supplied its first confirming capture; instead the
+UI carries provenance and preserves the full raw response for immediate
+verification.
 
 Sources retained for this candidate include:
 - MBWorld W204/C63 transmission-temperature discussion;
@@ -349,19 +351,40 @@ Sources retained for this candidate include:
 - PeachParts 722.9 ATF-temperature service discussion;
 - RaceChrono Mercedes custom-PID discussion/equation reference.
 
-## Secondary EOBD responder
+## GS transmission responder and read-only telemetry
 
 The development C207/OM651 independently returns legislated OBD traffic on
 both `0x7E8` and `0x7E9`. The 2026-09-03 capture also proves that the two
 responders retain different state: for example, warm-ups and distance since
 DTC clear differ between them.
 
-MBLINK therefore preserves `0x7E1 -> 0x7E9` as a **secondary EOBD powertrain
-ECU**, but does not classify it as VGS/EGS or transmission from the CAN slot
-alone. In the same capture it answered standard Mode 01 requests but rejected
-the UDS identity requests used by the Mercedes scanner. Returned Mercedes ECU
-identity, or other independently defensible module evidence, is required before
-the product promotes it to a specific transmission family.
+Mercedes CAN definitions independently identify `0x7E1` as
+`D_RQ_GS` (KWP2000 diagnostic request to gearbox control) and `0x7E9` as
+`D_RS_GS` (diagnostic response from gearbox control). MBLINK therefore
+classifies the route as **Transmission ECU / GS** while still leaving the exact
+VGS/EGS hardware family open until identity evidence is returned.
+
+The same source material describes three read-only GS broadcast frames that
+MBLINK now decodes when raw CAN capture supplies them:
+
+- `0x218` — target gear, actual gear, torque-converter open/slip/closed,
+  manual mode, shift-in-progress, gearbox OK, limp-home, over-temperature,
+  kickdown and drive-program state;
+- `0x338` — gearbox output-speed raw value and NAG/VGS turbine-speed raw value;
+- `0x418` — display/selector position, drive program, gearbox-temperature raw
+  byte, drivetrain/mechanism flags, target/actual gear, kickdown and torque
+  metadata.
+
+Those broadcast decoders are pure receive-side code: they never transmit
+anything to the vehicle. Engineering scaling that is not present in the source
+definition remains raw rather than being fabricated.
+
+For the active-but-read-only diagnostic route, `21 30` is automatically read
+once after the module census. The positive `61 30 ...` response is retained
+whole. Source-backed decoding exposes transmission oil temperature, and
+community evidence also exposes the current-gear nibble. Forward gears 1-7 and
+N are displayed directly; the two disputed P/R diagnostic codes remain labelled
+with their raw code until the C207 capture resolves that disagreement.
 
 Live Apple OBD polling keeps simultaneous `0x7E8` and `0x7E9` replies
 attributable in the raw evidence stream rather than collapsing them into
