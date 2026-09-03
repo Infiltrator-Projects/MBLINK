@@ -33,6 +33,24 @@ static int test_catalogue_and_decode(void)
           MBLINK_MERCEDES_DID_LAB_DECODE_OK);
     CHECK(fabs(value - 11.96875) < 0.000001);
 
+    {
+        const MblinkMercedesDidLabDefinition *vgs_temp =
+            mblink_mercedes_did_lab_find_key(
+                "mercedes.transmission.7229.oil_temperature");
+        const MblinkMercedesDidLabDefinition *dct_pressure =
+            mblink_mercedes_did_lab_find_key(
+                "mercedes.transmission.7240.pressure_sensors");
+        const MblinkMercedesDidLabDefinition *nineg_position =
+            mblink_mercedes_did_lab_find_key(
+                "mercedes.transmission.7250.position_sensors");
+        CHECK(vgs_temp != NULL);
+        CHECK(vgs_temp->module == MBLINK_MERCEDES_MODULE_TRANSMISSION);
+        CHECK(!vgs_temp->identifier_known);
+        CHECK(strcmp(vgs_temp->unit, "°C") == 0);
+        CHECK(dct_pressure != NULL && !dct_pressure->identifier_known);
+        CHECK(nineg_position != NULL && !nineg_position->identifier_known);
+    }
+
     CHECK(fuel != NULL);
     CHECK(!fuel->identifier_known);
     CHECK(strcmp(fuel->unit, "L") == 0);
