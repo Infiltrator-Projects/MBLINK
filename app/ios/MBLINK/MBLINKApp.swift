@@ -702,9 +702,25 @@ private struct MBCommandCentreView: View {
                         }
                     }
                 } else if !connection.isActive {
-                    Text("Connect once to identify the vehicle, faults, modules and supported live data.")
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
+                    if let savedVIN = connection.selectedVehicleVIN {
+                        HStack(spacing: 9) {
+                            Image(systemName: "car.side.fill")
+                                .foregroundStyle(MBBrand.silver)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Saved vehicle loaded")
+                                    .font(MBTypography.subheadlineBold)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text(savedVIN)
+                                    .font(MBTypography.caption2)
+                                    .foregroundStyle(MBBrand.muted)
+                                    .lineLimit(1)
+                            }
+                        }
+                    } else {
+                        Text("Connect once to identify the vehicle, faults, modules and supported live data.")
+                            .font(MBTypography.caption)
+                            .foregroundStyle(MBBrand.muted)
+                    }
                 }
             }
         }
@@ -1149,7 +1165,9 @@ private struct MBVehicleView: View {
                                     Text("Control units")
                                         .font(MBTypography.subheadlineBold)
                                         .foregroundStyle(MBBrand.silverBright)
-                                    Text("\(connection.diagnosticModules.count) responding · open module inventory and scan details")
+                                    Text(connection.isActive
+                                         ? "\(connection.diagnosticModules.count) responding · open module inventory and scan details"
+                                         : "\(connection.pidConfigurationModules.count) saved · available offline")
                                         .font(MBTypography.caption)
                                         .foregroundStyle(MBBrand.muted)
                                 }
@@ -1208,12 +1226,31 @@ private struct MBVehicleView: View {
                             .textSelection(.enabled)
                     }
                 }
+            } else if let savedVIN = connection.selectedVehicleVIN {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "car.side.fill")
+                        .font(MBTypography.bold(30, relativeTo: .title))
+                        .foregroundStyle(MBBrand.silverBright)
+                        .frame(width: 42, height: 42)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Saved Mercedes vehicle")
+                            .font(MBTypography.title2)
+                            .foregroundStyle(MBBrand.silverBright)
+                        Text("Offline VIN profile loaded")
+                            .font(MBTypography.subheadlineBold)
+                            .foregroundStyle(MBBrand.silver)
+                        Text(savedVIN)
+                            .font(MBTypography.subheadlineBold)
+                            .foregroundStyle(MBBrand.silverBright)
+                            .textSelection(.enabled)
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Waiting for vehicle VIN")
+                    Text("No vehicle profile loaded")
                         .font(MBTypography.headline)
                         .foregroundStyle(MBBrand.silverBright)
-                    Text(connection.mercedesVINText)
+                    Text("Open Saved Vehicles & PIDs, or connect once to scan a vehicle.")
                         .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.muted)
                 }
@@ -1226,32 +1263,88 @@ private struct MBModulesView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
     @State private var technicalDetailsExpanded = false
 
+    private var modules: [DiagnosticModule] {
+        if connection.isActive && !connection.diagnosticModules.isEmpty {
+            return connection.diagnosticModules
+        }
+        return connection.pidConfigurationModules
+    }
+
+    private var kicker: String {
+        if connection.isActive {
+            return "\(modules.count) responding"
+        }
+        return "\(modules.count) saved · offline"
+    }
+
     var body: some View {
         ZStack {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Control units",
-                                    kicker: "\(connection.diagnosticModules.count) responding")
+                    MBSectionHeader(title: "Control units", kicker: kicker)
 
-                    if connection.diagnosticModules.isEmpty {
+                    if modules.isEmpty {
                         MBPanel {
-                            Text(connection.isActive
-                                 ? "Mercedes module census is in progress. Responding control units will appear here and remain attached to the VIN profile."
-                                 : "Connect to the vehicle to discover its control units.")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(connection.isActive
+                                     ? "Mercedes module census is in progress. Responding control units will appear here and remain attached to the VIN profile."
+                                     : "No saved controller map is loaded.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                if !connection.isActive {
+                                    NavigationLink {
+                                        MBPIDSetupView()
+                                    } label: {
+                                        Label("Load a saved VIN profile",
+                                              systemImage: "car.badge.gearshape")
+                                            .font(MBTypography.subheadlineBold)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                    }
+                                }
+                            }
                         }
                     } else {
-                        ForEach(connection.diagnosticModules) { module in
-                            NavigationLink { MBModuleDetailView(moduleID: module.id) } label: { moduleCard(module) }
-                                .buttonStyle(.plain)
+                        ForEach(modules) { module in
+                            NavigationLink {
+                                if connection.diagnosticModule(id: module.id) != nil {
+                                    MBModuleDetailView(moduleID: module.id)
+                                } else {
+                                    MBPIDModuleSetupView(moduleID: module.id)
+                                }
+                            } label: {
+                                moduleCard(module)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Factory data", kicker: "OM651 target catalogue")
+                            MBSectionHeader(
+                                title: "PID setup",
+                                kicker: connection.isActive
+                                    ? "Current + saved"
+                                    : "Saved VIN profile")
+                            Text("Open the controller/PID manager to choose values even when the car is disconnected, and even when a PID was not advertised on the last scan.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                            NavigationLink { MBPIDSetupView() } label: {
+                                HStack {
+                                    Label("Open Saved Vehicles & PIDs",
+                                          systemImage: "list.bullet.rectangle.portrait.fill")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .font(MBTypography.subheadlineBold)
+                                .foregroundStyle(MBBrand.silverBright)
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            MBSectionHeader(title: "Factory data", kicker: "Mercedes target catalogue")
                             Text("\(connection.mercedesTargetSignals.count) evidence-backed manufacturer value identities")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
@@ -1270,13 +1363,17 @@ private struct MBModulesView: View {
                     MBPanel {
                         DisclosureGroup(isExpanded: $technicalDetailsExpanded) {
                             VStack(alignment: .leading, spacing: 10) {
-                                MBInfoRow(label: "VIN profile", value: connection.vehicleProfileStatusText)
+                                MBInfoRow(
+                                    label: "VIN profile",
+                                    value: connection.isActive
+                                        ? connection.vehicleProfileStatusText
+                                        : connection.pidConfigurationSourceText)
                                 MBInfoRow(label: "Module state", value: connection.mercedesProbeStatusText)
                                 Divider().overlay(MBBrand.line)
-                                capability("Standard OBD-II engine diagnostics", "waveform.path.ecg")
+                                capability("Standard OBD-II diagnostics", "waveform.path.ecg")
+                                capability("Offline VIN/controller PID configuration", "list.bullet.rectangle")
                                 capability("UDS / ISO-TP diagnostic engine", "point.3.connected.trianglepath.dotted")
-                                capability("CRD3 ECU identity and fingerprinting", "checkmark.seal.fill")
-                                capability("Read-only UDS fault memory", "exclamationmark.triangle.fill")
+                                capability("Read-only Mercedes fault memory", "exclamationmark.triangle.fill")
                             }
                             .padding(.top, 8)
                         } label: {
@@ -1294,22 +1391,38 @@ private struct MBModulesView: View {
 
     private func moduleCard(_ module: DiagnosticModule) -> some View {
         HStack(alignment: .top, spacing: 13) {
-            Image(systemName: module.symbol).font(MBTypography.title2).foregroundStyle(MBBrand.silverBright).frame(width: 34, height: 34)
+            Image(systemName: module.symbol)
+                .font(MBTypography.title2)
+                .foregroundStyle(MBBrand.silverBright)
+                .frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 5) {
-                Text(module.name).font(MBTypography.headline).foregroundStyle(MBBrand.silverBright).multilineTextAlignment(.leading)
+                Text(module.name)
+                    .font(MBTypography.headline)
+                    .foregroundStyle(MBBrand.silverBright)
+                    .multilineTextAlignment(.leading)
                 if !module.designation.isEmpty {
-                    Text(module.designation).font(MBTypography.captionBold).foregroundStyle(MBBrand.silver)
+                    Text(module.designation)
+                        .font(MBTypography.captionBold)
+                        .foregroundStyle(MBBrand.silver)
                 }
-                Text("\(module.addressText) · \(module.protocolName)").font(MBTypography.caption2).foregroundStyle(MBBrand.muted)
+                Text("\(module.addressText) · \(module.protocolName)")
+                    .font(MBTypography.caption2)
+                    .foregroundStyle(MBBrand.muted)
                 HStack(spacing: 8) {
-                    Label("\(module.livePIDCount) selectable OBD values", systemImage: "waveform.path.ecg")
+                    Label(
+                        connection.isActive
+                            ? "\(module.livePIDCount) observed OBD values"
+                            : "\(module.obdAdvertisedPIDCount) previously advertised",
+                        systemImage: "waveform.path.ecg")
                     Label(module.faultCountLabel, systemImage: "exclamationmark.triangle")
                 }
                 .font(MBTypography.caption2Bold)
                 .foregroundStyle(MBBrand.silver)
             }
             Spacer(minLength: 4)
-            Image(systemName: "chevron.right").foregroundStyle(MBBrand.muted).padding(.top, 8)
+            Image(systemName: "chevron.right")
+                .foregroundStyle(MBBrand.muted)
+                .padding(.top, 8)
         }
         .padding(15)
         .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(MBBrand.panel))
@@ -1318,8 +1431,12 @@ private struct MBModulesView: View {
 
     private func capability(_ text: String, _ symbol: String) -> some View {
         HStack(spacing: 11) {
-            Image(systemName: symbol).frame(width: 24).foregroundStyle(MBBrand.silverBright)
-            Text(text).font(MBTypography.subheadline).foregroundStyle(MBBrand.silver)
+            Image(systemName: symbol)
+                .frame(width: 24)
+                .foregroundStyle(MBBrand.silverBright)
+            Text(text)
+                .font(MBTypography.subheadline)
+                .foregroundStyle(MBBrand.silver)
             Spacer()
         }
     }
