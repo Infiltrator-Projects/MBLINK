@@ -415,6 +415,37 @@ static int test_7e1_transmission_temperature_candidate(void)
     return 0;
 }
 
+static int test_full_rli30_numeric_prefers_full_layout(void)
+{
+    MblinkMercedesDataRecord record;
+    double value = 0.0;
+    const char *name = NULL;
+    const char *unit = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service =
+        MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
+    record.identifier = UINT16_C(0x30);
+    record.data_length = 24U;
+
+    /*
+     * Deliberately make compact-layout data[9] nonsensical (0x01 -> -49 C).
+     * Full EGS52 RLI30 puts packed gears at data[10] and ATF at data[11].
+     */
+    record.data[9] = UINT8_C(0x01);
+    record.data[10] = UINT8_C(0x54); /* target 5, actual 4 */
+    record.data[11] = UINT8_C(0x64); /* 50 C */
+
+    CHECK(mblink_mercedes_data_record_decode_known_numeric_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, &value, &name, &unit));
+    CHECK(value == 50.0);
+    CHECK(strcmp(name, "Transmission oil temperature") == 0);
+    CHECK(strcmp(unit, "°C") == 0);
+    return 0;
+}
+
 static int test_transmission_standard_kwp_metadata(void)
 {
     MblinkMercedesDataRecord record;
@@ -605,6 +636,7 @@ int main(void)
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
+    if (test_full_rli30_numeric_prefers_full_layout() != 0) return 1;
     if (test_transmission_standard_kwp_metadata() != 0) return 1;
     if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
