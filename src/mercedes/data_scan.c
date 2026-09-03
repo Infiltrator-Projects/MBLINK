@@ -210,25 +210,6 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     config.request_extended_session =
         protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS;
 
-    /*
-     * Several independent Mercedes applications/forums validate the legacy
-     * local-identifier request 0x21 0x30 on the legislated 0x7E1 -> 0x7E9
-     * physical route for transmission oil temperature. Keep this narrowly
-     * route-scoped: the responder can remain family-unidentified while this
-     * exact read-only transmission actual-value groups are probed. The
-     * controller can additionally target the non-contiguous E1-EB identity
-     * records through mblink_mercedes_data_scan_begin_identifiers().
-     */
-    if (!extended_id &&
-        tx_can_id == UINT32_C(0x7e1) &&
-        rx_can_id == UINT32_C(0x7e9)) {
-        config.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-        config.request_extended_session = false;
-        config.first_identifier = UINT16_C(0x0030);
-        config.last_identifier = UINT16_C(0x0033);
-        return config;
-    }
-
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         config.first_identifier = UINT16_C(0x0001);
         config.last_identifier = UINT16_C(0x00ff);
@@ -243,8 +224,8 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
  * Runtime-observation candidates are intentionally exact-route scoped.
  *
  *  - 7E0/7E8 DID 2007 is the source-backed CRD3 battery-voltage actual value.
- *  - 7E1/7E9 local IDs 30-33 are published Mercedes transmission actual-value
- *    groups and are suitable for repeated read-only observation.
+ * Transmission local identifiers are intentionally absent here: their meaning
+ * is controller-family specific and is selected by mercedes_transmission.
  *  - 632/486 DID 2001, 64A/489 local 58 and 652/48A local 01 are exact positive
  *    raw responses captured from the 2026-09-03 C207 drive. Their semantics
  *    remain unknown; refreshing them exists specifically to collect changing
@@ -252,10 +233,6 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
  */
 static const uint16_t runtime_engine_candidates[] = {
     UINT16_C(0x2007)
-};
-static const uint16_t runtime_transmission_candidates[] = {
-    UINT16_C(0x0030), UINT16_C(0x0031),
-    UINT16_C(0x0032), UINT16_C(0x0033)
 };
 static const uint16_t runtime_esp_candidates[] = {
     UINT16_C(0x2001)
@@ -282,13 +259,6 @@ static const uint16_t *runtime_candidate_list_for_route(
             *count = sizeof(runtime_engine_candidates) /
                 sizeof(runtime_engine_candidates[0]);
         return runtime_engine_candidates;
-    }
-    if (tx_can_id == UINT32_C(0x7e1) &&
-        rx_can_id == UINT32_C(0x7e9)) {
-        if (count != NULL)
-            *count = sizeof(runtime_transmission_candidates) /
-                sizeof(runtime_transmission_candidates[0]);
-        return runtime_transmission_candidates;
     }
     if (tx_can_id == UINT32_C(0x632) &&
         rx_can_id == UINT32_C(0x486)) {

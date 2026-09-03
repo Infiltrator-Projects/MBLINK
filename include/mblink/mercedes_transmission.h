@@ -43,7 +43,8 @@ typedef enum MblinkMercedesTransmissionFamily {
     MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G,
     MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT,
     MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT,
-    MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED
+    MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED,
+    MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52
 } MblinkMercedesTransmissionFamily;
 
 typedef enum MblinkMercedesTorqueConverterState {
@@ -410,9 +411,33 @@ bool mblink_mercedes_transmission_format_can_frame(
     size_t buffer_size);
 
 /**
- * Source-backed read-only local identifiers worth probing on a GS/TCM KWP
- * endpoint. The list contains DAS-compatible EGS52 actual-value groups 30-33
- * plus the DaimlerChrysler KWP2000 standard identification records E0-EB.
+ * Classify a transmission controller family from an ECU identity string.
+ * Unknown or ambiguous identities remain UNKNOWN; callers must not infer a
+ * family solely from the diagnostic CAN address.
+ */
+MblinkMercedesTransmissionFamily
+mblink_mercedes_transmission_family_from_identity(const char *identity);
+
+/**
+ * Controller-family-scoped KWP2000 ReadDataByLocalIdentifier profile.
+ *
+ * Numeric local identifiers are not globally meaningful across Mercedes
+ * transmission controllers. For example, OEM EGS52 RLI 0x30 is an actual-
+ * values record while Ultimate NAG52 defines 0x30 as clutch speeds. Always
+ * select a family first, then query only that family's profile.
+ */
+size_t mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+    MblinkMercedesTransmissionFamily family);
+uint8_t mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+    MblinkMercedesTransmissionFamily family, size_t index);
+const char *mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+    MblinkMercedesTransmissionFamily family, uint8_t id);
+bool mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+    MblinkMercedesTransmissionFamily family, uint8_t id);
+
+/**
+ * Legacy EGS52 compatibility view. New code must use the family-scoped APIs
+ * above rather than applying this list to an arbitrary transmission ECU.
  */
 size_t mblink_mercedes_transmission_kwp_read_identifier_count(void);
 uint8_t mblink_mercedes_transmission_kwp_read_identifier_at(size_t index);

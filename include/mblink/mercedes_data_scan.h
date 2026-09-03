@@ -111,10 +111,12 @@ bool mblink_mercedes_data_scan_config_is_valid(
 /**
  * Default discovery ranges used by the UI's per-module manufacturer-data scan.
  *
- * UDS starts with Daimler's 0x20xx actual-value neighbourhood because 0x2007
- * is source-backed on the C207 CRD3 family. KWP2000 uses the complete bounded
- * local-identifier byte range. These are discovery ranges, not semantic claims:
- * every positive response remains raw/unmapped until a definition is proven.
+ * UDS starts with Daimler's 0x20xx actual-value neighbourhood. KWP2000 uses
+ * the complete bounded local-identifier byte range for an explicit full scan.
+ * Transmission controller profiles must use the family-scoped helpers in
+ * mercedes_transmission.h instead of deriving local identifiers from a CAN
+ * address. These are discovery ranges, not semantic claims: every positive
+ * response remains raw/unmapped until a definition is proven.
  */
 MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     uint32_t tx_can_id,
@@ -179,7 +181,7 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_identifiers(
  * Begin an explicit source-backed candidate list without treating every item
  * as previously proven positive. Unlike begin_identifiers(), NO DATA advances
  * immediately instead of retrying twice. This is appropriate for safe
- * read-only Mercedes capability discovery lists such as GS RLI 30-33/E0-EB.
+ * read-only Mercedes capability discovery lists scoped to the identified ECU family.
  */
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_identifiers(
     MblinkMercedesDataScan *scan,

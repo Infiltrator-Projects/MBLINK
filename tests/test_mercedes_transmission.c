@@ -270,6 +270,40 @@ static int test_kwp_records(void)
     CHECK(mblink_mercedes_transmission_kwp_read_identifier_at(15U) == UINT8_C(0xEB));
     CHECK(strcmp(mblink_mercedes_transmission_kwp_read_identifier_name(
         UINT8_C(0xE1)), "ECU serial number") == 0);
+
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52) == 16U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2) == 13U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52) == 10U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) == 12U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G) == 0U);
+
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52, 0U) ==
+        UINT8_C(0x20));
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52, 7U) ==
+        UINT8_C(0x30));
+    CHECK(strcmp(
+        mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52, UINT8_C(0x30)),
+        "Transmission actual values / RLI 30") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52,
+            UINT8_C(0x30)),
+        "Clutch speeds") == 0);
+    CHECK(mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52, UINT8_C(0x33)));
+    CHECK(!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, UINT8_C(0x33)));
+    CHECK(mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52,
+        UINT8_C(0x20)));
     return 0;
 }
 
@@ -425,6 +459,17 @@ static int test_transport_formatter(void)
 
 static int test_family_names(void)
 {
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "EGS52") == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "VGS3_0403 722.9") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "Ultimate-NAG52") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "generic transmission") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN);
     CHECK(strcmp(mblink_mercedes_transmission_family_name(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52),
         "EGS52 / NAG1") == 0);

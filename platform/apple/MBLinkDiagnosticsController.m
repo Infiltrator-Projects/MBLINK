@@ -279,6 +279,37 @@ static NSString *MBLinkMercedesModuleIdentifier(
         (unsigned int)module->rx_can_id];
 }
 
+static MblinkMercedesTransmissionFamily
+MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
+{
+    MblinkMercedesTransmissionFamily family;
+
+    if (module == NULL ||
+        module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
+    }
+
+    if (module->identity_available) {
+        family = mblink_mercedes_transmission_family_from_identity(
+            module->identity);
+        if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN)
+            return family;
+    }
+    if (module->software_number_available) {
+        family = mblink_mercedes_transmission_family_from_identity(
+            module->software_number);
+        if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN)
+            return family;
+    }
+    if (module->hardware_number_available) {
+        family = mblink_mercedes_transmission_family_from_identity(
+            module->hardware_number);
+        if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN)
+            return family;
+    }
+    return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
+}
+
 static NSString *MBLinkMercedesEndpointText(
     const MblinkMercedesEcuEndpointDefinition *endpoint)
 {
@@ -1254,57 +1285,26 @@ static bool MBLinkSimulatorResponder(
 
 - (nullable NSString *)automaticTransmissionTemperatureModuleIdentifier
 {
-    size_t count =
+    const size_t count =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesModuleScanEntry *module =
             mblink_mercedes_module_scan_module_at(
                 &_mercedesModuleScan, index);
-        if (module == NULL || module->extended_id) continue;
-        if (module->tx_can_id == UINT32_C(0x7e1) &&
-            module->rx_can_id == UINT32_C(0x7e9)) {
+        if (module == NULL ||
+            module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+            mblink_mercedes_module_scan_entry_protocol(module) !=
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+            continue;
+        }
+        const MblinkMercedesTransmissionFamily family =
+            MBLinkTransmissionFamilyForModule(module);
+        if (mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+                family) != 0U) {
             return MBLinkMercedesModuleIdentifier(module);
         }
     }
-
-    /*
-     * A KWP TesterPresent/DTC probe is not the only valid proof that the GS
-     * endpoint exists. If legislated OBD capability discovery has already
-     * observed 0x7E9, combine that live responder evidence with the
-     * source-backed D_RQ_GS/D_RS_GS route and materialise the module so the
-     * read-only 21 30 query is not needlessly suppressed.
-     */
-    NSArray<NSNumber *> *gsPIDs =
-        [self observedPIDsForResponderCANIdentifier:
-            UINT32_C(0x7e9) extendedID:NO];
-    if (gsPIDs.count == 0U ||
-        _mercedesModuleScan.module_count >=
-            MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) {
-        return nil;
-    }
-
-    MblinkMercedesModuleScanEntry *module =
-        &_mercedesModuleScan.modules[_mercedesModuleScan.module_count++];
-    memset(module, 0, sizeof(*module));
-    module->tx_can_id = UINT32_C(0x7e1);
-    module->rx_can_id = UINT32_C(0x7e9);
-    module->extended_id = false;
-    module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-    module->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
-    module->identification_status =
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
-    module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
-    {
-        const MblinkMercedesModuleDefinition *definition =
-            mblink_mercedes_c207_module_definition_for_key(
-                "transmission-vgs");
-        if (definition != NULL) {
-            module->definition = definition;
-            module->kind = definition->kind;
-            module->identification_status = definition->status;
-        }
-    }
-    return MBLinkMercedesModuleIdentifier(module);
+    return nil;
 }
 
 - (NSArray<NSNumber *> *)persistedManufacturerDataIdentifiersForModule:
@@ -1400,6 +1400,35 @@ static bool MBLinkSimulatorResponder(
         [self runtimeManufacturerDataIdentifiersForModule:module
                                                 identifier:identifier]];
     NSMutableArray<NSNumber *> *candidates = [[NSMutableArray alloc] init];
+
+    if (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+        mblink_mercedes_module_scan_entry_protocol(module) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        const MblinkMercedesTransmissionFamily family =
+            MBLinkTransmissionFamilyForModule(module);
+        const size_t profileCount =
+            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+                family);
+        for (size_t index = 0U; index < profileCount; ++index) {
+            const uint8_t candidate =
+                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+                    family, index);
+            if (!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+                    family, candidate)) {
+                continue;
+            }
+            NSNumber *number = @((uint16_t)candidate);
+            if ([known containsObject:number]) continue;
+            NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
+                identifier, (unsigned int)candidate];
+            if ([_automaticManufacturerCandidateAttempts
+                    containsObject:attemptKey]) {
+                continue;
+            }
+            [candidates addObject:number];
+        }
+    }
+
     const size_t count =
         mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
             module->tx_can_id, module->rx_can_id, module->extended_id);
@@ -1479,9 +1508,7 @@ static bool MBLinkSimulatorResponder(
                                              identifier:identifier];
         if (runtime.count == 0U && candidates.count == 0U) continue;
 
-        if (!module->extended_id &&
-            module->tx_can_id == UINT32_C(0x7e1) &&
-            module->rx_can_id == UINT32_C(0x7e9)) {
+        if (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION) {
             transmissionModule = identifier;
         } else {
             [otherModules addObject:identifier];
@@ -1686,13 +1713,14 @@ static bool MBLinkSimulatorResponder(
 
     const NSUInteger knownIdentifierCount =
         knownValues.count != 0U ? knownValues.count : persistedIdentifiers.count;
-    const BOOL sourceBackedTransmissionRoute =
+    const MblinkMercedesTransmissionFamily transmissionFamily =
+        MBLinkTransmissionFamilyForModule(module);
+    const BOOL profiledTransmissionModule =
+        module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
         mblink_mercedes_module_scan_entry_protocol(module) ==
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-        (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION ||
-         (!module->extended_id &&
-          module->tx_can_id == UINT32_C(0x7e1) &&
-          module->rx_can_id == UINT32_C(0x7e9)));
+        mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+            transmissionFamily) != 0U;
 
     BOOL targetedRefresh =
         !_manufacturerDataForceFullScan &&
@@ -1782,23 +1810,24 @@ static bool MBLinkSimulatorResponder(
             result = mblink_mercedes_data_scan_begin(
                 &_manufacturerDataScan, &config);
         }
-    } else if (sourceBackedTransmissionRoute && !liveOnly) {
+    } else if (profiledTransmissionModule && !liveOnly) {
         /*
-         * Initial transmission discovery uses the complete source-backed list.
-         * Later live refreshes use only identifiers that actually answered,
-         * with E0-EB metadata excluded by the runtime filter.
+         * A transmission ECU owns its diagnostic namespace. Select the
+         * controller family first, then probe only that family's source-backed
+         * local identifiers. Unsupported families never inherit EGS52 RLIs.
          */
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
         const size_t sourceCount =
-            mblink_mercedes_transmission_kwp_read_identifier_count();
+            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+                transmissionFamily);
         for (size_t index = 0U;
              index < sourceCount &&
              identifierCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
              ++index) {
-            identifiers[identifierCount++] =
-                (uint16_t)mblink_mercedes_transmission_kwp_read_identifier_at(
-                    index);
+            identifiers[identifierCount++] = (uint16_t)
+                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+                    transmissionFamily, index);
         }
         result = mblink_mercedes_data_scan_begin_probe_identifiers(
             &_manufacturerDataScan, &config, identifiers, identifierCount);
@@ -1979,7 +2008,21 @@ static bool MBLinkSimulatorResponder(
         const char *unit = NULL;
         char structured[1024];
         const char *structuredName = NULL;
+        const MblinkMercedesTransmissionFamily transmissionFamily =
+            MBLinkTransmissionFamilyForModule(module);
+        const BOOL transmissionMetadata =
+            module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+            record->service ==
+                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
+            record->identifier >= UINT16_C(0x00e0) &&
+            record->identifier <= UINT16_C(0x00eb);
+        const BOOL allowOemTransmissionValueDecode =
+            module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+            transmissionMetadata ||
+            transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+            transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
         const BOOL numericMapped =
+            allowOemTransmissionValueDecode &&
             mblink_mercedes_data_record_decode_known_numeric_for_route(
                 module->tx_can_id,
                 module->rx_can_id,
@@ -1987,12 +2030,20 @@ static bool MBLinkSimulatorResponder(
                 module->kind,
                 record, &numeric, &numericName, &unit);
         const BOOL structuredMapped =
+            allowOemTransmissionValueDecode &&
             mblink_mercedes_data_record_format_known_for_route(
                 module->tx_can_id,
                 module->rx_can_id,
                 module->extended_id,
                 module->kind,
                 record, structured, sizeof(structured), &structuredName);
+        const char *profileName =
+            module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+            record->service ==
+                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER
+                ? mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+                    transmissionFamily, (uint8_t)record->identifier)
+                : NULL;
 
         if (numericMapped || structuredMapped) {
             snapshot.mapped = YES;
@@ -2015,7 +2066,8 @@ static bool MBLinkSimulatorResponder(
             snapshot.mapped = NO;
             snapshot.numericValueAvailable = NO;
             snapshot.numericValue = 0.0;
-            snapshot.name = nil;
+            snapshot.name = profileName != NULL
+                ? MBLinkStringFromCString(profileName) : nil;
             snapshot.unit = nil;
             snapshot.formattedValue = [NSString stringWithFormat:
                 @"RAW %@", snapshot.rawHex];
@@ -2358,11 +2410,10 @@ static bool MBLinkSimulatorResponder(
         _cachedModuleRefreshActive = NO;
 
         /*
-         * One evidence-gated automatic read makes the source-backed
-         * 7E1/7E9 transmission factory-data set visible without requiring the
-         * driver to open the module screen first. The read-only list includes
-         * KWP 30-33 plus Daimler identity records E0-EB; unsupported records
-         * simply reject or stay quiet on a given transmission generation.
+         * Once a transmission ECU has actually been discovered, perform one
+         * family-scoped read so its appropriate data set is available without
+         * requiring the driver to open the module screen first. No CAN route
+         * is treated as proof of a transmission family.
          */
         NSString *temperatureModule =
             [self automaticTransmissionTemperatureModuleIdentifier];

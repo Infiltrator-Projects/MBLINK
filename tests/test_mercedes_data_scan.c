@@ -340,8 +340,8 @@ static int test_7e1_transmission_temperature_candidate(void)
     MblinkMercedesDataScanConfig config =
         mblink_mercedes_data_scan_default_config(
             UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-            MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-            MBLINK_MERCEDES_MODULE_OTHER);
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION);
     MblinkElm327Response ok = response_ok("OK");
     const MblinkMercedesDataRecord *record;
     double value = 0.0;
@@ -349,13 +349,14 @@ static int test_7e1_transmission_temperature_candidate(void)
     const char *unit = NULL;
 
     /*
-     * The route stays family-unidentified, but its source-backed 21 30
-     * temperature read uses the KWP/legacy local-identifier service.
+     * Generic scan configuration no longer derives a transmission data set
+     * from the 7E1/7E9 address. This decoder regression supplies the exact
+     * identifier explicitly; controller-family profiles own automatic lists.
      */
     CHECK(config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
     CHECK(!config.request_extended_session);
-    CHECK(config.first_identifier == UINT16_C(0x30));
-    CHECK(config.last_identifier == UINT16_C(0x33));
+    config.first_identifier = UINT16_C(0x30);
+    config.last_identifier = UINT16_C(0x30);
 
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
@@ -375,10 +376,6 @@ static int test_7e1_transmission_temperature_candidate(void)
     CHECK(accept_command(
               &scan, "2130",
               response_ok("613000000000000000000064")) == 0);
-    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER);
-    CHECK(accept_command(&scan, "2131", response_no_data()) == 0);
-    CHECK(accept_command(&scan, "2132", response_no_data()) == 0);
-    CHECK(accept_command(&scan, "2133", response_no_data()) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     CHECK(scan.positive_count == 1U);
 
@@ -640,13 +637,7 @@ static int test_runtime_candidate_catalog(void)
         UINT16_C(0x2007));
 
     CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 4U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false, 0U) ==
-        UINT16_C(0x0030));
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false, 3U) ==
-        UINT16_C(0x0033));
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 0U);
 
     CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
         UINT32_C(0x632), UINT32_C(0x486), false) == 1U);

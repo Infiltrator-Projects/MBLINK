@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_transmission.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -803,33 +804,166 @@ bool mblink_mercedes_transmission_format_can_frame(
     return false;
 }
 
-static const uint8_t k_transmission_read_ids[] = {
-    UINT8_C(0x30), UINT8_C(0x31), UINT8_C(0x32), UINT8_C(0x33),
-    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3), UINT8_C(0xe4),
-    UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7), UINT8_C(0xe8),
-    UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
+static const uint8_t k_kwp_oem_metadata_ids[] = {
+    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3),
+    UINT8_C(0xe4), UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7),
+    UINT8_C(0xe8), UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
 };
 
-size_t mblink_mercedes_transmission_kwp_read_identifier_count(void)
+static const uint8_t k_kwp_egs52_ids[] = {
+    UINT8_C(0x30), UINT8_C(0x31), UINT8_C(0x32), UINT8_C(0x33),
+    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3),
+    UINT8_C(0xe4), UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7),
+    UINT8_C(0xe8), UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
+};
+
+static const uint8_t k_kwp_vgs_nag2_ids[] = {
+    UINT8_C(0x30),
+    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3),
+    UINT8_C(0xe4), UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7),
+    UINT8_C(0xe8), UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
+};
+
+/*
+ * Ultimate NAG52 is a replacement-controller firmware, not an OEM EGS52
+ * diagnostic namespace. Its GPLv3 source defines these read-only live records
+ * explicitly. In particular, 0x30 means clutch speeds here, not the OEM EGS52
+ * RLI 0x30 actual-values layout.
+ */
+static const uint8_t k_kwp_ultimate_nag52_ids[] = {
+    UINT8_C(0x20), UINT8_C(0x21), UINT8_C(0x22), UINT8_C(0x23),
+    UINT8_C(0x24), UINT8_C(0x25), UINT8_C(0x27), UINT8_C(0x30),
+    UINT8_C(0x31), UINT8_C(0x32)
+};
+
+static bool contains_ascii_ci(const char *text, const char *needle)
 {
-    return sizeof(k_transmission_read_ids) /
-        sizeof(k_transmission_read_ids[0]);
+    size_t text_length;
+    size_t needle_length;
+    size_t start;
+    size_t offset;
+
+    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
+    text_length = strlen(text);
+    needle_length = strlen(needle);
+    if (needle_length > text_length) return false;
+
+    for (start = 0U; start + needle_length <= text_length; ++start) {
+        for (offset = 0U; offset < needle_length; ++offset) {
+            const unsigned char left = (unsigned char)text[start + offset];
+            const unsigned char right = (unsigned char)needle[offset];
+            if (tolower(left) != tolower(right)) break;
+        }
+        if (offset == needle_length) return true;
+    }
+    return false;
 }
 
-uint8_t mblink_mercedes_transmission_kwp_read_identifier_at(size_t index)
+MblinkMercedesTransmissionFamily
+mblink_mercedes_transmission_family_from_identity(const char *identity)
 {
-    if (index >= mblink_mercedes_transmission_kwp_read_identifier_count())
-        return 0U;
-    return k_transmission_read_ids[index];
+    if (identity == NULL || identity[0] == '\0')
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
+
+    if (contains_ascii_ci(identity, "ULTIMATE NAG52") ||
+        contains_ascii_ci(identity, "ULTIMATE-NAG52")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52;
+    }
+    if (contains_ascii_ci(identity, "EGS51"))
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51;
+    if (contains_ascii_ci(identity, "EGS52"))
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52;
+    if (contains_ascii_ci(identity, "EGS53"))
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53;
+    /*
+     * Match the specific later families before NAG2. "VGS" by itself is not
+     * a safe family discriminator because Mercedes reused VGS terminology.
+     */
+    if (contains_ascii_ci(identity, "725.0") ||
+        contains_ascii_ci(identity, "9G-TRONIC") ||
+        contains_ascii_ci(identity, "9G TRONIC")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G;
+    }
+    if (contains_ascii_ci(identity, "724.0") ||
+        contains_ascii_ci(identity, "7G-DCT")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT;
+    }
+    if (contains_ascii_ci(identity, "722.8") ||
+        contains_ascii_ci(identity, "CVT")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT;
+    }
+    if (contains_ascii_ci(identity, "722.9") ||
+        contains_ascii_ci(identity, "NAG2")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+    }
+    if (contains_ascii_ci(identity, "AMG MCT"))
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT;
+    if (contains_ascii_ci(identity, "AMG DCT"))
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT;
+    if (contains_ascii_ci(identity, "SINGLE-SPEED") ||
+        contains_ascii_ci(identity, "SINGLE SPEED")) {
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED;
+    }
+    return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 }
 
-const char *mblink_mercedes_transmission_kwp_read_identifier_name(uint8_t id)
+static const uint8_t *kwp_ids_for_family(
+    MblinkMercedesTransmissionFamily family, size_t *count)
+{
+    if (count != NULL) *count = 0U;
+
+    switch (family) {
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52:
+        if (count != NULL)
+            *count = sizeof(k_kwp_egs52_ids) / sizeof(k_kwp_egs52_ids[0]);
+        return k_kwp_egs52_ids;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
+        if (count != NULL)
+            *count = sizeof(k_kwp_vgs_nag2_ids) /
+                sizeof(k_kwp_vgs_nag2_ids[0]);
+        return k_kwp_vgs_nag2_ids;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
+        if (count != NULL)
+            *count = sizeof(k_kwp_ultimate_nag52_ids) /
+                sizeof(k_kwp_ultimate_nag52_ids[0]);
+        return k_kwp_ultimate_nag52_ids;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+        if (count != NULL)
+            *count = sizeof(k_kwp_oem_metadata_ids) /
+                sizeof(k_kwp_oem_metadata_ids[0]);
+        return k_kwp_oem_metadata_ids;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED:
+        return NULL;
+    }
+    return NULL;
+}
+
+size_t mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+    MblinkMercedesTransmissionFamily family)
+{
+    size_t count = 0U;
+    (void)kwp_ids_for_family(family, &count);
+    return count;
+}
+
+uint8_t mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+    MblinkMercedesTransmissionFamily family, size_t index)
+{
+    size_t count = 0U;
+    const uint8_t *ids = kwp_ids_for_family(family, &count);
+    return ids != NULL && index < count ? ids[index] : 0U;
+}
+
+static const char *kwp_oem_metadata_name(uint8_t id)
 {
     switch (id) {
-    case UINT8_C(0x30): return "Transmission actual values / RLI 30";
-    case UINT8_C(0x31): return "Transmission speed sensors / RLI 31";
-    case UINT8_C(0x32): return "Transmission driving dynamics / RLI 32";
-    case UINT8_C(0x33): return "Transmission hydraulics and solenoids / RLI 33";
     case UINT8_C(0xe0): return "Development data";
     case UINT8_C(0xe1): return "ECU serial number";
     case UINT8_C(0xe2): return "DBCom communication-matrix data";
@@ -846,6 +980,102 @@ const char *mblink_mercedes_transmission_kwp_read_identifier_name(uint8_t id)
     }
 }
 
+const char *mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+    MblinkMercedesTransmissionFamily family, uint8_t id)
+{
+    const char *metadata = kwp_oem_metadata_name(id);
+    if (metadata != NULL &&
+        family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52) {
+        return metadata;
+    }
+
+    switch (family) {
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52:
+        switch (id) {
+        case UINT8_C(0x30): return "Transmission actual values / RLI 30";
+        case UINT8_C(0x31): return "Transmission speed sensors / RLI 31";
+        case UINT8_C(0x32): return "Transmission driving dynamics / RLI 32";
+        case UINT8_C(0x33):
+            return "Transmission hydraulics and solenoids / RLI 33";
+        default: return NULL;
+        }
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
+        return id == UINT8_C(0x30)
+            ? "Transmission actual values / compact RLI 30" : NULL;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
+        switch (id) {
+        case UINT8_C(0x20): return "Gearbox sensors";
+        case UINT8_C(0x21): return "Solenoid status";
+        case UINT8_C(0x22): return "CAN data";
+        case UINT8_C(0x23): return "System usage";
+        case UINT8_C(0x24): return "Torque-converter status";
+        case UINT8_C(0x25): return "Gearbox pressures";
+        case UINT8_C(0x27): return "Shift live data";
+        case UINT8_C(0x30): return "Clutch speeds";
+        case UINT8_C(0x31): return "Shift algorithm feedback";
+        case UINT8_C(0x32): return "Driving dynamics";
+        default: return NULL;
+        }
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED:
+        return NULL;
+    }
+    return NULL;
+}
+
+bool mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+    MblinkMercedesTransmissionFamily family, uint8_t id)
+{
+    switch (family) {
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52:
+        return id >= UINT8_C(0x30) && id <= UINT8_C(0x33);
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
+        return id == UINT8_C(0x30);
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
+        return id == UINT8_C(0x20) || id == UINT8_C(0x21) ||
+               id == UINT8_C(0x22) || id == UINT8_C(0x23) ||
+               id == UINT8_C(0x24) || id == UINT8_C(0x25) ||
+               id == UINT8_C(0x27) || id == UINT8_C(0x30) ||
+               id == UINT8_C(0x31) || id == UINT8_C(0x32);
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT:
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED:
+        return false;
+    }
+    return false;
+}
+
+size_t mblink_mercedes_transmission_kwp_read_identifier_count(void)
+{
+    return mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52);
+}
+
+uint8_t mblink_mercedes_transmission_kwp_read_identifier_at(size_t index)
+{
+    return mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52, index);
+}
+
+const char *mblink_mercedes_transmission_kwp_read_identifier_name(uint8_t id)
+{
+    return mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52, id);
+}
+
 const char *mblink_mercedes_transmission_family_name(
     MblinkMercedesTransmissionFamily family)
 {
@@ -854,6 +1084,8 @@ const char *mblink_mercedes_transmission_family_name(
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51: return "EGS51";
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52: return "EGS52 / NAG1";
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53: return "EGS53";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
+        return "Ultimate NAG52";
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2: return "VGS / NAG2 / 722.9";
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT: return "722.8 CVT";
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT: return "724.0 7G-DCT";
