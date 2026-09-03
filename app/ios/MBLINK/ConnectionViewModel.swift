@@ -101,6 +101,15 @@ struct PIDConfigurationItem: Identifiable {
     let title: String
     let pollingEnabled: Bool
     let favourite: Bool
+    let advertised: Bool
+}
+
+struct SavedVehicleProfileSummary: Identifiable {
+    let id: String
+    let vin: String
+    let moduleCount: Int
+    let responderCount: Int
+    let updatedAt: Date?
 }
 
 struct MercedesModuleDataValue: Identifiable {
@@ -233,6 +242,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var pidConfigurationModules = [DiagnosticModule]()
     @Published private(set) var pidConfigurationSourceText =
         "Connect once to learn which PIDs each controller supports"
+    @Published private(set) var savedVehicleProfiles = [SavedVehicleProfileSummary]()
+    @Published private(set) var selectedVehicleVIN: String?
     @Published private(set) var manufacturerDataScanActive = false
     @Published private(set) var manufacturerDataScanStatusText = "Not scanned"
     @Published private(set) var manufacturerDataScanModuleID: String?
@@ -253,6 +264,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"
     private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
     private static let vehicleProfilesDefaultsKey = "mblink.vehicleProfiles.v1"
+    private static let selectedVehicleVINDefaultsKey = "mblink.selectedVehicleVIN.v1"
+    private static let pidSelectionsByVehicleDefaultsKey =
+        "mblink.pidSelectionsByVehicle.v1"
     private var pidSupportByModule = [String: Set<UInt8>]()
     private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
@@ -307,6 +321,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     override init() {
         super.init()
+        selectedVehicleVIN = UserDefaults.standard.string(
+            forKey: Self.selectedVehicleVINDefaultsKey)
         applyStoredPollingPolicy()
         controller.delegate = self
         mercedesTargetSignals = loadMercedesTargetSignals()
@@ -378,11 +394,22 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             sourceLabel: "\(module.name) · \(module.addressText)")
     }
 
-    func pidConfigurationItems(moduleID: String) -> [PIDConfigurationItem] {
-        let supported = pidSupportByModule[moduleID] ?? []
-        guard !supported.isEmpty else { return [] }
+    func pidConfigurationModule(id: String) -> DiagnosticModule? {
+        pidConfigurationModules.first { $0.id == id }
+    }
 
-        let enabled = storedPollingKeys()
+    func selectSavedVehicle(vin: String) {
+        guard savedVehicleProfiles.contains(where: { $0.vin == vin }) else { return }
+        selectedVehicleVIN = vin
+        UserDefaults.standard.set(vin, forKey: Self.selectedVehicleVINDefaultsKey)
+        refreshPIDConfiguration()
+        applyConfiguredPollingForSelectedVehicle()
+        refreshPresentation()
+    }
+
+    func pidConfigurationItems(moduleID: String) -> [PIDConfigurationItem] {
+        let advertised = pidSupportByModule[moduleID] ?? []
+        let selected = modulePIDSelectionSet(moduleID: moduleID)
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
 
@@ -392,7 +419,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             let metadata = definition.pointee
             guard metadata.mode == 0x01 else { continue }
             let pid = metadata.pid
-            guard (pid & 0x1F) != 0, supported.contains(pid) else { continue }
+            // 00/20/40/... are bitmap capability queries, not user data values.
+            guard (pid & 0x1F) != 0 else { continue }
 
             let scalar = mblink_parameter_obd2_definition(pid)
             let title = scalar != nil
@@ -407,8 +435,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 pid: pid,
                 shortName: shortName,
                 title: title,
-                pollingEnabled: enabled.contains(stableKey),
-                favourite: controller.favourite(forPID: pid)))
+                pollingEnabled: selected.contains(stableKey),
+                favourite: controller.favourite(forPID: pid),
+                advertised: advertised.contains(pid)))
         }
         return result.sorted {
             if $0.pid != $1.pid { return $0.pid < $1.pid }
@@ -416,23 +445,37 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
     }
 
+    func setPIDSelection(
+        _ enabled: Bool,
+        moduleID: String,
+        stableKey: String
+    ) {
+        guard pidForStableKey(stableKey) != nil else { return }
+        var selection = modulePIDSelectionSet(moduleID: moduleID)
+        if enabled { selection.insert(stableKey) }
+        else { selection.remove(stableKey) }
+        storeModulePIDSelection(selection, moduleID: moduleID)
+        applyConfiguredPollingForSelectedVehicle()
+        refreshPresentation()
+        refreshPIDConfiguration()
+    }
+
     func setPolling(_ enabled: Bool, moduleID: String) {
         let items = pidConfigurationItems(moduleID: moduleID)
         guard !items.isEmpty else { return }
-
-        var enabledKeys = storedPollingKeys()
-        for item in items {
-            if enabled { enabledKeys.insert(item.id) }
-            else { enabledKeys.remove(item.id) }
-            controller.setPollingEnabled(enabled, forPID: item.pid)
-        }
-        UserDefaults.standard.set(
-            Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)
-        refresh()
+        let selection = enabled ? Set(items.map(\.id)) : Set<String>()
+        storeModulePIDSelection(selection, moduleID: moduleID)
+        applyConfiguredPollingForSelectedVehicle()
+        refreshPresentation()
+        refreshPIDConfiguration()
     }
 
     var configuredPollingCount: Int {
-        storedPollingKeys().count
+        guard let vin = effectivePIDConfigurationVIN else {
+            return storedPollingKeys().count
+        }
+        let modules = storedPIDSelectionsByVehicle()[vin] ?? [:]
+        return Set(modules.values.flatMap { $0 }).count
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -561,6 +604,132 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     private func clearPreparedExport() {
         if let url = csvExportURL { try? FileManager.default.removeItem(at: url) }
         csvExportURL = nil
+    }
+
+    private var effectivePIDConfigurationVIN: String? {
+        if let liveVIN = controller.mercedesVINText, liveVIN.count == 17 {
+            return liveVIN
+        }
+        return selectedVehicleVIN
+    }
+
+    private func storedPIDSelectionsByVehicle() -> [String: [String: [String]]] {
+        guard let root = UserDefaults.standard.dictionary(
+            forKey: Self.pidSelectionsByVehicleDefaultsKey) else {
+            return [:]
+        }
+        var result = [String: [String: [String]]]()
+        for (vin, rawModules) in root {
+            guard let modules = rawModules as? [String: Any] else { continue }
+            var parsed = [String: [String]]()
+            for (moduleID, rawValues) in modules {
+                if let values = rawValues as? [String] {
+                    parsed[moduleID] = values
+                }
+            }
+            result[vin] = parsed
+        }
+        return result
+    }
+
+    private func modulePIDSelectionSet(moduleID: String) -> Set<String> {
+        guard let vin = effectivePIDConfigurationVIN else {
+            return storedPollingKeys()
+        }
+        let root = storedPIDSelectionsByVehicle()
+        if let values = root[vin]?[moduleID] {
+            return Set(values)
+        }
+        // Migrate the old global selection lazily until this module is edited.
+        return storedPollingKeys()
+    }
+
+    private func storeModulePIDSelection(
+        _ selection: Set<String>,
+        moduleID: String
+    ) {
+        guard let vin = effectivePIDConfigurationVIN else {
+            UserDefaults.standard.set(
+                Array(selection).sorted(), forKey: Self.pollingDefaultsKey)
+            return
+        }
+
+        var root = storedPIDSelectionsByVehicle()
+        var vehicle = root[vin] ?? [:]
+        vehicle[moduleID] = Array(selection).sorted()
+        root[vin] = vehicle
+        UserDefaults.standard.set(
+            root, forKey: Self.pidSelectionsByVehicleDefaultsKey)
+    }
+
+    private func applyConfiguredPollingForSelectedVehicle() {
+        let selectedKeys: Set<String>
+        if let vin = effectivePIDConfigurationVIN {
+            let root = storedPIDSelectionsByVehicle()
+            if let vehicle = root[vin], !vehicle.isEmpty {
+                selectedKeys = Set(vehicle.values.flatMap { $0 })
+            } else {
+                selectedKeys = storedPollingKeys()
+            }
+        } else {
+            selectedKeys = storedPollingKeys()
+        }
+
+        // Keep the legacy/global polling key in sync with the union so the
+        // existing live-data engine continues to poll each requested Mode 01
+        // PID once, while the UI selection itself remains controller-specific.
+        UserDefaults.standard.set(
+            Array(selectedKeys).sorted(), forKey: Self.pollingDefaultsKey)
+
+        let count = mblink_obd2_pid_definition_count()
+        guard count > 0 else { return }
+        for index in 0..<count {
+            guard let definition = mblink_obd2_pid_definition_at(index) else { continue }
+            let metadata = definition.pointee
+            guard metadata.mode == 0x01 else { continue }
+            let pid = metadata.pid
+            guard (pid & 0x1F) != 0 else { continue }
+            controller.setPollingEnabled(
+                selectedKeys.contains(standardStableKey(for: pid)),
+                forPID: pid)
+        }
+    }
+
+    private func refreshSavedVehicleProfiles() {
+        let profiles = UserDefaults.standard.dictionary(
+            forKey: Self.vehicleProfilesDefaultsKey) ?? [:]
+        var summaries = [SavedVehicleProfileSummary]()
+        for (key, value) in profiles {
+            guard let profile = value as? [String: Any] else { continue }
+            let vin = (profile["vin"] as? String) ?? key
+            guard vin.count == 17 else { continue }
+            let modules = profile["modules"] as? [[String: Any]] ?? []
+            let responders = profile["liveResponders"] as? [[String: Any]] ?? []
+            let timestamp = (profile["updatedAt"] as? NSNumber)?.doubleValue
+            summaries.append(SavedVehicleProfileSummary(
+                id: vin,
+                vin: vin,
+                moduleCount: modules.count,
+                responderCount: responders.count,
+                updatedAt: timestamp.map { Date(timeIntervalSince1970: $0) }))
+        }
+        savedVehicleProfiles = summaries.sorted {
+            ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
+        }
+
+        if let selectedVehicleVIN,
+           savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+            return
+        }
+        if let newest = savedVehicleProfiles.first {
+            selectedVehicleVIN = newest.vin
+            UserDefaults.standard.set(
+                newest.vin, forKey: Self.selectedVehicleVINDefaultsKey)
+        } else {
+            selectedVehicleVIN = nil
+            UserDefaults.standard.removeObject(
+                forKey: Self.selectedVehicleVINDefaultsKey)
+        }
     }
 
     private func storedPollingKeys() -> Set<String> {
@@ -1076,13 +1245,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                     "Connect once to learn which PIDs each controller supports")
         }
 
-        let currentVIN = mercedesVINText.count == 17 ? mercedesVINText : nil
-        var selectedVIN: String?
+        let liveVIN = controller.mercedesVINText
+        var selectedVIN: String? =
+            (liveVIN?.count == 17 ? liveVIN : selectedVehicleVIN)
         var selectedProfile: [String: Any]?
 
-        if let currentVIN,
-           let profile = profiles[currentVIN] as? [String: Any] {
-            selectedVIN = currentVIN
+        if let vin = selectedVIN,
+           let profile = profiles[vin] as? [String: Any] {
             selectedProfile = profile
         } else {
             for (vin, value) in profiles {
@@ -1213,7 +1382,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         let label: String
         if let vin = selectedVIN, vin.count == 17 {
-            label = "Saved vehicle profile · (modules.count) controllers · available offline"
+            label = "Saved vehicle profile · \(modules.count) controllers · available offline"
         } else {
             label = "Saved vehicle profile · available offline"
         }
@@ -1426,6 +1595,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         isActive = controller.isActive
         isReady = controller.isReady
+        refreshSavedVehicleProfiles()
+        if let liveVIN = controller.mercedesVINText, liveVIN.count == 17,
+           selectedVehicleVIN != liveVIN {
+            selectedVehicleVIN = liveVIN
+            UserDefaults.standard.set(
+                liveVIN, forKey: Self.selectedVehicleVINDefaultsKey)
+        }
         diagnosticModules = loadDiagnosticModules()
         refreshPIDConfiguration()
         diagnosticParameters = loadPrimaryDiagnosticParameters()
