@@ -68,7 +68,7 @@ static const MblinkMercedesBaumusterDefinition mercedes_baumuster[] = {
     {"207367","C207","207","Coupe","E 400 4MATIC","M276.820","M276",MBLINK_MERCEDES_FUEL_PETROL,2996U,245U,"2013-2016","Mercedes club model guide",0U,NULL},
     {"207372","C207","207","Coupe","E 500","M273.966","M273",MBLINK_MERCEDES_FUEL_PETROL,5461U,285U,"2009-2011","Mercedes club/aftermarket catalogues",0U,NULL},
     {"207373","C207","207","Coupe","E 500 / E 550 CGI","M278.922","M278",MBLINK_MERCEDES_FUEL_PETROL,4663U,300U,"2011-2016","Mercedes club/aftermarket catalogues",0U,NULL},
-    {"207388","C207","207","Coupe","E 350 4MATIC","M276.957","M276",MBLINK_MERCEDES_FUEL_PETROL,3498U,225U,"2013-2016","Mercedes club/aftermarket catalogues"}
+    {"207388","C207","207","Coupe","E 350 4MATIC","M276.957","M276",MBLINK_MERCEDES_FUEL_PETROL,3498U,225U,"2013-2016","Mercedes club/aftermarket catalogues",0U,NULL}
 };
 
 static bool vin_character_valid(char value)
