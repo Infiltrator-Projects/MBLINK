@@ -382,21 +382,21 @@ static int test_egs53(void)
     CHECK(sbw.selector_sensor_percent == 50.0);
 
     memset(payload, 0, sizeof(payload));
-    put_bits(payload, 0U, 8U, UINT32_C('D'));
-    put_bits(payload, 8U, 8U, UINT32_C('S'));
+    put_bits(payload, 0U, 8U, (uint32_t)'D');
+    put_bits(payload, 8U, 8U, (uint32_t)'S');
     put_bits(payload, 16U, 1U, 1U);
     put_bits(payload, 17U, 2U, 1U);
     put_bits(payload, 21U, 3U, 4U);
-    put_bits(payload, 40U, 8U, UINT32_C('7'));
+    put_bits(payload, 40U, 8U, (uint32_t)'7');
     put_bits(payload, 48U, 3U, 2U);
     CHECK(mblink_mercedes_transmission_decode_egs53_tcm_display_request(
         payload, sizeof(payload), &display));
-    CHECK(display.display_position_code == UINT8_C('D'));
-    CHECK(display.display_program_code == UINT8_C('S'));
+    CHECK(display.display_position_code == (uint8_t)'D');
+    CHECK(display.display_program_code == (uint8_t)'S');
     CHECK(display.shift_by_wire_beep_request);
     CHECK(display.shift_recommendation == 1U);
     CHECK(display.shift_by_wire_message == 4U);
-    CHECK(display.target_gear_display_code == UINT8_C('7'));
+    CHECK(display.target_gear_display_code == (uint8_t)'7');
     CHECK(display.race_start_display_state == 2U);
     return 0;
 }
