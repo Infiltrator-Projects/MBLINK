@@ -23,6 +23,7 @@
 		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
 		E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0C /* discover_plan.c */; };
 		E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A12 /* data_scan.c */; };
+		E0A1B2C3D4E5F60718293B13 /* transmission.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A13 /* transmission.c */; };
 		E0A1B2C3D4E5F60718293B0F /* mercedes_vin.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0F /* mercedes_vin.c */; };
 		E0A1B2C3D4E5F60718293B10 /* LinkDiagnosticsController.m in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A10 /* LinkDiagnosticsController.m */; };
 		E0A1B2C3D4E5F60718293B99 /* LinkDiagnosticUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A99 /* LinkDiagnosticUI.swift */; };
@@ -110,6 +111,7 @@
 		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0C /* discover_plan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "discover_plan.c"; path = "../../src/mercedes/discover_plan.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A12 /* data_scan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "data_scan.c"; path = "../../src/mercedes/data_scan.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A13 /* transmission.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "transmission.c"; path = "../../src/mercedes/transmission.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0F /* mercedes_vin.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_vin.c"; path = "../../src/mercedes/vin.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A10 /* LinkDiagnosticsController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = "LinkDiagnosticsController.m"; path = "../../src/link/platform/apple/LinkDiagnosticsController.m"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A99 /* LinkDiagnosticUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LinkDiagnosticUI.swift"; path = "../../src/link/platform/apple/LinkDiagnosticUI.swift"; sourceTree = SOURCE_ROOT; };
@@ -525,6 +527,7 @@
 				E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */,
 				E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */,
 				E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */,
+				E0A1B2C3D4E5F60718293B13 /* transmission.c in Sources */,
 				E0A1B2C3D4E5F60718293B0F /* mercedes_vin.c in Sources */,
 				E0A1B2C3D4E5F60718293B10 /* LinkDiagnosticsController.m in Sources */,
 				E0A1B2C3D4E5F60718293B0D /* link_sweep.c in Sources */,
