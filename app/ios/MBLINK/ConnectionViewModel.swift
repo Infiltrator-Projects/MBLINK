@@ -893,26 +893,48 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 qualityNote: "Mercedes extended PID 0x2130 · source-corroborated; this value is shown only after a real positive response"))
 
             /*
-             * The same 21 30 packet is community-proven to carry current gear
-             * in the low nibble of complete response byte F. The controller's
-             * rawHex begins after 61 30, so that nibble is payload byte 3.
-             * Forward gears/N are unambiguous. Community P/R labels disagree
-             * with the Mercedes broadcast enum, so preserve those two raw
-             * codes explicitly until the C207 capture tells us which is which.
+             * Two source-backed 21 30 payload layouts are supported.
+             *
+             * DAS-compatible EGS52 RLI 30 is at least 24 bytes after 61 30;
+             * byte 10 packs actual gear in the low nibble and target gear in
+             * the high nibble, using the documented Mercedes gear enum.
+             *
+             * The shorter community 722.9 custom-PID layout carries its
+             * current-gear nibble at byte 3. Its forward gears/N are useful,
+             * but published P/R labels conflict, so those codes stay explicit
+             * candidates rather than being guessed.
              */
             let hex = temperature.rawHex
-            if hex.count >= 8 {
-                let start = hex.index(hex.startIndex, offsetBy: 6)
+            let fullRLI30 = hex.count >= 48
+            let gearByteOffset = fullRLI30 ? 10 : 3
+            let characterOffset = gearByteOffset * 2
+            if hex.count >= characterOffset + 2 {
+                let start = hex.index(hex.startIndex, offsetBy: characterOffset)
                 let end = hex.index(start, offsetBy: 2)
                 if let byte = UInt8(hex[start..<end], radix: 16) {
                     let code = byte & 0x0F
                     let gearText: String
-                    switch code {
-                    case 0: gearText = "N"
-                    case 1...7: gearText = "\(code)"
-                    case 11: gearText = "P/R candidate · code 0xB"
-                    case 13: gearText = "P/R candidate · code 0xD"
-                    default: gearText = String(format: "Code 0x%X", code)
+                    if fullRLI30 {
+                        switch code {
+                        case 0: gearText = "N"
+                        case 1...7: gearText = "\(code)"
+                        case 8: gearText = "D-CVT"
+                        case 9: gearText = "R-CVT"
+                        case 10: gearText = "R3"
+                        case 11: gearText = "R"
+                        case 12: gearText = "R2"
+                        case 13: gearText = "P"
+                        case 14: gearText = "No force"
+                        default: gearText = "Unavailable"
+                        }
+                    } else {
+                        switch code {
+                        case 0: gearText = "N"
+                        case 1...7: gearText = "\(code)"
+                        case 11: gearText = "P/R candidate · code 0xB"
+                        case 13: gearText = "P/R candidate · code 0xD"
+                        default: gearText = String(format: "Code 0x%X", code)
+                        }
                     }
                     parameters.append(DiagnosticParameter(
                         id: "mercedes.transmission.actual_gear",
@@ -931,7 +953,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                         pollingEnabled: true,
                         history: [],
                         sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
-                        qualityNote: "Mercedes 0x2130 current-gear nibble · read-only community mapping; P/R codes retained until vehicle-confirmed"))
+                        qualityNote: fullRLI30
+                            ? "Mercedes EGS52 RLI 0x30 actual-gear nibble · source-backed DAS-compatible layout"
+                            : "Mercedes 0x2130 compact current-gear nibble · read-only community mapping; P/R codes retained until family-confirmed"))
                 }
             }
         }
