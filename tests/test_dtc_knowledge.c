@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/obd2.h"
+#include "mblink/mercedes.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -59,6 +60,46 @@ int main(void)
     check(!fault.definition_known &&
           fault.origin == MBLINK_DTC_ORIGIN_STANDARD_CONTROLLED,
           "unassigned standard-controlled code is explicit rather than fabricated");
+
+    {
+        MblinkMercedesReferenceDtcKnowledge mercedes;
+        const MblinkMercedesReferenceDtcDefinition *subcode;
+
+        check(mblink_mercedes_reference_dtc_count() == 299U,
+              "all supplied Mercedes reference rows are compiled into MBLINK");
+
+        check(mblink_mercedes_reference_dtc_resolve("P1031", &mercedes),
+              "unique Mercedes P1 reference resolves");
+        check(!mercedes.ambiguous && mercedes.match_count == 1U,
+              "unique Mercedes reference is not marked ambiguous");
+        check(strstr(mercedes.title, "oxygen sensor") != NULL,
+              "P1031 supplied meaning reaches the reference resolver");
+
+        check(mblink_mercedes_reference_dtc_resolve("B1000", &mercedes),
+              "duplicate Mercedes body code resolves as a reference set");
+        check(mercedes.ambiguous && mercedes.match_count == 3U,
+              "B1000 preserves conflicting supplied meanings");
+
+        check(mblink_mercedes_reference_dtc_resolve("P2004", &mercedes),
+              "multi-meaning Mercedes P2004 reference resolves");
+        check(mercedes.ambiguous &&
+              mblink_mercedes_reference_dtc_match_count("P2004", NULL) == 3U,
+              "P2004 base meanings are retained instead of overwritten");
+
+        check(mblink_mercedes_reference_dtc_match_count("P2002", "02") == 1U,
+              "Mercedes subcode 02 is independently addressable");
+        subcode = mblink_mercedes_reference_dtc_match_at("P2002", "02", 0U);
+        check(subcode != NULL &&
+              strstr(subcode->description, "Throttle pedal") != NULL,
+              "P2002/02 supplied subcode meaning is retained");
+
+        check(mblink_mercedes_reference_dtc_resolve("N1112", &mercedes) &&
+              !mercedes.ambiguous,
+              "Mercedes N-family reference code is retained");
+
+        check(mblink_mercedes_reference_dtc_match_count("P0401", NULL) == 0U,
+              "generic SAE P0401 is not duplicated into Mercedes reference data");
+    }
 
     check(mblink_dtc_format_uds_status(0x0dU, status, sizeof(status)),
           "shared UDS status formatting reaches MBLINK");
