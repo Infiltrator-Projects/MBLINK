@@ -1439,7 +1439,8 @@ static bool MBLinkSimulatorResponder(
     NSSet<NSNumber *> *known = [NSSet setWithArray:
         [self runtimeManufacturerDataIdentifiersForModule:module
                                                 identifier:identifier]];
-    NSMutableArray<NSNumber *> *candidates = [[NSMutableArray alloc] init];
+    NSMutableOrderedSet<NSNumber *> *candidates =
+        [[NSMutableOrderedSet alloc] init];
 
     if (MBLinkMercedesModuleIsTransmissionController(module) &&
         mblink_mercedes_module_scan_entry_protocol(module) ==
@@ -1492,7 +1493,29 @@ static bool MBLinkSimulatorResponder(
         }
         [candidates addObject:number];
     }
-    return [candidates copy];
+    const size_t evidenceCount =
+        mblink_mercedes_route_evidence_identifier_count(
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            protocol, module->kind);
+    for (size_t index = 0U; index < evidenceCount; ++index) {
+        const MblinkMercedesRouteEvidenceEntry *entry =
+            mblink_mercedes_route_evidence_identifier_at(
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                protocol, module->kind, index);
+        if (entry == NULL || !entry->live) continue;
+        NSNumber *number = @(entry->identifier);
+        if ([known containsObject:number]) continue;
+
+        NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
+            identifier, (unsigned int)entry->identifier];
+        if ([_automaticManufacturerCandidateAttempts
+                containsObject:attemptKey]) {
+            continue;
+        }
+        [candidates addObject:number];
+    }
+
+    return [candidates array];
 }
 
 - (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
@@ -1773,6 +1796,11 @@ static bool MBLinkSimulatorResponder(
             mblink_mercedes_module_scan_entry_protocol(module));
     const BOOL profiledControllerModule =
         controllerProfileKey != NULL && controllerProfileCount != 0U;
+    const size_t routeEvidenceCount =
+        mblink_mercedes_route_evidence_identifier_count(
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            mblink_mercedes_module_scan_entry_protocol(module),
+            module->kind);
 
     BOOL targetedRefresh =
         !_manufacturerDataForceFullScan &&
@@ -1862,43 +1890,56 @@ static bool MBLinkSimulatorResponder(
             result = mblink_mercedes_data_scan_begin(
                 &_manufacturerDataScan, &config);
         }
-    } else if (profiledTransmissionModule &&
-               !_manufacturerDataForceFullScan && !liveOnly) {
+    } else if (!_manufacturerDataForceFullScan && !liveOnly &&
+               (profiledTransmissionModule ||
+                profiledControllerModule ||
+                routeEvidenceCount != 0U)) {
         /*
-         * A transmission ECU owns its diagnostic namespace. Select the
-         * controller family first, then probe only that family's source-backed
-         * local identifiers. Unsupported families never inherit EGS52 RLIs.
+         * One de-duplicated read-only plan combines controller-family
+         * knowledge with exact-route positive field evidence. The latter is
+         * semantic-free: it exists only so stricter classification cannot
+         * discard data already proven on this physical ECU.
          */
-        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
-        size_t identifierCount = 0U;
-        const size_t sourceCount =
-            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-                transmissionFamily);
-        for (size_t index = 0U;
-             index < sourceCount &&
-             identifierCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
-             ++index) {
-            identifiers[identifierCount++] = (uint16_t)
-                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
-                    transmissionFamily, index);
+        NSMutableOrderedSet<NSNumber *> *probeIDs =
+            [[NSMutableOrderedSet alloc] init];
+
+        if (profiledTransmissionModule) {
+            const size_t sourceCount =
+                mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+                    transmissionFamily);
+            for (size_t index = 0U; index < sourceCount; ++index) {
+                [probeIDs addObject:@((uint16_t)
+                    mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+                        transmissionFamily, index))];
+            }
         }
-        result = mblink_mercedes_data_scan_begin_probe_identifiers(
-            &_manufacturerDataScan, &config, identifiers, identifierCount);
-    } else if (profiledControllerModule &&
-               !_manufacturerDataForceFullScan && !liveOnly) {
+        if (profiledControllerModule) {
+            for (size_t index = 0U; index < controllerProfileCount; ++index) {
+                const MblinkMercedesControllerDataProfileEntry *entry =
+                    mblink_mercedes_controller_data_profile_identifier_at(
+                        controllerProfileKey,
+                        mblink_mercedes_module_scan_entry_protocol(module),
+                        index);
+                if (entry != NULL) [probeIDs addObject:@(entry->identifier)];
+            }
+        }
+        for (size_t index = 0U; index < routeEvidenceCount; ++index) {
+            const MblinkMercedesRouteEvidenceEntry *entry =
+                mblink_mercedes_route_evidence_identifier_at(
+                    module->tx_can_id, module->rx_can_id,
+                    module->extended_id,
+                    mblink_mercedes_module_scan_entry_protocol(module),
+                    module->kind, index);
+            if (entry != NULL) [probeIDs addObject:@(entry->identifier)];
+        }
+
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
-        for (size_t index = 0U;
-             index < controllerProfileCount &&
-             identifierCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
-             ++index) {
-            const MblinkMercedesControllerDataProfileEntry *entry =
-                mblink_mercedes_controller_data_profile_identifier_at(
-                    controllerProfileKey,
-                    mblink_mercedes_module_scan_entry_protocol(module),
-                    index);
-            if (entry != NULL)
-                identifiers[identifierCount++] = entry->identifier;
+        for (NSNumber *number in probeIDs) {
+            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+                break;
+            identifiers[identifierCount++] =
+                (uint16_t)number.unsignedIntegerValue;
         }
         if (identifierCount != 0U) {
             result = mblink_mercedes_data_scan_begin_probe_identifiers(

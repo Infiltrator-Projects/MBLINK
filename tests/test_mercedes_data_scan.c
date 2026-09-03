@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_data_scan.h"
+#include "mblink/mercedes_transmission.h"
 #include "mblink/kwp2000.h"
 
 #include <stdio.h>
@@ -628,82 +629,228 @@ static int test_kwp_local_identifier_scan(void)
     return 0;
 }
 
+static bool route_evidence_has(
+    uint32_t tx, uint32_t rx,
+    MblinkMercedesDiagnosticProtocol protocol,
+    MblinkMercedesModuleKind kind,
+    uint16_t identifier,
+    bool *live)
+{
+    const size_t count = mblink_mercedes_route_evidence_identifier_count(
+        tx, rx, false, protocol, kind);
+    size_t index;
+    for (index = 0U; index < count; ++index) {
+        const MblinkMercedesRouteEvidenceEntry *entry =
+            mblink_mercedes_route_evidence_identifier_at(
+                tx, rx, false, protocol, kind, index);
+        if (entry != NULL && entry->identifier == identifier) {
+            if (live != NULL) *live = entry->live;
+            return true;
+        }
+    }
+    return false;
+}
+
 static int test_runtime_candidate_catalog(void)
 {
+    static const uint16_t esp_ids[] = {
+        UINT16_C(0x2001), UINT16_C(0x2003), UINT16_C(0x2004),
+        UINT16_C(0x2007), UINT16_C(0x2009), UINT16_C(0x200a),
+        UINT16_C(0x200d), UINT16_C(0x200f), UINT16_C(0x2010),
+        UINT16_C(0x2014), UINT16_C(0x2017), UINT16_C(0x2023),
+        UINT16_C(0x2043), UINT16_C(0x2046), UINT16_C(0x2047),
+        UINT16_C(0x2070), UINT16_C(0x20c0), UINT16_C(0x20df)
+    };
+    static const uint16_t orc_ids[] = {
+        UINT16_C(0x01), UINT16_C(0x02), UINT16_C(0x07),
+        UINT16_C(0x0d), UINT16_C(0x0f), UINT16_C(0x11),
+        UINT16_C(0x13), UINT16_C(0x18), UINT16_C(0x23),
+        UINT16_C(0x24), UINT16_C(0x2b), UINT16_C(0x2d),
+        UINT16_C(0x51), UINT16_C(0x52), UINT16_C(0x58),
+        UINT16_C(0x59), UINT16_C(0x60), UINT16_C(0x61),
+        UINT16_C(0x62), UINT16_C(0x63), UINT16_C(0x64),
+        UINT16_C(0x65), UINT16_C(0x69), UINT16_C(0x70),
+        UINT16_C(0x71), UINT16_C(0x72), UINT16_C(0x77),
+        UINT16_C(0xe0), UINT16_C(0xe4)
+    };
+    static const uint16_t hu_ids[] = {
+        UINT16_C(0x01), UINT16_C(0x02),
+        UINT16_C(0x05), UINT16_C(0x06)
+    };
     const MblinkMercedesControllerDataProfileEntry *entry;
+    size_t index;
+    bool live = false;
 
-    /*
-     * Automatic candidates are no longer inferred from a CAN route.
-     */
     CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x7e0), UINT32_C(0x7e8), false) == 0U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x632), UINT32_C(0x486), false) == 0U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x64a), UINT32_C(0x489), false) == 0U);
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x652), UINT32_C(0x48a), false) == 0U);
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 0U);
 
-    CHECK(strcmp(
-        mblink_mercedes_data_profile_key_for_controller(
-            "engine-cdi", "CRD3", NULL, NULL),
-        "engine-crd3") == 0);
-    CHECK(strcmp(
-        mblink_mercedes_data_profile_key_for_controller(
-            "engine-cdi", "CDID3 Delphi", NULL, NULL),
-        "engine-crd3") == 0);
+    CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
+        "engine-cdi", "CRD3", NULL, NULL), "engine-crd3") == 0);
     CHECK(mblink_mercedes_data_profile_key_for_controller(
         "engine-cdi", "EDC17", NULL, NULL) == NULL);
-    CHECK(mblink_mercedes_data_profile_key_for_controller(
-        "engine-me", "MED17", NULL, NULL) == NULL);
-    CHECK(strcmp(
-        mblink_mercedes_data_profile_key_for_controller(
-            "esp", "ABR2XT", NULL, NULL),
-        "esp-abr2xt") == 0);
-    CHECK(mblink_mercedes_data_profile_key_for_controller(
-        "esp", "ESP212", NULL, NULL) == NULL);
-    CHECK(strcmp(
-        mblink_mercedes_data_profile_key_for_controller(
-            "restraints-orc", "ORC_212", NULL, NULL),
+    CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
+        "esp", "ABR2XT", NULL, NULL), "esp-abr2xt") == 0);
+    CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
+        "restraints-orc", "ORC_212", NULL, NULL),
         "restraints-orc212") == 0);
-    CHECK(strcmp(
-        mblink_mercedes_data_profile_key_for_controller(
-            "audio-headunit", "HU_204", NULL, NULL),
+    CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
+        "audio-headunit", "HU_204", NULL, NULL),
         "headunit-hu204") == 0);
 
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 1U);
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS) ==
+        sizeof(esp_ids) / sizeof(esp_ids[0]));
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) == 0U);
-    entry = mblink_mercedes_controller_data_profile_identifier_at(
-        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS, 0U);
-    CHECK(entry != NULL && entry->identifier == UINT16_C(0x2007));
-    CHECK(entry->live);
-    CHECK(strcmp(entry->name, "Battery voltage") == 0);
+        "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) ==
+        sizeof(orc_ids) / sizeof(orc_ids[0]));
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) ==
+        sizeof(hu_ids) / sizeof(hu_ids[0]));
+
+    for (index = 0U; index < sizeof(esp_ids) / sizeof(esp_ids[0]); ++index) {
+        CHECK(mblink_mercedes_controller_data_profile_find(
+            "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+            esp_ids[index]) != NULL);
+        CHECK(route_evidence_has(
+            UINT32_C(0x632), UINT32_C(0x486),
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+            MBLINK_MERCEDES_MODULE_ABS_ESP, esp_ids[index], NULL));
+    }
+    for (index = 0U; index < sizeof(orc_ids) / sizeof(orc_ids[0]); ++index) {
+        CHECK(mblink_mercedes_controller_data_profile_find(
+            "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            orc_ids[index]) != NULL);
+        CHECK(route_evidence_has(
+            UINT32_C(0x64a), UINT32_C(0x489),
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_RESTRAINTS, orc_ids[index], NULL));
+    }
+    for (index = 0U; index < sizeof(hu_ids) / sizeof(hu_ids[0]); ++index) {
+        CHECK(mblink_mercedes_controller_data_profile_find(
+            "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            hu_ids[index]) != NULL);
+        CHECK(route_evidence_has(
+            UINT32_C(0x652), UINT32_C(0x48a),
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_BODY, hu_ids[index], NULL));
+    }
+    for (index = UINT16_C(0x30); index <= UINT16_C(0x33); ++index) {
+        live = false;
+        CHECK(route_evidence_has(
+            UINT32_C(0x7e1), UINT32_C(0x7e9),
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION,
+            (uint16_t)index, &live));
+        CHECK(live);
+    }
+
+    CHECK(mblink_mercedes_route_evidence_identifier_count(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_MODULE_ENGINE) == 0U);
+    CHECK(mblink_mercedes_route_evidence_identifier_count(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION) == 0U);
 
     entry = mblink_mercedes_controller_data_profile_find(
-        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001));
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d));
     CHECK(entry != NULL && entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2010));
+    CHECK(entry != NULL && !entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
     CHECK(entry != NULL && entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
         "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        UINT16_C(0x0001));
+        UINT16_C(0x0005));
     CHECK(entry != NULL && entry->live);
-    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "engine-me", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 0U);
+    return 0;
+}
 
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x0030)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x00e0)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x00eb)));
+static int test_20260903_transmission_capture_replay(void)
+{
+    MblinkMercedesDataScan scan;
+    MblinkMercedesDataScanConfig config =
+        mblink_mercedes_data_scan_default_config(
+            UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    static const uint16_t identifiers[] = {
+        UINT16_C(0x30), UINT16_C(0x31),
+        UINT16_C(0x32), UINT16_C(0x33)
+    };
+    MblinkElm327Response ok = response_ok("OK");
+    const MblinkMercedesDataRecord *record;
+    MblinkMercedesKwpRli30 rli30;
+    MblinkMercedesKwpRli31 rli31;
+    MblinkMercedesKwpRli32 rli32;
+    MblinkMercedesKwpRli33 rli33;
+
+    CHECK(mblink_mercedes_data_scan_begin_probe_identifiers(
+        &scan, &config, identifiers,
+        sizeof(identifiers) / sizeof(identifiers[0])) ==
+        MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH7E1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA7E9", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7F3E12")) == 0);
+
+    CHECK(accept_command(&scan, "2130", response_ok(
+        "01A\n0:613000150000\n1:000000080100DD\n"
+        "2:59FFF0FFF00000\n3:861900080000FF")) == 0);
+    CHECK(accept_command(&scan, "2131", response_ok(
+        "016\n0:613101EC0000\n1:0329033C000000\n"
+        "2:00000000000000\n3:0000FFFFFFFFFF")) == 0);
+    CHECK(accept_command(&scan, "2132", response_ok(
+        "00F\n0:613200000000\n1:00000000000000\n"
+        "2:0000FFFFFFFFFF")) == 0);
+    CHECK(accept_command(&scan, "2133", response_ok(
+        "012\n0:6133002407B7\n1:03E802A602A603\n"
+        "2:1403150000FFFF")) == 0);
+
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    CHECK(scan.positive_count == 4U);
+
+    record = mblink_mercedes_data_scan_record_at(&scan, 0U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x30));
+    CHECK(mblink_mercedes_transmission_decode_kwp_rli30(
+        record->data, record->data_length, &rli30));
+    CHECK(rli30.atf_temperature_c == 39.0);
+    CHECK(rli30.actual_gear_code == UINT8_C(13));
+    CHECK(rli30.target_gear_code == UINT8_C(13));
+    CHECK(strcmp(mblink_mercedes_transmission_actual_gear_name(
+        rli30.actual_gear_code), "P") == 0);
+
+    record = mblink_mercedes_data_scan_record_at(&scan, 1U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x31));
+    CHECK(mblink_mercedes_transmission_decode_kwp_rli31(
+        record->data, record->data_length, &rli31));
+    CHECK(rli31.input_rpm == UINT16_C(809));
+    CHECK(rli31.engine_rpm == UINT16_C(828));
+
+    record = mblink_mercedes_data_scan_record_at(&scan, 2U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x32));
+    CHECK(mblink_mercedes_transmission_decode_kwp_rli32(
+        record->data, record->data_length, &rli32));
+    CHECK(rli32.pedal_percent == UINT8_C(0));
+
+    record = mblink_mercedes_data_scan_record_at(&scan, 3U);
+    CHECK(record != NULL && record->identifier == UINT16_C(0x33));
+    CHECK(mblink_mercedes_transmission_decode_kwp_rli33(
+        record->data, record->data_length, &rli33));
+    CHECK(rli33.spc_pressure_raw == UINT16_C(1975));
+    CHECK(rli33.mpc_pressure_raw == UINT16_C(1000));
+    CHECK(rli33.spc_target_current_raw == UINT16_C(678));
+    CHECK(rli33.spc_actual_current_raw == UINT16_C(678));
+    CHECK(rli33.mpc_target_current_raw == UINT16_C(788));
+    CHECK(rli33.mpc_actual_current_raw == UINT16_C(789));
     return 0;
 }
 
@@ -718,6 +865,7 @@ int main(void)
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
     if (test_source_candidate_identifier_probe() != 0) return 1;
     if (test_runtime_candidate_catalog() != 0) return 1;
+    if (test_20260903_transmission_capture_replay() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;
 }

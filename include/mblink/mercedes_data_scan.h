@@ -173,6 +173,40 @@ mblink_mercedes_controller_data_profile_find(
     uint16_t identifier);
 
 /**
+ * Exact-route field evidence is a fallback, not a semantic definition.
+ *
+ * A read-only identifier that has already returned positively on an exact
+ * physical ECU route may be probed again even while that ECU's precise
+ * controller family is unresolved. Unsupported identifiers are attempted once
+ * and then discarded; positive results become normal module-owned raw values.
+ */
+typedef struct MblinkMercedesRouteEvidenceEntry {
+    uint32_t tx_can_id;
+    uint32_t rx_can_id;
+    bool extended_id;
+    MblinkMercedesDiagnosticProtocol protocol;
+    MblinkMercedesModuleKind module_kind;
+    uint16_t identifier;
+    bool live;
+    const char *provenance;
+} MblinkMercedesRouteEvidenceEntry;
+
+size_t mblink_mercedes_route_evidence_identifier_count(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    MblinkMercedesModuleKind module_kind);
+const MblinkMercedesRouteEvidenceEntry *
+mblink_mercedes_route_evidence_identifier_at(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    MblinkMercedesModuleKind module_kind,
+    size_t index);
+
+/**
  * Legacy compatibility only. Automatic probing must use controller profiles,
  * not route-derived candidates. These functions intentionally return no
  * candidates.
