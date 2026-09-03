@@ -235,6 +235,53 @@ static int full_unknown_11_bit_candidate_is_not_forced_to_plus_eight(void)
     return 0;
 }
 
+static int replay_20260903_unclassified_602_fault(void)
+{
+    MblinkMercedesModuleScan scan;
+    const MblinkC207RouteEvidence *evidence =
+        &mblink_c207_20260903_routes[0];
+    MblinkElm327Response session =
+        make_response(MBLINK_ELM327_RESULT_OK,
+                      evidence->session_response, false);
+    MblinkElm327Response tester =
+        make_response(MBLINK_ELM327_RESULT_OK,
+                      evidence->tester_present_response, false);
+    MblinkElm327Response dtc =
+        make_response(MBLINK_ELM327_RESULT_OK,
+                      evidence->dtc_response, false);
+
+    CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(mblink_mercedes_module_scan_set_full_target(
+              &scan, full_target_index_for_tx(evidence->tx_can_id)));
+    CHECK(scan.candidate_tx == UINT32_C(0x602));
+    CHECK(scan.candidate_rx == UINT32_C(0x480));
+    CHECK(scan.candidate_route_locked);
+
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE;
+    CHECK(accept_expected_ok(&scan, "ATCRA480") == 0);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION);
+    CHECK(accept_expected_response(&scan, "1003", &session) == 0);
+    CHECK(scan.module_count == 1U);
+
+    CHECK(accept_expected_response(&scan, "3E00", &tester) == 0);
+    CHECK(scan.module_count == 1U);
+    CHECK(accept_expected_response(&scan, "1902FF", &dtc) == 0);
+
+    CHECK(scan.modules[0].tx_can_id == UINT32_C(0x602));
+    CHECK(scan.modules[0].rx_can_id == UINT32_C(0x480));
+    CHECK(scan.modules[0].dtc_result ==
+          MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
+    CHECK(scan.modules[0].dtcs.availability_mask == UINT8_C(0x7b));
+    CHECK(scan.modules[0].dtcs.count == 1U);
+    CHECK(scan.modules[0].dtcs.records[0].code == UINT32_C(0xd18100));
+    CHECK(scan.modules[0].dtcs.records[0].status == UINT8_C(0x50));
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+    return 0;
+}
+
 static int replay_captured_kwp_module_faults(void)
 {
     MblinkMercedesModuleScan scan;
@@ -435,6 +482,7 @@ int main(void)
     if (replay_captured_full_scan_misses() != 0) return 1;
     if (replay_captured_negative_tester_present() != 0) return 1;
     if (full_unknown_11_bit_candidate_is_not_forced_to_plus_eight() != 0) return 1;
+    if (replay_20260903_unclassified_602_fault() != 0) return 1;
     if (replay_captured_kwp_module_faults() != 0) return 1;
     if (inject_restraint_fault_after_real_scan_shapes() != 0) return 1;
     puts("Captured C207 deep-scan replay tests passed");
