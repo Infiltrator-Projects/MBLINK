@@ -2933,7 +2933,7 @@ private struct MBSettingsView: View {
     }
 }
 
-private struct MBLanguageSelectionView: View {private struct MBLanguageSelectionView: View {
+private struct MBLanguageSelectionView: View {
     @Binding var selection: String
 
     var body: some View {
