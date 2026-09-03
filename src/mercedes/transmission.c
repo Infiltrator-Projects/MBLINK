@@ -19,6 +19,11 @@ static uint32_t extract_bits(uint64_t value, unsigned int offset,
     return (uint32_t)((value >> offset) & mask);
 }
 
+static uint16_t be16(const uint8_t *data)
+{
+    return (uint16_t)(((uint16_t)data[0] << 8U) | (uint16_t)data[1]);
+}
+
 static MblinkMercedesTorqueConverterState tcc_state(
     bool slipping, bool open, bool closed)
 {
@@ -50,12 +55,56 @@ bool mblink_mercedes_transmission_decode_2130(
 
     /*
      * Community 722.9/W164 evidence reports current gear in the low nibble
-     * of complete response byte F.  F is index 5 of the complete response,
-     * hence data[3] after stripping 61 30. Keep the raw 4-bit code so the UI
-     * can display every observed state without inventing P/R semantics.
+     * of complete response byte F. F is index 5 of the complete response,
+     * hence data[3] after stripping 61 30.
      */
     value.actual_gear_code_available = data_length >= 4U;
     value.actual_gear_code = (uint8_t)(data[3] & UINT8_C(0x0f));
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs51_gs218(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs51Gs218 *decoded)
+{
+    MblinkMercedesEgs51Gs218 value;
+    uint64_t raw;
+    bool slipping;
+    bool open;
+    bool closed;
+
+    if (payload == NULL || decoded == NULL || payload_length < 6U)
+        return false;
+    memset(&value, 0, sizeof(value));
+
+    raw = 0U;
+    for (size_t index = 0U; index < 6U; ++index)
+        raw |= ((uint64_t)payload[index]) << (index * 8U);
+
+    value.torque_request = (double)payload[0] * 0.5;
+    value.automatic_transmission = extract_bits(raw, 8U, 1U) == 0U;
+    value.gearbox_program_ok = extract_bits(raw, 10U, 1U) != 0U;
+    value.off_road = extract_bits(raw, 11U, 1U) != 0U;
+    value.park_or_neutral = extract_bits(raw, 12U, 1U) != 0U;
+    value.garage_shift = extract_bits(raw, 13U, 1U) != 0U;
+    value.start_enabled = extract_bits(raw, 14U, 1U) != 0U;
+    value.torque_request_enabled = extract_bits(raw, 15U, 1U) != 0U;
+    value.target_gear_code = (uint8_t)extract_bits(raw, 16U, 4U);
+    value.actual_gear_code = (uint8_t)extract_bits(raw, 20U, 4U);
+    slipping = extract_bits(raw, 24U, 1U) != 0U;
+    open = extract_bits(raw, 25U, 1U) != 0U;
+    closed = extract_bits(raw, 26U, 1U) != 0U;
+    value.torque_converter = tcc_state(slipping, open, closed);
+    value.large_gearbox = extract_bits(raw, 27U, 1U) != 0U;
+    value.limp_home = extract_bits(raw, 28U, 1U) != 0U;
+    value.shifting = extract_bits(raw, 29U, 1U) != 0U;
+    value.kickdown = extract_bits(raw, 30U, 1U) != 0U;
+    value.front_wheel_drive = extract_bits(raw, 31U, 1U) != 0U;
+    value.tcc_torque_multiplier_raw = payload[4];
+    value.error_counter = (uint8_t)extract_bits(raw, 44U, 4U);
 
     *decoded = value;
     return true;
@@ -68,31 +117,49 @@ bool mblink_mercedes_transmission_decode_gs218(
 {
     MblinkMercedesGs218 value;
     uint64_t raw;
-    bool tcc_slipping;
-    bool tcc_open;
-    bool tcc_closed;
+    bool slipping;
+    bool open;
+    bool closed;
 
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
     raw = payload_le64(payload);
 
+    value.engine_torque_toggle = extract_bits(raw, 0U, 1U) != 0U;
+    value.engine_torque_request_min = extract_bits(raw, 1U, 1U) != 0U;
+    value.engine_torque_request_max = extract_bits(raw, 2U, 1U) != 0U;
+    value.requested_engine_torque_raw =
+        (uint16_t)extract_bits(raw, 3U, 13U);
     value.target_gear_code = (uint8_t)extract_bits(raw, 16U, 4U);
     value.actual_gear_code = (uint8_t)extract_bits(raw, 20U, 4U);
-    tcc_slipping = extract_bits(raw, 24U, 1U) != 0U;
-    tcc_open = extract_bits(raw, 25U, 1U) != 0U;
-    tcc_closed = extract_bits(raw, 26U, 1U) != 0U;
-    value.torque_converter = tcc_state(tcc_slipping, tcc_open, tcc_closed);
+    slipping = extract_bits(raw, 24U, 1U) != 0U;
+    open = extract_bits(raw, 25U, 1U) != 0U;
+    closed = extract_bits(raw, 26U, 1U) != 0U;
+    value.torque_converter = tcc_state(slipping, open, closed);
     value.off_road_gear = extract_bits(raw, 27U, 1U) != 0U;
+    value.basic_shift_program_ok = extract_bits(raw, 28U, 1U) != 0U;
+    value.driving_resistance_high = extract_bits(raw, 29U, 1U) != 0U;
     value.shifting = extract_bits(raw, 30U, 1U) != 0U;
     value.manual_shift_mode = extract_bits(raw, 31U, 1U) != 0U;
     value.gearbox_ok = extract_bits(raw, 32U, 1U) != 0U;
+    value.start_bang = extract_bits(raw, 33U, 1U) != 0U;
     value.start_enabled = extract_bits(raw, 34U, 1U) != 0U;
     value.limp_home = extract_bits(raw, 35U, 1U) != 0U;
     value.overtemperature = extract_bits(raw, 36U, 1U) != 0U;
     value.kickdown = extract_bits(raw, 37U, 1U) != 0U;
     value.drive_program_code = (uint8_t)extract_bits(raw, 38U, 2U);
+    value.engine_torque_parity = extract_bits(raw, 40U, 1U) != 0U;
+    value.drivetrain_control_1 = extract_bits(raw, 41U, 1U) != 0U;
+    value.drivetrain_control_0 = extract_bits(raw, 42U, 1U) != 0U;
     value.converter_unloaded = extract_bits(raw, 45U, 1U) != 0U;
+    value.emergency_engine_off_confirm =
+        extract_bits(raw, 46U, 1U) != 0U;
+    value.emergency_engine_off = extract_bits(raw, 47U, 1U) != 0U;
+    value.creep_or_calid_raw = (uint8_t)extract_bits(raw, 48U, 8U);
+    value.error_check_state = (uint8_t)extract_bits(raw, 56U, 2U);
+    value.calid_cvn_active = extract_bits(raw, 58U, 1U) != 0U;
+    value.error_counter = (uint8_t)extract_bits(raw, 59U, 5U);
 
     *decoded = value;
     return true;
@@ -104,20 +171,29 @@ bool mblink_mercedes_transmission_decode_gs338(
     MblinkMercedesGs338 *decoded)
 {
     MblinkMercedesGs338 value;
+    uint64_t raw;
+
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
 
     /*
-     * Preserve the source frame's two 16-bit integers losslessly. Their
-     * engineering scaling can be promoted independently from frame identity.
+     * The source EGS52 implementation assigns NTURBINE directly in rpm before
+     * serialising the generated frame, so the 16-bit field is not merely an
+     * unidentified raw value. NAB is documented as transmission output speed,
+     * with FFFF used on families that do not provide it.
      */
-    value.output_speed_raw =
-        (uint16_t)((uint16_t)payload[0] |
-                   ((uint16_t)payload[1] << 8U));
-    value.turbine_speed_raw =
-        (uint16_t)((uint16_t)payload[6] |
-                   ((uint16_t)payload[7] << 8U));
+    value.output_speed_rpm = (uint16_t)extract_bits(raw, 0U, 16U);
+    value.mil_request = extract_bits(raw, 16U, 1U) != 0U;
+    value.nak_parity = extract_bits(raw, 17U, 1U) != 0U;
+    value.nak_toggle = extract_bits(raw, 18U, 1U) != 0U;
+    value.power_free_in_drive = extract_bits(raw, 19U, 1U) != 0U;
+    value.race_start_state = (uint8_t)extract_bits(raw, 20U, 2U);
+    value.pilot_torque_raw = (uint16_t)extract_bits(raw, 22U, 10U);
+    value.starting_area_torque_raw =
+        (uint16_t)extract_bits(raw, 32U, 16U);
+    value.turbine_speed_rpm = (uint16_t)extract_bits(raw, 48U, 16U);
 
     *decoded = value;
     return true;
@@ -139,6 +215,12 @@ bool mblink_mercedes_transmission_decode_gs418(
     value.drive_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
     value.transmission_temperature_raw =
         (uint8_t)extract_bits(raw, 16U, 8U);
+    /*
+     * The reverse-engineered EGS52 transmitter stores MAX(temp,-50)+50 in
+     * T_GET, independently corroborating the Mercedes raw-minus-50 convention.
+     */
+    value.transmission_temperature_c =
+        (double)value.transmission_temperature_raw - 50.0;
     value.all_wheel_drive = extract_bits(raw, 24U, 1U) != 0U;
     value.front_wheel_drive = extract_bits(raw, 25U, 1U) != 0U;
     value.shifting = extract_bits(raw, 26U, 1U) != 0U;
@@ -149,12 +231,405 @@ bool mblink_mercedes_transmission_decode_gs418(
     value.target_gear_code = (uint8_t)extract_bits(raw, 32U, 4U);
     value.actual_gear_code = (uint8_t)extract_bits(raw, 36U, 4U);
     value.torque_loss_raw = (uint8_t)extract_bits(raw, 40U, 8U);
+    value.wheel_torque_parity = extract_bits(raw, 48U, 1U) != 0U;
+    value.wheel_torque_toggle = extract_bits(raw, 49U, 1U) != 0U;
     value.selector_position_code = (uint8_t)extract_bits(raw, 50U, 3U);
     value.wheel_torque_factor_raw =
         (uint16_t)extract_bits(raw, 53U, 11U);
 
     *decoded = value;
     return true;
+}
+
+bool mblink_mercedes_transmission_decode_kwp_rli30(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesKwpRli30 *decoded)
+{
+    MblinkMercedesKwpRli30 value;
+    if (data == NULL || decoded == NULL || data_length < 24U) return false;
+    memset(&value, 0, sizeof(value));
+
+    value.tcc_delta_speed_raw = be16(&data[0]);
+    value.tcc_speed_raw = be16(&data[2]);
+    value.tcc_pressure_raw = be16(&data[4]);
+    value.tcc_status = data[6];
+    value.selector_position = data[7];
+    value.drive_program = data[8];
+    value.recognised_gear = data[9];
+    value.actual_gear_code = (uint8_t)(data[10] & UINT8_C(0x0f));
+    value.target_gear_code = (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
+    value.atf_temperature_c = (double)data[11] - 50.0;
+    value.engine_torque_raw = be16(&data[12]);
+    value.converter_torque_raw = be16(&data[14]);
+    value.output_speed_raw = be16(&data[16]);
+
+    value.kickdown = (data[18] & UINT8_C(0x01)) != 0U;
+    value.start_enable = (data[18] & UINT8_C(0x02)) != 0U;
+    value.start_lockout_reason = (data[18] & UINT8_C(0x04)) != 0U;
+    value.reverse_park_lock = (data[18] & UINT8_C(0x08)) != 0U;
+    value.starter_relay = (data[18] & UINT8_C(0x10)) != 0U;
+    value.solenoid_1245 = (data[18] & UINT8_C(0x20)) != 0U;
+    value.solenoid_23 = (data[18] & UINT8_C(0x40)) != 0U;
+    value.solenoid_34 = (data[18] & UINT8_C(0x80)) != 0U;
+
+    value.program_button = (data[19] & UINT8_C(0x01)) != 0U;
+    value.selector_plus = (data[19] & UINT8_C(0x02)) != 0U;
+    value.selector_minus = (data[19] & UINT8_C(0x04)) != 0U;
+    value.not_switching = (data[19] & UINT8_C(0x08)) != 0U;
+    value.gear_protection = (data[19] & UINT8_C(0x10)) != 0U;
+    value.tcc_open_request = (data[19] & UINT8_C(0x20)) != 0U;
+
+    value.downshift = (data[20] & UINT8_C(0x01)) != 0U;
+    value.upshift = (data[20] & UINT8_C(0x02)) != 0U;
+    value.drivetrain_control_0 = (data[20] & UINT8_C(0x04)) != 0U;
+    value.drivetrain_control_1 = (data[20] & UINT8_C(0x08)) != 0U;
+    value.release_circuit = (data[20] & UINT8_C(0x10)) != 0U;
+    value.steering_wheel_plus = (data[20] & UINT8_C(0x20)) != 0U;
+    value.steering_wheel_minus = (data[20] & UINT8_C(0x40)) != 0U;
+    value.converter_clutch_enabled = (data[20] & UINT8_C(0x80)) != 0U;
+
+    value.current_error = (data[21] & UINT8_C(0x01)) != 0U;
+    value.emergency_mode = (data[21] & UINT8_C(0x02)) != 0U;
+    value.asr_active = (data[21] & UINT8_C(0x04)) != 0U;
+    value.transmission_protection_ack =
+        (data[21] & UINT8_C(0x08)) != 0U;
+    value.bang_start = (data[21] & UINT8_C(0x10)) != 0U;
+    value.minimum_torque_request = (data[21] & UINT8_C(0x20)) != 0U;
+    value.circuit_break = (data[21] & UINT8_C(0x40)) != 0U;
+    value.double_circuit = (data[21] & UINT8_C(0x80)) != 0U;
+
+    value.converter_ok = (data[23] & UINT8_C(0x02)) != 0U;
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_kwp_rli31(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesKwpRli31 *decoded)
+{
+    MblinkMercedesKwpRli31 value;
+    if (data == NULL || decoded == NULL || data_length < 20U) return false;
+    memset(&value, 0, sizeof(value));
+
+    value.n2_pulse_count = be16(&data[0]);
+    value.n3_pulse_count = be16(&data[2]);
+    value.input_rpm = be16(&data[4]);
+    value.engine_rpm = be16(&data[6]);
+    value.front_left_wheel_speed_raw = be16(&data[8]);
+    value.front_right_wheel_speed_raw = be16(&data[10]);
+    value.rear_left_wheel_speed_raw = be16(&data[12]);
+    value.rear_right_wheel_speed_raw = be16(&data[14]);
+    value.rear_vehicle_speed_raw = be16(&data[16]);
+    value.front_vehicle_speed_raw = be16(&data[18]);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_kwp_rli32(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesKwpRli32 *decoded)
+{
+    MblinkMercedesKwpRli32 value;
+    if (data == NULL || decoded == NULL || data_length < 12U) return false;
+    memset(&value, 0, sizeof(value));
+
+    value.pedal_percent = data[0];
+    value.upshift_delta_rpm_raw = be16(&data[1]);
+    value.downshift_delta_rpm_raw = be16(&data[3]);
+    value.pedal_delta_percent = data[5];
+    value.pitch_raw = be16(&data[6]);
+    value.driving_status = data[8];
+    value.engine_warmup_shift_state = data[9];
+    value.requested_low_gear_limit = data[10];
+    value.requested_high_gear_limit = data[11];
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_kwp_rli33(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesKwpRli33 *decoded)
+{
+    MblinkMercedesKwpRli33 value;
+    if (data == NULL || decoded == NULL || data_length < 15U) return false;
+    memset(&value, 0, sizeof(value));
+
+    value.valve_flag = data[0];
+    value.shift_valve_state = data[1];
+    value.spc_pressure_raw = be16(&data[2]);
+    value.mpc_pressure_raw = be16(&data[4]);
+    value.spc_target_current_raw = be16(&data[6]);
+    value.spc_actual_current_raw = be16(&data[8]);
+    value.mpc_target_current_raw = be16(&data[10]);
+    value.mpc_actual_current_raw = be16(&data[12]);
+    value.tcc_pwm_raw = data[14];
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_tcm_a1(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53TcmA1 *decoded)
+{
+    MblinkMercedesEgs53TcmA1 value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.oil_temperature_c = (double)extract_bits(raw, 0U, 8U) - 50.0;
+    value.tcc_no_load = extract_bits(raw, 8U, 1U) != 0U;
+    value.clutch_state = (uint8_t)extract_bits(raw, 9U, 3U);
+    value.limp_home = extract_bits(raw, 12U, 1U) != 0U;
+    value.basic_shift_program_ok = extract_bits(raw, 13U, 1U) != 0U;
+    value.driving_resistance_high = extract_bits(raw, 14U, 1U) != 0U;
+    value.overtemperature = extract_bits(raw, 15U, 1U) != 0U;
+    value.off_road_active = extract_bits(raw, 16U, 1U) != 0U;
+    value.selector_position_code = (uint8_t)extract_bits(raw, 17U, 3U);
+    value.manual_program_active = extract_bits(raw, 20U, 1U) != 0U;
+    value.drive_program_code = (uint8_t)extract_bits(raw, 21U, 3U);
+    value.start_brake_request = extract_bits(raw, 24U, 1U) != 0U;
+    value.drive_shaft_torque_nm = (uint16_t)extract_bits(raw, 32U, 16U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_tcm_a2(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53TcmA2 *decoded)
+{
+    MblinkMercedesEgs53TcmA2 value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.requested_current_duty_percent =
+        (double)extract_bits(raw, 0U, 8U) * 0.5;
+    value.turbine_rpm = (uint16_t)extract_bits(raw, 18U, 14U);
+    value.mil_request = extract_bits(raw, 32U, 1U) != 0U;
+    value.desired_slip_rpm = (uint16_t)extract_bits(raw, 34U, 14U);
+    value.calid_cvn_data = (uint8_t)extract_bits(raw, 48U, 8U);
+    value.error_check_state = (uint8_t)extract_bits(raw, 56U, 2U);
+    value.calid_cvn_active = extract_bits(raw, 58U, 1U) != 0U;
+    value.calid_cvn_error_counter = (uint8_t)extract_bits(raw, 59U, 5U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_eng_rq1(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53EngRq1 *decoded)
+{
+    MblinkMercedesEgs53EngRq1 value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.torque_request_min = extract_bits(raw, 0U, 1U) != 0U;
+    value.torque_request_max = extract_bits(raw, 1U, 1U) != 0U;
+    value.requested_engine_torque_nm =
+        (double)extract_bits(raw, 3U, 13U) * 0.25 - 500.0;
+    value.intervention_mode = (uint8_t)extract_bits(raw, 16U, 2U);
+    value.downshift_mode = (uint8_t)extract_bits(raw, 18U, 3U);
+    value.engine_sync_time_s =
+        (double)extract_bits(raw, 24U, 8U) * 0.02;
+    value.stop_start_enable_request = extract_bits(raw, 32U, 1U) != 0U;
+    value.requested_engine_rpm = (uint16_t)extract_bits(raw, 34U, 14U);
+    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
+    value.engine_start_enable_request = extract_bits(raw, 52U, 1U) != 0U;
+    value.emergency_engine_off_request = extract_bits(raw, 53U, 1U) != 0U;
+    value.jump_start_active = extract_bits(raw, 54U, 1U) != 0U;
+    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_eng_rq2(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53EngRq2 *decoded)
+{
+    MblinkMercedesEgs53EngRq2 value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.target_gear_code = (uint8_t)extract_bits(raw, 0U, 4U);
+    value.actual_gear_code = (uint8_t)extract_bits(raw, 4U, 4U);
+    value.transmission_ratio =
+        (double)extract_bits(raw, 8U, 8U) * 0.02;
+    value.engine_to_wheel_torque_ratio =
+        (double)extract_bits(raw, 18U, 14U) * 0.01;
+    value.transmission_torque_loss_nm =
+        (double)extract_bits(raw, 32U, 8U) * 0.25;
+    value.vehicle_drive_style = (uint8_t)extract_bits(raw, 40U, 2U);
+    value.transmission_style = (uint8_t)extract_bits(raw, 42U, 2U);
+    value.transmission_mechanics_style =
+        (uint8_t)extract_bits(raw, 44U, 2U);
+    value.transmission_shift_style =
+        (uint8_t)extract_bits(raw, 46U, 2U);
+    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
+    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_eng_rq3(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53EngRq3 *decoded)
+{
+    MblinkMercedesEgs53EngRq3 value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.maximum_acceleration_state =
+        (uint8_t)extract_bits(raw, 1U, 2U);
+    value.wet_driveaway_clutch_torque_nm =
+        (double)extract_bits(raw, 3U, 13U) * 0.25 - 500.0;
+    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
+    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_sbw_rs_tcm(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53SbwRsTcm *decoded)
+{
+    MblinkMercedesEgs53SbwRsTcm value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.message_transmitter_id = (uint8_t)extract_bits(raw, 0U, 2U);
+    value.starter_lockout = extract_bits(raw, 7U, 1U) != 0U;
+    value.selector_valve_position = (uint8_t)extract_bits(raw, 8U, 4U);
+    value.selector_position_request = (uint8_t)extract_bits(raw, 12U, 4U);
+    value.selector_sensor_percent =
+        (double)extract_bits(raw, 16U, 8U) * 0.4;
+    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
+    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
+    const uint8_t *payload,
+    size_t payload_length,
+    MblinkMercedesEgs53TcmDisplayRequest *decoded)
+{
+    MblinkMercedesEgs53TcmDisplayRequest value;
+    uint64_t raw;
+    if (payload == NULL || decoded == NULL || payload_length != 8U)
+        return false;
+    memset(&value, 0, sizeof(value));
+    raw = payload_le64(payload);
+
+    value.display_position_code = (uint8_t)extract_bits(raw, 0U, 8U);
+    value.display_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
+    value.shift_by_wire_beep_request = extract_bits(raw, 16U, 1U) != 0U;
+    value.shift_recommendation = (uint8_t)extract_bits(raw, 17U, 2U);
+    value.shift_by_wire_message = (uint8_t)extract_bits(raw, 21U, 3U);
+    value.selector_lock_2_display = (uint8_t)extract_bits(raw, 24U, 4U);
+    value.selector_lock_1_display = (uint8_t)extract_bits(raw, 28U, 4U);
+    value.selector_lock_4_display = (uint8_t)extract_bits(raw, 32U, 4U);
+    value.selector_lock_3_display = (uint8_t)extract_bits(raw, 36U, 4U);
+    value.target_gear_display_code = (uint8_t)extract_bits(raw, 40U, 8U);
+    value.race_start_display_state = (uint8_t)extract_bits(raw, 48U, 3U);
+
+    *decoded = value;
+    return true;
+}
+
+static const uint8_t k_transmission_read_ids[] = {
+    UINT8_C(0x30), UINT8_C(0x31), UINT8_C(0x32), UINT8_C(0x33),
+    UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3), UINT8_C(0xe4),
+    UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7), UINT8_C(0xe8),
+    UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
+};
+
+size_t mblink_mercedes_transmission_kwp_read_identifier_count(void)
+{
+    return sizeof(k_transmission_read_ids) /
+        sizeof(k_transmission_read_ids[0]);
+}
+
+uint8_t mblink_mercedes_transmission_kwp_read_identifier_at(size_t index)
+{
+    if (index >= mblink_mercedes_transmission_kwp_read_identifier_count())
+        return 0U;
+    return k_transmission_read_ids[index];
+}
+
+const char *mblink_mercedes_transmission_kwp_read_identifier_name(uint8_t id)
+{
+    switch (id) {
+    case UINT8_C(0x30): return "Transmission actual values / RLI 30";
+    case UINT8_C(0x31): return "Transmission speed sensors / RLI 31";
+    case UINT8_C(0x32): return "Transmission driving dynamics / RLI 32";
+    case UINT8_C(0x33): return "Transmission hydraulics and solenoids / RLI 33";
+    case UINT8_C(0xe1): return "ECU serial number";
+    case UINT8_C(0xe2): return "DBCom communication-matrix data";
+    case UINT8_C(0xe3): return "Operating-system version";
+    case UINT8_C(0xe4): return "ECU reprogramming identification";
+    case UINT8_C(0xe5): return "Vehicle information";
+    case UINT8_C(0xe6): return "Flash information 1";
+    case UINT8_C(0xe7): return "Flash information 2";
+    case UINT8_C(0xe8): return "System-diagnostic general parameters";
+    case UINT8_C(0xe9): return "System-diagnostic global parameters";
+    case UINT8_C(0xea): return "ECU configuration";
+    case UINT8_C(0xeb): return "Diagnostic protocol information";
+    default: return NULL;
+    }
+}
+
+const char *mblink_mercedes_transmission_family_name(
+    MblinkMercedesTransmissionFamily family)
+{
+    switch (family) {
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN: return "Unknown";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51: return "EGS51";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52: return "EGS52 / NAG1";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53: return "EGS53";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2: return "VGS / NAG2 / 722.9";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT: return "722.8 CVT";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT: return "724.0 7G-DCT";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G: return "725.0 9G-Tronic";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT: return "AMG MCT";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT: return "AMG DCT";
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED: return "EV single-speed";
+    }
+    return "Unknown";
 }
 
 const char *mblink_mercedes_transmission_actual_gear_name(uint8_t code)
