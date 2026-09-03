@@ -8,7 +8,9 @@
  *
  *  - The 0x600/0x601 NO DATA sweep behaviour is copied from the real scan.
  *  - The 0x7E1 -> 0x7E9 TesterPresent negative response 7F 3E 12 is copied
- *    from the real scan and must still count as a responding ECU.
+ *    from the real scan and must still count as a responding ECU. The route
+ *    is now source-backed as Mercedes GS KWP2000, so current discovery sends
+ *    KWP TesterPresent 3E 01 rather than the older generic UDS 3E 00 probe.
  *  - The 0x64A -> 0x489 ORC fault and 0x652 -> 0x48A clean head-unit DTC
  *    inventory are copied from the 2026-08-30 drive capture.
  *  - The ORC_212 identity and one DTC payload are synthetic.  They exist only
@@ -198,18 +200,24 @@ static int replay_captured_negative_tester_present(void)
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
 
     CHECK(prepare_exact_11_candidate(&scan, "ATSH7E1", "ATCRA7E9") == 0);
-    CHECK(accept_expected_response(&scan, "3E00", &tester_negative) == 0);
+    CHECK(accept_expected_response(&scan, "3E01", &tester_negative) == 0);
 
     CHECK(scan.module_count == 1U);
     CHECK(scan.modules[0].tx_can_id == UINT32_C(0x7e1));
     CHECK(scan.modules[0].rx_can_id == UINT32_C(0x7e9));
+    CHECK(scan.modules[0].protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+    CHECK(scan.modules[0].kind == MBLINK_MERCEDES_MODULE_TRANSMISSION);
     CHECK(scan.modules[0].tester_present_response);
     CHECK(scan.candidate_route_locked);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
 
-    CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
+    CHECK(accept_expected_response(&scan, "1802FF00", &no_data) == 0);
     CHECK(scan.modules[0].dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
+    /*
+     * KWP GS routes deliberately skip UDS F197/F187/F188/F191 identity reads;
+     * the source-backed route classification already establishes transmission.
+     */
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
     return 0;
 }
 
