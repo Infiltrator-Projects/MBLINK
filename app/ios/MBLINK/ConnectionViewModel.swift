@@ -104,6 +104,8 @@ struct MercedesModuleDataValue: Identifiable {
     let formattedValue: String
     let rawHex: String
     let mapped: Bool
+    let unit: String?
+    let numericValue: Double?
 
     var serviceName: String {
         switch service {
@@ -376,7 +378,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                     title: title,
                     formattedValue: snapshot.formattedValue,
                     rawHex: snapshot.rawHex,
-                    mapped: snapshot.isMapped)
+                    mapped: snapshot.isMapped,
+                    unit: snapshot.unit,
+                    numericValue: snapshot.isNumericValueAvailable
+                        ? snapshot.numericValue : nil)
             }
     }
 
@@ -826,16 +831,69 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func loadDashboardParameters() -> [DiagnosticParameter] {
-        guard let engine = diagnosticModules.first(where: {
+        var parameters: [DiagnosticParameter]
+        if let engine = diagnosticModules.first(where: {
             !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
                 $0.livePIDCount > 0
-        }) else {
-            return diagnosticParameters
+        }) {
+            parameters = loadDiagnosticParameters(
+                responderCANIdentifier: engine.responseCANIdentifier,
+                extendedID: engine.extendedID,
+                sourceLabel: "\(engine.name) · \(engine.addressText)")
+        } else {
+            parameters = diagnosticParameters
         }
-        return loadDiagnosticParameters(
-            responderCANIdentifier: engine.responseCANIdentifier,
-            extendedID: engine.extendedID,
-            sourceLabel: "\(engine.name) · \(engine.addressText)")
+
+        /*
+         * Source-corroborated Mercedes extended PID 21 30 on 7E1/7E9.
+         * The controller performs one automatic evidence-gated read after the
+         * module census. Once a real positive response exists, surface it on
+         * the same dashboard as SAE values without pretending it is Mode 01.
+         */
+        if let transmissionModule = diagnosticModules.first(where: {
+            !$0.extendedID &&
+                $0.requestCANIdentifier == 0x7E1 &&
+                $0.responseCANIdentifier == 0x7E9
+        }),
+           let temperature = manufacturerData(moduleID: transmissionModule.id)
+                .first(where: {
+                    $0.service == 0x21 &&
+                    $0.identifier == 0x30 &&
+                    $0.mapped &&
+                    $0.numericValue != nil
+                }),
+           let celsius = temperature.numericValue {
+            let displayedValue: Double
+            let suffix: String
+            if unitProfile == .usCustomary {
+                displayedValue = celsius * 9.0 / 5.0 + 32.0
+                suffix = " °F"
+            } else {
+                displayedValue = celsius
+                suffix = " °C"
+            }
+
+            parameters.append(DiagnosticParameter(
+                id: "mercedes.transmission.oil_temperature",
+                protocolName: "kwp2000",
+                moduleIdentifier: 0x7E1,
+                parameterIdentifier: 0x2130,
+                shortName: "ATF",
+                title: "Transmission oil temperature",
+                suffix: suffix,
+                formattedValue: String(format: "%.1f%@", displayedValue, suffix),
+                value: displayedValue,
+                structuredValue: nil,
+                rawHex: temperature.rawHex,
+                vehicleSupported: true,
+                favourite: false,
+                pollingEnabled: true,
+                history: [],
+                sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
+                qualityNote: "Mercedes extended PID 0x2130 · source-corroborated; this value is shown only after a real positive response"))
+        }
+
+        return parameters
     }
 
     private func loadDiagnosticModules() -> [DiagnosticModule] {
