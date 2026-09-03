@@ -82,12 +82,30 @@ static int accept_expected_response(
     return 0;
 }
 
-static int prepare_full_11_candidate(MblinkMercedesModuleScan *scan,
-                                     const char *header,
-                                     const char *receive)
+static int prepare_exact_11_candidate(MblinkMercedesModuleScan *scan,
+                                      const char *header,
+                                      const char *receive)
 {
     CHECK(accept_expected_ok(scan, header) == 0);
     CHECK(accept_expected_ok(scan, receive) == 0);
+    return 0;
+}
+
+static int prepare_full_unknown_11_candidate(
+    MblinkMercedesModuleScan *scan,
+    const char *header)
+{
+    /*
+     * FULL forensic discovery is allowed to learn an otherwise unknown
+     * Mercedes 11-bit response identifier from a headered diagnostic reply.
+     * The receive window is opened only around the bounded read-only probe;
+     * MOBILE_CENSUS never uses this path.
+     */
+    CHECK(!scan->candidate_route_locked);
+    CHECK(accept_expected_ok(scan, header) == 0);
+    CHECK(accept_expected_ok(scan, "ATCRA") == 0);
+    CHECK(accept_expected_ok(scan, "ATCF000") == 0);
+    CHECK(accept_expected_ok(scan, "ATCM000") == 0);
     return 0;
 }
 
@@ -132,12 +150,11 @@ static int replay_captured_full_scan_misses(void)
     CHECK(accept_expected_ok(&scan, "ATST32") == 0);
 
     /*
-     * The vehicle capture proved that these requests receive NO DATA. The
-     * current full-scan transport setup keeps the exact plan-defined receive
-     * route active. The 2026-08-29 Linux capture proved that widening the ELM
-     * mask to all 11-bit traffic floods the parser with normal CAN broadcasts.
+     * The vehicle capture proved that these requests receive NO DATA. FULL now
+     * treats TX+8 only as a placeholder for generic 11-bit targets, so replay
+     * the bounded headered discovery setup before those captured misses.
      */
-    CHECK(prepare_full_11_candidate(&scan, "ATSH600", "ATCRA608") == 0);
+    CHECK(prepare_full_unknown_11_candidate(&scan, "ATSH600") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
@@ -147,7 +164,7 @@ static int replay_captured_full_scan_misses(void)
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
 
-    CHECK(prepare_full_11_candidate(&scan, "ATSH601", "ATCRA609") == 0);
+    CHECK(prepare_full_unknown_11_candidate(&scan, "ATSH601") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "1902FF", &no_data) == 0);
     CHECK(accept_expected_response(&scan, "22F190", &no_data) == 0);
@@ -178,7 +195,7 @@ static int replay_captured_negative_tester_present(void)
     CHECK(scan.candidate_tx == UINT32_C(0x7e1));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
 
-    CHECK(prepare_full_11_candidate(&scan, "ATSH7E1", "ATCRA7E9") == 0);
+    CHECK(prepare_exact_11_candidate(&scan, "ATSH7E1", "ATCRA7E9") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &tester_negative) == 0);
 
     CHECK(scan.module_count == 1U);
@@ -194,7 +211,7 @@ static int replay_captured_negative_tester_present(void)
     return 0;
 }
 
-static int reject_promiscuous_11_bit_capture(void)
+static int full_unknown_11_bit_candidate_is_not_forced_to_plus_eight(void)
 {
     MblinkMercedesModuleScan scan;
     MblinkElm327Response no_data =
@@ -206,10 +223,10 @@ static int reject_promiscuous_11_bit_capture(void)
               &scan, full_target_index_for_tx(UINT32_C(0x630))));
     CHECK(scan.candidate_tx == UINT32_C(0x630));
     CHECK(scan.candidate_rx == UINT32_C(0x638));
-    CHECK(scan.candidate_route_locked);
+    CHECK(!scan.candidate_route_locked);
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
 
-    CHECK(prepare_full_11_candidate(&scan, "ATSH630", "ATCRA638") == 0);
+    CHECK(prepare_full_unknown_11_candidate(&scan, "ATSH630") == 0);
     CHECK(accept_expected_response(&scan, "3E00", &no_data) == 0);
     CHECK(scan.module_count == 0U);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
@@ -335,7 +352,7 @@ int main(void)
 {
     if (replay_captured_full_scan_misses() != 0) return 1;
     if (replay_captured_negative_tester_present() != 0) return 1;
-    if (reject_promiscuous_11_bit_capture() != 0) return 1;
+    if (full_unknown_11_bit_candidate_is_not_forced_to_plus_eight() != 0) return 1;
     if (replay_captured_kwp_module_faults() != 0) return 1;
     if (inject_restraint_fault_after_real_scan_shapes() != 0) return 1;
     puts("Captured C207 deep-scan replay tests passed");
