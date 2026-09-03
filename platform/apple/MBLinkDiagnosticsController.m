@@ -33,6 +33,9 @@
 @property(nonatomic, copy, readwrite) NSString *formattedValue;
 @property(nonatomic, copy, readwrite) NSString *rawHex;
 @property(nonatomic, readwrite, getter=isMapped) BOOL mapped;
+@property(nonatomic, readwrite, getter=isNumericValueAvailable)
+    BOOL numericValueAvailable;
+@property(nonatomic, readwrite) double numericValue;
 @end
 
 @implementation MBLinkMercedesDataSnapshot
@@ -106,6 +109,7 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     (const MblinkElm327Response *)response;
 - (void)publishManufacturerDataScanResults;
 - (void)finishManufacturerDataScanWithStatus:(NSString *)status;
+- (nullable NSString *)automaticTransmissionTemperatureModuleIdentifier;
 - (nullable NSDictionary *)savedVehicleProfileForVIN:(NSString *)vin;
 - (void)loadSavedVehicleProfileForVIN:(NSString *)vin;
 - (void)saveCurrentVehicleProfile;
@@ -138,6 +142,7 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
         _standardDataLatest;
     NSUInteger _manufacturerDataRequestGeneration;
     BOOL _manufacturerDataForceFullScan;
+    BOOL _automaticTransmissionTemperatureProbeAttempted;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -643,6 +648,7 @@ static bool MBLinkSimulatorResponder(
     _standardDataByResponder = [[NSMutableDictionary alloc] init];
     _standardDataLatest = [[NSMutableDictionary alloc] init];
     _manufacturerDataForceFullScan = NO;
+    _automaticTransmissionTemperatureProbeAttempted = NO;
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -1167,6 +1173,23 @@ static bool MBLinkSimulatorResponder(
     return NULL;
 }
 
+- (nullable NSString *)automaticTransmissionTemperatureModuleIdentifier
+{
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL || module->extended_id) continue;
+        if (module->tx_can_id == UINT32_C(0x7e1) &&
+            module->rx_can_id == UINT32_C(0x7e9)) {
+            return MBLinkMercedesModuleIdentifier(module);
+        }
+    }
+    return nil;
+}
+
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
 {
@@ -1485,16 +1508,25 @@ static bool MBLinkSimulatorResponder(
         double numeric = 0.0;
         const char *name = NULL;
         const char *unit = NULL;
-        if (mblink_mercedes_data_record_decode_known_numeric(
-                module->kind, record,
-                &numeric, &name, &unit)) {
+        if (mblink_mercedes_data_record_decode_known_numeric_for_route(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                module->kind,
+                record, &numeric, &name, &unit)) {
             snapshot.mapped = YES;
+            snapshot.numericValueAvailable = YES;
+            snapshot.numericValue = numeric;
             snapshot.name = MBLinkStringFromCString(name);
             snapshot.unit = MBLinkStringFromCString(unit);
-            snapshot.formattedValue = [NSString stringWithFormat:
-                @"%.3f %@", numeric, snapshot.unit];
+            snapshot.formattedValue =
+                [snapshot.unit isEqualToString:@"°C"]
+                    ? [NSString stringWithFormat:@"%.1f %@", numeric, snapshot.unit]
+                    : [NSString stringWithFormat:@"%.3f %@", numeric, snapshot.unit];
         } else {
             snapshot.mapped = NO;
+            snapshot.numericValueAvailable = NO;
+            snapshot.numericValue = 0.0;
             snapshot.name = nil;
             snapshot.unit = nil;
             snapshot.formattedValue = [NSString stringWithFormat:
@@ -1782,7 +1814,37 @@ static bool MBLinkSimulatorResponder(
         [self updateMercedesModuleScanSummary];
         [self saveCurrentVehicleProfile];
         _cachedModuleRefreshActive = NO;
+
+        /*
+         * One evidence-gated automatic read makes the source-corroborated
+         * 7E1/7E9 21 30 transmission-temperature candidate visible without
+         * requiring the driver to open the module screen first. It is only
+         * attempted once per connection; continuous polling remains disabled
+         * until the development car confirms the response shape/value.
+         */
+        NSString *temperatureModule =
+            [self automaticTransmissionTemperatureModuleIdentifier];
+        const BOOL shouldProbeTransmissionTemperature =
+            !_automaticTransmissionTemperatureProbeAttempted &&
+            temperatureModule.length != 0U;
+        if (shouldProbeTransmissionTemperature)
+            _automaticTransmissionTemperatureProbeAttempted = YES;
+
         [self finishMercedesExtensionRestoringAdapter:YES];
+
+        if (shouldProbeTransmissionTemperature) {
+            dispatch_after(
+                dispatch_time(
+                    DISPATCH_TIME_NOW,
+                    (int64_t)UINT64_C(500) * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                    if (self.isActive &&
+                        !self.manufacturerDataScanActive) {
+                        [self beginManufacturerDataScanForModuleIdentifier:
+                            temperatureModule forceFullScan:NO];
+                    }
+                });
+        }
         return;
     }
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||
