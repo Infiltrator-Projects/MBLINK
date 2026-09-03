@@ -119,6 +119,10 @@ int main(void)
     MblinkElm327Response no_data = response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
     MblinkElm327Response dtcs = response(MBLINK_ELM327_RESULT_OK,
         "5902FF12345609ABCDEF28", false);
+    MblinkElm327Response kwp_tester = response(
+        MBLINK_ELM327_RESULT_OK, "7E", false);
+    MblinkElm327Response kwp_dtcs = response(
+        MBLINK_ELM327_RESULT_OK, "58019B51E0", false);
     MblinkElm327Response engine_identity = response(
         MBLINK_ELM327_RESULT_OK, "62F19743524433", false);
     MblinkElm327Response unknown_identity = response(
@@ -186,34 +190,47 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
     CHECK(send_ok(&scan, "ATSH7E1") == 0);
     CHECK(send_ok(&scan, "ATCRA7E9") == 0);
-    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "3E00") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
-    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1902FF") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &dtcs) ==
-MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "3E01") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &kwp_tester) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.module_count == 2U);
-    CHECK(scan.modules[1].kind == MBLINK_MERCEDES_MODULE_TRANSMISSION);
-    CHECK(scan.modules[1].dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
-    CHECK(scan.modules[1].dtcs.count == 2U);
-    CHECK(scan.modules[1].dtcs.records[0].code == UINT32_C(0x123456));
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY);
-    CHECK(mblink_mercedes_module_scan_command(&scan, command, sizeof(command), &written) ==
+    CHECK(scan.modules[1].tx_can_id == UINT32_C(0x7e1));
+    CHECK(scan.modules[1].rx_can_id == UINT32_C(0x7e9));
+    CHECK(scan.modules[1].protocol ==
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+    CHECK(scan.modules[1].kind ==
+          MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    CHECK(scan.modules[1].definition != NULL);
+    CHECK(strcmp(scan.modules[1].definition->key,
+                 "transmission-vgs") == 0);
+    CHECK(scan.modules[1].identification_status ==
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK);
+
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "22F197") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+    CHECK(strcmp(command, "1802FF00") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &kwp_dtcs) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(!scan.modules[1].identity_available);
-    CHECK(accept_identity_metadata(
-              &scan, &no_data, &no_data, &no_data) == 0);
-    CHECK(strcmp(mblink_mercedes_module_scan_module_name(&scan.modules[1]),
-                 "Transmission ECU / GS (7E1/7E9)") == 0);
-    CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 2U);
+    CHECK(scan.modules[1].dtc_result ==
+          MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
+    CHECK(scan.modules[1].kwp_dtcs.count == 1U);
+    CHECK(scan.modules[1].kwp_dtcs.entries[0].code ==
+          UINT16_C(0x9b51));
+    CHECK(scan.modules[1].kwp_dtcs.entries[0].status ==
+          UINT8_C(0xe0));
+    CHECK(strcmp(mblink_mercedes_module_scan_module_name(
+                     &scan.modules[1]),
+                 "Transmission control unit (VGS / EGS)") == 0);
+    CHECK(scan.candidate_tx == UINT32_C(0x7e2));
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
+    CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 1U);
     CHECK(mblink_mercedes_module_scan_classified_count(&scan) == 2U);
     CHECK(mblink_mercedes_module_scan_timeout_ms(&scan) > 0U);
 
