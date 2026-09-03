@@ -891,6 +891,49 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 history: [],
                 sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
                 qualityNote: "Mercedes extended PID 0x2130 · source-corroborated; this value is shown only after a real positive response"))
+
+            /*
+             * The same 21 30 packet is community-proven to carry current gear
+             * in the low nibble of complete response byte F. The controller's
+             * rawHex begins after 61 30, so that nibble is payload byte 3.
+             * Forward gears/N are unambiguous. Community P/R labels disagree
+             * with the Mercedes broadcast enum, so preserve those two raw
+             * codes explicitly until the C207 capture tells us which is which.
+             */
+            let hex = temperature.rawHex
+            if hex.count >= 8 {
+                let start = hex.index(hex.startIndex, offsetBy: 6)
+                let end = hex.index(start, offsetBy: 2)
+                if let byte = UInt8(hex[start..<end], radix: 16) {
+                    let code = byte & 0x0F
+                    let gearText: String
+                    switch code {
+                    case 0: gearText = "N"
+                    case 1...7: gearText = "\(code)"
+                    case 11: gearText = "P/R candidate · code 0xB"
+                    case 13: gearText = "P/R candidate · code 0xD"
+                    default: gearText = String(format: "Code 0x%X", code)
+                    }
+                    parameters.append(DiagnosticParameter(
+                        id: "mercedes.transmission.actual_gear",
+                        protocolName: "kwp2000",
+                        moduleIdentifier: 0x7E1,
+                        parameterIdentifier: 0x2130,
+                        shortName: "GEAR",
+                        title: "Current gear",
+                        suffix: "",
+                        formattedValue: gearText,
+                        value: nil,
+                        structuredValue: gearText,
+                        rawHex: temperature.rawHex,
+                        vehicleSupported: true,
+                        favourite: false,
+                        pollingEnabled: true,
+                        history: [],
+                        sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
+                        qualityNote: "Mercedes 0x2130 current-gear nibble · read-only community mapping; P/R codes retained until vehicle-confirmed"))
+                }
+            }
         }
 
         return parameters
