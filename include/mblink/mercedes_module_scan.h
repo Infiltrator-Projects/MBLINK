@@ -5,7 +5,8 @@
  *
  * The implementation is kept separately so this public entry point can retain
  * source-level compatibility checks without duplicating the scanner itself.
- * The source-backed 0x7E1 -> 0x7E9 fallback label remains:
+ * The public implementation provides MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS
+ * and retains the source-backed 0x7E1 -> 0x7E9 fallback label:
  * Transmission ECU / GS (7E1/7E9)
  */
 #ifndef MBLINK_MERCEDES_MODULE_SCAN_ENTRY_H
