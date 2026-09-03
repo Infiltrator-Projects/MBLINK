@@ -69,6 +69,10 @@ static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
 static const NSInteger MBLinkVehicleProfileSchemaVersion = 5;
 static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
+static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs =
+    UINT64_C(1500);
+static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
+    UINT64_C(750);
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
@@ -102,9 +106,32 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     moduleEntryForIdentifier:(NSString *)identifier;
 - (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                         forceFullScan:(BOOL)forceFullScan;
+- (void)beginManufacturerDataOperationForModuleIdentifier:
+            (NSString *)identifier
+                                               forceFullScan:(BOOL)forceFullScan
+                                                    liveOnly:(BOOL)liveOnly
+                                        candidateIdentifiers:
+            (nullable NSArray<NSNumber *> *)candidateIdentifiers;
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
-                                                attempt:(NSUInteger)attempt;
+                                                attempt:(NSUInteger)attempt
+                                               liveOnly:(BOOL)liveOnly
+                                   candidateIdentifiers:
+            (nullable NSArray<NSNumber *> *)candidateIdentifiers;
+- (NSArray<NSNumber *> *)persistedManufacturerDataIdentifiersForModule:
+    (const MblinkMercedesModuleScanEntry *)module;
+- (NSArray<NSNumber *> *)runtimeManufacturerDataIdentifiersForModule:
+            (const MblinkMercedesModuleScanEntry *)module
+                                                           identifier:
+            (NSString *)identifier;
+- (NSArray<NSNumber *> *)runtimeCandidateIdentifiersForModule:
+            (const MblinkMercedesModuleScanEntry *)module
+                                                      identifier:
+            (NSString *)identifier;
+- (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+    (uint64_t)delayMs;
+- (void)runAutomaticManufacturerDataRefreshWithGeneration:
+    (NSUInteger)generation;
 - (void)beginCurrentMercedesDataScanCommand;
 - (void)processMercedesDataScanResponse:
     (const MblinkElm327Response *)response;
@@ -144,6 +171,11 @@ static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
     NSUInteger _manufacturerDataRequestGeneration;
     BOOL _manufacturerDataForceFullScan;
     BOOL _automaticTransmissionTemperatureProbeAttempted;
+    BOOL _manufacturerDataScanLiveOnly;
+    NSUInteger _automaticManufacturerRefreshGeneration;
+    NSUInteger _automaticManufacturerRefreshCursor;
+    NSUInteger _automaticManufacturerRefreshCycle;
+    NSMutableSet<NSString *> *_automaticManufacturerCandidateAttempts;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -652,7 +684,13 @@ static bool MBLinkSimulatorResponder(
     _standardDataLatest = [[NSMutableDictionary alloc] init];
     _manufacturerDataForceFullScan = NO;
     _automaticTransmissionTemperatureProbeAttempted = NO;
+    _manufacturerDataScanLiveOnly = NO;
+    _automaticManufacturerRefreshCursor = 0U;
+    _automaticManufacturerRefreshCycle = 0U;
+    _automaticManufacturerCandidateAttempts =
+        [[NSMutableSet alloc] init];
     ++_manufacturerDataRequestGeneration;
+    ++_automaticManufacturerRefreshGeneration;
 }
 
 - (void)notifyDelegate
@@ -753,7 +791,9 @@ static bool MBLinkSimulatorResponder(
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
+    _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
+    ++_automaticManufacturerRefreshGeneration;
     [_shared disconnect];
 }
 
@@ -1265,6 +1305,246 @@ static bool MBLinkSimulatorResponder(
         }
     }
     return MBLinkMercedesModuleIdentifier(module);
+}
+
+- (NSArray<NSNumber *> *)persistedManufacturerDataIdentifiersForModule:
+    (const MblinkMercedesModuleScanEntry *)module
+{
+    if (module == NULL ||
+        ![_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]) {
+        return @[];
+    }
+
+    for (id value in _cachedVehicleProfile[@"modules"]) {
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        NSDictionary *savedModule = (NSDictionary *)value;
+        NSNumber *savedTx = savedModule[@"tx"];
+        NSNumber *savedRx = savedModule[@"rx"];
+        NSNumber *savedExtended = savedModule[@"extended"];
+        if (![savedTx isKindOfClass:[NSNumber class]] ||
+            ![savedRx isKindOfClass:[NSNumber class]] ||
+            ![savedExtended isKindOfClass:[NSNumber class]] ||
+            savedTx.unsignedIntValue != module->tx_can_id ||
+            savedRx.unsignedIntValue != module->rx_can_id ||
+            savedExtended.boolValue != module->extended_id) {
+            continue;
+        }
+
+        NSArray *savedIDs =
+            [savedModule[@"manufacturerDataIDs"]
+                isKindOfClass:[NSArray class]]
+                ? savedModule[@"manufacturerDataIDs"] : @[];
+        NSMutableOrderedSet<NSNumber *> *valid =
+            [[NSMutableOrderedSet alloc] init];
+        for (id savedID in savedIDs) {
+            if (![savedID isKindOfClass:[NSNumber class]]) continue;
+            const NSUInteger candidate =
+                ((NSNumber *)savedID).unsignedIntegerValue;
+            if (candidate <= UINT16_MAX)
+                [valid addObject:@(candidate)];
+        }
+        return [[valid array]
+            sortedArrayUsingSelector:@selector(compare:)];
+    }
+    return @[];
+}
+
+- (NSArray<NSNumber *> *)runtimeManufacturerDataIdentifiersForModule:
+            (const MblinkMercedesModuleScanEntry *)module
+                                                           identifier:
+            (NSString *)identifier
+{
+    if (module == NULL || identifier.length == 0U) return @[];
+
+    NSMutableOrderedSet<NSNumber *> *ids =
+        [[NSMutableOrderedSet alloc] init];
+    NSArray<MBLinkMercedesDataSnapshot *> *known =
+        _manufacturerDataByModule[identifier] ?: @[];
+
+    for (MBLinkMercedesDataSnapshot *snapshot in known) {
+        if (mblink_mercedes_data_identifier_is_runtime_refreshable(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module),
+                snapshot.identifier)) {
+            [ids addObject:@(snapshot.identifier)];
+        }
+    }
+
+    for (NSNumber *savedID in
+         [self persistedManufacturerDataIdentifiersForModule:module]) {
+        const NSUInteger candidate = savedID.unsignedIntegerValue;
+        if (candidate <= UINT16_MAX &&
+            mblink_mercedes_data_identifier_is_runtime_refreshable(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module),
+                (uint16_t)candidate)) {
+            [ids addObject:@(candidate)];
+        }
+    }
+
+    return [[ids array] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (NSArray<NSNumber *> *)runtimeCandidateIdentifiersForModule:
+            (const MblinkMercedesModuleScanEntry *)module
+                                                      identifier:
+            (NSString *)identifier
+{
+    if (module == NULL || identifier.length == 0U) return @[];
+
+    if (!module->extended_id &&
+        module->tx_can_id == UINT32_C(0x7e1) &&
+        module->rx_can_id == UINT32_C(0x7e9) &&
+        _automaticTransmissionTemperatureProbeAttempted) {
+        return @[];
+    }
+
+    NSSet<NSNumber *> *known = [NSSet setWithArray:
+        [self runtimeManufacturerDataIdentifiersForModule:module
+                                                identifier:identifier]];
+    NSMutableArray<NSNumber *> *candidates = [[NSMutableArray alloc] init];
+    const size_t count =
+        mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+            module->tx_can_id, module->rx_can_id, module->extended_id);
+    for (size_t index = 0U; index < count; ++index) {
+        const uint16_t candidate =
+            mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+                module->tx_can_id, module->rx_can_id,
+                module->extended_id, index);
+        NSNumber *number = @(candidate);
+        if ([known containsObject:number]) continue;
+
+        NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
+            identifier, (unsigned int)candidate];
+        if ([_automaticManufacturerCandidateAttempts
+                containsObject:attemptKey]) {
+            continue;
+        }
+        [candidates addObject:number];
+    }
+    return [candidates copy];
+}
+
+- (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+    (uint64_t)delayMs
+{
+    if (!_shared.isActive) return;
+    const NSUInteger generation =
+        ++_automaticManufacturerRefreshGeneration;
+    const uint64_t boundedDelay =
+        delayMs > UINT64_C(60000) ? UINT64_C(60000) : delayMs;
+
+    dispatch_after(
+        dispatch_time(
+            DISPATCH_TIME_NOW,
+            (int64_t)boundedDelay * NSEC_PER_MSEC),
+        dispatch_get_main_queue(), ^{
+            if (generation == self->_automaticManufacturerRefreshGeneration)
+                [self runAutomaticManufacturerDataRefreshWithGeneration:
+                    generation];
+        });
+}
+
+- (void)runAutomaticManufacturerDataRefreshWithGeneration:
+    (NSUInteger)generation
+{
+    if (generation != _automaticManufacturerRefreshGeneration ||
+        !_shared.isActive) {
+        return;
+    }
+
+    if (self.manufacturerDataScanActive ||
+        _moduleScanActive || _manufacturerProbeActive ||
+        _cachedModuleRefreshActive) {
+        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+            MBLinkAutomaticManufacturerBusyRetryMs];
+        return;
+    }
+
+    NSMutableArray<NSString *> *otherModules =
+        [[NSMutableArray alloc] init];
+    NSString *transmissionModule = nil;
+
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL) continue;
+
+        NSString *identifier = MBLinkMercedesModuleIdentifier(module);
+        NSArray<NSNumber *> *runtime =
+            [self runtimeManufacturerDataIdentifiersForModule:module
+                                                   identifier:identifier];
+        NSArray<NSNumber *> *candidates =
+            [self runtimeCandidateIdentifiersForModule:module
+                                             identifier:identifier];
+        if (runtime.count == 0U && candidates.count == 0U) continue;
+
+        if (!module->extended_id &&
+            module->tx_can_id == UINT32_C(0x7e1) &&
+            module->rx_can_id == UINT32_C(0x7e9)) {
+            transmissionModule = identifier;
+        } else {
+            [otherModules addObject:identifier];
+        }
+    }
+
+    if (transmissionModule.length == 0U && otherModules.count == 0U)
+        return;
+
+    NSString *selected = nil;
+    if (transmissionModule.length != 0U &&
+        (otherModules.count == 0U ||
+         (_automaticManufacturerRefreshCycle % 3U) != 2U)) {
+        selected = transmissionModule;
+    } else if (otherModules.count != 0U) {
+        const NSUInteger index =
+            _automaticManufacturerRefreshCursor % otherModules.count;
+        selected = otherModules[index];
+        _automaticManufacturerRefreshCursor++;
+    } else {
+        selected = transmissionModule;
+    }
+    _automaticManufacturerRefreshCycle++;
+
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:selected];
+    if (module == NULL) {
+        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+            MBLinkAutomaticManufacturerRefreshDelayMs];
+        return;
+    }
+
+    NSArray<NSNumber *> *runtime =
+        [self runtimeManufacturerDataIdentifiersForModule:module
+                                               identifier:selected];
+    if (runtime.count != 0U) {
+        [self beginManufacturerDataOperationForModuleIdentifier:selected
+                                                  forceFullScan:NO
+                                                       liveOnly:YES
+                                           candidateIdentifiers:nil];
+        return;
+    }
+
+    NSArray<NSNumber *> *candidates =
+        [self runtimeCandidateIdentifiersForModule:module
+                                         identifier:selected];
+    if (candidates.count != 0U) {
+        [self beginManufacturerDataOperationForModuleIdentifier:selected
+                                                  forceFullScan:NO
+                                                       liveOnly:YES
+                                           candidateIdentifiers:candidates];
+        return;
+    }
+
+    [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+        MBLinkAutomaticManufacturerRefreshDelayMs];
 }
 
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
