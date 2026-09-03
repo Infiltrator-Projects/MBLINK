@@ -208,6 +208,24 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     config.module_kind = module_kind;
     config.request_extended_session =
         protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+
+    /*
+     * Several independent Mercedes applications/forums validate the legacy
+     * local-identifier request 0x21 0x30 on the legislated 0x7E1 -> 0x7E9
+     * physical route for transmission oil temperature. Keep this narrowly
+     * route-scoped: the responder can remain family-unidentified while this
+     * exact read-only value is probed.
+     */
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9)) {
+        config.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+        config.request_extended_session = false;
+        config.first_identifier = UINT16_C(0x0030);
+        config.last_identifier = UINT16_C(0x0030);
+        return config;
+    }
+
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         config.first_identifier = UINT16_C(0x0001);
         config.last_identifier = UINT16_C(0x00ff);
@@ -588,7 +606,10 @@ bool mblink_mercedes_data_record_format_hex(
     return true;
 }
 
-bool mblink_mercedes_data_record_decode_known_numeric(
+bool mblink_mercedes_data_record_decode_known_numeric_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
     MblinkMercedesModuleKind module_kind,
     const MblinkMercedesDataRecord *record,
     double *value,
@@ -617,5 +638,46 @@ bool mblink_mercedes_data_record_decode_known_numeric(
         *unit = "V";
         return true;
     }
+
+    /*
+     * Mercedes transmission oil temperature candidate:
+     *
+     *   physical request/response: 0x7E1 -> 0x7E9
+     *   request: 21 30
+     *   positive response: 61 30 ...
+     *   Torque equation: L - 50
+     *
+     * L is byte 11 of the complete positive response. The generic KWP decoder
+     * removes the leading 61 30 bytes before storing record->data, so the same
+     * source-backed byte is record->data[9].
+     *
+     * This mapping is source-corroborated across several Mercedes 722.9/W204/
+     * W212 reports but remains vehicle-unverified until a real MBLINK capture
+     * returns a plausible changing value on the development C207.
+     */
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9) &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
+        record->identifier == UINT16_C(0x0030) &&
+        record->data_length >= 10U) {
+        *value = (double)record->data[9] - 50.0;
+        *name = "Transmission oil temperature";
+        *unit = "°C";
+        return true;
+    }
+
     return false;
+}
+
+bool mblink_mercedes_data_record_decode_known_numeric(
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record,
+    double *value,
+    const char **name,
+    const char **unit)
+{
+    return mblink_mercedes_data_record_decode_known_numeric_for_route(
+        0U, 0U, false, module_kind, record, value, name, unit);
 }
