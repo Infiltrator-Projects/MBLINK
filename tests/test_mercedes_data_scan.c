@@ -424,6 +424,59 @@ static int test_transmission_standard_kwp_metadata(void)
     memset(&record, 0, sizeof(record));
     record.service = MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
 
+    record.identifier = UINT16_C(0xe0);
+    record.data_length = 18U;
+    for (size_t index = 0U; index < record.data_length; ++index)
+        record.data[index] = (uint8_t)(index + 1U);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Development data") == 0);
+    CHECK(strstr(text, "processor 0x0102") != NULL);
+    CHECK(strstr(text, "KWP 09.0A") != NULL);
+
+    record.identifier = UINT16_C(0xe2);
+    record.data_length = 19U;
+    memset(record.data, 0, sizeof(record.data));
+    record.data[0] = 0x01; record.data[1] = 0x02; record.data[2] = 0x03;
+    record.data[3] = 0x44;
+    record.data[4] = 0x00; record.data[5] = 0x10; record.data[6] = 0x00;
+    record.data[7] = 0x04; record.data[8] = 0x05; record.data[9] = 0x06;
+    record.data[10] = 0x00; record.data[11] = 0x20; record.data[12] = 0x00;
+    record.data[13] = 0x07; record.data[14] = 0x08; record.data[15] = 0x09;
+    record.data[16] = 0x00; record.data[17] = 0x00; record.data[18] = 0x80;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "DBCom communication-matrix data") == 0);
+    CHECK(strstr(text, "Flash 0x010203 +4096 bytes") != NULL);
+    CHECK(strstr(text, "RAM 0x040506 +8192 bytes") != NULL);
+    CHECK(strstr(text, "EEPROM 0x070809 +128 bytes") != NULL);
+
+    record.identifier = UINT16_C(0xe3);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x12);
+    record.data[1] = UINT8_C(0x34);
+    record.data[2] = UINT8_C(0x56);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Operating-system version") == 0);
+    CHECK(strcmp(text, "0x123456") == 0);
+
+    record.identifier = UINT16_C(0xe7);
+    record.data_length = 19U;
+    memset(record.data, 0xaa, record.data_length);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_MODULE_TRANSMISSION,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Flash information 2") == 0);
+    CHECK(strstr(text, "19-byte hardware-scan") != NULL);
+
     record.identifier = UINT16_C(0xe1);
     record.data_length = 4U;
     record.data[0] = UINT8_C(0x01);
