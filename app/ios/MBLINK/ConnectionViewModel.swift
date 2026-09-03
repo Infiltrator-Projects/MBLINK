@@ -256,6 +256,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private let controller = MBLinkDiagnosticsController()
     private var lastConnectionAlertText: String?
+    private var manufacturerNumericHistory = [String: [Double]]()
+    private var manufacturerLastRawByParameter = [String: String]()
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -1115,19 +1117,428 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
      * for those generic surfaces (0x7E8 when present); every other responder
      * remains available through its own module screen.
      */
+    private func manufacturerHistory(
+        id: String,
+        value: Double,
+        rawHex: String
+    ) -> [Double] {
+        if manufacturerLastRawByParameter[id] != rawHex {
+            manufacturerLastRawByParameter[id] = rawHex
+            var history = manufacturerNumericHistory[id] ?? []
+            history.append(value)
+            if history.count > 240 {
+                history.removeFirst(history.count - 240)
+            }
+            manufacturerNumericHistory[id] = history
+        }
+        return manufacturerNumericHistory[id] ?? []
+    }
+
+    private func manufacturerBytes(_ rawHex: String) -> [UInt8] {
+        let hex = rawHex.filter { !$0.isWhitespace }
+        guard hex.count >= 2, hex.count % 2 == 0 else { return [] }
+        var result = [UInt8]()
+        result.reserveCapacity(hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else {
+                return []
+            }
+            result.append(byte)
+            index = next
+        }
+        return result
+    }
+
+    private func manufacturerBE16(_ bytes: [UInt8], _ offset: Int) -> UInt16? {
+        guard offset >= 0, offset + 1 < bytes.count else { return nil }
+        return (UInt16(bytes[offset]) << 8) | UInt16(bytes[offset + 1])
+    }
+
+    private func egs52GearText(_ code: UInt8) -> String {
+        switch code {
+        case 0: return "N"
+        case 1...7: return "\(code)"
+        case 8: return "D-CVT"
+        case 9: return "R-CVT"
+        case 10: return "R3"
+        case 11: return "R"
+        case 12: return "R2"
+        case 13: return "P"
+        case 14: return "No force"
+        default: return "Unavailable"
+        }
+    }
+
+    private func egs52RecognisedGearText(_ code: UInt8) -> String {
+        switch code {
+        case 0: return "Inactive"
+        case 1...5: return "D\(code)"
+        case 6: return "R"
+        case 7: return "R2"
+        case 23: return "Wrong gear"
+        case 88: return "Calculating"
+        case 255: return "Signal unavailable"
+        default: return String(format: "Code 0x%02X", code)
+        }
+    }
+
+    private func egs52TCCStateText(_ code: UInt8) -> String {
+        switch code {
+        case 0: return "Open"
+        case 1: return "Open → slipping"
+        case 2: return "Slipping → open"
+        case 3: return "Slipping"
+        case 4: return "Slipping → locked"
+        case 5: return "Locked → slipping"
+        case 6: return "Locked"
+        default: return String(format: "Code 0x%02X", code)
+        }
+    }
+
+    private func egs52ShiftValveText(_ code: UInt8) -> String {
+        switch code {
+        case 0: return "No shift valve"
+        case 1: return "1-2/4-5"
+        case 2: return "2-3"
+        case 3: return "1-2/4-5 + 2-3"
+        case 4: return "3-4"
+        case 5: return "1-2/4-5 + 3-4"
+        case 6: return "2-3 + 3-4"
+        case 7: return "All shift valves"
+        default: return String(format: "Code 0x%02X", code)
+        }
+    }
+
+    private func transmissionDiagnosticParameters() -> [DiagnosticParameter] {
+        guard let module = diagnosticModules.first(where: {
+            !$0.extendedID &&
+                $0.requestCANIdentifier == 0x7E1 &&
+                $0.responseCANIdentifier == 0x7E9
+        }) else { return [] }
+
+        let values = Dictionary(
+            uniqueKeysWithValues: manufacturerData(moduleID: module.id)
+                .filter { $0.service == 0x21 }
+                .map { ($0.identifier, $0) })
+        let source = "\(module.name) · \(module.addressText)"
+        var result = [DiagnosticParameter]()
+
+        func addNumeric(
+            id: String,
+            identifier: UInt16,
+            shortName: String,
+            title: String,
+            value: Double,
+            suffix: String = "",
+            rawHex: String,
+            quality: String
+        ) {
+            result.append(DiagnosticParameter(
+                id: id,
+                protocolName: "kwp2000",
+                moduleIdentifier: 0x7E1,
+                parameterIdentifier: UInt16(0x2100) | identifier,
+                shortName: shortName,
+                title: title,
+                suffix: suffix,
+                formattedValue: String(format: "%.6g%@", value, suffix),
+                value: value,
+                structuredValue: nil,
+                rawHex: rawHex,
+                vehicleSupported: true,
+                favourite: false,
+                pollingEnabled: true,
+                history: manufacturerHistory(
+                    id: id, value: value, rawHex: rawHex),
+                sourceLabel: source,
+                qualityNote: quality))
+        }
+
+        func addText(
+            id: String,
+            identifier: UInt16,
+            shortName: String,
+            title: String,
+            text: String,
+            rawHex: String,
+            quality: String
+        ) {
+            result.append(DiagnosticParameter(
+                id: id,
+                protocolName: "kwp2000",
+                moduleIdentifier: 0x7E1,
+                parameterIdentifier: UInt16(0x2100) | identifier,
+                shortName: shortName,
+                title: title,
+                suffix: "",
+                formattedValue: text,
+                value: nil,
+                structuredValue: text,
+                rawHex: rawHex,
+                vehicleSupported: true,
+                favourite: false,
+                pollingEnabled: true,
+                history: [],
+                sourceLabel: source,
+                qualityNote: quality))
+        }
+
+        let dasQuality =
+            "Mercedes EGS52/DAS-compatible RLI layout corroborated by public EGS52 emulation source"
+
+        if let rli30 = values[0x30] {
+            let b = manufacturerBytes(rli30.rawHex)
+            if b.count >= 24 {
+                if let raw = manufacturerBE16(b, 0) {
+                    addNumeric(id: "mercedes.transmission.tcc_delta_speed",
+                               identifier: 0x30, shortName: "TCC Δ",
+                               title: "TCC delta speed (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+                if let raw = manufacturerBE16(b, 2) {
+                    addNumeric(id: "mercedes.transmission.tcc_speed",
+                               identifier: 0x30, shortName: "TCC SPD",
+                               title: "TCC speed (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+                if let raw = manufacturerBE16(b, 4) {
+                    addNumeric(id: "mercedes.transmission.tcc_pressure",
+                               identifier: 0x30, shortName: "TCC P",
+                               title: "TCC pressure (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+                addText(id: "mercedes.transmission.tcc_state",
+                        identifier: 0x30, shortName: "TCC",
+                        title: "Torque converter clutch state",
+                        text: egs52TCCStateText(b[6]),
+                        rawHex: rli30.rawHex, quality: dasQuality)
+                addNumeric(id: "mercedes.transmission.selector_position",
+                           identifier: 0x30, shortName: "SELECT",
+                           title: "Selector position code",
+                           value: Double(b[7]), suffix: " raw",
+                           rawHex: rli30.rawHex, quality: dasQuality)
+                addNumeric(id: "mercedes.transmission.drive_program",
+                           identifier: 0x30, shortName: "PROGRAM",
+                           title: "Transmission drive program code",
+                           value: Double(b[8]), suffix: " raw",
+                           rawHex: rli30.rawHex, quality: dasQuality)
+                addText(id: "mercedes.transmission.recognised_gear",
+                        identifier: 0x30, shortName: "REC GEAR",
+                        title: "Recognised gear",
+                        text: egs52RecognisedGearText(b[9]),
+                        rawHex: rli30.rawHex, quality: dasQuality)
+
+                let actual = b[10] & 0x0F
+                let target = (b[10] >> 4) & 0x0F
+                addText(id: "mercedes.transmission.actual_gear",
+                        identifier: 0x30, shortName: "GEAR",
+                        title: "Current gear",
+                        text: egs52GearText(actual),
+                        rawHex: rli30.rawHex, quality: dasQuality)
+                addText(id: "mercedes.transmission.target_gear",
+                        identifier: 0x30, shortName: "TARGET",
+                        title: "Target gear",
+                        text: egs52GearText(target),
+                        rawHex: rli30.rawHex, quality: dasQuality)
+
+                let celsius = Double(b[11]) - 50.0
+                let displayedValue: Double
+                let temperatureSuffix: String
+                if unitProfile == .usCustomary {
+                    displayedValue = celsius * 9.0 / 5.0 + 32.0
+                    temperatureSuffix = " °F"
+                } else {
+                    displayedValue = celsius
+                    temperatureSuffix = " °C"
+                }
+                addNumeric(id: "mercedes.transmission.oil_temperature",
+                           identifier: 0x30, shortName: "ATF",
+                           title: "Transmission oil temperature",
+                           value: displayedValue, suffix: temperatureSuffix,
+                           rawHex: rli30.rawHex, quality: dasQuality)
+
+                if let raw = manufacturerBE16(b, 12) {
+                    addNumeric(id: "mercedes.transmission.engine_torque_raw",
+                               identifier: 0x30, shortName: "ENG TQ",
+                               title: "Engine torque value (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+                if let raw = manufacturerBE16(b, 14) {
+                    addNumeric(id: "mercedes.transmission.converter_torque_raw",
+                               identifier: 0x30, shortName: "CONV TQ",
+                               title: "Converter torque value (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+                if let raw = manufacturerBE16(b, 16) {
+                    addNumeric(id: "mercedes.transmission.output_speed_raw",
+                               identifier: 0x30, shortName: "OUT SPD",
+                               title: "Transmission output speed (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli30.rawHex, quality: dasQuality)
+                }
+            }
+        }
+
+        if let rli31 = values[0x31] {
+            let b = manufacturerBytes(rli31.rawHex)
+            if b.count >= 20 {
+                let fields: [(String, String, String, Int, String)] = [
+                    ("mercedes.transmission.n2_pulse_count", "N2", "N2 pulse count", 0, ""),
+                    ("mercedes.transmission.n3_pulse_count", "N3", "N3 pulse count", 2, ""),
+                    ("mercedes.transmission.input_rpm", "INPUT", "Transmission input speed", 4, " rpm"),
+                    ("mercedes.transmission.engine_rpm", "ENG RPM", "Engine speed reported by TCU", 6, " rpm"),
+                    ("mercedes.transmission.wheel_fl_raw", "FL WHEEL", "Front-left wheel speed (raw)", 8, " raw"),
+                    ("mercedes.transmission.wheel_fr_raw", "FR WHEEL", "Front-right wheel speed (raw)", 10, " raw"),
+                    ("mercedes.transmission.wheel_rl_raw", "RL WHEEL", "Rear-left wheel speed (raw)", 12, " raw"),
+                    ("mercedes.transmission.wheel_rr_raw", "RR WHEEL", "Rear-right wheel speed (raw)", 14, " raw"),
+                    ("mercedes.transmission.rear_vehicle_speed", "REAR SPD", "Vehicle speed from rear wheels", 16, " km/h"),
+                    ("mercedes.transmission.front_vehicle_speed", "FRONT SPD", "Vehicle speed from front wheels", 18, " km/h")
+                ]
+                for field in fields {
+                    if let raw = manufacturerBE16(b, field.3) {
+                        addNumeric(id: field.0, identifier: 0x31,
+                                   shortName: field.1, title: field.2,
+                                   value: Double(raw), suffix: field.4,
+                                   rawHex: rli31.rawHex, quality: dasQuality)
+                    }
+                }
+            }
+        }
+
+        if let rli32 = values[0x32] {
+            let b = manufacturerBytes(rli32.rawHex)
+            if b.count >= 12 {
+                addNumeric(id: "mercedes.transmission.pedal_percent",
+                           identifier: 0x32, shortName: "PEDAL",
+                           title: "Accelerator pedal position",
+                           value: Double(b[0]), suffix: " %",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+                if let raw = manufacturerBE16(b, 1) {
+                    addNumeric(id: "mercedes.transmission.upshift_delta_rpm",
+                               identifier: 0x32, shortName: "UP ΔRPM",
+                               title: "Upshift RPM delta",
+                               value: Double(raw), suffix: " rpm",
+                               rawHex: rli32.rawHex, quality: dasQuality)
+                }
+                if let raw = manufacturerBE16(b, 3) {
+                    addNumeric(id: "mercedes.transmission.downshift_delta_rpm",
+                               identifier: 0x32, shortName: "DOWN ΔRPM",
+                               title: "Downshift RPM delta",
+                               value: Double(raw), suffix: " rpm",
+                               rawHex: rli32.rawHex, quality: dasQuality)
+                }
+                addNumeric(id: "mercedes.transmission.pedal_delta_percent",
+                           identifier: 0x32, shortName: "PEDAL Δ",
+                           title: "Accelerator pedal change",
+                           value: Double(b[5]), suffix: " %",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+                if let raw = manufacturerBE16(b, 6) {
+                    addNumeric(id: "mercedes.transmission.pitch_raw",
+                               identifier: 0x32, shortName: "PITCH",
+                               title: "Transmission pitch value (raw)",
+                               value: Double(raw), suffix: " raw",
+                               rawHex: rli32.rawHex, quality: dasQuality)
+                }
+                addNumeric(id: "mercedes.transmission.driving_status",
+                           identifier: 0x32, shortName: "DRV STAT",
+                           title: "Transmission driving-status code",
+                           value: Double(b[8]), suffix: " raw",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+                addNumeric(id: "mercedes.transmission.warmup_shift_state",
+                           identifier: 0x32, shortName: "WARMUP",
+                           title: "Warm-up shift-state code",
+                           value: Double(b[9]), suffix: " raw",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+                addNumeric(id: "mercedes.transmission.low_gear_limit",
+                           identifier: 0x32, shortName: "LOW LIM",
+                           title: "Requested low gear-range limit",
+                           value: Double(b[10]), suffix: " raw",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+                addNumeric(id: "mercedes.transmission.high_gear_limit",
+                           identifier: 0x32, shortName: "HIGH LIM",
+                           title: "Requested high gear-range limit",
+                           value: Double(b[11]), suffix: " raw",
+                           rawHex: rli32.rawHex, quality: dasQuality)
+            }
+        }
+
+        if let rli33 = values[0x33] {
+            let b = manufacturerBytes(rli33.rawHex)
+            if b.count >= 15 {
+                addNumeric(id: "mercedes.transmission.valve_flag",
+                           identifier: 0x33, shortName: "VALVE",
+                           title: "Shift-valve active flag",
+                           value: Double(b[0]), suffix: " raw",
+                           rawHex: rli33.rawHex, quality: dasQuality)
+                addText(id: "mercedes.transmission.shift_valve_state",
+                        identifier: 0x33, shortName: "SHIFT VALVE",
+                        title: "Shift-valve state",
+                        text: egs52ShiftValveText(b[1]),
+                        rawHex: rli33.rawHex, quality: dasQuality)
+
+                let fields: [(String, String, String, Int)] = [
+                    ("mercedes.transmission.spc_pressure_raw", "SPC P", "SPC pressure (raw)", 2),
+                    ("mercedes.transmission.mpc_pressure_raw", "MPC P", "MPC pressure (raw)", 4),
+                    ("mercedes.transmission.spc_target_current_raw", "SPC TGT", "SPC target current (raw)", 6),
+                    ("mercedes.transmission.spc_actual_current_raw", "SPC ACT", "SPC actual current (raw)", 8),
+                    ("mercedes.transmission.mpc_target_current_raw", "MPC TGT", "MPC target current (raw)", 10),
+                    ("mercedes.transmission.mpc_actual_current_raw", "MPC ACT", "MPC actual current (raw)", 12)
+                ]
+                for field in fields {
+                    if let raw = manufacturerBE16(b, field.3) {
+                        addNumeric(id: field.0, identifier: 0x33,
+                                   shortName: field.1, title: field.2,
+                                   value: Double(raw), suffix: " raw",
+                                   rawHex: rli33.rawHex, quality: dasQuality)
+                    }
+                }
+                addNumeric(id: "mercedes.transmission.tcc_pwm_raw",
+                           identifier: 0x33, shortName: "TCC PWM",
+                           title: "TCC PWM (raw)",
+                           value: Double(b[14]), suffix: " raw",
+                           rawHex: rli33.rawHex, quality: dasQuality)
+            }
+        }
+
+        return result
+    }
+
+    /*
+     * The top-level Table/Graphs surfaces must never use an aggregate
+     * "latest PID" stream, because several physical OBD responders can return
+     * the same PID with different legitimate values. Use one exact responder
+     * for those generic surfaces (0x7E8 when present); every other responder
+     * remains available through its own module screen.
+     */
     private func loadPrimaryDiagnosticParameters() -> [DiagnosticParameter] {
         let primary = diagnosticModules.first(where: {
             !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
                 $0.livePIDCount > 0
         }) ?? diagnosticModules.first(where: { $0.livePIDCount > 0 })
 
-        guard let primary else {
-            return loadDiagnosticParameters()
+        var parameters: [DiagnosticParameter]
+        if let primary {
+            parameters = loadDiagnosticParameters(
+                responderCANIdentifier: primary.responseCANIdentifier,
+                extendedID: primary.extendedID,
+                sourceLabel: "\(primary.name) · \(primary.addressText)")
+        } else {
+            parameters = loadDiagnosticParameters()
         }
-        return loadDiagnosticParameters(
-            responderCANIdentifier: primary.responseCANIdentifier,
-            extendedID: primary.extendedID,
-            sourceLabel: "\(primary.name) · \(primary.addressText)")
+
+        let existing = Set(parameters.map(\.id))
+        parameters.append(contentsOf:
+            transmissionDiagnosticParameters().filter {
+                !existing.contains($0.id)
+            })
+        return parameters
     }
 
     private func loadDashboardParameters() -> [DiagnosticParameter] {
@@ -1144,122 +1555,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             parameters = diagnosticParameters
         }
 
-        /*
-         * Source-corroborated Mercedes extended PID 21 30 on 7E1/7E9.
-         * The controller performs one automatic evidence-gated read after the
-         * module census. Once a real positive response exists, surface it on
-         * the same dashboard as SAE values without pretending it is Mode 01.
-         */
-        if let transmissionModule = diagnosticModules.first(where: {
-            !$0.extendedID &&
-                $0.requestCANIdentifier == 0x7E1 &&
-                $0.responseCANIdentifier == 0x7E9
-        }),
-           let temperature = manufacturerData(moduleID: transmissionModule.id)
-                .first(where: {
-                    $0.service == 0x21 &&
-                    $0.identifier == 0x30 &&
-                    $0.mapped &&
-                    $0.numericValue != nil
-                }),
-           let celsius = temperature.numericValue {
-            let displayedValue: Double
-            let suffix: String
-            if unitProfile == .usCustomary {
-                displayedValue = celsius * 9.0 / 5.0 + 32.0
-                suffix = " °F"
-            } else {
-                displayedValue = celsius
-                suffix = " °C"
-            }
-
-            parameters.append(DiagnosticParameter(
-                id: "mercedes.transmission.oil_temperature",
-                protocolName: "kwp2000",
-                moduleIdentifier: 0x7E1,
-                parameterIdentifier: 0x2130,
-                shortName: "ATF",
-                title: "Transmission oil temperature",
-                suffix: suffix,
-                formattedValue: String(format: "%.1f%@", displayedValue, suffix),
-                value: displayedValue,
-                structuredValue: nil,
-                rawHex: temperature.rawHex,
-                vehicleSupported: true,
-                favourite: false,
-                pollingEnabled: true,
-                history: [],
-                sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
-                qualityNote: "Mercedes extended PID 0x2130 · source-corroborated; this value is shown only after a real positive response"))
-
-            /*
-             * Two source-backed 21 30 payload layouts are supported.
-             *
-             * DAS-compatible EGS52 RLI 30 is at least 24 bytes after 61 30;
-             * byte 10 packs actual gear in the low nibble and target gear in
-             * the high nibble, using the documented Mercedes gear enum.
-             *
-             * The shorter community 722.9 custom-PID layout carries its
-             * current-gear nibble at byte 3. Its forward gears/N are useful,
-             * but published P/R labels conflict, so those codes stay explicit
-             * candidates rather than being guessed.
-             */
-            let hex = temperature.rawHex
-            let fullRLI30 = hex.count >= 48
-            let gearByteOffset = fullRLI30 ? 10 : 3
-            let characterOffset = gearByteOffset * 2
-            if hex.count >= characterOffset + 2 {
-                let start = hex.index(hex.startIndex, offsetBy: characterOffset)
-                let end = hex.index(start, offsetBy: 2)
-                if let byte = UInt8(hex[start..<end], radix: 16) {
-                    let code = byte & 0x0F
-                    let gearText: String
-                    if fullRLI30 {
-                        switch code {
-                        case 0: gearText = "N"
-                        case 1...7: gearText = "\(code)"
-                        case 8: gearText = "D-CVT"
-                        case 9: gearText = "R-CVT"
-                        case 10: gearText = "R3"
-                        case 11: gearText = "R"
-                        case 12: gearText = "R2"
-                        case 13: gearText = "P"
-                        case 14: gearText = "No force"
-                        default: gearText = "Unavailable"
-                        }
-                    } else {
-                        switch code {
-                        case 0: gearText = "N"
-                        case 1...7: gearText = "\(code)"
-                        case 11: gearText = "P/R candidate · code 0xB"
-                        case 13: gearText = "P/R candidate · code 0xD"
-                        default: gearText = String(format: "Code 0x%X", code)
-                        }
-                    }
-                    parameters.append(DiagnosticParameter(
-                        id: "mercedes.transmission.actual_gear",
-                        protocolName: "kwp2000",
-                        moduleIdentifier: 0x7E1,
-                        parameterIdentifier: 0x2130,
-                        shortName: "GEAR",
-                        title: "Current gear",
-                        suffix: "",
-                        formattedValue: gearText,
-                        value: nil,
-                        structuredValue: gearText,
-                        rawHex: temperature.rawHex,
-                        vehicleSupported: true,
-                        favourite: false,
-                        pollingEnabled: true,
-                        history: [],
-                        sourceLabel: "\(transmissionModule.name) · \(transmissionModule.addressText)",
-                        qualityNote: fullRLI30
-                            ? "Mercedes EGS52 RLI 0x30 actual-gear nibble · source-backed DAS-compatible layout"
-                            : "Mercedes 0x2130 compact current-gear nibble · read-only community mapping; P/R codes retained until family-confirmed"))
-                }
-            }
-        }
-
+        let existing = Set(parameters.map(\.id))
+        parameters.append(contentsOf:
+            transmissionDiagnosticParameters().filter {
+                !existing.contains($0.id)
+            })
         return parameters
     }
 
