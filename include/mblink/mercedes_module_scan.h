@@ -109,8 +109,10 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE,
@@ -165,6 +167,8 @@ typedef struct MblinkMercedesModuleScan {
     uint32_t candidate_rx;
     bool candidate_extended;
     bool candidate_route_locked;
+    size_t vin_probe_index;
+    bool vin_timeout_long;
     size_t dtc_index;
 } MblinkMercedesModuleScan;
 
@@ -199,8 +203,10 @@ static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesM
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return "discover-extended-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT: return "discover-tester-present";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK: return "discover-dtc-fallback";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT: return "discover-vin-timeout";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK: return "discover-vin-fallback";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK: return "discover-variant-fallback";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT: return "discover-restore-timeout";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY: return "discover-system-name";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return "discover-spare-part";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
@@ -287,6 +293,7 @@ static inline void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesMo
     scan->candidate_rx = tx + UINT32_C(8);
     scan->candidate_extended = false;
     scan->candidate_route_locked = false;
+    scan->vin_probe_index = 0U;
 }
 
 static inline bool mblink_mercedes_module_scan_set_gateway_target(
@@ -304,6 +311,7 @@ static inline bool mblink_mercedes_module_scan_set_gateway_target(
         UINT32_C(0x18daf100) | (uint32_t)target;
     scan->candidate_extended = true;
     scan->candidate_route_locked = true;
+    scan->vin_probe_index = 0U;
     return true;
 }
 
@@ -346,6 +354,7 @@ static inline bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_tx = target.tx_can_id;
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
+    scan->vin_probe_index = 0U;
     /*
      * Only lock routes whose RX identifier is authoritative.  Source-backed
      * Mercedes routes carry independently evidenced TX/RX pairs, 29-bit normal
@@ -408,13 +417,89 @@ mblink_mercedes_module_scan_candidate_protocol(
     return route != NULL ? route->protocol : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
 }
 
+static inline bool mblink_mercedes_module_scan_is_production_vin_target(
+    const MblinkMercedesModuleScan *scan)
+{
+    if (scan == NULL || scan->candidate_extended) return false;
+    return
+        (scan->candidate_tx == UINT32_C(0x7e0) &&
+         scan->candidate_rx == UINT32_C(0x7e8)) ||
+        (scan->candidate_tx == UINT32_C(0x4e0) &&
+         scan->candidate_rx == UINT32_C(0x5ff)) ||
+        (scan->candidate_tx == UINT32_C(0x602) &&
+         scan->candidate_rx == UINT32_C(0x480)) ||
+        (scan->candidate_tx == UINT32_C(0x607) &&
+         scan->candidate_rx == UINT32_C(0x587)) ||
+        (scan->candidate_tx == UINT32_C(0x612) &&
+         scan->candidate_rx == UINT32_C(0x482));
+}
+
+/*
+ * Exact request order recovered from the production Mercedes me
+ * MSA_VIN_cascade parameterisation. Keep it limited to the evidenced TX/RX
+ * pairs so the ordinary 47-slot mobile census remains fast.
+ */
+static inline MblinkMercedesVinProbe mblink_mercedes_module_scan_vin_probe_at(
+    const MblinkMercedesModuleScan *scan,
+    size_t index)
+{
+    const MblinkMercedesKnownRoute *route;
+    if (scan == NULL || scan->candidate_extended)
+        return MBLINK_MERCEDES_VIN_PROBE_NONE;
+
+    if (scan->candidate_tx == UINT32_C(0x7e0) &&
+        scan->candidate_rx == UINT32_C(0x7e8)) {
+        static const MblinkMercedesVinProbe probes[] = {
+            MBLINK_MERCEDES_VIN_PROBE_OBD_0902,
+            MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+            MBLINK_MERCEDES_VIN_PROBE_KWP_1A90
+        };
+        return index < sizeof(probes) / sizeof(probes[0])
+            ? probes[index] : MBLINK_MERCEDES_VIN_PROBE_NONE;
+    }
+    if (scan->candidate_tx == UINT32_C(0x4e0) &&
+        scan->candidate_rx == UINT32_C(0x5ff)) {
+        static const MblinkMercedesVinProbe probes[] = {
+            MBLINK_MERCEDES_VIN_PROBE_KWP_2105,
+            MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+            MBLINK_MERCEDES_VIN_PROBE_KWP_1A90
+        };
+        return index < sizeof(probes) / sizeof(probes[0])
+            ? probes[index] : MBLINK_MERCEDES_VIN_PROBE_NONE;
+    }
+    if (scan->candidate_tx == UINT32_C(0x612) &&
+        scan->candidate_rx == UINT32_C(0x482)) {
+        static const MblinkMercedesVinProbe probes[] = {
+            MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+            MBLINK_MERCEDES_VIN_PROBE_KWP_2105
+        };
+        return index < sizeof(probes) / sizeof(probes[0])
+            ? probes[index] : MBLINK_MERCEDES_VIN_PROBE_NONE;
+    }
+    if ((scan->candidate_tx == UINT32_C(0x602) &&
+         scan->candidate_rx == UINT32_C(0x480)) ||
+        (scan->candidate_tx == UINT32_C(0x607) &&
+         scan->candidate_rx == UINT32_C(0x587))) {
+        return index == 0U
+            ? MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0
+            : MBLINK_MERCEDES_VIN_PROBE_NONE;
+    }
+
+    route = mblink_mercedes_module_scan_known_route(scan);
+    if (route != NULL)
+        return index == 0U ? route->vin_probe
+                           : MBLINK_MERCEDES_VIN_PROBE_NONE;
+
+    return index == 0U ? MBLINK_MERCEDES_VIN_PROBE_UDS_F190
+                       : MBLINK_MERCEDES_VIN_PROBE_NONE;
+}
+
 static inline const char *mblink_mercedes_module_scan_vin_command(
     const MblinkMercedesModuleScan *scan)
 {
-    const MblinkMercedesKnownRoute *route =
-        mblink_mercedes_module_scan_known_route(scan);
-    if (route == NULL) return "22F190";
-    switch (route->vin_probe) {
+    switch (mblink_mercedes_module_scan_vin_probe_at(
+                scan, scan != NULL ? scan->vin_probe_index : 0U)) {
+    case MBLINK_MERCEDES_VIN_PROBE_OBD_0902: return "0902";
     case MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0: return "22F1A0";
     case MBLINK_MERCEDES_VIN_PROBE_KWP_1A90: return "1A90";
     case MBLINK_MERCEDES_VIN_PROBE_KWP_2105: return "2105";
@@ -422,6 +507,27 @@ static inline const char *mblink_mercedes_module_scan_vin_command(
     case MBLINK_MERCEDES_VIN_PROBE_NONE: return NULL;
     }
     return NULL;
+}
+
+static inline bool mblink_mercedes_module_scan_has_next_vin_probe(
+    const MblinkMercedesModuleScan *scan)
+{
+    return scan != NULL &&
+        mblink_mercedes_module_scan_vin_probe_at(
+            scan, scan->vin_probe_index + 1U) !=
+            MBLINK_MERCEDES_VIN_PROBE_NONE;
+}
+
+static inline void mblink_mercedes_module_scan_enter_vin_fallback(
+    MblinkMercedesModuleScan *scan)
+{
+    if (scan == NULL) return;
+    scan->vin_probe_index = 0U;
+    scan->stage =
+        mblink_mercedes_module_scan_is_production_vin_target(scan) &&
+        !scan->vin_timeout_long
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
 }
 
 static inline MblinkMercedesDiagnosticProtocol
@@ -465,6 +571,17 @@ static inline void mblink_mercedes_module_scan_advance_candidate(
     MblinkMercedesModuleScan *scan)
 {
     if (scan == NULL) return;
+
+    /*
+     * The production cascade allows 1050 ms. ELM327 ATST tops out at 0xFF
+     * (1020 ms), so only these exact fallback targets are widened. Restore the
+     * normal fast census timeout before moving to the next ECU.
+     */
+    if (scan->vin_timeout_long) {
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT;
+        return;
+    }
 
     if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_QUICK) {
         if (scan->candidate_tx < UINT32_C(0x7e7)) {
@@ -735,19 +852,35 @@ static inline bool mblink_mercedes_module_scan_decode_vin_probe(
     const MblinkMercedesModuleScan *scan,
     const MblinkElm327Response *response)
 {
-    const MblinkMercedesKnownRoute *route =
-        mblink_mercedes_module_scan_known_route(scan);
-    if (route != NULL) {
-        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_1A90)
-            return mblink_mercedes_module_scan_decode_kwp(
-                response, UINT8_C(0x1a));
-        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105)
-            return mblink_mercedes_module_scan_decode_kwp(
-                response, UINT8_C(0x21));
-        if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_NONE)
+    const MblinkMercedesVinProbe probe =
+        mblink_mercedes_module_scan_vin_probe_at(
+            scan, scan != NULL ? scan->vin_probe_index : 0U);
+
+    if (probe == MBLINK_MERCEDES_VIN_PROBE_OBD_0902) {
+        uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+        size_t pdu_length = 0U;
+        if (response == NULL ||
+            response->result != MBLINK_ELM327_RESULT_OK ||
+            mblink_elm327_can_decode_pdu(
+                response, pdu, sizeof(pdu), &pdu_length) !=
+                MBLINK_ELM327_CAN_RESULT_OK) {
             return false;
+        }
+        return (pdu_length >= 2U &&
+                pdu[0] == UINT8_C(0x49) &&
+                pdu[1] == UINT8_C(0x02)) ||
+               (pdu_length >= 2U &&
+                pdu[0] == UINT8_C(0x7f) &&
+                pdu[1] == UINT8_C(0x09));
     }
-    {
+    if (probe == MBLINK_MERCEDES_VIN_PROBE_KWP_1A90)
+        return mblink_mercedes_module_scan_decode_kwp(
+            response, UINT8_C(0x1a));
+    if (probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105)
+        return mblink_mercedes_module_scan_decode_kwp(
+            response, UINT8_C(0x21));
+    if (probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F190 ||
+        probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0) {
         uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
         size_t pdu_length = 0U;
         MblinkUdsResponse uds;
@@ -755,6 +888,7 @@ static inline bool mblink_mercedes_module_scan_decode_vin_probe(
             response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
             pdu, sizeof(pdu), &pdu_length, &uds);
     }
+    return false;
 }
 
 static inline bool mblink_mercedes_module_scan_decode_entry(
@@ -978,12 +1112,14 @@ static inline uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMerced
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VARIANT_FALLBACK:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
         return UINT64_C(4000);
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
@@ -1029,6 +1165,11 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
         return WRITE(mblink_mercedes_module_scan_candidate_protocol(scan) ==
                          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
                      ? "1802FF00" : "1902FF");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT:
+        return WRITE("ATSTFF");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
+        return WRITE(scan->scope == MBLINK_MERCEDES_MODULE_SCAN_FULL
+            ? "ATST32" : "ATST20");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ:
         if (scan->dtc_index >= scan->module_count)
             return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
@@ -1308,7 +1449,8 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                 MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
         } else if (scan->scope ==
                        MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS &&
-                   mblink_mercedes_module_scan_known_route(scan) == NULL) {
+                   mblink_mercedes_module_scan_known_route(scan) == NULL &&
+                   !mblink_mercedes_module_scan_is_production_vin_target(scan)) {
             mblink_mercedes_module_scan_advance_candidate(scan);
         } else {
             /*
@@ -1332,7 +1474,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                 (void)mblink_mercedes_module_scan_record_module(scan, false);
                 scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
             } else {
-                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+                mblink_mercedes_module_scan_enter_vin_fallback(scan);
             }
             break;
         }
@@ -1350,15 +1492,24 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             if (module != NULL)
                 mblink_mercedes_module_scan_advance_candidate(scan);
             else if (mblink_mercedes_module_scan_vin_command(scan) != NULL)
-                scan->stage =
-                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+                mblink_mercedes_module_scan_enter_vin_fallback(scan);
             else
                 mblink_mercedes_module_scan_advance_candidate(scan);
         } else {
-            scan->stage = module != NULL
-                ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY
-                : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
+            if (module != NULL) {
+                scan->stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+            } else {
+                mblink_mercedes_module_scan_enter_vin_fallback(scan);
+            }
         }
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_SET_TIMEOUT:
+        if (!mblink_mercedes_module_scan_at_ok(response))
+            goto adapter_failure;
+        scan->vin_timeout_long = true;
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_VIN_FALLBACK:
         if (mblink_mercedes_module_scan_uses_target_plan(scan->scope) &&
@@ -1385,6 +1536,8 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                 scan->stage =
                     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
             }
+        } else if (mblink_mercedes_module_scan_has_next_vin_probe(scan)) {
+            ++scan->vin_probe_index;
         } else if (mblink_mercedes_module_scan_known_route(scan) != NULL &&
                    mblink_mercedes_module_scan_candidate_protocol(scan) ==
                        MBLINK_MERCEDES_DIAGNOSTIC_UDS) {
@@ -1457,6 +1610,12 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                     module->hardware_number,
                     sizeof(module->hardware_number));
         }
+        mblink_mercedes_module_scan_advance_candidate(scan);
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
+        if (!mblink_mercedes_module_scan_at_ok(response))
+            goto adapter_failure;
+        scan->vin_timeout_long = false;
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:
