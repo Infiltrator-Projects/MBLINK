@@ -168,7 +168,7 @@ bool mblink_mercedes_data_record_format_hex(
     size_t buffer_size);
 
 /**
- * Decode the one currently source-backed numeric actual-value definition.
+ * Decode a source-backed numeric actual-value definition.
  * Returns false for every unmapped identifier so callers cannot accidentally
  * present guessed engineering units.
  */
@@ -197,6 +197,22 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
     double *value,
     const char **name,
     const char **unit);
+
+/**
+ * Format a source-backed structured record that does not collapse to one
+ * numeric scalar. This is used for Mercedes transmission RLI 30-33 and the
+ * DaimlerChrysler KWP2000 identification records E1-EB. Unknown records return
+ * false and remain raw.
+ */
+bool mblink_mercedes_data_record_format_known_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name);
 
 #ifdef __cplusplus
 }
