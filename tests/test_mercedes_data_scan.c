@@ -193,6 +193,52 @@ static int test_targeted_positive_identifier_refresh(void)
     return 0;
 }
 
+static int test_source_candidate_identifier_probe(void)
+{
+    MblinkMercedesDataScan scan;
+    MblinkMercedesDataScanConfig config =
+        mblink_mercedes_data_scan_default_config(
+            UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    const uint16_t identifiers[] = {
+        UINT16_C(0x30), UINT16_C(0x31), UINT16_C(0xe1)
+    };
+    MblinkElm327Response ok = response_ok("OK");
+
+    CHECK(mblink_mercedes_data_scan_begin_probe_identifiers(
+              &scan, &config, identifiers,
+              sizeof(identifiers) / sizeof(identifiers[0])) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(scan.identifier_list_active);
+    CHECK(!scan.identifier_list_retry_no_response);
+
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH7E1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA7E9", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
+
+    /* Candidate NO DATA advances immediately: no three-time refresh retry. */
+    CHECK(accept_command(&scan, "2130", response_no_data()) == 0);
+    CHECK(scan.current_identifier == UINT16_C(0x31));
+    CHECK(scan.no_response_count == 1U);
+    CHECK(scan.current_no_response_retries == 0U);
+
+    CHECK(accept_command(&scan, "2131", response_no_data()) == 0);
+    CHECK(scan.current_identifier == UINT16_C(0xe1));
+    CHECK(scan.no_response_count == 2U);
+
+    CHECK(accept_command(&scan, "21E1", response_ok("61E131323334")) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    CHECK(scan.attempted_count == 3U);
+    CHECK(scan.positive_count == 1U);
+    return 0;
+}
+
 static int test_c207_vehicle_verified_raw_positives(void)
 {
     MblinkMercedesDataScan scan;
@@ -502,6 +548,7 @@ int main(void)
     if (test_transmission_standard_kwp_metadata() != 0) return 1;
     if (test_c207_vehicle_verified_raw_positives() != 0) return 1;
     if (test_targeted_positive_identifier_refresh() != 0) return 1;
+    if (test_source_candidate_identifier_probe() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;
 }
