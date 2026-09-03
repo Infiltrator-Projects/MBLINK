@@ -226,7 +226,7 @@ static inline const char *mblink_mercedes_module_scan_module_name(const MblinkMe
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e0)) return "Engine ECU";
     if (module->identity_available && module->identity[0] != '\0') return module->identity;
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1))
-        return "Transmission ECU candidate (7E1/7E9 EOBD responder)";
+        return "Secondary EOBD powertrain ECU (7E1/7E9)";
     switch (module->kind) {
     case MBLINK_MERCEDES_MODULE_ENGINE: return "Engine ECU";
     case MBLINK_MERCEDES_MODULE_TRANSMISSION: return "Transmission ECU";
@@ -245,13 +245,11 @@ static inline MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t
     if (!extended_id && tx_can_id == UINT32_C(0x7e0))
         return MBLINK_MERCEDES_MODULE_ENGINE;
     /*
-     * ISO 15765-4 assigns/recommends the second legislated-OBD physical slot
-     * 0x7E1/0x7E9 to the transmission control module.  A live response on this
-     * route therefore classifies the responder as a transmission candidate;
-     * exact Mercedes VGS/EGS identity still requires returned ECU identity.
+     * 0x7E1/0x7E9 is a second legislated-OBD physical responder on the captured
+     * C207, but the 2026-09-03 vehicle evidence rejects the UDS identity reads
+     * used by this scanner.  Preserve the responder without guessing that it is
+     * VGS/EGS; returned Mercedes identity may classify it later.
      */
-    if (!extended_id && tx_can_id == UINT32_C(0x7e1))
-        return MBLINK_MERCEDES_MODULE_TRANSMISSION;
     return MBLINK_MERCEDES_MODULE_OTHER;
 }
 
