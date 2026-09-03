@@ -401,6 +401,27 @@ static int test_egs53(void)
     return 0;
 }
 
+static int test_transport_formatter(void)
+{
+    uint8_t payload[8] = {0};
+    char text[512];
+
+    put_bits(payload, 0U, 8U, 100U);
+    put_bits(payload, 17U, 3U, 4U);
+    put_bits(payload, 32U, 16U, 350U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
+        MBLINK_MERCEDES_EGS53_TCM_A1_CAN_ID,
+        payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "ATF 50.0 °C") != NULL);
+    CHECK(strstr(text, "drive-shaft torque 350 Nm") != NULL);
+
+    CHECK(!mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,
+        UINT32_C(0x7ff), payload, sizeof(payload), text, sizeof(text)));
+    return 0;
+}
+
 static int test_family_names(void)
 {
     CHECK(strcmp(mblink_mercedes_transmission_family_name(
@@ -421,6 +442,7 @@ int main(void)
     if (test_egs52_gs418() != 0) return 1;
     if (test_kwp_records() != 0) return 1;
     if (test_egs53() != 0) return 1;
+    if (test_transport_formatter() != 0) return 1;
     if (test_family_names() != 0) return 1;
     puts("Mercedes transmission decoder tests passed");
     return 0;
