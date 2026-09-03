@@ -777,12 +777,29 @@ bool mblink_mercedes_data_record_format_known_for_route(
         }
         if (mblink_mercedes_transmission_decode_2130(
                 record->data, record->data_length, &compact)) {
+            char gear_text[32];
+            if (compact.actual_gear_code == 0U) {
+                (void)snprintf(gear_text, sizeof(gear_text), "%s", "N");
+            } else if (compact.actual_gear_code >= 1U &&
+                       compact.actual_gear_code <= 7U) {
+                (void)snprintf(
+                    gear_text, sizeof(gear_text), "%u",
+                    (unsigned int)compact.actual_gear_code);
+            } else if (compact.actual_gear_code == 11U ||
+                       compact.actual_gear_code == 13U) {
+                (void)snprintf(
+                    gear_text, sizeof(gear_text),
+                    "P/R candidate code 0x%X",
+                    (unsigned int)compact.actual_gear_code);
+            } else {
+                (void)snprintf(
+                    gear_text, sizeof(gear_text), "code 0x%X",
+                    (unsigned int)compact.actual_gear_code);
+            }
             count = snprintf(
                 buffer, buffer_size,
                 "ATF %.1f °C · current gear %s",
-                compact.oil_temperature_c,
-                mblink_mercedes_transmission_actual_gear_name(
-                    compact.actual_gear_code));
+                compact.oil_temperature_c, gear_text);
             return count >= 0 && (size_t)count < buffer_size;
         }
         return false;
@@ -863,8 +880,12 @@ bool mblink_mercedes_data_record_format_known_for_route(
         break;
     case UINT8_C(0xe1):
         *name = "ECU serial number";
-        return format_ascii_payload(
-            record->data, record->data_length, buffer, buffer_size);
+        if (format_ascii_payload(
+                record->data, record->data_length,
+                buffer, buffer_size)) {
+            return true;
+        }
+        break;
     case UINT8_C(0xe2):
         *name = "DBCom communication-matrix data";
         break;
@@ -876,6 +897,17 @@ bool mblink_mercedes_data_record_format_known_for_route(
         break;
     case UINT8_C(0xe5):
         *name = "Vehicle information";
+        if (record->data_length >= 4U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "model year 0x%02X · vehicle 0x%02X · "
+                "body style 0x%02X · country 0x%02X",
+                (unsigned int)record->data[0],
+                (unsigned int)record->data[1],
+                (unsigned int)record->data[2],
+                (unsigned int)record->data[3]);
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xe6):
         *name = "Flash information 1";
@@ -885,9 +917,56 @@ bool mblink_mercedes_data_record_format_known_for_route(
         break;
     case UINT8_C(0xe8):
         *name = "System-diagnostic general parameters";
+        /*
+         * DaimlerChrysler KWP2000 Requirements Definition 2.2 defines the
+         * fixed prefix: communication/global-process-data flags, SDCOM
+         * version/build metadata, configuration/reference and checksum bytes.
+         * Keep BCD-looking fields hexadecimal here instead of silently
+         * converting malformed manufacturer data into calendar numbers.
+         */
+        if (record->data_length >= 15U) {
+            count = snprintf(
+                buffer, buffer_size,
+                "flags 0x%02X · SDCOM version %02X.%02X.%02X · "
+                "build %02X%02X-%02X-%02X · config 0x%02X%02X · "
+                "reference 0x%02X%02X · checksum %02X%02X%02X · "
+                "%zu byte%s total",
+                (unsigned int)record->data[0],
+                (unsigned int)record->data[1],
+                (unsigned int)record->data[2],
+                (unsigned int)record->data[3],
+                (unsigned int)record->data[4],
+                (unsigned int)record->data[5],
+                (unsigned int)record->data[6],
+                (unsigned int)record->data[7],
+                (unsigned int)record->data[8],
+                (unsigned int)record->data[9],
+                (unsigned int)record->data[10],
+                (unsigned int)record->data[11],
+                (unsigned int)record->data[12],
+                (unsigned int)record->data[13],
+                (unsigned int)record->data[14],
+                record->data_length,
+                record->data_length == 1U ? "" : "s");
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xe9):
         *name = "System-diagnostic global parameters";
+        if (record->data_length >= 4U) {
+            const uint16_t first_can_position = be16(&record->data[2]);
+            count = snprintf(
+                buffer, buffer_size,
+                "global analog values %u · global states %u · "
+                "first CAN data-frame position %u · "
+                "%zu descriptor byte%s retained",
+                (unsigned int)record->data[0],
+                (unsigned int)record->data[1],
+                (unsigned int)first_can_position,
+                record->data_length - 4U,
+                record->data_length - 4U == 1U ? "" : "s");
+            return count >= 0 && (size_t)count < buffer_size;
+        }
         break;
     case UINT8_C(0xea):
         *name = "ECU configuration";
