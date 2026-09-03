@@ -1200,7 +1200,7 @@ static bool MBLinkSimulatorResponder(
 
 - (nullable NSString *)automaticTransmissionTemperatureModuleIdentifier
 {
-    const size_t count =
+    size_t count =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesModuleScanEntry *module =
@@ -1212,7 +1212,45 @@ static bool MBLinkSimulatorResponder(
             return MBLinkMercedesModuleIdentifier(module);
         }
     }
-    return nil;
+
+    /*
+     * A KWP TesterPresent/DTC probe is not the only valid proof that the GS
+     * endpoint exists. If legislated OBD capability discovery has already
+     * observed 0x7E9, combine that live responder evidence with the
+     * source-backed D_RQ_GS/D_RS_GS route and materialise the module so the
+     * read-only 21 30 query is not needlessly suppressed.
+     */
+    NSArray<NSNumber *> *gsPIDs =
+        [self observedPIDsForResponderCANIdentifier:
+            UINT32_C(0x7e9) extendedID:NO];
+    if (gsPIDs.count == 0U ||
+        _mercedesModuleScan.module_count >=
+            MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) {
+        return nil;
+    }
+
+    MblinkMercedesModuleScanEntry *module =
+        &_mercedesModuleScan.modules[_mercedesModuleScan.module_count++];
+    memset(module, 0, sizeof(*module));
+    module->tx_can_id = UINT32_C(0x7e1);
+    module->rx_can_id = UINT32_C(0x7e9);
+    module->extended_id = false;
+    module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    module->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
+    module->identification_status =
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+    module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
+    {
+        const MblinkMercedesModuleDefinition *definition =
+            mblink_mercedes_c207_module_definition_for_key(
+                "transmission-vgs");
+        if (definition != NULL) {
+            module->definition = definition;
+            module->kind = definition->kind;
+            module->identification_status = definition->status;
+        }
+    }
+    return MBLinkMercedesModuleIdentifier(module);
 }
 
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
