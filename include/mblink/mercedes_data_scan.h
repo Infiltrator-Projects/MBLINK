@@ -201,7 +201,7 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
 /**
  * Format a source-backed structured record that does not collapse to one
  * numeric scalar. This is used for Mercedes transmission RLI 30-33 and the
- * DaimlerChrysler KWP2000 identification records E1-EB. Unknown records return
+ * DaimlerChrysler KWP2000 identification records E0-EB. Unknown records return
  * false and remain raw.
  */
 bool mblink_mercedes_data_record_format_known_for_route(
