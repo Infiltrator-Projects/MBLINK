@@ -239,6 +239,132 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     return config;
 }
 
+/*
+ * Runtime-observation candidates are intentionally exact-route scoped.
+ *
+ *  - 7E0/7E8 DID 2007 is the source-backed CRD3 battery-voltage actual value.
+ *  - 7E1/7E9 local IDs 30-33 are published Mercedes transmission actual-value
+ *    groups and are suitable for repeated read-only observation.
+ *  - 632/486 DID 2001, 64A/489 local 58 and 652/48A local 01 are exact positive
+ *    raw responses captured from the 2026-09-03 C207 drive. Their semantics
+ *    remain unknown; refreshing them exists specifically to collect changing
+ *    evidence without inventing a decoder.
+ */
+static const uint16_t runtime_engine_candidates[] = {
+    UINT16_C(0x2007)
+};
+static const uint16_t runtime_transmission_candidates[] = {
+    UINT16_C(0x0030), UINT16_C(0x0031),
+    UINT16_C(0x0032), UINT16_C(0x0033)
+};
+static const uint16_t runtime_esp_candidates[] = {
+    UINT16_C(0x2001)
+};
+static const uint16_t runtime_orc_candidates[] = {
+    UINT16_C(0x0058)
+};
+static const uint16_t runtime_headunit_candidates[] = {
+    UINT16_C(0x0001)
+};
+
+static const uint16_t *runtime_candidate_list_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    size_t *count)
+{
+    if (count != NULL) *count = 0U;
+    if (extended_id) return NULL;
+
+    if (tx_can_id == UINT32_C(0x7e0) &&
+        rx_can_id == UINT32_C(0x7e8)) {
+        if (count != NULL)
+            *count = sizeof(runtime_engine_candidates) /
+                sizeof(runtime_engine_candidates[0]);
+        return runtime_engine_candidates;
+    }
+    if (tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9)) {
+        if (count != NULL)
+            *count = sizeof(runtime_transmission_candidates) /
+                sizeof(runtime_transmission_candidates[0]);
+        return runtime_transmission_candidates;
+    }
+    if (tx_can_id == UINT32_C(0x632) &&
+        rx_can_id == UINT32_C(0x486)) {
+        if (count != NULL)
+            *count = sizeof(runtime_esp_candidates) /
+                sizeof(runtime_esp_candidates[0]);
+        return runtime_esp_candidates;
+    }
+    if (tx_can_id == UINT32_C(0x64a) &&
+        rx_can_id == UINT32_C(0x489)) {
+        if (count != NULL)
+            *count = sizeof(runtime_orc_candidates) /
+                sizeof(runtime_orc_candidates[0]);
+        return runtime_orc_candidates;
+    }
+    if (tx_can_id == UINT32_C(0x652) &&
+        rx_can_id == UINT32_C(0x48a)) {
+        if (count != NULL)
+            *count = sizeof(runtime_headunit_candidates) /
+                sizeof(runtime_headunit_candidates[0]);
+        return runtime_headunit_candidates;
+    }
+    return NULL;
+}
+
+size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id)
+{
+    size_t count = 0U;
+    (void)runtime_candidate_list_for_route(
+        tx_can_id, rx_can_id, extended_id, &count);
+    return count;
+}
+
+uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    size_t index)
+{
+    size_t count = 0U;
+    const uint16_t *list = runtime_candidate_list_for_route(
+        tx_can_id, rx_can_id, extended_id, &count);
+    return list != NULL && index < count ? list[index] : 0U;
+}
+
+bool mblink_mercedes_data_identifier_is_runtime_refreshable(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier)
+{
+    (void)tx_can_id;
+    (void)rx_can_id;
+    (void)extended_id;
+
+    /*
+     * DaimlerChrysler KWP local records E0-EB are identification/configuration
+     * metadata. They can be discovered and displayed, but repeatedly reading
+     * them adds bus traffic without producing live telemetry.
+     */
+    if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
+        identifier >= UINT16_C(0x00e0) &&
+        identifier <= UINT16_C(0x00eb)) {
+        return false;
+    }
+
+    if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)
+        return identifier != 0U && identifier <= UINT16_C(0x00ff);
+
+    return true;
+}
+
 static MblinkMercedesDataScanResult initialise_scan(
     MblinkMercedesDataScan *scan,
     const MblinkMercedesDataScanConfig *config)
