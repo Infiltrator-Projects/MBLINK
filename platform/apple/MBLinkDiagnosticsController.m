@@ -1196,8 +1196,12 @@ static bool MBLinkSimulatorResponder(
             mblink_mercedes_data_scan_record_count(&_manufacturerDataScan)];
         self.manufacturerDataScanActive = NO;
         self.manufacturerDataScanModuleIdentifier = nil;
+        _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
         ++_manufacturerDataRequestGeneration;
         [self notifyDelegate];
+        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+            UINT64_C(2500)];
         return;
     }
     if (_moduleScanActive) {
@@ -2093,6 +2097,7 @@ static bool MBLinkSimulatorResponder(
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
+    _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
 
     if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
@@ -2100,6 +2105,8 @@ static bool MBLinkSimulatorResponder(
             @"Could not resume standard diagnostics after Mercedes data scan"];
     }
     [self notifyDelegate];
+    [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+        MBLinkAutomaticManufacturerRefreshDelayMs];
 }
 
 - (void)beginMercedesProbe
@@ -2365,6 +2372,14 @@ static bool MBLinkSimulatorResponder(
                     }
                 });
         }
+
+        /*
+         * Once topology is stable, keep a narrow runtime observer alive. It
+         * yields to the initial GS discovery and to the shared SAE scheduler,
+         * then re-reads only proven/candidate-safe actual-value identifiers.
+         */
+        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+            UINT64_C(2500)];
         return;
     }
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||
