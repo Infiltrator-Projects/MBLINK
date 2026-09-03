@@ -1709,16 +1709,17 @@ static bool MBLinkSimulatorResponder(
     /*
      * A new VIN gets one read-only mobile census so MBLINK can learn the
      * vehicle's real module topology instead of caching only legislated OBD
-     * powertrain endpoints.  The census covers the complete Mercedes-owned
-     * 11/29-bit target plan but sends only TesterPresent to dead addresses.
+     * powertrain endpoints. The mobile census uses the 47-slot Mercedes
+     * gateway request/response lattice with exact receive filters, the small
+     * source-backed exception set and the eight legislated OBD physical slots.
      * Deeper DTC/identity reads happen only after a responder is proven.
      *
      * The resulting routes are saved against the VIN and future connections
-     * use the bounded cached refresh path, so this wider discovery cost is a
-     * first-VIN learning operation rather than an every-connect penalty.
+     * use the bounded cached refresh path. The exhaustive 11/29-bit sweep is
+     * deliberately left to the workstation forensic tool.
      */
     self.mercedesProbeStatusText =
-        @"Mercedes first-VIN mobile census · full 11/29-bit read-only discovery";
+        @"Mercedes first-VIN mobile census · 47-slot gateway discovery";
     self.mercedesUDSFaultStatusText =
         @"Learning complete Mercedes module topology for this VIN";
     [self notifyDelegate];
