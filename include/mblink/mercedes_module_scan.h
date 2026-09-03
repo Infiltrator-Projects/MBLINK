@@ -1571,10 +1571,10 @@ static inline size_t mblink_mercedes_module_scan_classified_count(
     for (index = 0U; index < scan->module_count; ++index) {
         const MblinkMercedesModuleScanEntry *module = &scan->modules[index];
         /*
-         * A returned textual identity is the strongest classifier. The
-         * legislated 7E0/7E8 engine route is useful functional evidence, but a
-         * second EOBD responder such as 7E1/7E9 stays OTHER until returned
-         * Mercedes identity or another defensible source names its family.
+         * Returned textual identity is the strongest classifier, but an
+         * independently source-backed physical route can also establish the
+         * module class. In particular Mercedes definitions explicitly name
+         * 0x7E1/0x7E9 as the GS gearbox-control diagnostic route.
          */
         if (module->definition != NULL ||
             module->kind != MBLINK_MERCEDES_MODULE_OTHER) {
