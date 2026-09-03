@@ -1791,8 +1791,10 @@ private struct MBModuleDetailView: View {
                     Toggle("", isOn: Binding(
                         get: { parameter.pollingEnabled },
                         set: {
-                            connection.setPolling(
-                                $0, stableKey: parameter.id)
+                            connection.setPIDSelection(
+                                $0,
+                                moduleID: moduleID,
+                                stableKey: parameter.id)
                         }
                     ))
                     .labelsHidden()
