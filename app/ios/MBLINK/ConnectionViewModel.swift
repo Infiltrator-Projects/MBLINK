@@ -862,7 +862,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         case "metric":
             return .metric
         default:
-            return Locale.current.usesMetricSystem ? .metric : .usCustomary
+            return Locale.current.measurementSystem == .metric ? .metric : .usCustomary
         }
     }
 
