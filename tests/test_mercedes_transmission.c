@@ -52,7 +52,7 @@ static int test_egs51_gs218(void)
     payload[0] = UINT8_C(100); /* 50 torque units */
     payload[1] = UINT8_C(0xF4); /* automatic, OK, P/N, garage, start, torque req */
     payload[2] = UINT8_C(0x43); /* target 3, actual 4 */
-    payload[3] = UINT8_C(0xF4); /* closed, large, limp, shifting, kickdown, FWD */
+    payload[3] = UINT8_C(0xFC); /* closed, large, limp, shifting, kickdown, FWD */
     payload[4] = UINT8_C(0x55);
     payload[5] = UINT8_C(0xA0);
 
