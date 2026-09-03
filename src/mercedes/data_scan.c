@@ -687,14 +687,31 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
         record->service ==
             MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
         record->identifier == UINT16_C(0x0030)) {
-        MblinkMercedesTransmission2130 decoded;
-        if (mblink_mercedes_transmission_decode_2130(
-                record->data, record->data_length, &decoded) &&
-            decoded.oil_temperature_available) {
-            *value = decoded.oil_temperature_c;
+        /*
+         * Two public 21 30 layouts exist. A full DAS-compatible EGS52 RLI 30
+         * carries ATF at data[11], while the shorter community 722.9 custom
+         * PID evidence carries complete-response byte L at data[9]. Prefer the
+         * richer, length-qualified RLI decoder so a long response can never be
+         * misinterpreted as the compact layout.
+         */
+        MblinkMercedesKwpRli30 rli;
+        if (mblink_mercedes_transmission_decode_kwp_rli30(
+                record->data, record->data_length, &rli)) {
+            *value = rli.atf_temperature_c;
             *name = "Transmission oil temperature";
             *unit = "°C";
             return true;
+        }
+        {
+            MblinkMercedesTransmission2130 decoded;
+            if (mblink_mercedes_transmission_decode_2130(
+                    record->data, record->data_length, &decoded) &&
+                decoded.oil_temperature_available) {
+                *value = decoded.oil_temperature_c;
+                *name = "Transmission oil temperature";
+                *unit = "°C";
+                return true;
+            }
         }
     }
 
