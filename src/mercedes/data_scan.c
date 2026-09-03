@@ -3,6 +3,7 @@
 
 #include "mblink/elm327_can.h"
 #include "mblink/kwp2000.h"
+#include "mblink/mercedes_transmission.h"
 #include "mblink/uds.h"
 
 #include <stdio.h>
@@ -660,12 +661,16 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
         rx_can_id == UINT32_C(0x7e9) &&
         record->service ==
             MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
-        record->identifier == UINT16_C(0x0030) &&
-        record->data_length >= 10U) {
-        *value = (double)record->data[9] - 50.0;
-        *name = "Transmission oil temperature";
-        *unit = "°C";
-        return true;
+        record->identifier == UINT16_C(0x0030)) {
+        MblinkMercedesTransmission2130 decoded;
+        if (mblink_mercedes_transmission_decode_2130(
+                record->data, record->data_length, &decoded) &&
+            decoded.oil_temperature_available) {
+            *value = decoded.oil_temperature_c;
+            *name = "Transmission oil temperature";
+            *unit = "°C";
+            return true;
+        }
     }
 
     return false;
