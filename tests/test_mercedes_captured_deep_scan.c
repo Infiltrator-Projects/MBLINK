@@ -19,6 +19,8 @@
  */
 #include "mblink/mercedes_module_scan.h"
 #include "mblink/mercedes.h"
+#include "mblink/uds_dtc.h"
+#include "support/c207_20260903_evidence.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -348,8 +350,88 @@ static int inject_restraint_fault_after_real_scan_shapes(void)
     return 0;
 }
 
+static int replay_20260903_field_evidence(void)
+{
+    MblinkUdsDtcList list;
+    const uint8_t ecu602_dtc[] = {
+        UINT8_C(0x59), UINT8_C(0x02), UINT8_C(0x7b),
+        UINT8_C(0xd1), UINT8_C(0x81), UINT8_C(0x00), UINT8_C(0x50)
+    };
+    const uint8_t eis_empty_dtc[] = {
+        UINT8_C(0x59), UINT8_C(0x02), UINT8_C(0x19)
+    };
+    const uint8_t engine_empty_dtc[] = {
+        UINT8_C(0x59), UINT8_C(0x02), UINT8_C(0xff)
+    };
+    const uint8_t esp_truncated_dtc[] = {
+        UINT8_C(0x59), UINT8_C(0x02), UINT8_C(0x39),
+        UINT8_C(0x47), UINT8_C(0x5c), UINT8_C(0x00)
+    };
+
+    CHECK(MBLINK_C207_20260903_ROUTE_COUNT == 7U);
+
+    CHECK(mblink_c207_20260903_routes[0].tx_can_id == UINT32_C(0x602));
+    CHECK(mblink_c207_20260903_routes[0].rx_can_id == UINT32_C(0x480));
+    CHECK(strcmp(mblink_c207_20260903_routes[0].dtc_response,
+                 "59027BD1810050") == 0);
+    CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
+              ecu602_dtc, sizeof(ecu602_dtc), &list) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(list.availability_mask == UINT8_C(0x7b));
+    CHECK(list.count == 1U);
+    CHECK(list.records[0].code == UINT32_C(0xd18100));
+    CHECK(list.records[0].status == UINT8_C(0x50));
+
+    CHECK(mblink_c207_20260903_routes[1].tx_can_id == UINT32_C(0x612));
+    CHECK(mblink_c207_20260903_routes[1].rx_can_id == UINT32_C(0x482));
+    CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
+              eis_empty_dtc, sizeof(eis_empty_dtc), &list) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(list.availability_mask == UINT8_C(0x19));
+    CHECK(list.count == 0U);
+
+    CHECK(mblink_c207_20260903_routes[2].tx_can_id == UINT32_C(0x632));
+    CHECK(mblink_c207_20260903_routes[2].rx_can_id == UINT32_C(0x486));
+    /*
+     * The CSV ended this indexed ELM fragment at 59 02 39 47 5C 00.  After
+     * the availability mask only three bytes remain, so there is no complete
+     * four-byte DTC/status record.  Reject it rather than inventing status.
+     */
+    CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
+              esp_truncated_dtc, sizeof(esp_truncated_dtc), &list) ==
+          MBLINK_UDS_RESULT_MALFORMED_PDU);
+
+    CHECK(mblink_c207_20260903_routes[3].tx_can_id == UINT32_C(0x64a));
+    CHECK(mblink_c207_20260903_routes[3].rx_can_id == UINT32_C(0x489));
+    CHECK(strcmp(mblink_c207_20260903_routes[3].dtc_response,
+                 "7F1878\n58019B51E0") == 0);
+
+    CHECK(mblink_c207_20260903_routes[4].tx_can_id == UINT32_C(0x652));
+    CHECK(mblink_c207_20260903_routes[4].rx_can_id == UINT32_C(0x48a));
+    CHECK(strcmp(mblink_c207_20260903_routes[4].dtc_response,
+                 "7F1878\n5800") == 0);
+
+    CHECK(mblink_c207_20260903_routes[5].tx_can_id == UINT32_C(0x7e0));
+    CHECK(mblink_c207_20260903_routes[5].rx_can_id == UINT32_C(0x7e8));
+    CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
+              engine_empty_dtc, sizeof(engine_empty_dtc), &list) ==
+          MBLINK_UDS_RESULT_OK);
+    CHECK(list.availability_mask == UINT8_C(0xff));
+    CHECK(list.count == 0U);
+
+    CHECK(mblink_c207_20260903_routes[6].tx_can_id == UINT32_C(0x7e1));
+    CHECK(mblink_c207_20260903_routes[6].rx_can_id == UINT32_C(0x7e9));
+    CHECK(strcmp(mblink_c207_20260903_routes[6].tester_present_response,
+                 "7F3E12") == 0);
+    CHECK(strcmp(mblink_c207_20260903_routes[6].dtc_response,
+                 "7F1911") == 0);
+
+    return 0;
+}
+
 int main(void)
 {
+    if (replay_20260903_field_evidence() != 0) return 1;
     if (replay_captured_full_scan_misses() != 0) return 1;
     if (replay_captured_negative_tester_present() != 0) return 1;
     if (full_unknown_11_bit_candidate_is_not_forced_to_plus_eight() != 0) return 1;
