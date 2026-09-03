@@ -320,20 +320,23 @@ MBLINK therefore separates **fitment evidence**, **capability evidence**, **prot
 
 The same principle applies to Mercedes DTC descriptions: MBLINK should be comprehensive, but comprehensiveness must come from sourced definitions rather than fabricated interpretations.
 
-## Secondary EOBD responder and TCM candidate
+## Secondary EOBD responder
 
-ISO 15765-4 defines the 11-bit legislated OBD physical slots and recommends
-`0x7E0/0x7E8` for the engine control module and `0x7E1/0x7E9` for the
-transmission control module. The development C207/OM651 has independently
-returned traffic on both responder slots. MBLINK therefore treats a live
-`0x7E9` response as evidence for a **transmission-control candidate** on the
-`0x7E1 → 0x7E9` route.
+The development C207/OM651 independently returns legislated OBD traffic on
+both `0x7E8` and `0x7E9`. The 2026-09-03 capture also proves that the two
+responders retain different state: for example, warm-ups and distance since
+DTC clear differ between them.
 
-This is functional classification, not guessed Mercedes identity. The exact
-VGS/EGS family remains a candidate until returned Mercedes ECU identity names
-it. Live Apple OBD polling enables `ATH1` after manufacturer discovery so
-simultaneous `0x7E8` and `0x7E9` replies remain attributable in the raw
-evidence stream rather than being collapsed into anonymous duplicate values.
+MBLINK therefore preserves `0x7E1 -> 0x7E9` as a **secondary EOBD powertrain
+ECU**, but does not classify it as VGS/EGS or transmission from the CAN slot
+alone. In the same capture it answered standard Mode 01 requests but rejected
+the UDS identity requests used by the Mercedes scanner. Returned Mercedes ECU
+identity, or other independently defensible module evidence, is required before
+the product promotes it to a specific transmission family.
+
+Live Apple OBD polling keeps simultaneous `0x7E8` and `0x7E9` replies
+attributable in the raw evidence stream rather than collapsing them into
+anonymous duplicate values.
 
 ## Genuine Mercedes me Adapter transport
 
@@ -595,8 +598,8 @@ short to positive or open circuit**. The meaning is source-corroborated; the
 exact raw code and route are vehicle-verified. The raw `E0` status remains
 visible because its bit-level meaning has not been independently verified. The
 same capture exposed an incomplete multi-frame ESP fault response. These shapes
-are regression evidence; `0x7E9` remains a transmission ECU candidate until
-returned Mercedes identity confirms VGS/EGS.
+are regression evidence; `0x7E9` remains a secondary EOBD powertrain responder
+until returned Mercedes identity or equally strong evidence identifies its family.
 
 The same run exposed the old default schedule as too aggressive for the ELM/BLE path, which is why LINK 0.14.25 lowers the default request cadences while retaining per-PID enable controls.
 
