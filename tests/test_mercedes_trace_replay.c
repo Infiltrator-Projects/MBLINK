@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_probe.h"
-#include "support/elm_trace_replay.h"
+#include "../src/link/tests/support/elm_trace_replay.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -9,7 +9,7 @@
     fprintf(stderr, "check failed: %s at %s:%d\n", #expr, __FILE__, __LINE__); \
     return 1; } } while (0)
 
-static const MblinkTestElmTraceEntry c207_crd3_fixture[] = {
+static const LinkTestElmTraceEntry c207_crd3_fixture[] = {
     { "ATSH7E0", MBLINK_ELM327_RESULT_OK, "OK", true },
     { "ATCRA7E8", MBLINK_ELM327_RESULT_OK, "OK", true },
     { "ATCAF1", MBLINK_ELM327_RESULT_OK, "OK", true },
@@ -38,7 +38,7 @@ static int replay_probe_fixture(void)
         mblink_mercedes_c207_om651_profile();
     const MblinkMercedesEcuEndpointDefinition *endpoint;
     MblinkMercedesEcuProbe probe;
-    MblinkTestElmTraceReplay replay;
+    LinkTestElmTraceReplay replay;
 
     CHECK(profile != NULL);
     endpoint = mblink_mercedes_profile_find_endpoint(
@@ -47,7 +47,7 @@ static int replay_probe_fixture(void)
     CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
 
-    mblink_test_elm_trace_replay_init(
+    link_test_elm_trace_replay_init(
         &replay,
         c207_crd3_fixture,
         sizeof(c207_crd3_fixture) / sizeof(c207_crd3_fixture[0]));
@@ -63,7 +63,7 @@ static int replay_probe_fixture(void)
                   &probe, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
         CHECK(written == strlen(command));
-        CHECK(mblink_test_elm_trace_replay_next(
+        CHECK(link_test_elm_trace_replay_next(
             &replay, command, &response));
 
         result = mblink_mercedes_ecu_probe_accept(&probe, &response);
@@ -71,7 +71,7 @@ static int replay_probe_fixture(void)
               result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
     }
 
-    CHECK(mblink_test_elm_trace_replay_complete(&replay));
+    CHECK(link_test_elm_trace_replay_complete(&replay));
     CHECK(strcmp(probe.vin, "WDD2073022F123456") == 0);
     CHECK(probe.identity_positive_mask == 0x7ffU);
     CHECK(probe.crd3_positive_mask == 0x1fU);
@@ -91,7 +91,7 @@ static int replay_probe_fixture(void)
     return 0;
 }
 
-static const MblinkTestElmTraceEntry c207_vehicle_shape_fixture[] = {
+static const LinkTestElmTraceEntry c207_vehicle_shape_fixture[] = {
     { "ATSH7E0", MBLINK_ELM327_RESULT_OK, "OK", true },
     { "ATCRA7E8", MBLINK_ELM327_RESULT_OK, "OK", true },
     { "ATCAF1", MBLINK_ELM327_RESULT_OK, "OK", true },
@@ -124,7 +124,7 @@ static int replay_vehicle_capture_shape(void)
         mblink_mercedes_c207_om651_profile();
     const MblinkMercedesEcuEndpointDefinition *endpoint;
     MblinkMercedesEcuProbe probe;
-    MblinkTestElmTraceReplay replay;
+    LinkTestElmTraceReplay replay;
 
     CHECK(profile != NULL);
     endpoint = mblink_mercedes_profile_find_endpoint(
@@ -133,7 +133,7 @@ static int replay_vehicle_capture_shape(void)
     CHECK(mblink_mercedes_ecu_probe_begin(&probe, endpoint) ==
           MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
 
-    mblink_test_elm_trace_replay_init(
+    link_test_elm_trace_replay_init(
         &replay,
         c207_vehicle_shape_fixture,
         sizeof(c207_vehicle_shape_fixture) /
@@ -149,14 +149,14 @@ static int replay_vehicle_capture_shape(void)
         CHECK(mblink_mercedes_ecu_probe_command(
                   &probe, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_ECU_PROBE_RESULT_OK);
-        CHECK(mblink_test_elm_trace_replay_next(
+        CHECK(link_test_elm_trace_replay_next(
             &replay, command, &response));
         result = mblink_mercedes_ecu_probe_accept(&probe, &response);
         CHECK(result == MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
               result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE);
     }
 
-    CHECK(mblink_test_elm_trace_replay_complete(&replay));
+    CHECK(link_test_elm_trace_replay_complete(&replay));
     CHECK(strcmp(probe.vin, "WDD2073022F123456") == 0);
     CHECK(probe.identity_positive_mask == UINT32_C(0x1c1));
     CHECK(probe.identity_negative_mask == UINT32_C(0x63e));
@@ -180,16 +180,16 @@ static int replay_vehicle_capture_shape(void)
 
 static int replay_detects_command_drift(void)
 {
-    const MblinkTestElmTraceEntry entries[] = {
+    const LinkTestElmTraceEntry entries[] = {
         { "22F100", MBLINK_ELM327_RESULT_OK, "62F10002213101", false }
     };
-    MblinkTestElmTraceReplay replay;
+    LinkTestElmTraceReplay replay;
     MblinkElm327Response response;
 
-    mblink_test_elm_trace_replay_init(&replay, entries, 1U);
-    CHECK(!mblink_test_elm_trace_replay_next(&replay, "22F154", &response));
+    link_test_elm_trace_replay_init(&replay, entries, 1U);
+    CHECK(!link_test_elm_trace_replay_next(&replay, "22F154", &response));
     CHECK(replay.failed);
-    CHECK(!mblink_test_elm_trace_replay_complete(&replay));
+    CHECK(!link_test_elm_trace_replay_complete(&replay));
     return 0;
 }
 
