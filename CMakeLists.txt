@@ -134,7 +134,7 @@ add_library(mblink STATIC
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
-    src/mercedes/signal_catalog.c)
+    src/mercedes/signal_catalog.c src/mercedes/transmission.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
 if(MBLINK_SOURCE_REVISION)
@@ -307,6 +307,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-mercedes-probe tests/test_mercedes_probe.c)
     mblink_add_test(mblink-test-mercedes-module-scan tests/test_mercedes_module_scan.c)
     mblink_add_test(mblink-test-mercedes-data-scan tests/test_mercedes_data_scan.c)
+    mblink_add_test(mblink-test-mercedes-transmission tests/test_mercedes_transmission.c)
     mblink_add_test(mblink-test-mercedes-trace-replay tests/test_mercedes_trace_replay.c)
     mblink_add_test(mblink-test-c207-obd-flow-replay tests/test_c207_obd_flow_replay.c)
     mblink_add_test(mblink-test-linux-session-trace tests/test_linux_session_trace.c)
