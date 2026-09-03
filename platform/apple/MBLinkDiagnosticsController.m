@@ -1395,9 +1395,12 @@ static bool MBLinkSimulatorResponder(
     MblinkMercedesDataScanResult result;
 
     const BOOL sourceBackedTransmissionRoute =
-        !module->extended_id &&
-        module->tx_can_id == UINT32_C(0x7e1) &&
-        module->rx_can_id == UINT32_C(0x7e9);
+        mblink_mercedes_module_scan_entry_protocol(module) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
+        (module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+         (!module->extended_id &&
+          module->tx_can_id == UINT32_C(0x7e1) &&
+          module->rx_can_id == UINT32_C(0x7e9)));
 
     if (targetedRefresh) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
