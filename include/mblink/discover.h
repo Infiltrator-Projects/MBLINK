@@ -78,6 +78,13 @@ const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
  * Mercedes owns the address/probe strategy; LINK owns the sweep machinery.
  * Both Linux and Windows consume this same product plan.
  */
+/**
+ * Compact first-VIN plan for BLE/mobile transports. It uses the 47-slot
+ * Mercedes gateway request/response grid plus the small set of independently
+ * evidenced exceptions and the eight legislated OBD physical slots.
+ */
+const link_discover_sweep_plan *mblink_discover_mobile_census_plan(void);
+
 const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void);
 
 #endif
