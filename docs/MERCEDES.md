@@ -593,7 +593,7 @@ the source-backed Daimler actual-value neighbourhood `0x2000..0x20FF` for UDS
 ECUs. Generic KWP modules retain the existing bounded local-ID discovery path,
 but a recognised Mercedes transmission module uses a narrower source-backed
 read list instead of blindly traversing reserved identifiers: `30,31,32,33`
-and Daimler KWP records `E1..EB`. Only positive responses are retained.
+and Daimler KWP records `E0..EB`. Only positive responses are retained.
 Unknown positives remain attached to the originating module as raw identifiers
 and raw response bytes; MBLINK does not invent a name, unit or scaling formula.
 
@@ -824,7 +824,7 @@ the value `raw` instead of inventing pressure/current units.
 
 The same automatic KWP transmission pass also asks the standard
 DaimlerChrysler read-only local identifiers from the 2002 KWP2000 requirements:
-`E1` ECU serial number, `E2` DBCom data, `E3` operating-system version,
+`E0` development data, `E1` ECU serial number, `E2` DBCom data, `E3` operating-system version,
 `E4` reprogramming identification, `E5` vehicle information, `E6/E7`
 flash information, `E8/E9` system-diagnostic parameter data, `EA` ECU
 configuration and `EB` diagnostic-protocol information. Unsupported records
