@@ -590,10 +590,12 @@ MBLINK therefore keeps three layers distinct:
 
 The manufacturer-data scanner currently performs a bounded discovery pass over
 the source-backed Daimler actual-value neighbourhood `0x2000..0x20FF` for UDS
-ECUs and local identifiers `0x01..0xFF` for KWP2000 ECUs. Only positive
-responses are retained. Unknown positives remain attached to the originating
-module as raw identifiers and raw response bytes; MBLINK does not invent a
-name, unit or scaling formula.
+ECUs. Generic KWP modules retain the existing bounded local-ID discovery path,
+but a recognised Mercedes transmission module uses a narrower source-backed
+read list instead of blindly traversing reserved identifiers: `30,31,32,33`
+and Daimler KWP records `E1..EB`. Only positive responses are retained.
+Unknown positives remain attached to the originating module as raw identifiers
+and raw response bytes; MBLINK does not invent a name, unit or scaling formula.
 
 Positive manufacturer identifiers are persisted against the VIN-keyed module profile. After one successful full discovery pass, later sessions can refresh only the exact UDS DIDs / KWP local identifiers that previously responded, avoiding a repeated full-range sweep. Historical Mercedes-me runtime/app-data is therefore useful optional evidence, not a dependency of manufacturer-data discovery.
 
@@ -736,3 +738,111 @@ inventing a status byte or promoting a guessed DTC.
 A sanitised fixture under `tests/support/c207_20260903_evidence.h` retains
 these vehicle-side facts without the VIN and replays them against current
 decoders and module-scan behaviour.
+
+
+## Mercedes transmission subsystem: EGS51, EGS52, EGS53 and later-family evidence
+
+MBLINK now treats Mercedes transmission diagnostics as a family-scoped
+subsystem rather than one C207-specific `7E1/7E9` special case. Public
+reverse-engineering sources contain materially different layouts for EGS51,
+EGS52 and EGS53, so the code keeps separate decoders and never applies one
+generation's byte map to another.
+
+The strongest executable source set is the Ultimate-NAG52 project and its
+generated Mercedes CAN matrices. Those definitions were built to emulate stock
+Mercedes EGS behaviour and are used here only for read-only decoding and
+source-backed discovery. The companion W203/W209/W211/W219 matrix explicitly
+names `0x7E1` as `D_RQ_GS` (KWP2000 diagnostic request) and `0x7E9` as
+`D_RS_GS` (KWP2000 diagnostic response), which is why MBLINK may classify that
+route as a transmission/GS endpoint without claiming an exact VGS variant.
+
+Implemented passive CAN decoders now include:
+
+- **EGS51 / early 722.6** `GS_218h (0x218)`: torque request, automatic/manual
+  gearbox flag, gearbox-program status, off-road state, P/N state, garage
+  shifting, start enable, torque-request enable, target/actual gear, torque
+  converter open/slipping/closed, large-gearbox flag, limp-home, shift in
+  progress, kickdown, front-wheel-drive flag, TCC multiplier and error counter.
+- **EGS52 / NAG1 / 722.6** `GS_218h (0x218)`: engine-torque request state and
+  raw request, target/actual gear, TCC state, off-road gear, base shift-program
+  state, high driving resistance, shift-in-progress, manual mode, gearbox OK,
+  start-bang/start-enable, limp-home, overtemperature, kickdown, drive program,
+  drivetrain torque-control flags, converter unloaded, emergency engine-off
+  flags, creep/CALID-CVN data and error-check state.
+- **EGS52** `GS_338h (0x338)`: transmission output speed, MIL request,
+  NAK parity/toggle, power-free-in-D state, race-start state, pilot torque,
+  starting-area torque and turbine/input RPM. The source implementation assigns
+  turbine RPM directly before serialisation, so that field is promoted as RPM
+  rather than an anonymous raw integer.
+- **EGS52** `GS_418h (0x418)`: display position, drive program, transmission
+  oil temperature, AWD/FWD state, shifting, CVT flag, NAG/NAG2 mechanism
+  variant, brake-at-start request, kickdown, target/actual gear, torque-loss
+  raw value, wheel-torque parity/toggle, selector position and wheel-torque
+  factor. The source transmitter stores `temperature + 50`, independently
+  corroborating the `raw - 50 °C` Mercedes temperature convention.
+- **EGS53** `TCM_A1 (0x2F1)`: oil temperature, converter-clutch load/state,
+  limp-home, basic shift-program state, driving-resistance-high,
+  overtemperature, off-road state, selector P/R/N/D, manual mode, drive
+  program, brake-at-start request and drive-shaft torque.
+- **EGS53** `TCM_A2 (0x2E2)`: requested current duty cycle, turbine RPM, MIL
+  request, desired transmission slip RPM, CALID/CVN data and error state.
+- **EGS53** `ENG_RQ1_TCM (0x0F1)`: engine-torque request, intervention mode,
+  downshift mode, engine synchronization time, stop/start request, requested
+  engine RPM, start enable, emergency engine-off and jump-start state.
+- **EGS53** `ENG_RQ2_TCM (0x0F3)`: target/actual gear, transmission ratio,
+  engine-to-wheel torque ratio, transmission torque loss, RWD/FWD/AWD style,
+  stepped/CVT/AMT type, NAG/NAG2 mechanical size and SBW/EWM shift style.
+- **EGS53** `ENG_RQ3_TCM (0x0F4)`: maximum-acceleration/race-start state and
+  wet driveaway-clutch torque.
+- **EGS53** `SBW_RS_TCM (0x1BD)`: transmitter identity, starter lockout,
+  selector-valve position, requested selector position and selector-sensor
+  percentage.
+- **EGS53** `TCM_DISP_RQ (0x2F3)`: displayed gear/program, shift
+  recommendation, shift-by-wire beep/message requests, selector-lock display
+  states, target-gear display and AMG Race Start display state.
+
+For KWP2000 transmission ECUs, MBLINK now automatically tries the exact
+source-backed read-only set rather than only `21 30`:
+
+`21 30` — transmission actual values / DAS-compatible RLI 30  
+`21 31` — transmission speed sensors / RLI 31  
+`21 32` — transmission driving dynamics / RLI 32  
+`21 33` — transmission hydraulics and solenoids / RLI 33
+
+The RLI 30 decoder retains TCC delta speed/speed/pressure, TCC state, selector,
+drive program, recognised/actual/target gear, ATF temperature, engine/converter
+torque, output speed, kickdown/start/starter states, shift-solenoid states,
+manual +/- inputs, gear protection, TCC-open request, up/downshift state,
+drivetrain-control flags, emergency/ASR/protection state and converter health.
+RLI 31 retains N2/N3 counts, input RPM, engine RPM, all four wheel-speed
+values and front/rear vehicle-speed values. RLI 32 retains pedal percentage,
+up/downshift RPM deltas, pedal delta, pitch, driving state, warm-up shift state
+and requested gear-range limits. RLI 33 retains shift-valve state, SPC/MPC
+pressure fields, target/actual SPC/MPC current fields and TCC PWM. Where the
+public source proves field identity but not engineering scaling, MBLINK labels
+the value `raw` instead of inventing pressure/current units.
+
+The same automatic KWP transmission pass also asks the standard
+DaimlerChrysler read-only local identifiers from the 2002 KWP2000 requirements:
+`E1` ECU serial number, `E2` DBCom data, `E3` operating-system version,
+`E4` reprogramming identification, `E5` vehicle information, `E6/E7`
+flash information, `E8/E9` system-diagnostic parameter data, `EA` ECU
+configuration and `EB` diagnostic-protocol information. Unsupported records
+are simply rejected by that ECU. The scanner deliberately does not probe the
+`80..9F` range with service `21`, because the Daimler requirements reserve
+that range for ReadECUIdentification and explicitly say not to use
+ReadDataByLocalIdentifier there.
+
+The iPhone module Factory Data screen now receives structured names and
+summaries for every responding transmission RLI above instead of displaying
+only anonymous raw hex. The existing dashboard still promotes the proven
+`21 30` oil-temperature scalar and current-gear field, while the complete
+response remains available in Factory Data for forensic comparison.
+
+Later families are tracked explicitly even where a trustworthy public wire map
+has not yet been recovered: VGS/NAG2/722.9, 722.8 CVT, 724.0 7G-DCT, 725.0
+9G-Tronic, AMG MCT, AMG DCT and EV single-speed. XENTRY/service material proves
+that those families expose transmission actual values such as oil temperature,
+speed, pressure, position and adaptation data, but MBLINK will not fabricate a
+UDS DID or byte scale from a screen label alone. Exact read-only mappings are
+promoted as soon as a reproducible public wire definition is found.
