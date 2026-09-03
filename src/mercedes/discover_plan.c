@@ -113,6 +113,13 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         MBLINK_MERCEDES_VIN_PROBE_KWP_2105,
         NULL, "Daimler VIN-cascade ECU 4E0",
         "Daimler/T-Systems production MSA_VIN_cascade: Ecu4e0 0x4E0 -> 0x5FF, KWP2000 21 05"
+    },
+    {
+        UINT32_C(0x7e1), UINT32_C(0x7e9),
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        MBLINK_MERCEDES_VIN_PROBE_NONE,
+        "transmission-vgs", "GS / VGS / EGS transmission control",
+        "Mercedes CAN definition names D_RQ_GS 0x7E1 as KWP2000 diagnostic request to gearbox control and D_RS_GS 0x7E9 as its response; 0x7E9 independently observed on the 2026-09-03 C207 field capture"
     }
 };
 
@@ -329,7 +336,7 @@ static const char *mercedes_fallback_label(
     }
     if (!target->extended_id &&
         target->tx_can_id == UINT32_C(0x7e1)) {
-        return "Secondary EOBD powertrain ECU";
+        return "Transmission ECU / GS";
     }
     if (!target->extended_id) {
         const MblinkMercedesKnownRoute *known =
