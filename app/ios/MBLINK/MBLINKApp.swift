@@ -726,6 +726,13 @@ private struct MBCommandCentreView: View {
     private var supportingTools: some View {
         MBPanel {
             VStack(alignment: .leading, spacing: 7) {
+                MBSectionHeader(title: "Vehicle setup", kicker: "Saved VIN profiles")
+                MBCompactLink(
+                    "Saved Vehicles & PIDs",
+                    "Load a scanned VIN, open its controllers and choose every PID offline",
+                    "list.bullet.rectangle.portrait.fill"
+                ) { MBPIDSetupView() }
+                Divider().overlay(MBBrand.line)
                 MBSectionHeader(title: "Settings", kicker: "Application")
                 MBCompactLink("Settings", "Adapter, units and app preferences", "gearshape.fill") { MBSettingsView() }
             }
@@ -755,6 +762,272 @@ private struct MBCommandCentreView: View {
 private extension View {
     func mbDiagnosticScreen(_ title: String) -> some View {
         linkDiagnosticScreen(title)
+    }
+}
+
+private struct MBPIDSetupView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBSectionHeader(
+                        title: "Saved Vehicles & PIDs",
+                        kicker: connection.isActive
+                            ? "Current vehicle + saved profiles"
+                            : "Offline configuration")
+
+                    savedVehiclePanel
+                    controllerPanel
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Vehicles & PIDs")
+    }
+
+    @ViewBuilder
+    private var savedVehiclePanel: some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                MBSectionHeader(
+                    title: "Saved VIN profiles",
+                    kicker: "\(connection.savedVehicleProfiles.count) saved")
+
+                if connection.savedVehicleProfiles.isEmpty {
+                    Text("No VIN profile has been stored yet. Connect once and complete a module scan; MBLINK will save the VIN, controller map and observed capabilities for offline setup.")
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silver)
+                } else {
+                    ForEach(connection.savedVehicleProfiles) { profile in
+                        Button {
+                            connection.selectSavedVehicle(vin: profile.vin)
+                        } label: {
+                            HStack(alignment: .center, spacing: 12) {
+                                Image(systemName:
+                                    connection.selectedVehicleVIN == profile.vin
+                                        ? "checkmark.circle.fill"
+                                        : "circle")
+                                    .foregroundStyle(
+                                        connection.selectedVehicleVIN == profile.vin
+                                            ? MBBrand.success
+                                            : MBBrand.silver)
+                                    .font(MBTypography.title3)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(profile.vin)
+                                        .font(MBTypography.subheadlineBold)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                        .textSelection(.enabled)
+                                    Text("\(profile.moduleCount) controllers · \(profile.responderCount) SAE responders")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.silver)
+                                    if let updated = profile.updatedAt {
+                                        Text("Last learned \(updated.formatted(date: .abbreviated, time: .shortened))")
+                                            .font(MBTypography.caption2)
+                                            .foregroundStyle(MBBrand.muted)
+                                    }
+                                }
+                                Spacer()
+                                Text(connection.selectedVehicleVIN == profile.vin
+                                     ? "LOADED" : "LOAD")
+                                    .font(MBTypography.caption2Bold)
+                                    .foregroundStyle(MBBrand.silverBright)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+
+                        if profile.id != connection.savedVehicleProfiles.last?.id {
+                            Divider().overlay(MBBrand.line)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var controllerPanel: some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                MBSectionHeader(
+                    title: "Controllers",
+                    kicker: "\(connection.pidConfigurationModules.count) available")
+                Text(connection.pidConfigurationSourceText)
+                    .font(MBTypography.caption)
+                    .foregroundStyle(MBBrand.muted)
+
+                if connection.pidConfigurationModules.isEmpty {
+                    Text("Load a saved VIN profile above, or connect to a vehicle once to learn its controller routes.")
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silver)
+                } else {
+                    ForEach(connection.pidConfigurationModules) { module in
+                        NavigationLink {
+                            MBPIDModuleSetupView(moduleID: module.id)
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: module.symbol)
+                                    .font(MBTypography.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .frame(width: 30)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(module.name)
+                                        .font(MBTypography.subheadlineBold)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text(module.addressText)
+                                        .font(MBTypography.caption2)
+                                        .foregroundStyle(MBBrand.muted)
+                                    Text("\(module.obdAdvertisedPIDCount) previously advertised · full PID catalogue configurable")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                            .padding(.vertical, 5)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct MBPIDModuleSetupView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+    let moduleID: String
+
+    private var module: DiagnosticModule? {
+        connection.pidConfigurationModule(id: moduleID)
+    }
+
+    private var items: [PIDConfigurationItem] {
+        connection.pidConfigurationItems(moduleID: moduleID)
+    }
+
+    private var selectedCount: Int {
+        items.filter(\.pollingEnabled).count
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                if let module {
+                    VStack(alignment: .leading, spacing: 15) {
+                        MBSectionHeader(
+                            title: module.name,
+                            kicker: "\(selectedCount) of \(items.count) selected")
+
+                        MBPanel {
+                            VStack(spacing: 4) {
+                                MBInfoRow(label: "Controller", value: module.addressText)
+                                MBInfoRow(label: "Protocol", value: module.protocolName)
+                                MBInfoRow(
+                                    label: "Previously advertised",
+                                    value: "\(module.obdAdvertisedPIDCount) PIDs")
+                                MBInfoRow(
+                                    label: "Configuration",
+                                    value: connection.isActive
+                                        ? "Editable while connected"
+                                        : "Editable offline from saved VIN profile")
+                            }
+                        }
+
+                        MBPanel {
+                            HStack(spacing: 10) {
+                                Button("Select all") {
+                                    connection.setPolling(true, moduleID: moduleID)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(MBBrand.silverBright)
+                                .foregroundStyle(MBBrand.background)
+
+                                Button("Select none") {
+                                    connection.setPolling(false, moduleID: moduleID)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Spacer()
+                            }
+                        }
+
+                        MBSectionHeader(
+                            title: "PID catalogue",
+                            kicker: "Selection is allowed whether advertised or not")
+
+                        ForEach(items) { item in
+                            pidRow(item)
+                        }
+                    }
+                    .padding(16)
+                } else {
+                    MBPanel {
+                        Text("This controller is not present in the loaded VIN profile.")
+                            .font(MBTypography.subheadline)
+                            .foregroundStyle(MBBrand.silver)
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .mbDiagnosticScreen(module?.name ?? "PID Setup")
+    }
+
+    private func pidRow(_ item: PIDConfigurationItem) -> some View {
+        MBPanel {
+            HStack(alignment: .center, spacing: 12) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { item.pollingEnabled },
+                        set: {
+                            connection.setPIDSelection(
+                                $0,
+                                moduleID: moduleID,
+                                stableKey: item.id)
+                        }))
+                    .labelsHidden()
+                    .tint(MBBrand.silverBright)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text(item.shortName)
+                            .font(MBTypography.captionBold)
+                            .foregroundStyle(MBBrand.silverBright)
+                        Text(String(format: "01 %02X", item.pid))
+                            .font(MBTypography.caption2)
+                            .foregroundStyle(MBBrand.muted)
+                    }
+                    Text(item.title)
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text(item.advertised
+                         ? "Advertised by this controller on the last scan"
+                         : "Not advertised / not yet observed — still selectable")
+                        .font(MBTypography.caption2)
+                        .foregroundStyle(item.advertised ? MBBrand.success : MBBrand.muted)
+                }
+
+                Spacer()
+
+                Button {
+                    connection.toggleFavourite(stableKey: item.id)
+                } label: {
+                    Image(systemName: item.favourite ? "star.fill" : "star")
+                        .font(MBTypography.title3)
+                        .foregroundStyle(MBBrand.silverBright)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 }
 
@@ -840,6 +1113,30 @@ private struct MBVehicleView: View {
                                 MBVehicleFactGrid(facts: buildFacts)
                             }
                         }
+                    }
+                    MBPanel {
+                        NavigationLink { MBPIDSetupView() } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "list.bullet.rectangle.portrait.fill")
+                                    .font(MBTypography.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .frame(width: 30)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Saved Vehicles & PID setup")
+                                        .font(MBTypography.subheadlineBold)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text(connection.selectedVehicleVIN == nil
+                                         ? "Load a stored VIN profile and configure controllers offline"
+                                         : "\(connection.pidConfigurationModules.count) controllers in loaded VIN profile")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                     MBPanel {
                         NavigationLink { MBModulesView() } label: {
