@@ -1571,6 +1571,19 @@ static bool MBLinkSimulatorResponder(
 - (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                         forceFullScan:(BOOL)forceFullScan
 {
+    [self beginManufacturerDataOperationForModuleIdentifier:identifier
+                                              forceFullScan:forceFullScan
+                                                   liveOnly:NO
+                                       candidateIdentifiers:nil];
+}
+
+- (void)beginManufacturerDataOperationForModuleIdentifier:
+            (NSString *)identifier
+                                               forceFullScan:(BOOL)forceFullScan
+                                                    liveOnly:(BOOL)liveOnly
+                                        candidateIdentifiers:
+            (nullable NSArray<NSNumber *> *)candidateIdentifiers
+{
     if (identifier.length == 0U || !_shared.isActive) return;
 
     if (self.manufacturerDataScanActive) {
@@ -1584,28 +1597,35 @@ static bool MBLinkSimulatorResponder(
     }
 
     /*
-     * Refresh is deliberately non-destructive: it re-reads the identifiers
-     * already proven positive. Full rescan searches the bounded safe range
-     * again so newly responding identifiers can be added. Neither path is
-     * allowed to erase historical positive evidence merely because one pass
-     * times out or returns NO DATA.
+     * Manual refresh is deliberately non-destructive and re-reads identifiers
+     * already proven positive. A full rescan can still search the bounded safe
+     * range. The automatic live path is narrower again: it uses only proven
+     * runtime identifiers or a one-shot exact-route candidate list.
      */
     _manufacturerDataForceFullScan = forceFullScan;
+    _manufacturerDataScanLiveOnly = liveOnly;
     const NSUInteger generation = ++_manufacturerDataRequestGeneration;
     self.manufacturerDataScanModuleIdentifier = identifier;
     self.manufacturerDataScanStatusText = forceFullScan
         ? @"Waiting for a safe gap to rescan the full module data range"
-        : @"Waiting for a safe gap to refresh known module data";
+        : (liveOnly
+            ? @"Waiting for a safe gap to refresh live Mercedes data"
+            : @"Waiting for a safe gap to refresh known module data");
     [self notifyDelegate];
 
     [self tryBeginManufacturerDataScanForModuleIdentifier:identifier
                                                generation:generation
-                                                  attempt:0U];
+                                                  attempt:0U
+                                                 liveOnly:liveOnly
+                                     candidateIdentifiers:candidateIdentifiers];
 }
 
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
                                                 attempt:(NSUInteger)attempt
+                                               liveOnly:(BOOL)liveOnly
+                                   candidateIdentifiers:
+            (nullable NSArray<NSNumber *> *)candidateIdentifiers
 {
     if (generation != _manufacturerDataRequestGeneration ||
         !_shared.isActive ||
@@ -1621,7 +1641,12 @@ static bool MBLinkSimulatorResponder(
             @"The selected Mercedes module is no longer in the active VIN profile";
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
+        if (liveOnly) {
+            [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+                MBLinkAutomaticManufacturerRefreshDelayMs];
+        }
         return;
     }
 
@@ -1633,7 +1658,11 @@ static bool MBLinkSimulatorResponder(
                     (int64_t)UINT64_C(125) * NSEC_PER_MSEC),
                 dispatch_get_main_queue(), ^{
                     [self tryBeginManufacturerDataScanForModuleIdentifier:
-                        identifier generation:generation attempt:attempt + 1U];
+                        identifier
+                        generation:generation
+                        attempt:attempt + 1U
+                        liveOnly:liveOnly
+                        candidateIdentifiers:candidateIdentifiers];
                 });
             return;
         }
@@ -1641,7 +1670,12 @@ static bool MBLinkSimulatorResponder(
             @"Could not pause standard live polling for the Mercedes data scan";
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
+        if (liveOnly) {
+            [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+                MBLinkAutomaticManufacturerBusyRetryMs];
+        }
         return;
     }
 
@@ -1653,31 +1687,9 @@ static bool MBLinkSimulatorResponder(
             mblink_mercedes_module_scan_entry_protocol(module),
             module->kind);
     NSArray<MBLinkMercedesDataSnapshot *> *knownValues =
-        _manufacturerDataByModule[identifier];
-    NSArray<NSNumber *> *persistedIdentifiers = nil;
-    if (knownValues.count == 0U &&
-        [_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]) {
-        for (id value in _cachedVehicleProfile[@"modules"]) {
-            if (![value isKindOfClass:[NSDictionary class]]) continue;
-            NSDictionary *savedModule = (NSDictionary *)value;
-            NSNumber *savedTx = savedModule[@"tx"];
-            NSNumber *savedRx = savedModule[@"rx"];
-            NSNumber *savedExtended = savedModule[@"extended"];
-            if (![savedTx isKindOfClass:[NSNumber class]] ||
-                ![savedRx isKindOfClass:[NSNumber class]] ||
-                ![savedExtended isKindOfClass:[NSNumber class]] ||
-                savedTx.unsignedIntValue != module->tx_can_id ||
-                savedRx.unsignedIntValue != module->rx_can_id ||
-                savedExtended.boolValue != module->extended_id) {
-                continue;
-            }
-            if ([savedModule[@"manufacturerDataIDs"]
-                    isKindOfClass:[NSArray class]]) {
-                persistedIdentifiers = savedModule[@"manufacturerDataIDs"];
-            }
-            break;
-        }
-    }
+        _manufacturerDataByModule[identifier] ?: @[];
+    NSArray<NSNumber *> *persistedIdentifiers =
+        [self persistedManufacturerDataIdentifiersForModule:module];
 
     const NSUInteger knownIdentifierCount =
         knownValues.count != 0U ? knownValues.count : persistedIdentifiers.count;
@@ -1688,58 +1700,100 @@ static bool MBLinkSimulatorResponder(
          (!module->extended_id &&
           module->tx_can_id == UINT32_C(0x7e1) &&
           module->rx_can_id == UINT32_C(0x7e9)));
-    /*
-     * Transmission knowledge can expand when MBLINK gains a new source-backed
-     * read identifier. Always run the small non-retrying source list for a
-     * transmission route, even if an older profile only remembers 21 30.
-     * Ordinary modules still use known-positive refreshes.
-     */
+
     BOOL targetedRefresh =
-        !sourceBackedTransmissionRoute &&
         !_manufacturerDataForceFullScan &&
         knownIdentifierCount > 0U &&
         knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
-    MblinkMercedesDataScanResult result;
+    BOOL candidateProbe = NO;
+    MblinkMercedesDataScanResult result =
+        MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
 
-    if (targetedRefresh) {
+    if (candidateIdentifiers.count != 0U &&
+        !_manufacturerDataForceFullScan) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
+        for (NSNumber *number in candidateIdentifiers) {
+            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+                break;
+            const NSUInteger candidate = number.unsignedIntegerValue;
+            if (candidate > UINT16_MAX) continue;
+            identifiers[identifierCount++] = (uint16_t)candidate;
+        }
+
+        if (identifierCount != 0U) {
+            result = mblink_mercedes_data_scan_begin_probe_identifiers(
+                &_manufacturerDataScan, &config,
+                identifiers, identifierCount);
+            candidateProbe =
+                result == MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
+            if (candidateProbe) {
+                for (size_t index = 0U; index < identifierCount; ++index) {
+                    NSString *attemptKey = [NSString stringWithFormat:
+                        @"%@:%04X", identifier,
+                        (unsigned int)identifiers[index]];
+                    [_automaticManufacturerCandidateAttempts
+                        addObject:attemptKey];
+                }
+            }
+        }
+    } else if (targetedRefresh) {
+        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t identifierCount = 0U;
+
         if (knownValues.count != 0U) {
             for (MBLinkMercedesDataSnapshot *snapshot in knownValues) {
                 if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
                     break;
+                if (liveOnly &&
+                    !mblink_mercedes_data_identifier_is_runtime_refreshable(
+                        module->tx_can_id,
+                        module->rx_can_id,
+                        module->extended_id,
+                        mblink_mercedes_module_scan_entry_protocol(module),
+                        snapshot.identifier)) {
+                    continue;
+                }
                 identifiers[identifierCount++] = snapshot.identifier;
             }
         } else {
-            for (id value in persistedIdentifiers) {
+            for (NSNumber *number in persistedIdentifiers) {
                 if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
                     break;
-                if (![value isKindOfClass:[NSNumber class]]) continue;
-                const NSUInteger candidate =
-                    ((NSNumber *)value).unsignedIntegerValue;
+                const NSUInteger candidate = number.unsignedIntegerValue;
                 if (candidate > UINT16_MAX) continue;
+                if (liveOnly &&
+                    !mblink_mercedes_data_identifier_is_runtime_refreshable(
+                        module->tx_can_id,
+                        module->rx_can_id,
+                        module->extended_id,
+                        mblink_mercedes_module_scan_entry_protocol(module),
+                        (uint16_t)candidate)) {
+                    continue;
+                }
                 identifiers[identifierCount++] = (uint16_t)candidate;
             }
-            if (identifierCount == 0U) targetedRefresh = NO;
         }
-        result = targetedRefresh
-            ? mblink_mercedes_data_scan_begin_identifiers(
+
+        if (identifierCount != 0U) {
+            result = mblink_mercedes_data_scan_begin_identifiers(
                 &_manufacturerDataScan, &config,
-                identifiers, identifierCount)
-            : mblink_mercedes_data_scan_begin(
-                &_manufacturerDataScan, &config);
-        if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+                identifiers, identifierCount);
+        } else {
+            targetedRefresh = NO;
+        }
+
+        if (!liveOnly &&
+            result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
             targetedRefresh = NO;
             result = mblink_mercedes_data_scan_begin(
                 &_manufacturerDataScan, &config);
         }
-    } else if (sourceBackedTransmissionRoute) {
+    } else if (sourceBackedTransmissionRoute && !liveOnly) {
         /*
-         * Do not brute-force reserved KWP local identifiers. The public
-         * EGS/Daimler evidence gives us a precise read-only list:
-         * transmission actual-value groups 30-33 plus standard ECU
-         * identification records E0-EB. Unsupported records simply return an
-         * NRC/NO DATA and are retained as unsupported for this vehicle.
+         * Initial transmission discovery uses the complete source-backed list.
+         * Later live refreshes use only identifiers that actually answered,
+         * with E0-EB metadata excluded by the runtime filter.
          */
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
@@ -1755,10 +1809,31 @@ static bool MBLinkSimulatorResponder(
         }
         result = mblink_mercedes_data_scan_begin_probe_identifiers(
             &_manufacturerDataScan, &config, identifiers, identifierCount);
-    } else {
+    } else if (!liveOnly) {
         result = mblink_mercedes_data_scan_begin(
             &_manufacturerDataScan, &config);
     }
+
+    /*
+     * A live refresh is never allowed to fall back into broad discovery. If
+     * there is nothing proven/candidate-safe to read, immediately restore the
+     * shared SAE channel and try another runtime module later.
+     */
+    if (liveOnly &&
+        result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
+        self.manufacturerDataScanStatusText =
+            @"No proven live Mercedes data identifiers remain for this module";
+        self.manufacturerDataScanModuleIdentifier = nil;
+        _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
+        ++_manufacturerDataRequestGeneration;
+        [self notifyDelegate];
+        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
+            MBLinkAutomaticManufacturerRefreshDelayMs];
+        return;
+    }
+
     if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
@@ -1767,20 +1842,32 @@ static bool MBLinkSimulatorResponder(
                 mblink_mercedes_data_scan_result_name(result))];
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
         return;
     }
 
     self.manufacturerDataScanActive = YES;
-    self.manufacturerDataScanStatusText = targetedRefresh
-        ? [NSString stringWithFormat:
+    if (liveOnly) {
+        const size_t count = _manufacturerDataScan.identifier_list_active
+            ? _manufacturerDataScan.identifier_count : 1U;
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+            @"Live Mercedes %@ · %zu runtime ID%@ · %@",
+            candidateProbe ? @"candidate observation" : @"refresh",
+            count, count == 1U ? @"" : @"s",
+            MBLinkStringFromCString(
+                mblink_mercedes_data_scan_stage_name(
+                    _manufacturerDataScan.stage))];
+    } else if (targetedRefresh) {
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
             @"Refreshing %zu known-positive Mercedes data ID%@ · %@",
             _manufacturerDataScan.identifier_count,
             _manufacturerDataScan.identifier_count == 1U ? @"" : @"s",
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_stage_name(
-                    _manufacturerDataScan.stage))]
-        : [NSString stringWithFormat:
+                    _manufacturerDataScan.stage))];
+    } else {
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
             @"%@ · %@",
             _manufacturerDataForceFullScan
                 ? @"Rescanning full Mercedes manufacturer-data range"
@@ -1788,6 +1875,7 @@ static bool MBLinkSimulatorResponder(
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_stage_name(
                     _manufacturerDataScan.stage))];
+    }
     [self notifyDelegate];
     [self beginCurrentMercedesDataScanCommand];
 }
