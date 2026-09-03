@@ -117,6 +117,7 @@ int main(void)
     size_t written = 0U;
     MblinkElm327Response tester = response(MBLINK_ELM327_RESULT_OK, "7E00", false);
     MblinkElm327Response no_data = response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
+    MblinkElm327Response ok = response(MBLINK_ELM327_RESULT_OK, "OK", true);
     MblinkElm327Response dtcs = response(MBLINK_ELM327_RESULT_OK,
         "5902FF12345609ABCDEF28", false);
     MblinkElm327Response gs_kwp_tester = response(
