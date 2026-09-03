@@ -587,6 +587,34 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         let origin = string(from: link_dtc_origin_name(knowledge.origin))
         let source = string(from: link_dtc_source_name(knowledge.source))
         let known = knowledge.definition_known
+        if !known && knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC {
+            var mercedes = MblinkMercedesReferenceDtcKnowledge()
+            let referenceFound = code.withCString {
+                mblink_mercedes_reference_dtc_resolve($0, &mercedes)
+            }
+            if referenceFound {
+                let referenceTitle = stringFromFixedCString(mercedes.title)
+                let referenceArea = stringFromFixedCString(mercedes.area)
+                let referenceSource = stringFromFixedCString(mercedes.source)
+                return DiagnosticFault(
+                    code: normalizedCode.isEmpty ? code : normalizedCode,
+                    title: referenceTitle.isEmpty
+                        ? "Mercedes reference definition unavailable"
+                        : referenceTitle,
+                    system: system,
+                    category: referenceArea.isEmpty ? "Mercedes reference" : referenceArea,
+                    origin: mercedes.ambiguous
+                        ? "Mercedes manufacturer reference · ambiguous"
+                        : "Mercedes manufacturer reference",
+                    source: referenceSource.isEmpty
+                        ? "Supplied Mercedes reference catalogue"
+                        : referenceSource,
+                    state: state,
+                    definitionKnown: !mercedes.ambiguous
+                )
+            }
+        }
+
         let title = known
             ? stringFromFixedCString(knowledge.title)
             : (knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC
