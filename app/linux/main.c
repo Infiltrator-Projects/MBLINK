@@ -667,7 +667,7 @@ static void append_dtc_list(GtkWidget *card,
         MblinkMercedesReferenceDtcKnowledge mercedes_reference = {0};
         char label[64];
         char classification[192];
-        char definition[320];
+        char definition[512];
         const char *code = list->entries[index].code;
         const bool resolved = link_dtc_resolve(code, &knowledge);
         const bool has_mercedes_reference =
