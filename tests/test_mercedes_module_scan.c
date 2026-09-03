@@ -521,7 +521,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
     /*
      * The iPhone first-VIN census uses the compact Mercedes gateway lattice,
-     * never the workstation's 759-target forensic sweep.
+     * never the workstation's 760-target forensic sweep.
      */
     {
         const link_discover_sweep_plan *plan =
@@ -638,6 +638,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         link_discover_sweep_target target;
 
         CHECK(link_discover_sweep_plan_is_valid(plan));
+        CHECK(plan->target_count == 760U);
         CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.scope == MBLINK_MERCEDES_MODULE_SCAN_FULL);
