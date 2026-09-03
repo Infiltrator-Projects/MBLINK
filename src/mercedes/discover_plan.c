@@ -22,6 +22,28 @@
     (MBLINK_SWEEP_11_TARGET_COUNT + MBLINK_SWEEP_29_COUNT)
 
 /*
+ * Series 204/207/212 diagnostic traces expose a compact gateway-addressed
+ * request/response lattice used by the mobile census:
+ *
+ *   RX = 0x480 + slot
+ *   TX = 0x602 + (slot * 8)
+ *
+ * Slots 0..46 therefore cover RX 0x480..0x4AE and TX 0x602..0x772.
+ * Six independently evidenced C207 routes land exactly on this lattice.
+ * Two known Daimler routes sit outside it (0x607->0x587 and 0x4E0->0x5FF).
+ * The eight ISO 15765-4 physical OBD slots are appended so powertrain
+ * responders remain part of the saved whole-vehicle profile.
+ */
+#define MBLINK_MOBILE_GRID_COUNT ((size_t)47U)
+#define MBLINK_MOBILE_EXCEPTION_COUNT ((size_t)2U)
+#define MBLINK_MOBILE_OBD_COUNT ((size_t)8U)
+#define MBLINK_MOBILE_TARGET_COUNT \
+    (MBLINK_MOBILE_GRID_COUNT + MBLINK_MOBILE_EXCEPTION_COUNT + \
+     MBLINK_MOBILE_OBD_COUNT)
+#define MBLINK_MOBILE_TX_FIRST UINT32_C(0x602)
+#define MBLINK_MOBILE_RX_FIRST UINT32_C(0x480)
+
+/*
  * Public Mercedes/Caesar traces prove that a number of 204/207/212-family
  * diagnostic ECUs do not use the legislated-OBD request+8 response mapping.
  * Vediamo/CAESAR stores CP_REQUEST_CANIDENTIFIER and
@@ -190,6 +212,74 @@ static int mercedes_target_at(
     return 1;
 }
 
+static bool mercedes_route_is_mobile_grid_route(
+    const MblinkMercedesKnownRoute *route)
+{
+    uint32_t delta;
+    uint32_t slot;
+
+    if (route == NULL || route->tx_can_id < MBLINK_MOBILE_TX_FIRST)
+        return false;
+    delta = route->tx_can_id - MBLINK_MOBILE_TX_FIRST;
+    if ((delta % UINT32_C(8)) != 0U) return false;
+    slot = delta / UINT32_C(8);
+    return slot < (uint32_t)MBLINK_MOBILE_GRID_COUNT &&
+           route->rx_can_id == MBLINK_MOBILE_RX_FIRST + slot;
+}
+
+static const MblinkMercedesKnownRoute *mercedes_mobile_exception_at(
+    size_t exception_index)
+{
+    size_t seen = 0U;
+    for (size_t index = 0U;
+         index < mblink_mercedes_known_route_count(); ++index) {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_known_route_at(index);
+        if (route == NULL || mercedes_route_is_mobile_grid_route(route))
+            continue;
+        if (seen == exception_index) return route;
+        ++seen;
+    }
+    return NULL;
+}
+
+static int mercedes_mobile_target_at(
+    size_t index, link_discover_sweep_target *target)
+{
+    if (target == NULL || index >= MBLINK_MOBILE_TARGET_COUNT) return 0;
+    memset(target, 0, sizeof(*target));
+    target->bitrate = 500000U;
+
+    if (index < MBLINK_MOBILE_GRID_COUNT) {
+        const uint32_t slot = (uint32_t)index;
+        target->tx_can_id =
+            MBLINK_MOBILE_TX_FIRST + slot * UINT32_C(8);
+        target->rx_can_id = MBLINK_MOBILE_RX_FIRST + slot;
+        target->extended_id = false;
+        return 1;
+    }
+
+    index -= MBLINK_MOBILE_GRID_COUNT;
+    if (index < MBLINK_MOBILE_EXCEPTION_COUNT) {
+        const MblinkMercedesKnownRoute *route =
+            mercedes_mobile_exception_at(index);
+        if (route == NULL) return 0;
+        target->tx_can_id = route->tx_can_id;
+        target->rx_can_id = route->rx_can_id;
+        target->extended_id = false;
+        return 1;
+    }
+
+    index -= MBLINK_MOBILE_EXCEPTION_COUNT;
+    if (index < MBLINK_MOBILE_OBD_COUNT) {
+        target->tx_can_id = UINT32_C(0x7e0) + (uint32_t)index;
+        target->rx_can_id = UINT32_C(0x7e8) + (uint32_t)index;
+        target->extended_id = false;
+        return 1;
+    }
+    return 0;
+}
+
 static int mercedes_decode_f197(
     const uint8_t *payload,
     size_t payload_length,
@@ -336,6 +426,44 @@ static int mercedes_target_probes(
     *identity_probe = NULL;
     *decode_identity = NULL;
     return 1;
+}
+
+const link_discover_sweep_plan *mblink_discover_mobile_census_plan(void)
+{
+    static const link_discover_sweep_probe presence_probes[] = {
+        {
+            {UINT8_C(0x3e), UINT8_C(0x00)},
+            2U,
+            "Mercedes mobile-census TesterPresent"
+        },
+        {
+            {UINT8_C(0x19), UINT8_C(0x02), UINT8_C(0xff)},
+            3U,
+            "Mercedes mobile-census ReadDTCInformation"
+        },
+        {
+            {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0x90)},
+            3U,
+            "Mercedes mobile-census VIN identification fallback"
+        }
+    };
+    static const link_discover_sweep_probe identity_probe = {
+        {UINT8_C(0x22), UINT8_C(0xf1), UINT8_C(0x97)},
+        3U,
+        "Mercedes mobile-census F197 system-name read"
+    };
+    static const link_discover_sweep_plan plan = {
+        "Mercedes 47-slot mobile gateway census",
+        MBLINK_MOBILE_TARGET_COUNT,
+        mercedes_mobile_target_at,
+        presence_probes,
+        sizeof(presence_probes) / sizeof(presence_probes[0]),
+        &identity_probe,
+        mercedes_decode_f197,
+        mercedes_fallback_label,
+        mercedes_target_probes
+    };
+    return &plan;
 }
 
 const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void)
