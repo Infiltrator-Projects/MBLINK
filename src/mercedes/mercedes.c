@@ -90,11 +90,204 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
     }
 };
 
+/*
+ * Broad source-scoped Mercedes reference catalogue. It is intentionally
+ * separate from the module-scoped KWP definitions above and from LINK's
+ * standards-owned SAE/ISO catalogue.
+ */
+#include "dtc_reference_table.inc"
+
+
 static bool mercedes_dtc_evidence_tier_valid(
     MblinkMercedesDtcEvidenceTier tier)
 {
     return tier >= MBLINK_MERCEDES_DTC_EVIDENCE_COMMUNITY_OBSERVATION &&
            tier <= MBLINK_MERCEDES_DTC_EVIDENCE_REPAIR_VERIFIED;
+}
+
+static char mercedes_reference_ascii_upper(char value)
+{
+    if (value >= 'a' && value <= 'z') return (char)(value - 'a' + 'A');
+    return value;
+}
+
+static bool mercedes_reference_code_normalize(
+    const char *code,
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH])
+{
+    size_t length;
+    if (code == NULL || normalized == NULL) return false;
+    length = strlen(code);
+    if (length != 5U) return false;
+    normalized[0] = mercedes_reference_ascii_upper(code[0]);
+    if (normalized[0] != 'P' && normalized[0] != 'B' &&
+        normalized[0] != 'C' && normalized[0] != 'U' &&
+        normalized[0] != 'N') {
+        return false;
+    }
+    for (size_t index = 1U; index < 5U; ++index) {
+        char value = mercedes_reference_ascii_upper(code[index]);
+        if (!((value >= '0' && value <= '9') ||
+              (value >= 'A' && value <= 'F'))) {
+            return false;
+        }
+        normalized[index] = value;
+    }
+    normalized[5] = '\0';
+    return true;
+}
+
+static bool mercedes_reference_subcode_equal(
+    const char *stored,
+    const char *requested)
+{
+    const bool requested_empty = requested == NULL || requested[0] == '\0';
+    const bool stored_empty = stored == NULL || stored[0] == '\0';
+    if (requested_empty) return stored_empty;
+    return !stored_empty && strcmp(stored, requested) == 0;
+}
+
+size_t mblink_mercedes_reference_dtc_count(void)
+{
+    return sizeof(mercedes_reference_dtcs) /
+           sizeof(mercedes_reference_dtcs[0]);
+}
+
+const MblinkMercedesReferenceDtcDefinition *
+mblink_mercedes_reference_dtc_at(size_t index)
+{
+    return index < mblink_mercedes_reference_dtc_count()
+        ? &mercedes_reference_dtcs[index] : NULL;
+}
+
+size_t mblink_mercedes_reference_dtc_match_count(
+    const char *code,
+    const char *subcode)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    size_t count = 0U;
+    if (!mercedes_reference_code_normalize(code, normalized)) return 0U;
+    for (size_t index = 0U;
+         index < mblink_mercedes_reference_dtc_count(); ++index) {
+        const MblinkMercedesReferenceDtcDefinition *definition =
+            &mercedes_reference_dtcs[index];
+        if (strcmp(definition->code, normalized) == 0 &&
+            mercedes_reference_subcode_equal(definition->subcode, subcode)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+const MblinkMercedesReferenceDtcDefinition *
+mblink_mercedes_reference_dtc_match_at(
+    const char *code,
+    const char *subcode,
+    size_t match_index)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    size_t seen = 0U;
+    if (!mercedes_reference_code_normalize(code, normalized)) return NULL;
+    for (size_t index = 0U;
+         index < mblink_mercedes_reference_dtc_count(); ++index) {
+        const MblinkMercedesReferenceDtcDefinition *definition =
+            &mercedes_reference_dtcs[index];
+        if (strcmp(definition->code, normalized) != 0 ||
+            !mercedes_reference_subcode_equal(definition->subcode, subcode)) {
+            continue;
+        }
+        if (seen == match_index) return definition;
+        ++seen;
+    }
+    return NULL;
+}
+
+static bool mercedes_reference_copy_text(
+    char *destination,
+    size_t capacity,
+    const char *source)
+{
+    int written;
+    if (destination == NULL || capacity == 0U || source == NULL) return false;
+    written = snprintf(destination, capacity, "%s", source);
+    if (written < 0 || (size_t)written >= capacity) {
+        destination[0] = '\0';
+        return false;
+    }
+    return true;
+}
+
+bool mblink_mercedes_reference_dtc_resolve(
+    const char *code,
+    MblinkMercedesReferenceDtcKnowledge *knowledge)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    const MblinkMercedesReferenceDtcDefinition *first = NULL;
+    size_t match_count = 0U;
+    size_t distinct_meanings = 0U;
+
+    if (knowledge == NULL ||
+        !mercedes_reference_code_normalize(code, normalized)) {
+        return false;
+    }
+    memset(knowledge, 0, sizeof(*knowledge));
+
+    for (size_t index = 0U;
+         index < mblink_mercedes_reference_dtc_count(); ++index) {
+        const MblinkMercedesReferenceDtcDefinition *definition =
+            &mercedes_reference_dtcs[index];
+        bool meaning_seen = false;
+        if (strcmp(definition->code, normalized) != 0 ||
+            definition->subcode != NULL) {
+            continue;
+        }
+        ++match_count;
+        if (first == NULL) first = definition;
+        for (size_t prior = 0U; prior < index; ++prior) {
+            const MblinkMercedesReferenceDtcDefinition *candidate =
+                &mercedes_reference_dtcs[prior];
+            if (candidate->subcode == NULL &&
+                strcmp(candidate->code, normalized) == 0 &&
+                strcmp(candidate->description, definition->description) == 0) {
+                meaning_seen = true;
+                break;
+            }
+        }
+        if (!meaning_seen) ++distinct_meanings;
+    }
+
+    if (first == NULL) return false;
+    knowledge->match_count = match_count;
+    knowledge->ambiguous = distinct_meanings > 1U;
+    (void)mercedes_reference_copy_text(
+        knowledge->code, sizeof(knowledge->code), normalized);
+
+    if (knowledge->ambiguous) {
+        (void)snprintf(
+            knowledge->title, sizeof(knowledge->title),
+            "%zu Mercedes reference meanings; module/subcode context required",
+            distinct_meanings);
+        (void)mercedes_reference_copy_text(
+            knowledge->area, sizeof(knowledge->area), "Mercedes reference");
+        (void)mercedes_reference_copy_text(
+            knowledge->source, sizeof(knowledge->source),
+            "Multiple supplied Mercedes references");
+        (void)mercedes_reference_copy_text(
+            knowledge->applicability, sizeof(knowledge->applicability),
+            "Ambiguous source-scoped code; preserve module, ECU family and subcode before selecting a meaning");
+        return true;
+    }
+
+    (void)mercedes_reference_copy_text(
+        knowledge->title, sizeof(knowledge->title), first->description);
+    (void)mercedes_reference_copy_text(
+        knowledge->area, sizeof(knowledge->area), first->area);
+    (void)mercedes_reference_copy_text(
+        knowledge->source, sizeof(knowledge->source), first->source_label);
+    (void)mercedes_reference_copy_text(
+        knowledge->applicability, sizeof(knowledge->applicability),
+        first->applicability);
+    return true;
 }
 
 const char *mblink_mercedes_dtc_evidence_tier_name(
