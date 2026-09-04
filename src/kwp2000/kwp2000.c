@@ -8,7 +8,7 @@
 #endif
 
 #if defined(__APPLE__) && TARGET_OS_IOS
-#include "../link/src/kwp2000/kwp2000.c"
+#include "../link/platform/apple/LinkPortableKwp2000.c"
 #else
 typedef int mblink_kwp2000_compat_translation_unit;
 #endif

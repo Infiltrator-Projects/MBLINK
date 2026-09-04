@@ -6,14 +6,8 @@ bool mblink_telemetry_store_record(
     uint64_t timestamp_ms,
     const MblinkObd2Sample *measurement)
 {
-    LinkTelemetryMeasurement converted;
-    if (measurement == NULL) {
-        return false;
-    }
-    converted.pid = measurement->pid;
-    converted.value = measurement->value;
-    converted.unit = (LinkObd2UnitCode)measurement->unit;
-    return link_telemetry_store_record(store, timestamp_ms, &converted);
+    return link_telemetry_store_record_obd2_sample(
+        store, timestamp_ms, measurement);
 }
 
 bool mblink_telemetry_store_record_transcript(
@@ -22,9 +16,6 @@ bool mblink_telemetry_store_record_transcript(
     const char *command,
     const MblinkElm327Response *response)
 {
-    if (response == NULL) {
-        return false;
-    }
-    return link_telemetry_store_record_transcript(
-        store, timestamp_ms, command, (uint32_t)response->result, response->text);
+    return link_telemetry_store_record_elm327_transcript(
+        store, timestamp_ms, command, response);
 }
