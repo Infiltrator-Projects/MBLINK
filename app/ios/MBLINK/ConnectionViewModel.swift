@@ -1952,10 +1952,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return vehicleProfileStore.associatedAdapterIdentifier(forVIN: vin)
     }
 
-    private func rememberLiveAdapterAssociation(vin: String) {
-        guard !isSimulationActive, vin.count == 17 else { return }
-        vehicleProfileStore.recordLiveVIN(vin)
-    }
 
     private func refresh() {
         let updatedStatus = controller.statusText
@@ -2043,16 +2039,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         if controller.isActive, !isSimulationActive,
            let liveVIN = controller.mercedesVINText,
            liveVIN.count == 17 {
-            if selectedVehicleVIN != liveVIN {
-                // Live VIN wins immediately. The controller either validates
-                // this exact saved profile or learns a new one under this VIN.
-                selectedVehicleVIN = liveVIN
-                UserDefaults.standard.set(
-                    liveVIN, forKey: Self.selectedVehicleVINDefaultsKey)
-            }
-            // Adapter identity is only a convenience association. It is stored
-            // after a real live VIN exists, never used as vehicle truth.
-            rememberLiveAdapterAssociation(vin: liveVIN)
+            // LINK records the live VIN as authoritative and updates the
+            // optional per-vehicle adapter association.
+            vehicleProfileStore.recordLiveVIN(liveVIN)
+            selectedVehicleVIN = liveVIN
         }
         diagnosticModules = controller.isActive ? loadDiagnosticModules() : []
         refreshPIDConfiguration()
