@@ -1,0 +1,280 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Apply exact vehicle state fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: apply exact vehicle state fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Apply deterministic offline/live vehicle state machine
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one source block, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '''    func selectSavedVehicle(vin: String) {
+                  guard savedVehicleProfiles.contains(where: { $0.vin == vin }) else { return }
+                  selectedVehicleVIN = vin
+                  UserDefaults.standard.set(vin, forKey: Self.selectedVehicleVINDefaultsKey)
+                  refreshPIDConfiguration()
+                  applyConfiguredPollingForSelectedVehicle()
+                  refreshPresentation()
+              }
+          ''',
+              '''    func selectSavedVehicle(vin: String) {
+                  // A live VIN is authoritative. Saved-profile selection is an
+                  // offline operation and must never override the physical car.
+                  guard !controller.isActive,
+                        savedVehicleProfiles.contains(where: { $0.vin == vin }) else { return }
+                  selectedVehicleVIN = vin
+                  UserDefaults.standard.set(vin, forKey: Self.selectedVehicleVINDefaultsKey)
+                  mercedesVINText = vin
+                  vehicleIdentity = decodeVehicleIdentity(vin: vin)
+                  vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
+                  mercedesIdentitySummaryText = "Saved vehicle profile · offline"
+                  mercedesProbeStatusText = "Disconnected · saved vehicle profile"
+                  refreshPIDConfiguration()
+                  applyConfiguredPollingForSelectedVehicle()
+                  refreshPresentation()
+              }
+          ''')
+
+          replace_once(
+              '''    private var effectivePIDConfigurationVIN: String? {
+                  if let liveVIN = controller.mercedesVINText, liveVIN.count == 17 {
+                      return liveVIN
+                  }
+                  return selectedVehicleVIN
+              }
+          ''',
+              '''    private var effectivePIDConfigurationVIN: String? {
+                  // The controller intentionally retains its last VIN after a
+                  // disconnect. Only treat it as authoritative while a live
+                  // diagnostic session is active; offline state belongs to the
+                  // explicitly selected/last-used saved vehicle.
+                  if controller.isActive,
+                     let liveVIN = controller.mercedesVINText,
+                     liveVIN.count == 17 {
+                      return liveVIN
+                  }
+                  return selectedVehicleVIN
+              }
+          ''')
+
+          replace_once(
+              '''        if let selectedVehicleVIN,
+                     savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+                      return
+                  }
+                  if let newest = savedVehicleProfiles.first {
+                      selectedVehicleVIN = newest.vin
+                      UserDefaults.standard.set(
+                          newest.vin, forKey: Self.selectedVehicleVINDefaultsKey)
+                  } else {
+                      selectedVehicleVIN = nil
+                      UserDefaults.standard.removeObject(
+                          forKey: Self.selectedVehicleVINDefaultsKey)
+                  }
+          ''',
+              '''        if let selectedVehicleVIN,
+                     savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+                      return
+                  }
+
+                  // No remembered current vehicle means exactly that. Do not
+                  // manufacture a current car by picking the newest profile.
+                  selectedVehicleVIN = nil
+                  UserDefaults.standard.removeObject(
+                      forKey: Self.selectedVehicleVINDefaultsKey)
+          ''')
+
+          replace_once(
+              '''        let liveVIN = controller.mercedesVINText
+                  var selectedVIN: String? =
+                      (liveVIN?.count == 17 ? liveVIN : selectedVehicleVIN)
+                  var selectedProfile: [String: Any]?
+
+                  if let vin = selectedVIN,
+                     let profile = profiles[vin] as? [String: Any] {
+                      selectedProfile = profile
+                  } else {
+                      for (vin, value) in profiles {
+                          guard let profile = value as? [String: Any] else { continue }
+                          let updated = (profile["updatedAt"] as? NSNumber)?.doubleValue ?? 0
+                          let selectedUpdated =
+                              (selectedProfile?["updatedAt"] as? NSNumber)?.doubleValue ?? -1
+                          if selectedProfile == nil || updated > selectedUpdated {
+                              selectedVIN = vin
+                              selectedProfile = profile
+                          }
+                      }
+                  }
+
+                  guard let profile = selectedProfile else {
+                      return ([], [:],
+                              "Connect once to learn which PIDs each controller supports")
+                  }
+          ''',
+              '''        let liveVIN = controller.isActive ? controller.mercedesVINText : nil
+                  let selectedVIN: String? =
+                      (liveVIN?.count == 17 ? liveVIN : selectedVehicleVIN)
+
+                  // Never fall through to some other saved vehicle. While
+                  // connected the live VIN is the only key that may be loaded;
+                  // while offline the remembered/selected VIN is the only key.
+                  guard let vin = selectedVIN,
+                        let profile = profiles[vin] as? [String: Any] else {
+                      let label = controller.isActive && liveVIN?.count == 17
+                          ? "New vehicle detected · learning controller map"
+                          : "No vehicle loaded · connect to a vehicle"
+                      return ([], [:], label)
+                  }
+          ''')
+
+          replace_once(
+              '''        let live = diagnosticModules
+                  if !live.isEmpty {
+          ''',
+              '''        let live = diagnosticModules
+                  if isActive && !live.isEmpty {
+          ''')
+
+          replace_once(
+              '''        adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
+                  mercedesProbeStatusText = controller.mercedesProbeStatusText
+                  mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
+                  let capturedVIN = controller.mercedesVINText
+                  mercedesVINText = capturedVIN ?? "Not captured"
+                  vehicleIdentity = decodeVehicleIdentity(vin: capturedVIN)
+                  mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
+                  mercedesIdentityResults = controller.mercedesIdentityResults
+                  mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText
+                  mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
+                  mercedesUDSFaults = controller.mercedesUDSFaults
+                  vehicleProfileStatusText = controller.vehicleProfileStatusText
+                  faultScanStatusText = controller.faultScanStatusText
+          ''',
+              '''        adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
+                  refreshSavedVehicleProfiles()
+
+                  let capturedVIN = controller.isActive ? controller.mercedesVINText : nil
+                  let currentVIN = capturedVIN?.count == 17
+                      ? capturedVIN : selectedVehicleVIN
+                  mercedesVINText = currentVIN ?? "Not captured"
+                  vehicleIdentity = decodeVehicleIdentity(vin: currentVIN)
+
+                  if controller.isActive {
+                      mercedesProbeStatusText = controller.mercedesProbeStatusText
+                      mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
+                      mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
+                      mercedesIdentityResults = controller.mercedesIdentityResults
+                      mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText
+                      mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
+                      mercedesUDSFaults = controller.mercedesUDSFaults
+                      vehicleProfileStatusText = controller.vehicleProfileStatusText
+                  } else if let vin = selectedVehicleVIN {
+                      let profiles = UserDefaults.standard.dictionary(
+                          forKey: Self.vehicleProfilesDefaultsKey) ?? [:]
+                      let profile = profiles[vin] as? [String: Any]
+                      let modules = profile?["modules"] as? [[String: Any]] ?? []
+                      mercedesProbeStatusText = "Disconnected · saved vehicle profile"
+                      mercedesProbeEndpointText =
+                          (profile?["probeEndpoint"] as? String) ?? "Saved profile · endpoint not recorded"
+                      mercedesIdentitySummaryText =
+                          "Saved vehicle profile · \\(modules.count) controller\\(modules.count == 1 ? "" : "s") · offline"
+                      mercedesIdentityResults = []
+                      mercedesCrd3SummaryText =
+                          (profile?["crd3Summary"] as? String) ?? "Saved profile · identity not recorded"
+                      mercedesUDSFaultStatusText = "Disconnected · saved fault state not refreshed"
+                      mercedesUDSFaults = []
+                      vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
+                  } else {
+                      mercedesProbeStatusText = "Not connected"
+                      mercedesProbeEndpointText = "No vehicle loaded"
+                      mercedesIdentitySummaryText = "No vehicle loaded"
+                      mercedesIdentityResults = []
+                      mercedesCrd3SummaryText = "Not available"
+                      mercedesUDSFaultStatusText = "Not scanned"
+                      mercedesUDSFaults = []
+                      vehicleProfileStatusText = "No vehicle loaded · connect to a vehicle"
+                  }
+                  faultScanStatusText = controller.faultScanStatusText
+          ''')
+
+          replace_once(
+              '''        isActive = controller.isActive
+                  isReady = controller.isReady
+                  refreshSavedVehicleProfiles()
+                  if let liveVIN = controller.mercedesVINText, liveVIN.count == 17,
+                     selectedVehicleVIN != liveVIN {
+                      selectedVehicleVIN = liveVIN
+                      UserDefaults.standard.set(
+                          liveVIN, forKey: Self.selectedVehicleVINDefaultsKey)
+                  }
+                  diagnosticModules = loadDiagnosticModules()
+          ''',
+              '''        isActive = controller.isActive
+                  isReady = controller.isReady
+                  if controller.isActive,
+                     let liveVIN = controller.mercedesVINText,
+                     liveVIN.count == 17,
+                     selectedVehicleVIN != liveVIN {
+                      // Live VIN wins immediately. If the profile exists the
+                      // controller is already validating that exact profile;
+                      // otherwise it is learning a new one under this VIN.
+                      selectedVehicleVIN = liveVIN
+                      UserDefaults.standard.set(
+                          liveVIN, forKey: Self.selectedVehicleVINDefaultsKey)
+                  }
+                  diagnosticModules = controller.isActive ? loadDiagnosticModules() : []
+          ''')
+
+          path.write_text(text)
+
+          ci_path = Path('.github/workflows/ci.yml')
+          ci = ci_path.read_text()
+          anchor = "          grep -Fq 'diagnosticCapabilityText = controller.diagnosticCapabilityText' app/ios/MBLINK/ConnectionViewModel.swift\n"
+          if ci.count(anchor) != 1:
+              raise SystemExit('CI regression-guard anchor missing or duplicated')
+          guards = anchor + (
+              "          grep -Fq 'Saved vehicle profile loaded · offline' app/ios/MBLINK/ConnectionViewModel.swift\n"
+              "          grep -Fq 'No vehicle loaded · connect to a vehicle' app/ios/MBLINK/ConnectionViewModel.swift\n"
+              "          grep -Fq 'if isActive && !live.isEmpty {' app/ios/MBLINK/ConnectionViewModel.swift\n"
+              "          grep -Fq 'let liveVIN = controller.isActive ? controller.mercedesVINText : nil' app/ios/MBLINK/ConnectionViewModel.swift\n"
+              "          ! grep -Fq 'if let newest = savedVehicleProfiles.first' app/ios/MBLINK/ConnectionViewModel.swift\n"
+          )
+          ci_path.write_text(ci.replace(anchor, guards, 1))
+
+          # This workflow is a one-shot source patcher. Remove it in the same
+          # commit as the actual fix so it cannot become project machinery.
+          Path('.github/workflows/apply-vehicle-state-fix.yml').unlink()
+      - name: Commit exact state-machine implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add app/ios/MBLINK/ConnectionViewModel.swift .github/workflows/ci.yml .github/workflows/apply-vehicle-state-fix.yml
+          git diff --cached --check
+          git commit -m 'iOS: make current vehicle state deterministic'
+          git push origin HEAD:main
