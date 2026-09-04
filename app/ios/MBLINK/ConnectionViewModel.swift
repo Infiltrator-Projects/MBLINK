@@ -108,6 +108,7 @@ struct PIDConfigurationItem: Identifiable {
 struct SavedVehicleProfileSummary: Identifiable {
     let id: String
     let vin: String
+    let displayName: String
     let moduleCount: Int
     let responderCount: Int
     let updatedAt: Date?
