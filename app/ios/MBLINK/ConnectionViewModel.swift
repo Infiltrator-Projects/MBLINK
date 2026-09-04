@@ -801,9 +801,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             let modules = profile["modules"] as? [[String: Any]] ?? []
             let responders = profile["liveResponders"] as? [[String: Any]] ?? []
             let timestamp = (profile["updatedAt"] as? NSNumber)?.doubleValue
+            let displayName =
+                (profile["displayName"] as? String) ??
+                decodeVehicleIdentity(vin: vin)?.model ??
+                "Mercedes-Benz vehicle"
             summaries.append(SavedVehicleProfileSummary(
                 id: vin,
                 vin: vin,
+                displayName: displayName,
                 moduleCount: modules.count,
                 responderCount: responders.count,
                 updatedAt: timestamp.map { Date(timeIntervalSince1970: $0) }))
