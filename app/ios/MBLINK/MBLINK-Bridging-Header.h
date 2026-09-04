@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #import "MBLinkDiagnosticsController.h"
+#import "../../src/link/platform/apple/LinkDiagnosticsController.h"
 #include "mblink/fault_investigation.h"
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
