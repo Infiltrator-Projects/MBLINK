@@ -1648,12 +1648,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         support: [String: Set<UInt8>],
         label: String
     ) {
-        let profiles = Dictionary(uniqueKeysWithValues:
-            vehicleProfileStore.savedProfiles.compactMap { profile in
-                guard let vin = profile["vin"] as? String else { return nil }
-                return (vin, profile)
-            })
-        guard !profiles.isEmpty else {
+        guard !vehicleProfileStore.savedProfiles.isEmpty else {
             return ([], [:],
                     "Connect once to learn which PIDs each controller supports")
         }
