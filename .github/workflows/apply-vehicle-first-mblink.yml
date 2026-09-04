@@ -24,11 +24,11 @@ jobs:
           git -C src/link checkout 79c7e3d71c52ce90aec1baa94b914f31ecbbcc76
           git -C src/link submodule update --init --recursive
           python3 .github/scripts/apply_vehicle_first_mblink.py
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build --parallel 2
-          ctest --test-dir build --output-on-failure
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
           git add src/link platform/apple/MBLinkDiagnosticsController.m docs/APPLE.md docs/VEHICLE_PROFILES.md
           git commit -m 'iOS: resolve vehicle profile before diagnostic inventory'
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
           git push origin HEAD:main
