@@ -767,6 +767,32 @@ static int test_runtime_candidate_catalog(void)
         "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0005));
     CHECK(entry != NULL && entry->live);
+    /*
+     * Readable/discoverable is not the same as safe background polling.
+     * Only GS 21 30 is automatic; HU_204 is manual-only.
+     */
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x30)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x31)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x32)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x33)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x01)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x05)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x06)));
+
     return 0;
 }
 

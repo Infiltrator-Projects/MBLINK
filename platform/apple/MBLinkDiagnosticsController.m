@@ -69,8 +69,14 @@ static NSString * const MBLinkVehicleProfilesDefaultsKey =
     @"mblink.vehicleProfiles.v1";
 static const NSInteger MBLinkVehicleProfileSchemaVersion = 5;
 static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
+/*
+ * Manufacturer live reads temporarily borrow the ELM channel from the
+ * shared SAE scheduler. Keep the delay short enough for GS actual
+ * values to feel live, while still giving ordinary OBD polling a gap
+ * between channel switches.
+ */
 static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs =
-    UINT64_C(1500);
+    UINT64_C(750);
 static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
     UINT64_C(750);
 
@@ -1529,7 +1535,23 @@ static bool MBLinkSimulatorResponder(
         [candidates addObject:number];
     }
 
-    return [candidates array];
+    /*
+ * Readable does not automatically mean safe to poll continuously.
+ * Route-specific runtime policy is the final automatic-read gate.
+ */
+NSMutableArray<NSNumber *> *runtimeSafe = [[NSMutableArray alloc] init];
+const MblinkMercedesDiagnosticProtocol protocol =
+    mblink_mercedes_module_scan_entry_protocol(module);
+for (NSNumber *candidate in candidates) {
+    const NSUInteger value = candidate.unsignedIntegerValue;
+    if (value <= UINT16_MAX &&
+        mblink_mercedes_data_identifier_is_runtime_refreshable(
+            module->tx_can_id, module->rx_can_id,
+            module->extended_id, protocol, (uint16_t)value)) {
+        [runtimeSafe addObject:candidate];
+    }
+}
+return [runtimeSafe copy];
 }
 
 - (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
@@ -1568,17 +1590,22 @@ static bool MBLinkSimulatorResponder(
         return;
     }
 
-    NSMutableArray<NSString *> *otherModules =
-        [[NSMutableArray alloc] init];
+    /*
+     * Background manufacturer traffic is intentionally GS-only.
+     * Discovery still identifies HU/ORC/ESP/body controllers and
+     * explicit user scans remain available, but background polling
+     * must not keep waking those ECUs. The 2026-09-04 C207 capture
+     * correlated HU_204 KWP traffic with infotainment wakeups.
+     */
     NSString *transmissionModule = nil;
-
     const size_t count =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesModuleScanEntry *module =
             mblink_mercedes_module_scan_module_at(
                 &_mercedesModuleScan, index);
-        if (module == NULL) continue;
+        if (!MBLinkMercedesModuleIsTransmissionController(module))
+            continue;
 
         NSString *identifier = MBLinkMercedesModuleIdentifier(module);
         NSArray<NSNumber *> *runtime =
@@ -1587,35 +1614,17 @@ static bool MBLinkSimulatorResponder(
         NSArray<NSNumber *> *candidates =
             [self runtimeCandidateIdentifiersForModule:module
                                              identifier:identifier];
-        if (runtime.count == 0U && candidates.count == 0U) continue;
-
-        if (MBLinkMercedesModuleIsTransmissionController(module)) {
-            transmissionModule = identifier;
-        } else {
-            [otherModules addObject:identifier];
-        }
+        if (runtime.count == 0U && candidates.count == 0U)
+            continue;
+        transmissionModule = identifier;
+        break;
     }
 
-    if (transmissionModule.length == 0U && otherModules.count == 0U)
+    if (transmissionModule.length == 0U)
         return;
 
-    NSString *selected = nil;
-    if (transmissionModule.length != 0U &&
-        (otherModules.count == 0U ||
-         (_automaticManufacturerRefreshCycle % 3U) != 2U)) {
-        selected = transmissionModule;
-    } else if (otherModules.count != 0U) {
-        const NSUInteger index =
-            _automaticManufacturerRefreshCursor % otherModules.count;
-        selected = otherModules[index];
-        _automaticManufacturerRefreshCursor++;
-    } else {
-        selected = transmissionModule;
-    }
-    _automaticManufacturerRefreshCycle++;
-
     const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:selected];
+        [self moduleEntryForIdentifier:transmissionModule];
     if (module == NULL) {
         [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
             MBLinkAutomaticManufacturerRefreshDelayMs];
@@ -1624,23 +1633,25 @@ static bool MBLinkSimulatorResponder(
 
     NSArray<NSNumber *> *runtime =
         [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:selected];
+                                               identifier:transmissionModule];
     if (runtime.count != 0U) {
-        [self beginManufacturerDataOperationForModuleIdentifier:selected
-                                                  forceFullScan:NO
-                                                       liveOnly:YES
-                                           candidateIdentifiers:nil];
+        [self beginManufacturerDataOperationForModuleIdentifier:
+            transmissionModule
+                                              forceFullScan:NO
+                                                   liveOnly:YES
+                                       candidateIdentifiers:nil];
         return;
     }
 
     NSArray<NSNumber *> *candidates =
         [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:selected];
+                                         identifier:transmissionModule];
     if (candidates.count != 0U) {
-        [self beginManufacturerDataOperationForModuleIdentifier:selected
-                                                  forceFullScan:NO
-                                                       liveOnly:YES
-                                           candidateIdentifiers:candidates];
+        [self beginManufacturerDataOperationForModuleIdentifier:
+            transmissionModule
+                                              forceFullScan:NO
+                                                   liveOnly:YES
+                                       candidateIdentifiers:candidates];
         return;
     }
 

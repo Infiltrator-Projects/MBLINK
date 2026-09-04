@@ -926,15 +926,27 @@ bool mblink_mercedes_data_identifier_is_runtime_refreshable(
     MblinkMercedesDiagnosticProtocol protocol,
     uint16_t identifier)
 {
-    (void)tx_can_id;
-    (void)rx_can_id;
-    (void)extended_id;
-
     /*
-     * DaimlerChrysler KWP local records E0-EB are identification/configuration
-     * metadata. They can be discovered and displayed, but repeatedly reading
-     * them adds bus traffic without producing live telemetry.
+     * On the field-verified C207 GS route, 21 30 carries selector,
+     * actual/target gear and ATF temperature. It is the only GS
+     * record used for continuous background refresh; 31-33 remain
+     * available for explicit module inspection.
      */
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9) &&
+        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return identifier == UINT16_C(0x0030);
+    }
+
+    /* HU_204 is discoverable/manual-read only, never background-polled. */
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x652) &&
+        rx_can_id == UINT32_C(0x48a) &&
+        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return false;
+    }
+
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
         identifier >= UINT16_C(0x00e0) &&
         identifier <= UINT16_C(0x00eb)) {
