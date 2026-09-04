@@ -1,232 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Combine
-import CoreBluetooth
 import Foundation
 import UIKit
 
-
-private struct MBNearbyAdapter {
-    let identifier: String
-    let name: String
-    let rssi: Int
-}
-
-private enum MBConnectionSource {
-    case automatic
-    case simulated
-    case peripheral(String)
-}
-
-/// Connection-source chooser used by every MBLINK "Connect" entry point.
-/// It discovers BLE devices only; choosing Automatic retains LINK's existing
-/// adapter discovery, including its supported External Accessory checks.
-private final class MBAdapterPickerViewController: UITableViewController,
-    CBCentralManagerDelegate {
-
-    private let vehicleText: String
-    private let knownAdapterIdentifier: String?
-    private let onSelection: (MBConnectionSource) -> Void
-    private var central: CBCentralManager?
-    private var adaptersByIdentifier = [String: MBNearbyAdapter]()
-
-    private var nearbyAdapters: [MBNearbyAdapter] {
-        adaptersByIdentifier.values
-            .filter { $0.identifier != knownAdapterIdentifier }
-            .sorted {
-                if $0.rssi != $1.rssi { return $0.rssi > $1.rssi }
-                if $0.name != $1.name { return $0.name < $1.name }
-                return $0.identifier < $1.identifier
-            }
-    }
-
-    init(
-        vehicleText: String,
-        knownAdapterIdentifier: String?,
-        onSelection: @escaping (MBConnectionSource) -> Void
-    ) {
-        self.vehicleText = vehicleText
-        self.knownAdapterIdentifier = knownAdapterIdentifier
-        self.onSelection = onSelection
-        super.init(style: .insetGrouped)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "Connect"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Scan Again", style: .plain, target: self, action: #selector(scanAgain))
-        tableView.backgroundColor = UIColor(red: 0.018, green: 0.020, blue: 0.024, alpha: 1)
-        tableView.separatorColor = UIColor(white: 0.25, alpha: 1)
-        configureHeader()
-        central = CBCentralManager(delegate: self, queue: .main)
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        central?.stopScan()
-    }
-
-    private func configureHeader() {
-        let label = UILabel()
-        label.numberOfLines = 0
-        label.textColor = UIColor(white: 0.85, alpha: 1)
-        label.font = UIFont.preferredFont(forTextStyle: .footnote)
-        label.text = "Current vehicle: \(vehicleText)\nChoose the adapter fitted to the vehicle. The live VIN is always read after connection and remains authoritative."
-
-        let width = max(view.bounds.width - 40, 280)
-        let size = label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        let container = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: size.height + 28))
-        label.frame = CGRect(x: 20, y: 12, width: width, height: size.height)
-        container.addSubview(label)
-        tableView.tableHeaderView = container
-    }
-
-    private var hasKnownAdapter: Bool { knownAdapterIdentifier != nil }
-    private var nearbySection: Int { hasKnownAdapter ? 1 : 0 }
-    private var methodsSection: Int { hasKnownAdapter ? 2 : 1 }
-
-    override func numberOfSections(in tableView: UITableView) -> Int {
-        hasKnownAdapter ? 3 : 2
-    }
-
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        if hasKnownAdapter && section == 0 { return "Saved for current vehicle" }
-        if section == nearbySection { return "Nearby Bluetooth devices" }
-        if section == methodsSection { return "Other connection methods" }
-        return nil
-    }
-
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        if hasKnownAdapter && section == 0 { return 1 }
-        if section == nearbySection { return max(nearbyAdapters.count, 1) }
-        if section == methodsSection { return 2 }
-        return 0
-    }
-
-    override func tableView(
-        _ tableView: UITableView,
-        cellForRowAt indexPath: IndexPath
-    ) -> UITableViewCell {
-        let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
-        cell.backgroundColor = UIColor(red: 0.070, green: 0.076, blue: 0.084, alpha: 1)
-        cell.textLabel?.textColor = UIColor(white: 0.94, alpha: 1)
-        cell.detailTextLabel?.textColor = UIColor(white: 0.62, alpha: 1)
-        cell.accessoryType = .none
-
-        if hasKnownAdapter && indexPath.section == 0,
-           let identifier = knownAdapterIdentifier {
-            cell.textLabel?.text = "Saved adapter for this vehicle"
-            cell.detailTextLabel?.text = identifier
-            cell.imageView?.image = UIImage(systemName: "memorychip")
-            cell.accessoryType = .disclosureIndicator
-            return cell
-        }
-
-        if indexPath.section == nearbySection {
-            let devices = nearbyAdapters
-            guard !devices.isEmpty else {
-                cell.textLabel?.text = central?.state == .poweredOn
-                    ? "Scanning for nearby devices…" : "Bluetooth unavailable or waiting…"
-                cell.detailTextLabel?.text = "Adapters appear here as iPhone discovers them"
-                cell.selectionStyle = .none
-                return cell
-            }
-            let adapter = devices[indexPath.row]
-            cell.textLabel?.text = adapter.name
-            cell.detailTextLabel?.text = "RSSI \(adapter.rssi) dBm · \(adapter.identifier)"
-            cell.imageView?.image = UIImage(systemName: "dot.radiowaves.left.and.right")
-            cell.accessoryType = .disclosureIndicator
-            return cell
-        }
-
-        if indexPath.section == methodsSection && indexPath.row == 0 {
-            cell.textLabel?.text = "Automatic adapter scan"
-            cell.detailTextLabel?.text = "Use LINK's existing automatic adapter discovery"
-            cell.imageView?.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
-            cell.accessoryType = .disclosureIndicator
-        } else {
-            cell.textLabel?.text = "Simulated ELM327"
-            cell.detailTextLabel?.text = "Test data · no physical vehicle"
-            cell.imageView?.image = UIImage(systemName: "testtube.2")
-            cell.accessoryType = .disclosureIndicator
-        }
-        return cell
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let source: MBConnectionSource?
-        if hasKnownAdapter && indexPath.section == 0,
-           let identifier = knownAdapterIdentifier {
-            source = .peripheral(identifier)
-        } else if indexPath.section == nearbySection {
-            let devices = nearbyAdapters
-            source = devices.indices.contains(indexPath.row)
-                ? .peripheral(devices[indexPath.row].identifier) : nil
-        } else if indexPath.section == methodsSection {
-            source = indexPath.row == 0 ? .automatic : .simulated
-        } else {
-            source = nil
-        }
-
-        guard let source else { return }
-        central?.stopScan()
-        navigationController?.dismiss(animated: true) { [onSelection = self.onSelection] in
-            onSelection(source)
-        }
-    }
-
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == .poweredOn {
-            startScan()
-        } else {
-            central.stopScan()
-            tableView.reloadSections(IndexSet(integer: nearbySection), with: .automatic)
-        }
-    }
-
-    func centralManager(
-        _ central: CBCentralManager,
-        didDiscover peripheral: CBPeripheral,
-        advertisementData: [String: Any],
-        rssi RSSI: NSNumber
-    ) {
-        let identifier = peripheral.identifier.uuidString
-        let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-        let name = advertisedName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let peripheralName = peripheral.name?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = !(name ?? "").isEmpty
-            ? name! : (!(peripheralName ?? "").isEmpty ? peripheralName! : "Unnamed Bluetooth device")
-        adaptersByIdentifier[identifier] = MBNearbyAdapter(
-            identifier: identifier,
-            name: displayName,
-            rssi: RSSI.intValue)
-        tableView.reloadSections(IndexSet(integer: nearbySection), with: .none)
-    }
-
-    private func startScan() {
-        guard let central, central.state == .poweredOn else { return }
-        central.stopScan()
-        central.scanForPeripherals(
-            withServices: nil,
-            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-    }
-
-    @objc private func scanAgain() {
-        adaptersByIdentifier.removeAll()
-        tableView.reloadSections(IndexSet(integer: nearbySection), with: .automatic)
-        startScan()
-    }
-
-    @objc private func cancel() {
-        central?.stopScan()
-        navigationController?.dismiss(animated: true)
-    }
-}
 
 enum MBLINKUnitProfile: String, CaseIterable, Identifiable {
     case metric
@@ -481,6 +257,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var selectedMeasurementID = "metric"
 
     private let controller = MBLinkDiagnosticsController()
+    private let vehicleProfileStore = LinkVehicleProfileStore(
+        productNamespace: "mblink",
+        legacyProfileKey: "mblink.vehicleProfiles.v1",
+        legacySelectedVINKey: "mblink.selectedVehicleVIN.v1",
+        legacyAdapterMappingKey: "mblink.adapterPeripheralByVehicle.v1")
     private var lastConnectionAlertText: String?
     private var manufacturerNumericHistory = [String: [Double]]()
     private var manufacturerLastRawByParameter = [String: String]()
@@ -492,10 +273,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
      */
     private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"
     private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
-    private static let vehicleProfilesDefaultsKey = "mblink.vehicleProfiles.v1"
-    private static let selectedVehicleVINDefaultsKey = "mblink.selectedVehicleVIN.v1"
-    private static let adapterByVehicleDefaultsKey = "mblink.adapterPeripheralByVehicle.v1"
-    private static let linkKnownPeripheralDefaultsKey = "link.ble.knownPeripheralIdentifier.v1"
     private static let pidSelectionsByVehicleDefaultsKey =
         "mblink.pidSelectionsByVehicle.v1"
     private var pidSupportByModule = [String: Set<UInt8>]()
@@ -553,8 +330,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     override init() {
         super.init()
         migrateLegacySharedSettings()
-        selectedVehicleVIN = UserDefaults.standard.string(
-            forKey: Self.selectedVehicleVINDefaultsKey)
+        selectedVehicleVIN = vehicleProfileStore.selectedVehicleVIN
         applyStoredPollingPolicy()
         controller.delegate = self
         mercedesTargetSignals = loadMercedesTargetSignals()
@@ -583,7 +359,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             currentVehicleText = "No saved vehicle loaded"
         }
 
-        let picker = MBAdapterPickerViewController(
+        let picker = LinkConnectionPickerViewController(
             vehicleText: currentVehicleText,
             knownAdapterIdentifier: associatedAdapterIdentifier(
                 for: selectedVehicleVIN)
@@ -597,7 +373,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         presenter.present(navigation, animated: true)
     }
 
-    private func beginConnection(_ source: MBConnectionSource) {
+    private func beginConnection(_ source: LinkConnectionSource) {
         guard !isActive else { return }
         switch source {
         case .automatic:
@@ -673,9 +449,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         // A live VIN is authoritative. Saved-profile selection is an offline
         // operation and must never override the physical car.
         guard !controller.isActive,
-              savedVehicleProfiles.contains(where: { $0.vin == vin }) else { return }
+              vehicleProfileStore.selectOfflineVehicle(withVIN: vin) else { return }
         selectedVehicleVIN = vin
-        UserDefaults.standard.set(vin, forKey: Self.selectedVehicleVINDefaultsKey)
         mercedesVINText = vin
         vehicleIdentity = decodeVehicleIdentity(vin: vin)
         vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
@@ -1019,13 +794,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func refreshSavedVehicleProfiles() {
-        let profiles = UserDefaults.standard.dictionary(
-            forKey: Self.vehicleProfilesDefaultsKey) ?? [:]
         var summaries = [SavedVehicleProfileSummary]()
-        for (key, value) in profiles {
-            guard let profile = value as? [String: Any] else { continue }
-            let vin = (profile["vin"] as? String) ?? key
-            guard vin.count == 17 else { continue }
+        for profile in vehicleProfileStore.savedProfiles {
+            guard let vin = profile["vin"] as? String, vin.count == 17 else { continue }
             let modules = profile["modules"] as? [[String: Any]] ?? []
             let responders = profile["liveResponders"] as? [[String: Any]] ?? []
             let timestamp = (profile["updatedAt"] as? NSNumber)?.doubleValue
@@ -1048,8 +819,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         // No remembered current vehicle means exactly that. Never manufacture
         // a current vehicle by picking the newest unrelated saved profile.
         selectedVehicleVIN = nil
-        UserDefaults.standard.removeObject(
-            forKey: Self.selectedVehicleVINDefaultsKey)
+        vehicleProfileStore.clearSelectedVehicle()
     }
 
     private func storedPollingKeys() -> Set<String> {
@@ -1872,10 +1642,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         support: [String: Set<UInt8>],
         label: String
     ) {
-        let defaults = UserDefaults.standard
-        guard let profiles =
-            defaults.dictionary(forKey: Self.vehicleProfilesDefaultsKey),
-              !profiles.isEmpty else {
+        let profiles = Dictionary(uniqueKeysWithValues:
+            vehicleProfileStore.savedProfiles.compactMap { profile in
+                guard let vin = profile["vin"] as? String else { return nil }
+                return (vin, profile)
+            })
+        guard !profiles.isEmpty else {
             return ([], [:],
                     "Connect once to learn which PIDs each controller supports")
         }
@@ -1887,7 +1659,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         // While connected, only the physical car's VIN may select a profile.
         // While offline, only the remembered/explicitly selected VIN may do so.
         guard let vin = selectedVIN,
-              let profile = profiles[vin] as? [String: Any] else {
+              let profile = vehicleProfileStore.profile(forVIN: vin) as? [String: Any] else {
             let label = controller.isActive && liveVIN?.count == 17
                 ? "New vehicle detected · learning controller map"
                 : "No vehicle loaded · connect to a vehicle"
@@ -2177,23 +1949,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     private func associatedAdapterIdentifier(for vin: String?) -> String? {
         guard let vin, vin.count == 17 else { return nil }
-        let defaults = UserDefaults.standard
-        let mapping = defaults.dictionary(forKey: Self.adapterByVehicleDefaultsKey) ?? [:]
-        guard let identifier = mapping[vin] as? String,
-              UUID(uuidString: identifier) != nil else { return nil }
-        return identifier
+        return vehicleProfileStore.associatedAdapterIdentifier(forVIN: vin)
     }
 
     private func rememberLiveAdapterAssociation(vin: String) {
         guard !isSimulationActive, vin.count == 17 else { return }
-        let defaults = UserDefaults.standard
-        guard let identifier = defaults.string(forKey: Self.linkKnownPeripheralDefaultsKey),
-              UUID(uuidString: identifier) != nil else { return }
-
-        var mapping = defaults.dictionary(forKey: Self.adapterByVehicleDefaultsKey) ?? [:]
-        if (mapping[vin] as? String) == identifier { return }
-        mapping[vin] = identifier
-        defaults.set(mapping, forKey: Self.adapterByVehicleDefaultsKey)
+        vehicleProfileStore.recordLiveVIN(vin)
     }
 
     private func refresh() {
@@ -2226,9 +1987,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             mercedesUDSFaults = controller.mercedesUDSFaults
             vehicleProfileStatusText = controller.vehicleProfileStatusText
         } else if let vin = selectedVehicleVIN {
-            let profiles = UserDefaults.standard.dictionary(
-                forKey: Self.vehicleProfilesDefaultsKey) ?? [:]
-            let profile = profiles[vin] as? [String: Any]
+            let profile = vehicleProfileStore.profile(forVIN: vin) as? [String: Any]
             let modules = profile?["modules"] as? [[String: Any]] ?? []
             mercedesProbeStatusText = "Disconnected · saved vehicle profile"
             mercedesProbeEndpointText =
