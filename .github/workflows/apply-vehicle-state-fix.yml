@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   apply:
+    if: github.event.head_commit.message == 'chore: run exact vehicle state fix v2'
     runs-on: ubuntu-latest
     steps:
       - name: Check out MBLINK
@@ -18,13 +19,63 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply exact state machine
-        run: python3 .github/scripts/apply_vehicle_state_fix.py
-      - name: Commit implementation
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply_vehicle_state_fix.py
+          # The one-shot script also prepares CI guards and deletes its own
+          # machinery, but a workflow token is not allowed to modify workflow
+          # files. Restore those paths here; HAL removes them directly after
+          # the application-source commit lands.
+          git restore --source=HEAD -- .github/workflows/ci.yml
+          git restore --source=HEAD -- .github/workflows/apply-vehicle-state-fix.yml
+          git restore --source=HEAD -- .github/scripts/apply_vehicle_state_fix.py
+          # While a brand-new live VIN is still being learned it may not yet
+          # exist in the saved-profile dictionary. Preserve that authoritative
+          # live VIN instead of briefly clearing the current vehicle.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = p.read_text()
+          old = '''        if let selectedVehicleVIN,
+             savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+              return
+          }
+
+          // No remembered current vehicle means exactly that. Never manufacture
+          // a current vehicle by picking the newest unrelated saved profile.
+          selectedVehicleVIN = nil
+          UserDefaults.standard.removeObject(
+              forKey: Self.selectedVehicleVINDefaultsKey)
+          '''
+          new = '''        if controller.isActive,
+             let liveVIN = controller.mercedesVINText,
+             liveVIN.count == 17 {
+              selectedVehicleVIN = liveVIN
+              UserDefaults.standard.set(
+                  liveVIN, forKey: Self.selectedVehicleVINDefaultsKey)
+              return
+          }
+          if let selectedVehicleVIN,
+             savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+              return
+          }
+
+          // No remembered current vehicle means exactly that. Never manufacture
+          // a current vehicle by picking the newest unrelated saved profile.
+          selectedVehicleVIN = nil
+          UserDefaults.standard.removeObject(
+              forKey: Self.selectedVehicleVINDefaultsKey)
+          '''
+          if s.count(old) != 1:
+              raise SystemExit('post-patch live-VIN state block not found exactly once')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit implementation source only
         run: |
           set -euo pipefail
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
-          git add -A
+          git add app/ios/MBLINK/ConnectionViewModel.swift
           git diff --cached --check
           git commit -m 'iOS: make current vehicle state deterministic'
           git push origin HEAD:main
