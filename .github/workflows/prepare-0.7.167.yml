@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Prepare MBLINK 0.7.167
+
+on:
+  push:
+    branches: [release-prep-0.7.167]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.event.head_commit.message == 'Prepare MBLINK 0.7.167'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Build exact release version blobs on preparation branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          old='0.7.166'
+          new='0.7.167'
+          test "$(tr -d '[:space:]' < VERSION)" = "$old"
+          printf '%s\n' "$new" > VERSION
+          sed -i "s/#define MBLINK_VERSION_STRING \"$old\"/#define MBLINK_VERSION_STRING \"$new\"/" include/mblink/version.h
+          sed -i "s/MARKETING_VERSION = $old;/MARKETING_VERSION = $new;/g" app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(grep -E '^[[:space:]]*MARKETING_VERSION = ' app/ios/MBLINK.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);/\1/' | sort -u)" = "$new"
+          grep -Fq "#define MBLINK_VERSION_STRING \"$new\"" include/mblink/version.h
+          test "$(grep -Fc "MARKETING_VERSION = $new;" app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git rm .github/workflows/prepare-0.7.167.yml
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m 'prep: MBLINK 0.7.167 version blobs'
+          git push origin HEAD:release-prep-0.7.167
