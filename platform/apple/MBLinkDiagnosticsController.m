@@ -162,6 +162,7 @@ static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
 
 @implementation MBLinkDiagnosticsController {
     LinkDiagnosticsController *_shared;
+    LinkVehicleProfileStore *_vehicleProfileStore;
     MblinkMercedesEcuProbe _mercedesProbe;
     BOOL _manufacturerProbeActive;
     MblinkMercedesModuleScan _mercedesModuleScan;
@@ -721,6 +722,12 @@ static bool MBLinkSimulatorResponder(
      * decoder continues to present the first matching standard value.
      */
     flowConfig.preserve_live_response_headers = true;
+    _vehicleProfileStore = [[LinkVehicleProfileStore alloc]
+        initWithProductNamespace:@"mblink"
+        legacyProfileKey:MBLinkVehicleProfilesDefaultsKey
+        legacySelectedVINKey:@"mblink.selectedVehicleVIN.v1"
+        legacyAdapterMappingKey:@"mblink.adapterPeripheralByVehicle.v1"];
+
     _shared = [[LinkDiagnosticsController alloc]
         initWithProductSlug:@"mblink"
         flowConfig:flowConfig
@@ -2746,11 +2753,7 @@ return [runtimeSafe copy];
 {
     if (vin.length == 0U) return nil;
 
-    NSDictionary *profiles = [[NSUserDefaults standardUserDefaults]
-        dictionaryForKey:MBLinkVehicleProfilesDefaultsKey];
-    id candidate = profiles[vin];
-    NSDictionary *profile = [candidate isKindOfClass:[NSDictionary class]]
-        ? (NSDictionary *)candidate : nil;
+    NSDictionary *profile = [_vehicleProfileStore profileForVIN:vin];
     NSNumber *schema = profile[@"schema"];
     NSArray *modules = [profile[@"modules"] isKindOfClass:[NSArray class]]
         ? profile[@"modules"] : nil;
@@ -2944,14 +2947,10 @@ return [runtimeSafe copy];
     profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
     profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
     profile[@"liveResponders"] = [responders copy];
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *profiles =
-        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
-            mutableCopy] ?: [[NSMutableDictionary alloc] init];
-    profiles[self.mercedesVINText] = [profile copy];
-    [defaults setObject:[profiles copy]
-                 forKey:MBLinkVehicleProfilesDefaultsKey];
-    _cachedVehicleProfile = [profile copy];
+    [_vehicleProfileStore saveProfile:[profile copy]
+                                     forVIN:self.mercedesVINText];
+    _cachedVehicleProfile = [_vehicleProfileStore
+        profileForVIN:self.mercedesVINText];
 }
 
 - (void)persistCapabilitiesFromFlowEvent:
@@ -3078,14 +3077,10 @@ return [runtimeSafe copy];
     profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
     profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
     profile[@"liveResponders"] = [responders copy];
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *profiles =
-        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
-            mutableCopy] ?: [[NSMutableDictionary alloc] init];
-    profiles[self.mercedesVINText] = [profile copy];
-    [defaults setObject:[profiles copy]
-                 forKey:MBLinkVehicleProfilesDefaultsKey];
-    _cachedVehicleProfile = [profile copy];
+    [_vehicleProfileStore saveProfile:[profile copy]
+                                     forVIN:self.mercedesVINText];
+    _cachedVehicleProfile = [_vehicleProfileStore
+        profileForVIN:self.mercedesVINText];
 }
 
 - (void)saveCurrentVehicleProfile
@@ -3200,15 +3195,11 @@ return [runtimeSafe copy];
     if (engineEvidence.count != 0U)
         profile[@"engineEvidence"] = engineEvidence;
 
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *profiles =
-        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
-            mutableCopy] ?: [[NSMutableDictionary alloc] init];
-    profiles[self.mercedesVINText] = [profile copy];
-    [defaults setObject:[profiles copy]
-                 forKey:MBLinkVehicleProfilesDefaultsKey];
+    [_vehicleProfileStore saveProfile:[profile copy]
+                                     forVIN:self.mercedesVINText];
 
-    _cachedVehicleProfile = [profile copy];
+    _cachedVehicleProfile = [_vehicleProfileStore
+        profileForVIN:self.mercedesVINText];
     self.vehicleProfileStatusText = [NSString stringWithFormat:
         @"VIN profile saved · %lu module%@ · future connections reuse it",
         (unsigned long)modules.count,
@@ -3219,15 +3210,7 @@ return [runtimeSafe copy];
 {
     if (vin.length == 0U) return;
 
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *profiles =
-        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
-            mutableCopy];
-    if (profiles == nil || profiles[vin] == nil) return;
-
-    [profiles removeObjectForKey:vin];
-    [defaults setObject:[profiles copy]
-                 forKey:MBLinkVehicleProfilesDefaultsKey];
+    [_vehicleProfileStore removeProfileForVIN:vin];
 }
 
 - (BOOL)beginCachedVehicleProfileRefresh
