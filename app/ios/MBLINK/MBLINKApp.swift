@@ -892,9 +892,12 @@ private struct MBPIDSetupView: View {
                                     .font(MBTypography.title3)
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(profile.vin)
+                                    Text(profile.displayName)
                                         .font(MBTypography.subheadlineBold)
                                         .foregroundStyle(MBBrand.silverBright)
+                                    Text(profile.vin)
+                                        .font(MBTypography.caption2.monospaced())
+                                        .foregroundStyle(MBBrand.silver)
                                         .textSelection(.enabled)
                                     Text("\(profile.moduleCount) controllers · \(profile.responderCount) SAE responders")
                                         .font(MBTypography.caption)
