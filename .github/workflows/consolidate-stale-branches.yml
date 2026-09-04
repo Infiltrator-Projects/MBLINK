@@ -1,0 +1,44 @@
+name: Consolidate stale MBLINK branches
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    if: github.event.head_commit.message == 'chore: consolidate MBLINK branch state'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete superseded branch refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            connection-picker \
+            fix/runtime-polling-safety \
+            release-prep-0.7.166 \
+            release-prep-0.7.167-picker \
+            release-prep-0.7.167
+          do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+          done
+
+      - name: Remove this one-time workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow_sha="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/workflows/consolidate-stale-branches.yml?ref=main" \
+            --jq '.sha')"
+          gh api --method DELETE \
+            "repos/${GITHUB_REPOSITORY}/contents/.github/workflows/consolidate-stale-branches.yml" \
+            -f message="chore: remove temporary branch consolidation workflow" \
+            -f sha="${workflow_sha}" \
+            -f branch=main
