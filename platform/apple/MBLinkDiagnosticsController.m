@@ -1540,8 +1540,6 @@ static bool MBLinkSimulatorResponder(
  * Route-specific runtime policy is the final automatic-read gate.
  */
 NSMutableArray<NSNumber *> *runtimeSafe = [[NSMutableArray alloc] init];
-const MblinkMercedesDiagnosticProtocol protocol =
-    mblink_mercedes_module_scan_entry_protocol(module);
 for (NSNumber *candidate in candidates) {
     const NSUInteger value = candidate.unsignedIntegerValue;
     if (value <= UINT16_MAX &&
