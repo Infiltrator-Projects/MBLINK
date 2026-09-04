@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "session_trace.h"
 
+#include "link/diagnostic_request.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -177,13 +179,6 @@ const char *mblink_linux_trace_event_text(LinkDiagnosticFlowEventKind kind)
     return NULL;
 }
 
-/*
- * Generic Linux table/graph caches use one deterministic physical responder
- * per PID. Never let arrival order alternate a PID between 7E8 and 7E9.
- * Prefer the legislated engine responder, then 11-bit over 29-bit, then the
- * lowest CAN identifier. A sample from the already-selected responder always
- * refreshes its own value.
- */
 bool mblink_linux_trace_prefer_responder(
     uint32_t candidate,
     bool candidate_extended,
@@ -191,18 +186,12 @@ bool mblink_linux_trace_prefer_responder(
     uint32_t current,
     bool current_extended)
 {
-    if (!current_valid) return true;
-    if (candidate == current && candidate_extended == current_extended)
-        return true;
-
-    const bool candidate_engine =
-        !candidate_extended && candidate == UINT32_C(0x7e8);
-    const bool current_engine =
-        !current_extended && current == UINT32_C(0x7e8);
-    if (candidate_engine != current_engine) return candidate_engine;
-
-    if (candidate_extended != current_extended)
-        return !candidate_extended;
-
-    return candidate < current;
+    return link_diagnostic_response_route_preferred(
+        candidate,
+        candidate_extended,
+        current_valid,
+        current,
+        current_extended,
+        UINT32_C(0x7e8),
+        false);
 }
