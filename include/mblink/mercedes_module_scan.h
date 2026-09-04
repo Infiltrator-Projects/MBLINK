@@ -14,4 +14,18 @@
 
 #include "mblink/mercedes_module_scan_identity_first.h"
 
+/*
+ * Return the diagnostic protocol captured for a discovered module entry.
+ * Keep this accessor at the stable public scan boundary so platform code does
+ * not need to know how the identity-first scanner stores that field.
+ */
+static inline MblinkMercedesDiagnosticProtocol
+mblink_mercedes_module_scan_entry_protocol(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    return module != NULL
+        ? module->protocol
+        : (MblinkMercedesDiagnosticProtocol)0;
+}
+
 #endif
