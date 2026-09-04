@@ -175,7 +175,7 @@ private final class MBAdapterPickerViewController: UITableViewController,
 
         guard let source else { return }
         central?.stopScan()
-        navigationController?.dismiss(animated: true) { [onSelection] in
+        navigationController?.dismiss(animated: true) { [onSelection = self.onSelection] in
             onSelection(source)
         }
     }
@@ -213,7 +213,7 @@ private final class MBAdapterPickerViewController: UITableViewController,
         central.stopScan()
         central.scanForPeripherals(
             withServices: nil,
-            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
     }
 
     @objc private func scanAgain() {
@@ -2281,7 +2281,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
         isActive = controller.isActive
         isReady = controller.isReady
-        if controller.isActive,
+        if controller.isActive, !isSimulationActive,
            let liveVIN = controller.mercedesVINText,
            liveVIN.count == 17 {
             if selectedVehicleVIN != liveVIN {
