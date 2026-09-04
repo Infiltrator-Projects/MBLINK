@@ -843,6 +843,12 @@ static bool MBLinkSimulatorResponder(
     [_shared start];
 }
 
+- (void)startWithPeripheralIdentifier:(NSString *)peripheralIdentifier
+{
+    [self resetMercedesState];
+    [_shared startWithPeripheralIdentifier:peripheralIdentifier];
+}
+
 - (void)startSimulated
 {
     [self resetMercedesState];

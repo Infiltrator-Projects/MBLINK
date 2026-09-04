@@ -103,6 +103,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *selectedMeasurementSystemKey;
 
 - (void)start;
+/** Start through one exact CoreBluetooth peripheral selected by the user. */
+- (void)startWithPeripheralIdentifier:(NSString *)peripheralIdentifier;
 - (void)startSimulated;
 - (void)disconnect;
 - (NSString *)localizedTextForKey:(NSString *)key;
