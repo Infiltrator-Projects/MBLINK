@@ -83,34 +83,23 @@ The released 0.7.167 implementation satisfies the profile/adapter state rules ab
 - simulation does not change the saved real-vehicle selection; and
 - fresh Mercedes module discovery is identity-first per controller.
 
-### Remaining startup-order mismatch
+### Vehicle-first startup order
 
-The shared LINK standard flow still performs more work before VIN and Mercedes identity than the final vehicle-first contract calls for:
-
-```text
-current shared order
-  adapter / ELM initialisation
-  -> full standard PID capability discovery
-  -> standard Mode 09 VIN
-  -> stored / pending / permanent standard DTC inventory
-  -> readiness / freeze-frame context
-  -> Mercedes cached validation or identity-first census
-  -> normal live polling
-```
-
-The intended vehicle-first order is:
+The normal iPhone startup sequence now follows the vehicle-first contract:
 
 ```text
-intended order
-  adapter / ELM initialisation
-  -> live VIN as early as transport permits
+adapter / ELM initialisation
+  -> live Mode 09 VIN
   -> select / create the authoritative vehicle profile
-  -> cached controller validation or identity-first Mercedes census
-  -> remaining standard diagnostic context
+  -> cached Mercedes controller validation or identity-first first-VIN census
+  -> adapter restore
+  -> responder-scoped SAE PID capability discovery
+  -> stored / pending / permanent DTC inventory
+  -> readiness / freeze-frame context
   -> normal live polling
 ```
 
-This is a sequencing issue, not a profile-correctness issue: once the current implementation captures a valid real VIN it still switches to the correct profile. The remaining work is to move VIN/profile resolution earlier and move the Mercedes identity/cached-validation step ahead of the standard DTC/readiness/freeze-frame block without regressing generic OBD support.
+This keeps the live VIN authoritative before expensive diagnostic work while retaining the complete generic OBD path. The later PID capability pass is written back to the already-selected VIN profile so reordering startup does not lose responder-specific capability data.
 
 ## Validation cases
 

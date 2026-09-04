@@ -143,6 +143,7 @@ static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
 - (void)saveCurrentVehicleProfile;
 - (void)removeSavedVehicleProfileForVIN:(NSString *)vin;
 - (BOOL)beginCachedVehicleProfileRefresh;
+- (void)persistDiscoveredCapabilities;
 - (void)persistCapabilitiesFromFlowEvent:
     (const LinkDiagnosticFlowEvent *)event;
 - (NSArray<NSNumber *> *)cachedPIDsForResponderCANIdentifier:
@@ -691,12 +692,14 @@ static bool MBLinkSimulatorResponder(
 
     LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
     /*
-     * Finish the standard OBD stored/pending/permanent DTC inventory first.
-     * Mercedes module discovery can be lengthy and must not prevent ordinary
-     * OBD evidence from reaching the UI.
+     * Resolve the physical vehicle before doing the broader diagnostic work.
+     * LINK reads Mode 09 VIN immediately after ELM initialisation, MBLINK then
+     * selects/creates the authoritative VIN profile and validates/learns the
+     * Mercedes controller map. Full SAE capability/fault context follows.
      */
+    flowConfig.manufacturer_extension_after_standard_vin = true;
     flowConfig.manufacturer_extension_after_pid_discovery = false;
-    flowConfig.manufacturer_extension_after_standard_dtcs = true;
+    flowConfig.manufacturer_extension_after_standard_dtcs = false;
     flowConfig.restore_adapter_after_manufacturer_extension = true;
     /*
      * Capability discovery must retain the responder CAN header as well.
@@ -1145,6 +1148,11 @@ static bool MBLinkSimulatorResponder(
 {
     (void)controller;
     if (event == NULL) return;
+    if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE) {
+        [self persistDiscoveredCapabilities];
+        [self notifyDelegate];
+        return;
+    }
     if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE ||
         event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED) {
         for (size_t i = 0U; i < event->responder_decoded.count; ++i) {
@@ -2855,6 +2863,86 @@ static bool MBLinkSimulatorResponder(
         }
     }
     return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (void)persistDiscoveredCapabilities
+{
+    if (_shared.isSimulated || self.mercedesVINText.length == 0U) return;
+
+    const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
+    if (flow == NULL || flow->supported_pid_responders.count == 0U) return;
+
+    NSDictionary *existing = _cachedVehicleProfile;
+    if (existing == nil)
+        existing = [self savedVehicleProfileForVIN:self.mercedesVINText];
+    if (existing == nil) return;
+
+    NSMutableDictionary *profile = [existing mutableCopy];
+    NSMutableArray<NSMutableDictionary *> *responders =
+        [[NSMutableArray alloc] init];
+    NSArray *storedResponders = [profile[@"liveResponders"]
+        isKindOfClass:[NSArray class]] ? profile[@"liveResponders"] : @[];
+    for (id value in storedResponders) {
+        if ([value isKindOfClass:[NSDictionary class]])
+            [responders addObject:[(NSDictionary *)value mutableCopy]];
+    }
+
+    BOOL changed = NO;
+    for (size_t index = 0U;
+         index < flow->supported_pid_responders.count;
+         ++index) {
+        const LinkObd2ResponderPidSet *set =
+            &flow->supported_pid_responders.entries[index];
+        NSMutableDictionary *match = nil;
+        for (NSMutableDictionary *candidate in responders) {
+            NSNumber *rx = candidate[@"rx"];
+            NSNumber *extended = candidate[@"extended"];
+            if ([rx isKindOfClass:[NSNumber class]] &&
+                [extended isKindOfClass:[NSNumber class]] &&
+                rx.unsignedIntValue == set->responder_id &&
+                extended.boolValue == set->extended_id) {
+                match = candidate;
+                break;
+            }
+        }
+        if (match == nil) {
+            match = [@{
+                @"rx": @(set->responder_id),
+                @"extended": @(set->extended_id),
+                @"pids": @[]
+            } mutableCopy];
+            [responders addObject:match];
+            changed = YES;
+        }
+
+        NSMutableArray<NSNumber *> *pids = [[NSMutableArray alloc] init];
+        for (unsigned int pid = 0U; pid <= UINT8_MAX; ++pid) {
+            if (link_obd2_pid_set_contains(
+                    &set->supported_pids, (uint8_t)pid)) {
+                [pids addObject:@(pid)];
+            }
+        }
+        NSArray *previous = [match[@"pids"] isKindOfClass:[NSArray class]]
+            ? match[@"pids"] : @[];
+        if (![previous isEqualToArray:pids]) {
+            match[@"pids"] = [pids copy];
+            changed = YES;
+        }
+    }
+
+    if (!changed) return;
+
+    profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
+    profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
+    profile[@"liveResponders"] = [responders copy];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *profiles =
+        [[defaults dictionaryForKey:MBLinkVehicleProfilesDefaultsKey]
+            mutableCopy] ?: [[NSMutableDictionary alloc] init];
+    profiles[self.mercedesVINText] = [profile copy];
+    [defaults setObject:[profiles copy]
+                 forKey:MBLinkVehicleProfilesDefaultsKey];
+    _cachedVehicleProfile = [profile copy];
 }
 
 - (void)persistCapabilitiesFromFlowEvent:

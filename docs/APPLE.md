@@ -27,14 +27,17 @@ The live iPhone controller now performs the sequence used by the C207 work:
 
 ```text
 ELM initialization
-  → standard PID capability discovery
-  → standard VIN
-  → stored / pending / permanent standard DTC inventory
-  → Mercedes read-only engine identification
-  → first-VIN Mercedes mobile census (complete 11-bit/29-bit read-only target plan)
+  → standard VIN as the first vehicle request
+  → select / create the authoritative VIN profile
+  → validate saved Mercedes controller routes, or run the first-VIN identity-first census
   → adapter restore
+  → standard PID capability discovery
+  → stored / pending / permanent standard DTC inventory
+  → readiness / freeze-frame context
   → normal live-data polling
 ```
+
+The VIN/profile decision is deliberately ahead of the broader diagnostic inventory. A saved profile is still only cached evidence: known controller routes are validated, and a changed or invalid map is rebuilt. Standard OBD support is not skipped; it runs immediately after the vehicle-specific profile work and its responder-specific PID capability map is persisted back into the same VIN profile.
 
 On a new VIN, iPhone now walks the complete Mercedes-owned 0x600–0x7F7 plus 29-bit logical target plan once, but uses only a single read-only TesterPresent probe on dead addresses. Deeper DTC and identity reads run only after a responder is proven. Later connections validate and refresh only the saved module routes. Linux/desktop FULL keeps the slower fallback probes for unusually quiet ECUs. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.25 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
 
