@@ -14,4 +14,17 @@
 
 #include "mblink/mercedes_module_scan_identity_first.h"
 
+/*
+ * GS KWP local identifier 0x30 carries the selector/ATF live payload seen in
+ * the C207 field capture. Keep it on a sub-second cadence while the automatic
+ * runtime observer is active; other discovered body/infotainment ECUs remain
+ * census-only unless explicitly opened by the user.
+ */
+#ifndef MBLINK_FAST_LIVE_GS_DID
+#define MBLINK_FAST_LIVE_GS_DID 0x30U
+#endif
+#ifndef MBLINK_FAST_LIVE_GS_INTERVAL_SECONDS
+#define MBLINK_FAST_LIVE_GS_INTERVAL_SECONDS 0.75
+#endif
+
 #endif
