@@ -25,13 +25,18 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Select Objective-C implementations in migration helper
+      - name: Retarget migration to corrected LINK and select implementations
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           path = Path('.github/hal_migrate_mblink.py')
           text = path.read_text(encoding='utf-8')
+          old_sha = 'e8121c5507a2df4df57bd0bf8bd5f1b236e79023'
+          new_sha = 'cb830ec2d04d11f97cf0a2a6dd7a29bae6c7a13b'
+          if text.count(old_sha) != 1:
+              raise SystemExit('unexpected old LINK pin count in migration helper')
+          text = text.replace(old_sha, new_sha, 1)
           old = '''    start = text.find(start_marker)\n    if start < 0:\n        raise SystemExit(f"{path}: start marker not found: {start_marker!r}")\n    if text.find(start_marker, start + 1) >= 0:\n        raise SystemExit(f"{path}: start marker is ambiguous: {start_marker!r}")\n'''
           new = '''    start = text.rfind(start_marker)\n    if start < 0:\n        raise SystemExit(f"{path}: start marker not found: {start_marker!r}")\n'''
           if old not in text:
@@ -47,7 +52,7 @@ jobs:
         run: |
           set -euxo pipefail
           python3 -m py_compile .github/hal_migrate_mblink.py
-          test "$(git -C src/link rev-parse HEAD)" = e8121c5507a2df4df57bd0bf8bd5f1b236e79023
+          test "$(git -C src/link rev-parse HEAD)" = cb830ec2d04d11f97cf0a2a6dd7a29bae6c7a13b
           grep -Fq 'typedef LinkSessionTrace MblinkLinuxSessionTrace' app/linux/session_trace.h
           grep -Fq 'link_session_trace_record_graph' app/linux/session_trace.c
           grep -Fq 'link_units_convert_obd2_with_preferences' app/linux/main.c
@@ -66,6 +71,16 @@ jobs:
           ! grep -Fq '235.214583' app/linux/main.c
           ! grep -Fq '282.480936' app/linux/main.c
           bash -n scripts/build-native-installer.sh
+
+      - name: Create local validation commit
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Validate LINK consumer migration'
 
       - name: Install Linux build dependencies
         shell: bash
@@ -94,14 +109,12 @@ jobs:
           /tmp/MBLINK-native-migration.run --help >/dev/null
           rm -f /tmp/MBLINK-native-migration.run
 
-      - name: Commit tested MBLINK migration and remove one-shot files
+      - name: Publish tested MBLINK migration without one-shot files
         shell: bash
         run: |
           set -euxo pipefail
           rm -f .github/hal_migrate_mblink.py .github/workflows/hal-migrate-mblink.yml
-          git config user.name 'Shannon Smith'
-          git config user.email 'infiltratr@yandex.com'
           git add -A
           git diff --cached --check
-          git commit -m 'Consume shared LINK product behaviour'
+          git commit --amend -m 'Consume shared LINK product behaviour'
           git push origin HEAD:main
