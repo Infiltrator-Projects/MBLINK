@@ -17,102 +17,13 @@ enum MBLINKUnitProfile: String, CaseIterable, Identifiable {
     }
 }
 
-struct DiagnosticParameter: Identifiable {
-    let id: String
-    let protocolName: String
-    let moduleIdentifier: UInt32
-    let parameterIdentifier: UInt32
-    let shortName: String
-    let title: String
-    let suffix: String
-    let formattedValue: String
-    let value: Double?
-    let structuredValue: String?
-    let rawHex: String?
-    let vehicleSupported: Bool
-    let favourite: Bool
-    let pollingEnabled: Bool
-    let history: [Double]
-    let sourceLabel: String?
-    let qualityNote: String?
+typealias DiagnosticParameter = LinkDiagnosticParameter
 
-    var isAvailable: Bool { value != nil || !(structuredValue ?? "").isEmpty }
-    var isSupported: Bool { vehicleSupported }
+typealias DiagnosticModule = LinkDiagnosticModule
 
-    /*
-     * Never expose a bare "N/A" for an ordinary catalogue state. A missing
-     * sample can mean three very different things: the vehicle did not
-     * advertise the PID, the user has not enabled polling, or polling is
-     * enabled but the first sample has not arrived yet.
-     */
-    var presentationValue: String {
-        if value != nil {
-            return formattedValue == "N/A" ? "Decode error" : formattedValue
-        }
-        if let structuredValue, !structuredValue.isEmpty { return structuredValue }
-        if !vehicleSupported { return "Not advertised" }
-        if !pollingEnabled { return "Not polled" }
-        return "Waiting for sample"
-    }
+typealias PIDConfigurationItem = LinkPIDConfigurationItem
 
-    var hasLiveValue: Bool { pollingEnabled && isAvailable }
-}
-
-struct DiagnosticModule: Identifiable {
-    let id: String
-    let name: String
-    let designation: String
-    let network: String
-    let kind: String
-    let protocolName: String
-    let requestCANIdentifier: UInt32
-    let responseCANIdentifier: UInt32
-    let extendedID: Bool
-    let identityText: String?
-    let partNumber: String?
-    let softwareNumber: String?
-    let hardwareNumber: String?
-    let faultStatus: String
-    let faultCount: Int
-    let faults: [String]
-    let evidenceDetails: [String]
-    let obdAdvertisedPIDCount: Int
-    let livePIDCount: Int
-
-    var addressText: String {
-        if extendedID {
-            return String(format: "0x%08X → 0x%08X",
-                          requestCANIdentifier, responseCANIdentifier)
-        }
-        return String(format: "0x%03X → 0x%03X",
-                      requestCANIdentifier, responseCANIdentifier)
-    }
-
-    var faultCountLabel: String {
-        if faultCount > 0 { return "\(faultCount) fault\(faultCount == 1 ? "" : "s")" }
-        if faultStatus == "Checked · no faults" { return "0 faults" }
-        return "faults unknown"
-    }
-}
-
-struct PIDConfigurationItem: Identifiable {
-    let id: String
-    let pid: UInt8
-    let shortName: String
-    let title: String
-    let pollingEnabled: Bool
-    let favourite: Bool
-    let advertised: Bool
-}
-
-struct SavedVehicleProfileSummary: Identifiable {
-    let id: String
-    let vin: String
-    let displayName: String
-    let moduleCount: Int
-    let responderCount: Int
-    let updatedAt: Date?
-}
+typealias SavedVehicleProfileSummary = LinkSavedVehicleProfileSummary
 
 struct MercedesModuleDataValue: Identifiable {
     let id: String
@@ -136,19 +47,7 @@ struct MercedesModuleDataValue: Identifiable {
     }
 }
 
-struct DiagnosticFault: Identifiable {
-    let code: String
-    let title: String
-    let system: String
-    let category: String
-    let origin: String
-    let source: String
-    let state: String
-    let definitionKnown: Bool
-
-    var id: String { "\(state):\(code)" }
-    var displayText: String { "\(code) — \(title)" }
-}
+typealias DiagnosticFault = LinkDiagnosticFault
 
 struct MercedesTargetSignal: Identifiable {
     let id: String

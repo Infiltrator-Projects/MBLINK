@@ -3,26 +3,18 @@
 #define MBLINK_LINUX_SESSION_TRACE_H
 
 #include "link/diagnostic_flow.h"
+#include "link/session_trace.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define MBLINK_LINUX_GRAPH_TRACE_COUNT 8U
-#define MBLINK_LINUX_GRAPH_HISTORY_CAPACITY 48U
-#define MBLINK_LINUX_SESSION_LOG_CAPACITY 24U
-#define MBLINK_LINUX_SESSION_LOG_MESSAGE_CAPACITY 160U
+#define MBLINK_LINUX_GRAPH_HISTORY_CAPACITY LINK_SESSION_TRACE_GRAPH_HISTORY_CAPACITY
+#define MBLINK_LINUX_SESSION_LOG_CAPACITY LINK_SESSION_TRACE_LOG_CAPACITY
+#define MBLINK_LINUX_SESSION_LOG_MESSAGE_CAPACITY LINK_SESSION_TRACE_LOG_MESSAGE_CAPACITY
 
-typedef struct {
-    double graph_history[MBLINK_LINUX_GRAPH_TRACE_COUNT][MBLINK_LINUX_GRAPH_HISTORY_CAPACITY];
-    uint8_t graph_history_count[MBLINK_LINUX_GRAPH_TRACE_COUNT];
-    uint8_t graph_history_next[MBLINK_LINUX_GRAPH_TRACE_COUNT];
-    char session_log[MBLINK_LINUX_SESSION_LOG_CAPACITY][MBLINK_LINUX_SESSION_LOG_MESSAGE_CAPACITY];
-    uint64_t session_log_time_ms[MBLINK_LINUX_SESSION_LOG_CAPACITY];
-    uint8_t session_log_count;
-    uint8_t session_log_next;
-    uint64_t session_log_started_ms;
-} MblinkLinuxSessionTrace;
+typedef LinkSessionTrace MblinkLinuxSessionTrace;
 
 extern const uint8_t
     mblink_linux_graph_pids[MBLINK_LINUX_GRAPH_TRACE_COUNT];

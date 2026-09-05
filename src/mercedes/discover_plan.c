@@ -210,16 +210,10 @@ static int mercedes_target_at(
     }
 
     {
-        size_t normal_index = index - MBLINK_SWEEP_11_TARGET_COUNT;
-        unsigned int diagnostic_target = (unsigned int)normal_index;
-        if (diagnostic_target >= 0xf1U) ++diagnostic_target;
-        target->tx_can_id =
-            UINT32_C(0x18da00f1) | ((uint32_t)diagnostic_target << 8U);
-        target->rx_can_id =
-            UINT32_C(0x18daf100) | (uint32_t)diagnostic_target;
-        target->extended_id = true;
+        const size_t normal_index = index - MBLINK_SWEEP_11_TARGET_COUNT;
+        return link_discover_standard_uds29_target_at(
+            normal_index, UINT32_C(500000), target);
     }
-    return 1;
 }
 
 static bool mercedes_route_is_mobile_grid_route(
@@ -282,10 +276,8 @@ static int mercedes_mobile_target_at(
 
     index -= MBLINK_MOBILE_EXCEPTION_COUNT;
     if (index < MBLINK_MOBILE_OBD_COUNT) {
-        target->tx_can_id = UINT32_C(0x7e0) + (uint32_t)index;
-        target->rx_can_id = UINT32_C(0x7e8) + (uint32_t)index;
-        target->extended_id = false;
-        return 1;
+        return link_discover_standard_obd11_target_at(
+            index, UINT32_C(500000), target);
     }
     return 0;
 }

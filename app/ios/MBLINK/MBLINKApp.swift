@@ -248,109 +248,24 @@ private struct MBSectionHeader: View {
 }
 
 private struct MBInfoRow: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
     let label: String
     let value: String
     var monospaced = false
 
-    private var valueText: some View {
-        Text(LocalizedStringKey(value))
-            .font(monospaced ? MBTypography.subheadline : MBTypography.subheadlineBold)
-            .foregroundStyle(MBBrand.silverBright)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-    }
-
-    private var compactLabel: some View {
-        Text(LocalizedStringKey(label))
-            .font(MBTypography.captionBold)
-            .foregroundStyle(MBBrand.muted)
-            .textCase(.uppercase)
-            .tracking(0.45)
-    }
-
     var body: some View {
-        Group {
-            /*
-             * Do not let long Mercedes evidence fight a two-column layout on
-             * iPhone.  Compact-width screens always give the value the full
-             * panel width; regular-width screens retain the denser row form.
-             */
-            if horizontalSizeClass == .compact {
-                VStack(alignment: .leading, spacing: 5) {
-                    compactLabel
-                    valueText
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    Text(LocalizedStringKey(label))
-                        .font(MBTypography.subheadline)
-                        .foregroundStyle(MBBrand.muted)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 16)
-                    valueText
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 420, alignment: .trailing)
-                }
-            }
-        }
-        .padding(.vertical, 6)
+        LinkInfoRow(label: label, value: value, monospaced: monospaced)
     }
 }
 
-private struct MBVehicleFact: Identifiable {
-    let label: String
-    let value: String
-    var monospaced = false
+private typealias MBVehicleFact = LinkVehicleFact
 
-    var id: String { label }
-}
 
-private struct MBVehicleFactTile: View {
-    let fact: MBVehicleFact
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(LocalizedStringKey(fact.label)).textCase(.uppercase)
-                .font(MBTypography.caption2Bold)
-                .tracking(0.8)
-                .foregroundStyle(MBBrand.muted)
-            Text(fact.value)
-                .font(fact.monospaced ? MBTypography.subheadline : MBTypography.subheadlineBold)
-                .foregroundStyle(MBBrand.silverBright)
-                .lineLimit(3)
-                .minimumScaleFactor(0.8)
-                .textSelection(.enabled)
-        }
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(MBBrand.panelRaised)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(MBBrand.line.opacity(0.75), lineWidth: 1)
-        )
-    }
-}
 
 private struct MBVehicleFactGrid: View {
     let facts: [MBVehicleFact]
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 132, maximum: 260), spacing: 10)
-    ]
-
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-            ForEach(facts) { fact in
-                MBVehicleFactTile(fact: fact)
-            }
-        }
+        LinkVehicleFactGrid(facts: facts)
     }
 }
 
@@ -425,54 +340,7 @@ private struct MBMetricTile: View {
     let parameter: DiagnosticParameter
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text(LocalizedStringKey(parameter.shortName)).textCase(.uppercase)
-                    .font(MBTypography.caption2Bold)
-                    .tracking(0.7)
-                    .foregroundStyle(MBBrand.silver)
-                Spacer()
-                Text(parameter.brandPidText)
-                    .font(MBTypography.caption2)
-                    .foregroundStyle(MBBrand.muted)
-            }
-
-            Text(parameter.presentationValue)
-                .font(MBTypography.bold(24, relativeTo: .title2))
-                .monospacedDigit()
-                .foregroundStyle(parameter.hasLiveValue ? MBBrand.silverBright : MBBrand.muted)
-                .minimumScaleFactor(0.65)
-                .lineLimit(1)
-
-            Text(LocalizedStringKey(parameter.title))
-                .font(MBTypography.caption)
-                .foregroundStyle(MBBrand.muted)
-                .lineLimit(2)
-            if let source = parameter.sourceLabel {
-                Label(source, systemImage: "cpu")
-                    .font(MBTypography.caption2Bold)
-                    .foregroundStyle(MBBrand.silver)
-                    .lineLimit(2)
-            }
-            if let qualityNote = parameter.qualityNote {
-                Text(qualityNote)
-                    .font(MBTypography.caption2)
-                    .foregroundStyle(MBBrand.warning)
-                    .lineLimit(2)
-            }
-        }
-        .frame(maxWidth: .infinity,
-               minHeight: parameter.sourceLabel == nil ? 112 : 142,
-               alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(MBBrand.panel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(parameter.isAvailable ? MBBrand.silver.opacity(0.38) : MBBrand.line, lineWidth: 1)
-        )
+        LinkMetricTile(parameter: parameter)
     }
 }
 
@@ -506,7 +374,7 @@ private enum MBLiveScope: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-private extension DiagnosticParameter {
+private extension LinkDiagnosticParameter {
     var brandGroup: MBParameterGroup {
         if id.contains(".dpf.") || id.contains(".aftertreatment.") { return .aftertreatment }
         if id.contains(".diesel.egr") { return .egr }
@@ -520,15 +388,9 @@ private extension DiagnosticParameter {
         return .engine
     }
 
-    var brandPidText: String {
-        let value = String(parameterIdentifier, radix: 16, uppercase: true)
-        return "0x" + (value.count < 2 ? "0\(value)" : value)
-    }
+    var brandPidText: String { pidText }
 
-    var brandSourceText: String {
-        protocolName.lowercased() == "obd2" ? "SAE OBD-II · \(brandPidText)" :
-            "\(protocolName.uppercased()) · \(brandPidText)"
-    }
+    var brandSourceText: String { sourceText }
 }
 
 struct MBInterfaceLanguage: Identifiable, Hashable {
@@ -1551,7 +1413,7 @@ private struct MBModulesView: View {
     }
 }
 
-private extension DiagnosticModule {
+private extension LinkDiagnosticModule {
     var symbol: String {
         let value = kind.lowercased()
         if value.contains("engine") { return "engine.combustion.fill" }
@@ -1996,7 +1858,7 @@ private struct MBModuleDetailView: View {
     }
 }
 
-private extension DiagnosticModule {
+private extension LinkDiagnosticModule {
     var responseAddressText: String {
         extendedID
             ? String(format: "0x%08X", responseCANIdentifier)

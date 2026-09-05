@@ -28,6 +28,7 @@
 #include "link-gtk-widgets.h"
 #include "link/dtc_knowledge.h"
 #include "link/fuel_economy.h"
+#include "link/units.h"
 #include "link/workspace.h"
 #include "mblink/mblink.h"
 #include "mblink/project_info.h"
@@ -45,50 +46,46 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef enum MblinkTemperatureUnit {
-    MBLINK_TEMP_CELSIUS = 0,
-    MBLINK_TEMP_FAHRENHEIT
-} MblinkTemperatureUnit;
+/*
+ * MBLINK keeps its stable preference names for on-disk/UI compatibility, but
+ * LINK owns the dimension types and conversion semantics.
+ */
+typedef LinkTemperatureUnit MblinkTemperatureUnit;
+#define MBLINK_TEMP_CELSIUS LINK_TEMPERATURE_CELSIUS
+#define MBLINK_TEMP_FAHRENHEIT LINK_TEMPERATURE_FAHRENHEIT
 
-typedef enum MblinkPressureUnit {
-    MBLINK_PRESSURE_KPA = 0,
-    MBLINK_PRESSURE_BAR,
-    MBLINK_PRESSURE_PSI
-} MblinkPressureUnit;
+typedef LinkPressureUnit MblinkPressureUnit;
+#define MBLINK_PRESSURE_KPA LINK_PRESSURE_KPA
+#define MBLINK_PRESSURE_BAR LINK_PRESSURE_BAR
+#define MBLINK_PRESSURE_PSI LINK_PRESSURE_PSI
 
-typedef enum MblinkSpeedUnit {
-    MBLINK_SPEED_KMH = 0,
-    MBLINK_SPEED_MPH
-} MblinkSpeedUnit;
+typedef LinkSpeedUnit MblinkSpeedUnit;
+#define MBLINK_SPEED_KMH LINK_SPEED_KMH
+#define MBLINK_SPEED_MPH LINK_SPEED_MPH
 
-typedef enum MblinkDistanceUnit {
-    MBLINK_DISTANCE_KM = 0,
-    MBLINK_DISTANCE_MILES
-} MblinkDistanceUnit;
+typedef LinkDistanceUnit MblinkDistanceUnit;
+#define MBLINK_DISTANCE_KM LINK_DISTANCE_KM
+#define MBLINK_DISTANCE_MILES LINK_DISTANCE_MILES
 
-typedef enum MblinkFuelVolumeUnit {
-    MBLINK_FUEL_VOLUME_LITRES = 0,
-    MBLINK_FUEL_VOLUME_US_GALLONS,
-    MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS
-} MblinkFuelVolumeUnit;
+typedef LinkFuelVolumeUnit MblinkFuelVolumeUnit;
+#define MBLINK_FUEL_VOLUME_LITRES LINK_FUEL_VOLUME_LITRES
+#define MBLINK_FUEL_VOLUME_US_GALLONS LINK_FUEL_VOLUME_US_GALLONS
+#define MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS LINK_FUEL_VOLUME_IMPERIAL_GALLONS
 
-typedef enum MblinkFuelEconomyUnit {
-    MBLINK_FUEL_ECONOMY_L_PER_100KM = 0,
-    MBLINK_FUEL_ECONOMY_KM_PER_L,
-    MBLINK_FUEL_ECONOMY_MPG_US,
-    MBLINK_FUEL_ECONOMY_MPG_IMPERIAL
-} MblinkFuelEconomyUnit;
+typedef LinkFuelEconomyUnit MblinkFuelEconomyUnit;
+#define MBLINK_FUEL_ECONOMY_L_PER_100KM LINK_FUEL_ECONOMY_L_PER_100KM
+#define MBLINK_FUEL_ECONOMY_KM_PER_L LINK_FUEL_ECONOMY_KM_PER_L
+#define MBLINK_FUEL_ECONOMY_MPG_US LINK_FUEL_ECONOMY_MPG_US
+#define MBLINK_FUEL_ECONOMY_MPG_IMPERIAL LINK_FUEL_ECONOMY_MPG_IMPERIAL
 
-typedef enum MblinkFuelRateUnit {
-    MBLINK_FUEL_RATE_L_PER_HOUR = 0,
-    MBLINK_FUEL_RATE_US_GAL_PER_HOUR,
-    MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR
-} MblinkFuelRateUnit;
+typedef LinkFuelRateUnit MblinkFuelRateUnit;
+#define MBLINK_FUEL_RATE_L_PER_HOUR LINK_FUEL_RATE_L_PER_HOUR
+#define MBLINK_FUEL_RATE_US_GAL_PER_HOUR LINK_FUEL_RATE_US_GAL_PER_HOUR
+#define MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR LINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR
 
-typedef enum MblinkAirMassUnit {
-    MBLINK_AIR_MASS_G_PER_SECOND = 0,
-    MBLINK_AIR_MASS_LB_PER_MINUTE
-} MblinkAirMassUnit;
+typedef LinkAirMassUnit MblinkAirMassUnit;
+#define MBLINK_AIR_MASS_G_PER_SECOND LINK_AIR_MASS_G_PER_SECOND
+#define MBLINK_AIR_MASS_LB_PER_MINUTE LINK_AIR_MASS_LB_PER_MINUTE
 
 typedef enum MblinkPreferenceKind {
     MBLINK_PREF_TEMPERATURE = 0,
@@ -480,6 +477,22 @@ static void preference_changed(
     save_display_preferences(context);
 }
 
+static void mblink_link_unit_preferences(
+    const MblinkLinuxContext *context,
+    LinkUnitPreferences *preferences)
+{
+    link_unit_preferences_metric(preferences);
+    if (context == NULL || preferences == NULL) return;
+    preferences->temperature = (LinkTemperatureUnit)context->temperature_unit;
+    preferences->pressure = (LinkPressureUnit)context->pressure_unit;
+    preferences->speed = (LinkSpeedUnit)context->speed_unit;
+    preferences->distance = (LinkDistanceUnit)context->distance_unit;
+    preferences->fuel_volume = (LinkFuelVolumeUnit)context->fuel_volume_unit;
+    preferences->fuel_economy = (LinkFuelEconomyUnit)context->fuel_economy_unit;
+    preferences->fuel_rate = (LinkFuelRateUnit)context->fuel_rate_unit;
+    preferences->air_mass = (LinkAirMassUnit)context->air_mass_unit;
+}
+
 static void format_sample(const LinkObd2Sample *sample,
                           const MblinkLinuxContext *context,
                           char *buffer,
@@ -487,6 +500,10 @@ static void format_sample(const LinkObd2Sample *sample,
 {
     MblinkParameterSample parameter;
     const char *unit;
+    LinkUnitPreferences preferences;
+    double display;
+    const char *display_unit = NULL;
+
     if (buffer == NULL || capacity == 0U) return;
     if (sample == NULL) {
         (void)snprintf(buffer, capacity, "Waiting");
@@ -494,84 +511,52 @@ static void format_sample(const LinkObd2Sample *sample,
     }
 
     if (context != NULL) {
-        switch (sample->unit) {
-        case LINK_OBD2_UNIT_CELSIUS:
-            if (context->temperature_unit == MBLINK_TEMP_FAHRENHEIT)
+        mblink_link_unit_preferences(context, &preferences);
+        if (link_units_convert_obd2_with_preferences(
+                sample->unit, sample->value, &preferences,
+                &display, &display_unit)) {
+            switch (sample->unit) {
+            case LINK_OBD2_UNIT_CELSIUS:
                 (void)snprintf(
-                    buffer, capacity, "%.1f °F",
-                    sample->value * 9.0 / 5.0 + 32.0);
-            else
-                (void)snprintf(buffer, capacity, "%.1f °C", sample->value);
-            return;
-
-        case LINK_OBD2_UNIT_KPA:
-            if (context->pressure_unit == MBLINK_PRESSURE_BAR)
-                (void)snprintf(
-                    buffer, capacity, "%.2f bar", sample->value / 100.0);
-            else if (context->pressure_unit == MBLINK_PRESSURE_PSI)
-                (void)snprintf(
-                    buffer, capacity,
-                    sample->value < 70.0 && sample->value > -70.0
-                        ? "%.2f psi" : "%.1f psi",
-                    sample->value * 0.14503773773020923);
-            else
-                (void)snprintf(
-                    buffer, capacity,
-                    sample->value < 100.0 && sample->value > -100.0
-                        ? "%.2f kPa" : "%.1f kPa",
-                    sample->value);
-            return;
-
-        case LINK_OBD2_UNIT_KMH:
-            if (context->speed_unit == MBLINK_SPEED_MPH)
-                (void)snprintf(
-                    buffer, capacity, "%.1f mph",
-                    sample->value * 0.621371192237334);
-            else
-                (void)snprintf(buffer, capacity, "%.1f km/h", sample->value);
-            return;
-
-        case LINK_OBD2_UNIT_GRAMS_PER_SECOND:
-            if (context->air_mass_unit == MBLINK_AIR_MASS_LB_PER_MINUTE)
-                (void)snprintf(
-                    buffer, capacity, "%.2f lb/min",
-                    sample->value * 0.1322773573109265);
-            else
-                (void)snprintf(buffer, capacity, "%.2f g/s", sample->value);
-            return;
-
-        case LINK_OBD2_UNIT_LITRES_PER_HOUR:
-            if (context->fuel_rate_unit ==
-                MBLINK_FUEL_RATE_US_GAL_PER_HOUR)
-                (void)snprintf(
-                    buffer, capacity, "%.2f US gal/h",
-                    sample->value * 0.2641720523581484);
-            else if (context->fuel_rate_unit ==
-                     MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR)
-                (void)snprintf(
-                    buffer, capacity, "%.2f Imp gal/h",
-                    sample->value * 0.2199692482990878);
-            else
-                (void)snprintf(buffer, capacity, "%.2f L/h", sample->value);
-            return;
-
-        default:
-            break;
+                    buffer, capacity, "%.1f %s", display,
+                    preferences.temperature == LINK_TEMPERATURE_FAHRENHEIT
+                        ? "°F" : "°C");
+                return;
+            case LINK_OBD2_UNIT_KPA:
+                if (preferences.pressure == LINK_PRESSURE_BAR)
+                    (void)snprintf(buffer, capacity, "%.2f bar", display);
+                else if (preferences.pressure == LINK_PRESSURE_PSI)
+                    (void)snprintf(
+                        buffer, capacity,
+                        sample->value < 70.0 && sample->value > -70.0
+                            ? "%.2f psi" : "%.1f psi", display);
+                else
+                    (void)snprintf(
+                        buffer, capacity,
+                        sample->value < 100.0 && sample->value > -100.0
+                            ? "%.2f kPa" : "%.1f kPa", display);
+                return;
+            case LINK_OBD2_UNIT_KMH:
+                (void)snprintf(buffer, capacity, "%.1f %s", display, display_unit);
+                return;
+            case LINK_OBD2_UNIT_KILOMETRES:
+                (void)snprintf(buffer, capacity, "%.1f %s", display, display_unit);
+                return;
+            case LINK_OBD2_UNIT_GRAMS_PER_SECOND:
+            case LINK_OBD2_UNIT_LITRES_PER_HOUR:
+                (void)snprintf(buffer, capacity, "%.2f %s", display, display_unit);
+                return;
+            default:
+                break;
+            }
         }
     }
 
-    /*
-     * Prefer the shared LINK/MBLINK parameter formatter so Linux presents the
-     * same precision and human-readable unit scaling as the iPhone. Canonical
-     * telemetry remains unchanged; for example rail pressure stays kPa in the
-     * decoded sample/export while the UI may render a large value in MPa.
-     */
     if (mblink_parameter_from_obd2(sample, 0U, &parameter) &&
         mblink_parameter_format_sample(&parameter, buffer, capacity)) {
         return;
     }
 
-    /* Preserve a generic fallback for typed samples not yet in the catalogue. */
     unit = link_obd2_unit_name(sample->unit);
     if (unit == NULL || unit[0] == '\0' || sample->unit == LINK_OBD2_UNIT_NONE)
         (void)snprintf(buffer, capacity, "%.2f", sample->value);
@@ -1524,37 +1509,17 @@ static void format_fuel_economy(
     char *buffer,
     size_t capacity)
 {
-    if (buffer == NULL || capacity == 0U || context == NULL) return;
-    switch (context->fuel_economy_unit) {
-    case MBLINK_FUEL_ECONOMY_KM_PER_L:
-        if (litres_per_100km > 0.0)
-            (void)snprintf(
-                buffer, capacity, "%.2f km/L", 100.0 / litres_per_100km);
-        else
-            (void)snprintf(buffer, capacity, "—");
-        break;
-    case MBLINK_FUEL_ECONOMY_MPG_US:
-        if (litres_per_100km > 0.0)
-            (void)snprintf(
-                buffer, capacity, "%.1f mpg (US)",
-                235.214583 / litres_per_100km);
-        else
-            (void)snprintf(buffer, capacity, "—");
-        break;
-    case MBLINK_FUEL_ECONOMY_MPG_IMPERIAL:
-        if (litres_per_100km > 0.0)
-            (void)snprintf(
-                buffer, capacity, "%.1f mpg (Imp)",
-                282.480936 / litres_per_100km);
-        else
-            (void)snprintf(buffer, capacity, "—");
-        break;
-    case MBLINK_FUEL_ECONOMY_L_PER_100KM:
-    default:
-        (void)snprintf(
-            buffer, capacity, "%.1f L/100 km", litres_per_100km);
-        break;
+    double display = litres_per_100km;
+    const char *unit = "L/100 km";
+    const LinkFuelEconomyUnit preference = context != NULL
+        ? (LinkFuelEconomyUnit)context->fuel_economy_unit
+        : LINK_FUEL_ECONOMY_L_PER_100KM;
+    if (!link_units_convert_fuel_economy(
+            litres_per_100km, preference, &display, &unit)) {
+        (void)snprintf(buffer, capacity, "—");
+        return;
     }
+    (void)snprintf(buffer, capacity, "%.1f %s", display, unit);
 }
 
 static void format_distance(
@@ -1563,13 +1528,15 @@ static void format_distance(
     char *buffer,
     size_t capacity)
 {
-    if (context != NULL &&
-        context->distance_unit == MBLINK_DISTANCE_MILES)
-        (void)snprintf(
-            buffer, capacity, "%.1f mi",
-            kilometres * 0.621371192237334);
-    else
-        (void)snprintf(buffer, capacity, "%.1f km", kilometres);
+    double display = kilometres;
+    const char *unit = "km";
+    const LinkDistanceUnit preference = context != NULL
+        ? (LinkDistanceUnit)context->distance_unit : LINK_DISTANCE_KM;
+    if (!link_units_convert_distance(kilometres, preference, &display, &unit)) {
+        display = kilometres;
+        unit = "km";
+    }
+    (void)snprintf(buffer, capacity, "%.1f %s", display, unit);
 }
 
 static void format_fuel_volume(
@@ -1578,19 +1545,16 @@ static void format_fuel_volume(
     char *buffer,
     size_t capacity)
 {
-    if (context != NULL &&
-        context->fuel_volume_unit == MBLINK_FUEL_VOLUME_US_GALLONS)
-        (void)snprintf(
-            buffer, capacity, "%.2f US gal",
-            litres * 0.2641720523581484);
-    else if (context != NULL &&
-             context->fuel_volume_unit ==
-                 MBLINK_FUEL_VOLUME_IMPERIAL_GALLONS)
-        (void)snprintf(
-            buffer, capacity, "%.2f Imp gal",
-            litres * 0.2199692482990878);
-    else
-        (void)snprintf(buffer, capacity, "%.2f L", litres);
+    double display = litres;
+    const char *unit = "L";
+    const LinkFuelVolumeUnit preference = context != NULL
+        ? (LinkFuelVolumeUnit)context->fuel_volume_unit
+        : LINK_FUEL_VOLUME_LITRES;
+    if (!link_units_convert_fuel_volume(litres, preference, &display, &unit)) {
+        display = litres;
+        unit = "L";
+    }
+    (void)snprintf(buffer, capacity, "%.2f %s", display, unit);
 }
 
 static void format_fuel_rate(
@@ -1599,19 +1563,17 @@ static void format_fuel_rate(
     char *buffer,
     size_t capacity)
 {
-    if (context != NULL &&
-        context->fuel_rate_unit == MBLINK_FUEL_RATE_US_GAL_PER_HOUR)
-        (void)snprintf(
-            buffer, capacity, "%.2f US gal/h",
-            litres_per_hour * 0.2641720523581484);
-    else if (context != NULL &&
-             context->fuel_rate_unit ==
-                 MBLINK_FUEL_RATE_IMPERIAL_GAL_PER_HOUR)
-        (void)snprintf(
-            buffer, capacity, "%.2f Imp gal/h",
-            litres_per_hour * 0.2199692482990878);
-    else
-        (void)snprintf(buffer, capacity, "%.2f L/h", litres_per_hour);
+    double display = litres_per_hour;
+    const char *unit = "L/h";
+    const LinkFuelRateUnit preference = context != NULL
+        ? (LinkFuelRateUnit)context->fuel_rate_unit
+        : LINK_FUEL_RATE_L_PER_HOUR;
+    if (!link_units_convert_fuel_rate(
+            litres_per_hour, preference, &display, &unit)) {
+        display = litres_per_hour;
+        unit = "L/h";
+    }
+    (void)snprintf(buffer, capacity, "%.2f %s", display, unit);
 }
 
 static void append_fuel_economy(GtkWidget *body,

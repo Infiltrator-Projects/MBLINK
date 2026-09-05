@@ -2,6 +2,7 @@
 #import "MBLinkDiagnosticsController.h"
 
 #import "../../src/link/platform/apple/LinkDiagnosticsController.h"
+#import "link/diagnostic_request.h"
 #import "mblink/elm327.h"
 #import "mblink/mercedes.h"
 #import "mblink/mercedes_probe.h"
@@ -232,23 +233,14 @@ static BOOL MBLinkStandardSnapshotPreferred(
 {
     if (candidate == nil) return NO;
     if (current == nil) return YES;
-    if (candidate.responderCANIdentifier == current.responderCANIdentifier &&
-        candidate.isExtendedID == current.isExtendedID) {
-        return YES;
-    }
-
-    const BOOL candidateEngine =
-        !candidate.isExtendedID &&
-        candidate.responderCANIdentifier == UINT32_C(0x7e8);
-    const BOOL currentEngine =
-        !current.isExtendedID &&
-        current.responderCANIdentifier == UINT32_C(0x7e8);
-    if (candidateEngine != currentEngine) return candidateEngine;
-
-    if (candidate.isExtendedID != current.isExtendedID)
-        return !candidate.isExtendedID;
-
-    return candidate.responderCANIdentifier < current.responderCANIdentifier;
+    return link_diagnostic_response_route_preferred(
+        candidate.responderCANIdentifier,
+        candidate.isExtendedID,
+        YES,
+        current.responderCANIdentifier,
+        current.isExtendedID,
+        UINT32_C(0x7e8),
+        false);
 }
 
 static NSString *MBLinkDecodedRawHex(const LinkObd2DecodedPid *decoded)
@@ -2959,238 +2951,33 @@ return [runtimeSafe copy];
     (uint32_t)responderCANIdentifier
                                                       extendedID:(BOOL)extendedID
 {
-    NSArray *responders = [_cachedVehicleProfile[@"liveResponders"]
-        isKindOfClass:[NSArray class]]
-        ? _cachedVehicleProfile[@"liveResponders"] : @[];
-    NSMutableOrderedSet<NSNumber *> *pids =
-        [[NSMutableOrderedSet alloc] init];
-    for (id value in responders) {
-        if (![value isKindOfClass:[NSDictionary class]]) continue;
-        NSDictionary *responder = (NSDictionary *)value;
-        NSNumber *rx = responder[@"rx"];
-        NSNumber *extended = responder[@"extended"];
-        NSArray *storedPIDs = [responder[@"pids"] isKindOfClass:[NSArray class]]
-            ? responder[@"pids"] : @[];
-        if (![rx isKindOfClass:[NSNumber class]] ||
-            ![extended isKindOfClass:[NSNumber class]] ||
-            rx.unsignedIntValue != responderCANIdentifier ||
-            extended.boolValue != extendedID) {
-            continue;
-        }
-        for (id pid in storedPIDs) {
-            if ([pid isKindOfClass:[NSNumber class]] &&
-                ((NSNumber *)pid).unsignedIntegerValue <= UINT8_MAX) {
-                [pids addObject:pid];
-            }
-        }
-    }
-    return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
+    return LinkVehicleProfileCachedPIDs(
+        _cachedVehicleProfile, responderCANIdentifier, extendedID);
 }
 
 - (void)persistDiscoveredCapabilities
 {
     if (_shared.isSimulated || self.mercedesVINText.length == 0U) return;
-
     const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
-    if (flow == NULL || flow->supported_pid_responders.count == 0U) return;
-
-    NSDictionary *existing = _cachedVehicleProfile;
-    if (existing == nil)
-        existing = [self savedVehicleProfileForVIN:self.mercedesVINText];
-    if (existing == nil) return;
-
-    NSMutableDictionary *profile = [existing mutableCopy];
-    NSMutableArray<NSMutableDictionary *> *responders =
-        [[NSMutableArray alloc] init];
-    NSArray *storedResponders = [profile[@"liveResponders"]
-        isKindOfClass:[NSArray class]] ? profile[@"liveResponders"] : @[];
-    for (id value in storedResponders) {
-        if ([value isKindOfClass:[NSDictionary class]])
-            [responders addObject:[(NSDictionary *)value mutableCopy]];
+    if (flow == NULL) return;
+    if ([_vehicleProfileStore
+            mergeStandardCapabilitiesFromDiagnosticFlow:flow
+            forVIN:self.mercedesVINText]) {
+        _cachedVehicleProfile = [_vehicleProfileStore
+            profileForVIN:self.mercedesVINText];
     }
-
-    BOOL changed = NO;
-    for (size_t index = 0U;
-         index < flow->supported_pid_responders.count;
-         ++index) {
-        const LinkObd2ResponderPidSet *set =
-            &flow->supported_pid_responders.entries[index];
-        NSMutableDictionary *match = nil;
-        for (NSMutableDictionary *candidate in responders) {
-            NSNumber *rx = candidate[@"rx"];
-            NSNumber *extended = candidate[@"extended"];
-            if ([rx isKindOfClass:[NSNumber class]] &&
-                [extended isKindOfClass:[NSNumber class]] &&
-                rx.unsignedIntValue == set->responder_id &&
-                extended.boolValue == set->extended_id) {
-                match = candidate;
-                break;
-            }
-        }
-        if (match == nil) {
-            match = [@{
-                @"rx": @(set->responder_id),
-                @"extended": @(set->extended_id),
-                @"pids": @[]
-            } mutableCopy];
-            [responders addObject:match];
-            changed = YES;
-        }
-
-        NSMutableArray<NSNumber *> *pids = [[NSMutableArray alloc] init];
-        for (unsigned int pid = 0U; pid <= UINT8_MAX; ++pid) {
-            if (link_obd2_pid_set_contains(
-                    &set->supported_pids, (uint8_t)pid)) {
-                [pids addObject:@(pid)];
-            }
-        }
-        NSArray *previous = [match[@"pids"] isKindOfClass:[NSArray class]]
-            ? match[@"pids"] : @[];
-        if (![previous isEqualToArray:pids]) {
-            match[@"pids"] = [pids copy];
-            changed = YES;
-        }
-    }
-
-    if (!changed) return;
-
-    profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
-    profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
-    profile[@"liveResponders"] = [responders copy];
-    [_vehicleProfileStore saveProfile:[profile copy]
-                                     forVIN:self.mercedesVINText];
-    _cachedVehicleProfile = [_vehicleProfileStore
-        profileForVIN:self.mercedesVINText];
 }
 
 - (void)persistCapabilitiesFromFlowEvent:
     (const LinkDiagnosticFlowEvent *)event
 {
-    if (event == NULL ||
-        (event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_SAMPLE &&
-         event->kind != LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED) ||
-        (event->responder_samples.count == 0U &&
-         event->responder_decoded.count == 0U) ||
-        self.mercedesVINText.length == 0U) {
-        return;
+    if (event == NULL || self.mercedesVINText.length == 0U) return;
+    if ([_vehicleProfileStore
+            mergeStandardCapabilitiesFromFlowEvent:event
+            forVIN:self.mercedesVINText]) {
+        _cachedVehicleProfile = [_vehicleProfileStore
+            profileForVIN:self.mercedesVINText];
     }
-
-    NSDictionary *existing = _cachedVehicleProfile;
-    if (existing == nil)
-        existing = [self savedVehicleProfileForVIN:self.mercedesVINText];
-    if (existing == nil) return;
-
-    NSMutableDictionary *profile = [existing mutableCopy];
-    NSMutableArray<NSMutableDictionary *> *responders =
-        [[NSMutableArray alloc] init];
-    NSArray *storedResponders = [profile[@"liveResponders"]
-        isKindOfClass:[NSArray class]] ? profile[@"liveResponders"] : @[];
-    for (id value in storedResponders) {
-        if ([value isKindOfClass:[NSDictionary class]])
-            [responders addObject:[(NSDictionary *)value mutableCopy]];
-    }
-
-    BOOL changed = NO;
-    for (size_t index = 0U;
-         index < event->responder_samples.count;
-         ++index) {
-        const LinkObd2ResponderSample *sample =
-            &event->responder_samples.samples[index];
-        if (!sample->responder_id_available) continue;
-
-        NSMutableDictionary *match = nil;
-        for (NSMutableDictionary *candidate in responders) {
-            NSNumber *rx = candidate[@"rx"];
-            NSNumber *extended = candidate[@"extended"];
-            if ([rx isKindOfClass:[NSNumber class]] &&
-                [extended isKindOfClass:[NSNumber class]] &&
-                rx.unsignedIntValue == sample->responder_id &&
-                extended.boolValue == sample->extended_id) {
-                match = candidate;
-                break;
-            }
-        }
-        if (match == nil) {
-            match = [@{
-                @"rx": @(sample->responder_id),
-                @"extended": @(sample->extended_id),
-                @"pids": @[]
-            } mutableCopy];
-            [responders addObject:match];
-            changed = YES;
-        }
-
-        NSMutableOrderedSet<NSNumber *> *pids =
-            [[NSMutableOrderedSet alloc] initWithArray:
-                [match[@"pids"] isKindOfClass:[NSArray class]]
-                    ? match[@"pids"] : @[]];
-        NSNumber *pid = @(sample->sample.pid);
-        if (![pids containsObject:pid]) {
-            [pids addObject:pid];
-            match[@"pids"] = [[pids array]
-                sortedArrayUsingSelector:@selector(compare:)];
-            changed = YES;
-        }
-    }
-    /*
-     * Structured/raw SAE PIDs may not have a scalar responder sample. Persist
-     * responder capability from the decoded list too, so cached VIN profiles
-     * retain DPF/NOx/aftertreatment and raw assigned Mode 01 identifiers.
-     */
-    for (size_t index = 0U;
-         index < event->responder_decoded.count;
-         ++index) {
-        const LinkObd2ResponderDecodedPid *entry =
-            &event->responder_decoded.entries[index];
-        if (!entry->responder_id_available ||
-            entry->decoded.definition == NULL) {
-            continue;
-        }
-
-        NSMutableDictionary *match = nil;
-        for (NSMutableDictionary *candidate in responders) {
-            NSNumber *rx = candidate[@"rx"];
-            NSNumber *extended = candidate[@"extended"];
-            if ([rx isKindOfClass:[NSNumber class]] &&
-                [extended isKindOfClass:[NSNumber class]] &&
-                rx.unsignedIntValue == entry->responder_id &&
-                extended.boolValue == entry->extended_id) {
-                match = candidate;
-                break;
-            }
-        }
-        if (match == nil) {
-            match = [@{
-                @"rx": @(entry->responder_id),
-                @"extended": @(entry->extended_id),
-                @"pids": @[]
-            } mutableCopy];
-            [responders addObject:match];
-            changed = YES;
-        }
-
-        NSMutableOrderedSet<NSNumber *> *pids =
-            [[NSMutableOrderedSet alloc] initWithArray:
-                [match[@"pids"] isKindOfClass:[NSArray class]]
-                    ? match[@"pids"] : @[]];
-        NSNumber *pid = @(entry->decoded.definition->pid);
-        if (![pids containsObject:pid]) {
-            [pids addObject:pid];
-            match[@"pids"] = [[pids array]
-                sortedArrayUsingSelector:@selector(compare:)];
-            changed = YES;
-        }
-    }
-
-    if (!changed) return;
-
-    profile[@"schema"] = @(MBLinkVehicleProfileSchemaVersion);
-    profile[@"updatedAt"] = @([[NSDate date] timeIntervalSince1970]);
-    profile[@"liveResponders"] = [responders copy];
-    [_vehicleProfileStore saveProfile:[profile copy]
-                                     forVIN:self.mercedesVINText];
-    _cachedVehicleProfile = [_vehicleProfileStore
-        profileForVIN:self.mercedesVINText];
 }
 
 - (void)saveCurrentVehicleProfile
