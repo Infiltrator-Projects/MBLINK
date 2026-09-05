@@ -138,6 +138,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         legacyProfileKey: "mblink.vehicleProfiles.v1",
         legacySelectedVINKey: "mblink.selectedVehicleVIN.v1",
         legacyAdapterMappingKey: "mblink.adapterPeripheralByVehicle.v1")
+    private let pidSelectionStore = LinkPIDSelectionStore(
+        productNamespace: "mblink",
+        legacyGlobalKey: "mblink.polling.enabledStableKeys.v2",
+        legacyVehicleKey: "mblink.pidSelectionsByVehicle.v1")
     private var lastConnectionAlertText: String?
     private var manufacturerNumericHistory = [String: [Double]]()
     private var manufacturerLastRawByParameter = [String: String]()
@@ -147,10 +151,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
      * opt-in. Existing user choices are preserved, but the old untouched
      * automatic default is recognised and migrated to an empty selection.
      */
-    private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"
     private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
-    private static let pidSelectionsByVehicleDefaultsKey =
-        "mblink.pidSelectionsByVehicle.v1"
     private var pidSupportByModule = [String: Set<UInt8>]()
     private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
@@ -476,7 +477,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         guard let pid = pidForStableKey(stableKey) else { return }
         var enabledKeys = storedPollingKeys()
         if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
-        UserDefaults.standard.set(Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)
+        pidSelectionStore.setGlobalStableKeys(Array(enabledKeys).sorted())
         controller.setPollingEnabled(enabled, forPID: pid)
         refresh()
     }
@@ -487,7 +488,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     var interfaceLocaleIdentifier: String {
-        MBInterfaceLanguage.canonical(selectedLanguageID)
+        LinkInterfaceLanguage.canonical(
+            selectedLanguageID, aliases: mbLegacyLanguageAliases)
     }
 
     func localizedText(_ key: String) -> String {
@@ -588,25 +590,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return selectedVehicleVIN
     }
 
-    private func storedPIDSelectionsByVehicle() -> [String: [String: [String]]] {
-        guard let root = UserDefaults.standard.dictionary(
-            forKey: Self.pidSelectionsByVehicleDefaultsKey) else {
-            return [:]
-        }
-        var result = [String: [String: [String]]]()
-        for (vin, rawModules) in root {
-            guard let modules = rawModules as? [String: Any] else { continue }
-            var parsed = [String: [String]]()
-            for (moduleID, rawValues) in modules {
-                if let values = rawValues as? [String] {
-                    parsed[moduleID] = values
-                }
-            }
-            result[vin] = parsed
-        }
-        return result
-    }
-
     private func supportedStableKeys(moduleID: String) -> Set<String> {
         let advertised = pidSupportByModule[moduleID] ?? []
         return Set(advertised.compactMap { pid in
@@ -622,16 +605,16 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         guard !supported.isEmpty else { return [] }
 
         guard let vin = effectivePIDConfigurationVIN else {
-            return storedPollingKeys().intersection(supported)
+            return Set(pidSelectionStore.globalStableKeys).intersection(supported)
         }
-        let root = storedPIDSelectionsByVehicle()
-        if let values = root[vin]?[moduleID] {
-            return Set(values).intersection(supported)
+        if pidSelectionStore.hasSelection(
+            forVIN: vin, controllerIdentifier: moduleID) {
+            return Set(pidSelectionStore.stableKeys(
+                forVIN: vin, controllerIdentifier: moduleID)).intersection(supported)
         }
-        // Legacy global choices may seed a module only where that exact
-        // responder actually advertised the PID. This prevents one controller's
-        // choices from appearing under every other controller.
-        return storedPollingKeys().intersection(supported)
+        // A global legacy choice may seed only the exact responder that
+        // advertised it; LINK owns persistence after that migration.
+        return Set(pidSelectionStore.globalStableKeys).intersection(supported)
     }
 
     private func storeModulePIDSelection(
@@ -642,17 +625,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             selection.intersection(supportedStableKeys(moduleID: moduleID))
 
         guard let vin = effectivePIDConfigurationVIN else {
-            UserDefaults.standard.set(
-                Array(boundedSelection).sorted(), forKey: Self.pollingDefaultsKey)
+            pidSelectionStore.setGlobalStableKeys(Array(boundedSelection).sorted())
             return
         }
 
-        var root = storedPIDSelectionsByVehicle()
-        var vehicle = root[vin] ?? [:]
-        vehicle[moduleID] = Array(boundedSelection).sorted()
-        root[vin] = vehicle
-        UserDefaults.standard.set(
-            root, forKey: Self.pidSelectionsByVehicleDefaultsKey)
+        pidSelectionStore.setStableKeys(
+            Array(boundedSelection).sorted(),
+            forVIN: vin,
+            controllerIdentifier: moduleID)
     }
 
     private func applyConfiguredPollingForSelectedVehicle() {
@@ -668,8 +648,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         // Keep the legacy/global polling key in sync with the responder-bounded
         // union so the existing live-data engine polls each requested Mode 01
         // PID once without leaking unsupported selections between modules.
-        UserDefaults.standard.set(
-            Array(selectedKeys).sorted(), forKey: Self.pollingDefaultsKey)
+        pidSelectionStore.setGlobalStableKeys(Array(selectedKeys).sorted())
 
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return }
@@ -690,19 +669,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         for profile in vehicleProfileStore.savedProfiles {
             guard let vin = profile["vin"] as? String, vin.count == 17 else { continue }
             let modules = profile["modules"] as? [[String: Any]] ?? []
-            let responders = profile["liveResponders"] as? [[String: Any]] ?? []
-            let timestamp = (profile["updatedAt"] as? NSNumber)?.doubleValue
-            let displayName =
-                (profile["displayName"] as? String) ??
-                decodeVehicleIdentity(vin: vin)?.model ??
-                "Mercedes-Benz vehicle"
-            summaries.append(SavedVehicleProfileSummary(
-                id: vin,
-                vin: vin,
-                displayName: displayName,
+            let fallbackDisplayName =
+                decodeVehicleIdentity(vin: vin)?.model ?? "Mercedes-Benz vehicle"
+            if let summary = SavedVehicleProfileSummary(
+                profile: profile as NSDictionary,
                 moduleCount: modules.count,
-                responderCount: responders.count,
-                updatedAt: timestamp.map { Date(timeIntervalSince1970: $0) }))
+                fallbackDisplayName: fallbackDisplayName) {
+                summaries.append(summary)
+            }
         }
         savedVehicleProfiles = summaries.sorted {
             ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
@@ -713,25 +687,18 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             return
         }
 
-        // No remembered current vehicle means exactly that. Never manufacture
-        // a current vehicle by picking the newest unrelated saved profile.
         selectedVehicleVIN = nil
         vehicleProfileStore.clearSelectedVehicle()
     }
 
     private func storedPollingKeys() -> Set<String> {
-        let defaults = UserDefaults.standard
-
-        if let values = defaults.array(forKey: Self.pollingDefaultsKey) as? [String] {
-            return Set(values)
+        if pidSelectionStore.hasGlobalSelection {
+            return Set(pidSelectionStore.globalStableKeys)
         }
 
-        /*
-         * Upgrade from the previous automatic-core policy. If v1 still holds
-         * exactly the old built-in set, it was never a meaningful user choice,
-         * so v2 starts empty. If the set differs, the user changed it and those
-         * explicit choices are preserved.
-         */
+        // One-time compatibility decision for the old automatic v1 set.
+        // LINK owns all standard PID persistence after this point.
+        let defaults = UserDefaults.standard
         var initial = Set<String>()
         if let legacyValues =
             defaults.array(forKey: Self.legacyPollingDefaultsKey) as? [String] {
@@ -741,7 +708,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             }
         }
 
-        defaults.set(Array(initial).sorted(), forKey: Self.pollingDefaultsKey)
+        pidSelectionStore.setGlobalStableKeys(Array(initial).sorted())
         return initial
     }
 
@@ -787,7 +754,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         if defaults.object(forKey: "link.displayLanguage") == nil,
            let legacy = defaults.string(forKey: "mblink.language") {
             controller.setSelectedLanguageTag(
-                MBInterfaceLanguage.canonical(legacy))
+                LinkInterfaceLanguage.canonical(
+                    legacy, aliases: mbLegacyLanguageAliases))
         }
 
         if defaults.object(forKey: "link.measurementSystem") == nil,
@@ -1516,19 +1484,13 @@ private func formattedValue(
         }
 
         var responderPIDs = [String: Set<UInt8>]()
-        if let responders = profile["liveResponders"] as? [[String: Any]] {
-            for responder in responders {
-                guard let rxNumber = responder["rx"] as? NSNumber else { continue }
-                let extended =
-                    (responder["extended"] as? NSNumber)?.boolValue ?? false
-                let rx = rxNumber.uint32Value
-                let key = String(format: "%@:%08X",
-                                 extended ? "29" : "11", rx)
-                let pids = (responder["pids"] as? [NSNumber] ?? [])
-                    .compactMap { UInt8(exactly: $0.uintValue) }
-                responderPIDs[key, default: []].formUnion(pids)
-            }
-        }
+for responder in LinkVehicleProfileStandardResponders(profile as NSDictionary) {
+    let rx = responder.responderCANIdentifier
+    let extended = responder.isExtendedID
+    let key = String(format: "%@:%08X", extended ? "29" : "11", rx)
+    let pids = responder.pids.compactMap { UInt8(exactly: $0.uintValue) }
+    responderPIDs[key, default: []].formUnion(pids)
+}
 
         var modules = [DiagnosticModule]()
         var support = [String: Set<UInt8>]()

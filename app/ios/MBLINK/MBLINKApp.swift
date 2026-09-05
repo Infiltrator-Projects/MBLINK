@@ -393,33 +393,14 @@ private extension LinkDiagnosticParameter {
     var brandSourceText: String { sourceText }
 }
 
-struct MBInterfaceLanguage: Identifiable, Hashable {
-    let id: String
-    let nativeName: String
 
-    static let all: [MBInterfaceLanguage] = {
-        let count = Int(link_i18n_supported_locale_count())
-        return (0..<count).compactMap { index in
-            guard let locale = link_i18n_supported_locale(index),
-                  let name = link_i18n_supported_locale_name(index) else { return nil }
-            return MBInterfaceLanguage(id: String(cString: locale), nativeName: String(cString: name))
-        }
-    }()
+let mbLegacyLanguageAliases: [String: String] = [
+    "en": "en-AU",
+    "de": "de-DE",
+    "pl": "pl-PL"
+]
 
-    static func canonical(_ stored: String) -> String {
-        switch stored {
-        case "en": return "en-AU"
-        case "de": return "de-DE"
-        case "pl": return "pl-PL"
-        default: return all.contains(where: { $0.id == stored }) ? stored : "en-AU"
-        }
-    }
-
-    static func displayName(for stored: String) -> String {
-        let code = canonical(stored)
-        return all.first(where: { $0.id == code })?.nativeName ?? "English (Australia)"
-    }
-}
+typealias MBInterfaceLanguage = LinkInterfaceLanguage
 
 private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
     LinkDiagnosticAboutInfo(
