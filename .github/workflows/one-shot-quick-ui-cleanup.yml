@@ -162,7 +162,7 @@ jobs:
               raise SystemExit('unsupported panel boundaries missing')
           s = s[:panel0] + s[panel1:]
 
-          # 4. Add useful current range/sample context to each graph card.
+          # 4. Add useful range/sample context to each graph card.
           graph0 = s.index('private struct MBGraphsView: View {')
           chart_if = s.index('                                    if parameter.history.count > 1 {', graph0)
           stats = '''                                    if let minimum = parameter.history.min(),
@@ -177,19 +177,27 @@ jobs:
                                           .foregroundStyle(MBBrand.muted)
                                       }
           '''
-          if 'Text("MIN \\(minimum.formatted())' not in s[graph0:]:
+          if 'minimum.formatted()' not in s[graph0:]:
               s = s[:chart_if] + stats + s[chart_if:]
+
+          # 5. Cheap structural checks before normal MBLINK CI compiles everything.
+          required = [
+              'static let active = Color(red: 0.00, green: 0.78, blue: 0.86)',
+              'title: "More diagnostics"',
+              'minimum.formatted()',
+              '.filter { $0.isSupported || $0.isAvailable }',
+          ]
+          for needle in required:
+              if needle not in s:
+                  raise SystemExit(f'missing quick-cleanup invariant: {needle}')
+          if 'Show unsupported catalogue entries' in s or 'showUnsupportedParameters' in s:
+              raise SystemExit('unsupported catalogue preference still present')
+          if s.count('LinkTaskTile(.services)') != 1:
+              raise SystemExit('Services must appear once in the secondary task grid')
 
           path.write_text(s)
           PY
-
-          # 5. Cheap regression checks before the normal MBLINK CI takes over.
-          grep -Fq 'static let active = Color(red: 0.00, green: 0.78, blue: 0.86)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'title: "More diagnostics"' app/ios/MBLINK/MBLINKApp.swift
-          ! grep -Fq 'Show unsupported catalogue entries' app/ios/MBLINK/MBLINKApp.swift
-          ! grep -Fq 'showUnsupportedParameters' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'Text("MIN \\(minimum.formatted()) \\(parameter.suffix)")' app/ios/MBLINK/MBLINKApp.swift
-          test "$(grep -Fc 'LinkTaskTile(.services)' app/ios/MBLINK/MBLINKApp.swift)" -eq 1
+          git diff --check
 
       - name: Commit cleanup
         shell: bash
