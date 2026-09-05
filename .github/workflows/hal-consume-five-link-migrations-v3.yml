@@ -35,12 +35,10 @@ jobs:
           body = re.sub(
               r'''(?m)^\s*'profile\["liveResponders"\]'\s*,?\s*$''',
               '', body)
-          # Current MBLINK no longer carries the historical LINK_SOURCE_REVISION
-          # fields. The gitlink itself is the source of truth, so omit that obsolete
-          # migration stanza instead of manufacturing duplicate metadata.
-          body = re.sub(
-              r'''\nppath = Path\("app/ios/MBLINK\.xcodeproj/project\.pbxproj"\).*?ppath\.write_text\(p\)\n''',
-              '\n', body, count=1, flags=re.S)
+          obsolete = '\nppath = Path("app/ios/MBLINK.xcodeproj/project.pbxproj")'
+          if obsolete not in body:
+              raise SystemExit('obsolete Xcode metadata block marker missing')
+          body = body.split(obsolete, 1)[0] + '\n'
           exec(body, {'__name__': '__main__'})
           PY
           git diff --check
