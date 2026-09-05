@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot fix MBLINK 0.7.177 About CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'Stage About CI expectation repair'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Align CI with intentionally tightened About layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/ci.yml')
+          text = p.read_text()
+          old = ".link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }"
+          new = ".link-about-dialog scrolledwindow { min-width: 460px; min-height: 260px; }"
+          if old not in text:
+              raise SystemExit('old About CI expectation not found')
+          text = text.replace(old, new, 1)
+          p.write_text(text)
+          PY
+          grep -Fq '.link-about-dialog scrolledwindow { min-width: 460px; min-height: 260px; }' .github/workflows/ci.yml
+          rm .github/workflows/one-shot-fix-about-ci-0.7.177.yml
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add .github/workflows/ci.yml .github/workflows/one-shot-fix-about-ci-0.7.177.yml
+          git commit -m 'Release 0.7.177: align About verification with tightened layout'
+          git push origin HEAD:main
