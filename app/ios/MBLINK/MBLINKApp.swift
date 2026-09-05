@@ -1637,7 +1637,7 @@ private struct MBModuleDetailView: View {
                             set: { connection.setManufacturerLivePolling($0, moduleID: module.id) }))
                         .font(MBTypography.subheadlineBold)
                         .tint(MBBrand.success)
-                    Text("Only runtime-safe values are queued. Turning this off removes this module recurring Mercedes job from LINK adapter schedule, so it consumes no recurring polling bandwidth.")
+                    Text("Only runtime-safe values are queued. Turning this off removes this module's recurring Mercedes job from LINK's adapter schedule, so it consumes no recurring polling bandwidth.")
                         .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
