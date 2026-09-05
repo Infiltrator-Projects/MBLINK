@@ -28,12 +28,20 @@ static const char mblink_css[] =
     ".link-status-chip { border-color: #3b4147; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-link-button { background: #d7dde2; color: #111418; }"
+    ".link-link-button { background: #58d7e7; color: #071012; border-color: #58d7e7; }"
+    ".link-link-button:hover { background: #8ee5ee; border-color: #8ee5ee; }"
     ".link-save-session-button, .link-save-session-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-connection-status { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-title { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-description { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
+    ".link-nav-row:selected { background: rgba(32,187,211,0.16); border-color: rgba(88,215,231,0.58); }"
+    ".link-nav-row:selected .link-section-title { color: #72e7f2; }"
+    ".link-nav-row:selected .link-section-summary { color: #9cdce4; }"
+    ".link-nav-row:nth-child(6) { margin-top: 14px; }"
+    ".link-status-online { background: rgba(32,187,211,0.12); border-color: rgba(88,215,231,0.52); color: #72e7f2; }"
+    ".link-toolbar-button:hover, .link-save-session-button:hover, .link-about-button:hover { border-color: rgba(88,215,231,0.42); }"
+    "checkbutton:checked { color: #72e7f2; }"
     ".state-warning { color: #d19e47; border-color: #72572f; }"
     ".state-success { color: #63ab7c; border-color: #365f45; }"
     ".mblink-settings-section { margin-top: 2px; }"
@@ -48,7 +56,6 @@ static const char mblink_metrics_css[] =
 
 
     "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }"
-
 
 
 
