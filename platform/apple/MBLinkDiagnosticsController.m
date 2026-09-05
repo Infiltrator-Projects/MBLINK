@@ -857,16 +857,7 @@ static bool MBLinkSimulatorResponder(
 
 - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
 {
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    LinkObd2UnitCode unit = LINK_OBD2_UNIT_NONE;
-    double display = value;
-    const char *label = "";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    if (link_parameter_obd2_expected_unit(pid, &unit) &&
-        link_units_convert_obd2(unit, value, system, &display, &label))
-        return display;
-    return value;
+    return [_shared displayValueForPID:pid canonicalValue:value];
 }
 
 - (NSString *)displayUnitForPID:(uint8_t)pid
@@ -876,27 +867,12 @@ static bool MBLinkSimulatorResponder(
 
 - (double)displayTemperatureCelsius:(double)celsius
 {
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    double display = celsius;
-    const char *label = "°C";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    if (link_units_convert_obd2(
-            LINK_OBD2_UNIT_CELSIUS, celsius, system, &display, &label))
-        return display;
-    return celsius;
+    return [_shared displayTemperatureCelsius:celsius];
 }
 
 - (NSString *)displayTemperatureUnit
 {
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    double display = 0.0;
-    const char *label = "°C";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    (void)link_units_convert_obd2(
-        LINK_OBD2_UNIT_CELSIUS, 0.0, system, &display, &label);
-    return label != NULL ? [NSString stringWithUTF8String:label] : @"°C";
+    return _shared.displayTemperatureUnit;
 }
 
 - (void)start
@@ -1182,9 +1158,7 @@ static bool MBLinkSimulatorResponder(
 
 - (BOOL)supportsPID:(uint8_t)pid
 {
-    const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
-    return flow != NULL &&
-        link_obd2_pid_set_contains(&flow->supported_pids, pid);
+    return [_shared supportsPID:pid];
 }
 
 - (nullable NSData *)csvDataSnapshot
@@ -3121,11 +3095,6 @@ return [runtimeSafe copy];
         ![self.mercedesCrd3SummaryText isEqualToString:@"Not attempted"]) {
         profile[@"crd3Summary"] = self.mercedesCrd3SummaryText;
     }
-    NSArray *liveResponders = [_cachedVehicleProfile[@"liveResponders"]
-        isKindOfClass:[NSArray class]]
-        ? _cachedVehicleProfile[@"liveResponders"] : nil;
-    if (liveResponders.count != 0U)
-        profile[@"liveResponders"] = liveResponders;
     NSArray<NSString *> *engineEvidence =
         MBLinkEngineProbeEvidence(&_mercedesProbe);
     if (engineEvidence.count == 0U &&

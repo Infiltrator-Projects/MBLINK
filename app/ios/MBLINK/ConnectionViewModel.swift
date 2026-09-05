@@ -529,23 +529,20 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
          */
         guard let data = controller.csvDataSnapshot() else { return }
 
-        let filename = "MBLINK-diagnostic-evidence-\(UUID().uuidString).csv"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         isPreparingCSV = true
 
         Task { [weak self] in
             do {
-                try await Task.detached(priority: .utility) {
-                    try data.write(to: url, options: .atomic)
-                }.value
+                let url = try await LinkEvidenceExport.prepareTemporaryCSV(
+                    data, productName: "MBLINK")
                 guard let self else {
-                    try? FileManager.default.removeItem(at: url)
+                    LinkEvidenceExport.removeTemporaryFile(url)
                     return
                 }
                 self.clearPreparedExport()
                 self.csvExportURL = url
             } catch {
-                try? FileManager.default.removeItem(at: url)
+                // Export remains unavailable; live diagnostics continue.
             }
             self?.isPreparingCSV = false
         }
@@ -575,7 +572,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func clearPreparedExport() {
-        if let url = csvExportURL { try? FileManager.default.removeItem(at: url) }
+        LinkEvidenceExport.removeTemporaryFile(csvExportURL)
         csvExportURL = nil
     }
 
