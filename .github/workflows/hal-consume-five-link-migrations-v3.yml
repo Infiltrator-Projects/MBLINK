@@ -35,6 +35,12 @@ jobs:
           body = re.sub(
               r'''(?m)^\s*'profile\["liveResponders"\]'\s*,?\s*$''',
               '', body)
+          # Current MBLINK no longer carries the historical LINK_SOURCE_REVISION
+          # fields. The gitlink itself is the source of truth, so omit that obsolete
+          # migration stanza instead of manufacturing duplicate metadata.
+          body = re.sub(
+              r'''\nppath = Path\("app/ios/MBLINK\.xcodeproj/project\.pbxproj"\).*?ppath\.write_text\(p\)\n''',
+              '\n', body, count=1, flags=re.S)
           exec(body, {'__name__': '__main__'})
           PY
           git diff --check
@@ -53,8 +59,7 @@ jobs:
           git config user.email "infiltratr@yandex.com"
           git add src/link \
                   app/ios/MBLINK/ConnectionViewModel.swift \
-                  app/ios/MBLINK/MBLINKApp.swift \
-                  app/ios/MBLINK.xcodeproj/project.pbxproj
+                  app/ios/MBLINK/MBLINKApp.swift
           git diff --cached --check
           git commit -m "Consume five small LINK migrations"
           test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "9a64aacabb669d63f1797124b7147d7c502753c4"
