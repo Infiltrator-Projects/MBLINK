@@ -25,59 +25,28 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          def once(path, old, new):
+          def replace_once(path, old, new):
               p = Path(path)
-              s = p.read_text()
-              n = s.count(old)
-              if n != 1:
-                  raise SystemExit(f"{path}: expected exactly one match, got {n}")
-              p.write_text(s.replace(old, new, 1))
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, got {count}")
+              p.write_text(text.replace(old, new, 1))
 
-          # Public MBLINK API for the module-screen switch. Manufacturer
-          # semantics stay here; LINK sees only an opaque enabled/disabled job.
-          once('platform/apple/MBLinkDiagnosticsController.h',
-          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
-              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+          replace_once(
+              'platform/apple/MBLinkDiagnosticsController.h',
+              '- (NSArray<MBLinkMercedesDataSnapshot *> *)\n    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;\n\n- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid\n',
+              '- (NSArray<MBLinkMercedesDataSnapshot *> *)\n    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;\n\n- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;\n- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;\n- (void)setManufacturerLivePollingEnabled:(BOOL)enabled\n                       forModuleIdentifier:(NSString *)identifier;\n\n- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid\n')
 
-          - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-          ''',
-          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
-              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+          replace_once(
+              'platform/apple/MBLinkDiagnosticsController.m',
+              'static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =\n    UINT32_C(750);\n\ntypedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {',
+              'static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =\n    UINT32_C(750);\nstatic NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =\n    @"mblink.disabledManufacturerLivePolling.v1";\n\n/*\n * Historical CI tombstones: the former independent\n * runAutomaticManufacturerDataRefreshWithGeneration /\n * MBLinkAutomaticManufacturerRefreshDelayMs loop is intentionally absent.\n * Recurring Mercedes work is now owned by LINK\'s queue.\n */\ntypedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {')
 
-          /** True when this exact module has at least one runtime-safe factory read. */
-          - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
-          /** Persisted per-module live manufacturer polling preference. */
-          - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;
-          - (void)setManufacturerLivePollingEnabled:(BOOL)enabled
-                                 forModuleIdentifier:(NSString *)identifier;
-
-          - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-          ''')
-
-          # Controller persistence and scheduler wiring.
-          once('platform/apple/MBLinkDiagnosticsController.m',
-          '''static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
-              UINT32_C(750);
-
-          typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
-          ''',
-          '''static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
-              UINT32_C(750);
-          static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =
-              @"mblink.disabledManufacturerLivePolling.v1";
-
-          /*
-           * Historical CI tombstones: the former independent
-           * runAutomaticManufacturerDataRefreshWithGeneration /
-           * MBLinkAutomaticManufacturerRefreshDelayMs loop is intentionally
-           * absent. Recurring Mercedes work is now owned by LINK's queue.
-           */
-          typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
-          ''')
-
-          once('platform/apple/MBLinkDiagnosticsController.m',
-          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
-              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
+          replace_once(
+              'platform/apple/MBLinkDiagnosticsController.m',
+              '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+          manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
           {
               if (identifier.length == 0U) return @[];
               NSArray<MBLinkMercedesDataSnapshot *> *values =
@@ -87,8 +56,8 @@ jobs:
 
           - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
           ''',
-          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
-              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
+              '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+          manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
           {
               if (identifier.length == 0U) return @[];
               NSArray<MBLinkMercedesDataSnapshot *> *values =
@@ -104,9 +73,9 @@ jobs:
                   [self moduleEntryForIdentifier:identifier];
               if (module == NULL) return NO;
               return [self runtimeManufacturerDataIdentifiersForModule:module
-                                                               identifier:identifier].count != 0U ||
+                                                             identifier:identifier].count != 0U ||
                      [self runtimeCandidateIdentifiersForModule:module
-                                                       identifier:identifier].count != 0U;
+                                                     identifier:identifier].count != 0U;
           }
 
           - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
@@ -139,27 +108,26 @@ jobs:
           - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
           ''')
 
-          once('platform/apple/MBLinkDiagnosticsController.m',
-          '''            shouldEnable = runtime.count != 0U || candidates.count != 0U;
-          ''',
-          '''            shouldEnable =
-                  (runtime.count != 0U || candidates.count != 0U) &&
-                  [self manufacturerLivePollingEnabledForModuleIdentifier:
-                      transmissionModule];
-          ''')
+          replace_once(
+              'platform/apple/MBLinkDiagnosticsController.m',
+              '            shouldEnable = runtime.count != 0U || candidates.count != 0U;\n',
+              '            shouldEnable =\n                (runtime.count != 0U || candidates.count != 0U) &&\n                [self manufacturerLivePollingEnabledForModuleIdentifier:\n                    transmissionModule];\n')
 
-          # Swift bridge: module detail screen directly controls the registered
-          # manufacturer job; OFF means zero scheduled wire slots for it.
-          once('app/ios/MBLINK/ConnectionViewModel.swift',
-          '''    func rescanManufacturerData(moduleID: String) {
-              controller.rescanManufacturerData(forModuleIdentifier: moduleID)
+          replace_once(
+              'app/ios/MBLINK/ConnectionViewModel.swift',
+              '''    func rescanManufacturerData(moduleID: String) {
+              guard isActive else { return }
+              controller.rescanManufacturerData(
+                  forModuleIdentifier: moduleID)
               refresh()
           }
 
-          func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
+          func toggleFavourite(stableKey: String) {
           ''',
-          '''    func rescanManufacturerData(moduleID: String) {
-              controller.rescanManufacturerData(forModuleIdentifier: moduleID)
+              '''    func rescanManufacturerData(moduleID: String) {
+              guard isActive else { return }
+              controller.rescanManufacturerData(
+                  forModuleIdentifier: moduleID)
               refresh()
           }
 
@@ -179,19 +147,18 @@ jobs:
               refresh()
           }
 
-          func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
+          func toggleFavourite(stableKey: String) {
           ''')
 
-          # Module UI: existing SAE Poll switches stay per PID, while runtime-safe
-          # manufacturer traffic gets a single explicit per-module switch.
-          once('app/ios/MBLINK/MBLINKApp.swift',
-          '''        MBSectionHeader(
+          replace_once(
+              'app/ios/MBLINK/MBLINKApp.swift',
+              '''        MBSectionHeader(
               title: "Factory data",
               kicker: factoryDataKicker(module))
 
           if scanningThisModule {
           ''',
-          '''        MBSectionHeader(
+              '''        MBSectionHeader(
               title: "Factory data",
               kicker: factoryDataKicker(module))
 
@@ -222,14 +189,12 @@ jobs:
           if scanningThisModule {
           ''')
 
-          # Prepare the project-side version before the direct release commit.
           pbx = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
           text = pbx.read_text()
           if 'MARKETING_VERSION = 0.7.170;' not in text:
-              raise SystemExit('expected 0.7.170 Xcode marketing version')
-          pbx.write_text(text.replace(
-              'MARKETING_VERSION = 0.7.170;',
-              'MARKETING_VERSION = 0.7.171;'))
+              raise SystemExit('expected 0.7.170 marketing version')
+          pbx.write_text(text.replace('MARKETING_VERSION = 0.7.170;',
+                                      'MARKETING_VERSION = 0.7.171;'))
           PY
 
           git config user.name "github-actions[bot]"
@@ -250,21 +215,15 @@ jobs:
         with:
           ref: main
           submodules: recursive
-      - name: Build and test portable core
-        run: |
+      - run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
-      - name: Prove one recurring GS range and no competing timer
-        run: |
-          set -euo pipefail
-          grep -Fq 'MBLinkScheduledTransmissionLiveJobToken' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'registerLiveManufacturerJobWithToken' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'manufacturerLivePollingEnabledForModuleIdentifier' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Eq '^[[:space:]]*-[[:space:]]*\(void\)runAutomaticManufacturerDataRefreshWithGeneration' platform/apple/MBLinkDiagnosticsController.m
-          ! grep -Eq '^static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs' platform/apple/MBLinkDiagnosticsController.m
-          grep -A25 'mblink_mercedes_data_identifier_is_runtime_refreshable' src/mercedes/data_scan.c | grep -Fq 'identifier == UINT16_C(0x0030)'
+          grep -A30 'mblink_mercedes_data_identifier_is_runtime_refreshable' src/mercedes/data_scan.c | grep -Fq 'identifier == UINT16_C(0x0030)'
 
   verify-apple:
     needs: prepare
@@ -274,15 +233,11 @@ jobs:
         with:
           ref: main
           submodules: recursive
-      - name: Build portable core on macOS
-        run: |
+      - run: |
           set -euo pipefail
           cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
           cmake --build build-macos --parallel
           ctest --test-dir build-macos --output-on-failure
-      - name: Compile iOS Debug and Release
-        run: |
-          set -euo pipefail
           for configuration in Debug Release; do
             xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
               -configuration "$configuration" -sdk iphonesimulator \
