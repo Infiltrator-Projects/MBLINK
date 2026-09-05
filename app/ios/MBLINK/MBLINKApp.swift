@@ -751,58 +751,58 @@ private struct MBCommandCentreView: View {
 }
 
     private var supportingTools: some View {
-    VStack(alignment: .leading, spacing: 14) {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 9) {
-                MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
-                MBCompactLink(
-                    "Saved Vehicles & PIDs",
-                    "Load a saved VIN and configure each controller's advertised PIDs offline",
-                    "list.bullet.rectangle.portrait.fill"
-                ) { MBPIDSetupView() }
+        VStack(alignment: .leading, spacing: 14) {
+            MBPanel {
+                VStack(alignment: .leading, spacing: 9) {
+                    MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
+                    MBCompactLink(
+                        "Saved Vehicles & PIDs",
+                        "Load a saved VIN and configure each controller's advertised PIDs offline",
+                        "list.bullet.rectangle.portrait.fill"
+                    ) { MBPIDSetupView() }
 
-                Divider().overlay(MBBrand.line)
+                    Divider().overlay(MBBrand.line)
 
-                Button {
-                    connection.connect()
-                } label: {
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(MBTypography.title3)
-                            .foregroundStyle(MBBrand.silverBright)
-                            .frame(width: 30)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Add / Scan New Vehicle")
-                                .font(MBTypography.subheadlineBold)
+                    Button {
+                        connection.connect()
+                    } label: {
+                        HStack(alignment: .center, spacing: 12) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(MBTypography.title3)
                                 .foregroundStyle(MBBrand.silverBright)
-                            Text("Read the connected car's VIN; load its saved profile if known, otherwise create a new one")
-                                .font(MBTypography.caption)
+                                .frame(width: 30)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Add / Scan New Vehicle")
+                                    .font(MBTypography.subheadlineBold)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                Text("Read the connected car's VIN; load its saved profile if known, otherwise create a new one")
+                                    .font(MBTypography.caption)
+                                    .foregroundStyle(MBBrand.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .foregroundStyle(MBBrand.muted)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(MBBrand.muted)
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .disabled(connection.isActive)
+                    .opacity(connection.isActive ? 0.45 : 1.0)
                 }
-                .buttonStyle(.plain)
-                .disabled(connection.isActive)
-                .opacity(connection.isActive ? 0.45 : 1.0)
+            }
+
+            MBSectionHeader(
+                title: "More diagnostics",
+                kicker: "Evidence, tests, services and preferences")
+            LinkDiagnosticGrid {
+                LinkTaskTile(.log) { MBEvidenceView() }
+                LinkTaskTile(.tests) { MBTestsView() }
+                LinkTaskTile(.services) { MBServicesView() }
+                LinkTaskTile(.settings) { MBSettingsView() }
             }
         }
-
-        MBSectionHeader(
-            title: "More diagnostics",
-            kicker: "Evidence, tests, services and preferences")
-        LinkDiagnosticGrid {
-            LinkTaskTile(.log) { MBEvidenceView() }
-            LinkTaskTile(.tests) { MBTestsView() }
-            LinkTaskTile(.services) { MBServicesView() }
-            LinkTaskTile(.settings) { MBSettingsView() }
-        }
     }
-}
 
     private var connectionProgress: some View {
         MBPanel {
