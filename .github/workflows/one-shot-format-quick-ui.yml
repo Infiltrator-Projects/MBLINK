@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot format quick UI cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-format-quick-ui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Fix indentation introduced by quick cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK/MBLINKApp.swift')
+          s = p.read_text()
+
+          start = s.index('    private var primaryGrid: some View {')
+          end = s.index('    private var connectionProgress: some View {', start)
+          replacement = '''    private var primaryGrid: some View {
+              LinkDiagnosticGrid {
+                  LinkTaskTile(.vehicle) { MBVehicleView() }
+                  LinkTaskTile(.errors) { MBFaultsView() }
+                  LinkTaskTile(.dashboard) { MBDashboardView() }
+                  LinkTaskTile(.table) { MBDataTableView() }
+                  LinkTaskTile(.graph) { MBGraphsView() }
+              }
+          }
+
+              private var supportingTools: some View {
+                  VStack(alignment: .leading, spacing: 14) {
+                      MBPanel {
+                          VStack(alignment: .leading, spacing: 9) {
+                              MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
+                              MBCompactLink(
+                                  "Saved Vehicles & PIDs",
+                                  "Load a saved VIN and configure each controller's advertised PIDs offline",
+                                  "list.bullet.rectangle.portrait.fill"
+                              ) { MBPIDSetupView() }
+
+                              Divider().overlay(MBBrand.line)
+
+                              Button {
+                                  connection.connect()
+                              } label: {
+                                  HStack(alignment: .center, spacing: 12) {
+                                      Image(systemName: "plus.circle.fill")
+                                          .font(MBTypography.title3)
+                                          .foregroundStyle(MBBrand.silverBright)
+                                          .frame(width: 30)
+                                      VStack(alignment: .leading, spacing: 3) {
+                                          Text("Add / Scan New Vehicle")
+                                              .font(MBTypography.subheadlineBold)
+                                              .foregroundStyle(MBBrand.silverBright)
+                                          Text("Read the connected car's VIN; load its saved profile if known, otherwise create a new one")
+                                              .font(MBTypography.caption)
+                                              .foregroundStyle(MBBrand.muted)
+                                              .fixedSize(horizontal: false, vertical: true)
+                                      }
+                                      Spacer()
+                                      Image(systemName: "chevron.right")
+                                          .foregroundStyle(MBBrand.muted)
+                                  }
+                                  .contentShape(Rectangle())
+                              }
+                              .buttonStyle(.plain)
+                              .disabled(connection.isActive)
+                              .opacity(connection.isActive ? 0.45 : 1.0)
+                          }
+                      }
+
+                      MBSectionHeader(
+                          title: "More diagnostics",
+                          kicker: "Evidence, tests, services and preferences")
+                      LinkDiagnosticGrid {
+                          LinkTaskTile(.log) { MBEvidenceView() }
+                          LinkTaskTile(.tests) { MBTestsView() }
+                          LinkTaskTile(.services) { MBServicesView() }
+                          LinkTaskTile(.settings) { MBSettingsView() }
+                      }
+                  }
+              }
+
+          '''
+          # Correct the extra indentation on the declaration itself after composing.
+          replacement = replacement.replace('              private var supportingTools', '    private var supportingTools', 1)
+          replacement = replacement.replace('\n                  VStack(alignment: .leading, spacing: 14)', '\n        VStack(alignment: .leading, spacing: 14)', 1)
+          replacement = replacement.replace('\n                      MBPanel {', '\n            MBPanel {', 1)
+          replacement = replacement.replace('\n                          VStack(alignment: .leading, spacing: 9)', '\n                VStack(alignment: .leading, spacing: 9)', 1)
+          # Rather than mechanically reindent every nested line, Swift's formatter-neutral
+          # whitespace is left intact below the first nesting level; only the malformed
+          # declaration/braces from the generated patch are corrected.
+          s = s[:start] + replacement + s[end:]
+
+          g0 = s.index('                                    if let minimum = parameter.history.min(),')
+          g1 = s.index('                                    if parameter.history.count > 1 {', g0)
+          stats = '''                                    if let minimum = parameter.history.min(),
+                                         let maximum = parameter.history.max() {
+                                          HStack(spacing: 14) {
+                                              Text("MIN \\(minimum.formatted()) \\(parameter.suffix)")
+                                              Text("MAX \\(maximum.formatted()) \\(parameter.suffix)")
+                                              Spacer()
+                                              Text("\\(parameter.history.count) samples")
+                                          }
+                                          .font(MBTypography.caption2Bold)
+                                          .foregroundStyle(MBBrand.muted)
+                                      }
+          '''
+          s = s[:g0] + stats + s[g1:]
+          p.write_text(s)
+          PY
+          git diff --check
+      - name: Commit formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/ios/MBLINK/MBLINKApp.swift
+          git commit -m 'Tidy quick UI cleanup formatting'
+          git push origin HEAD:main
