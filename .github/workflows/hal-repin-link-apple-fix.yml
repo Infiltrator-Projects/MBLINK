@@ -41,6 +41,12 @@ jobs:
           PY
           test "$(git -C src/link rev-parse HEAD)" = "$new"
           git diff --check
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add src/link app/ios/MBLINK.xcodeproj/project.pbxproj
+          git diff --cached --check
+          git commit -m 'Pin MBLINK to LINK Apple warning fix'
+          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "$new"
 
       - name: Validate shared-core build and tests
         shell: bash
@@ -54,9 +60,7 @@ jobs:
         run: |
           rm -rf build-hal-link-repin
           rm -f .github/workflows/hal-repin-link-apple-fix.yml
-          git config user.name 'Shannon Smith'
-          git config user.email 'infiltratr@yandex.com'
-          git add -A src/link app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/hal-repin-link-apple-fix.yml
+          git add -A .github/workflows/hal-repin-link-apple-fix.yml
           git diff --cached --check
-          git commit -m 'Pin MBLINK to LINK Apple warning fix'
+          git commit --amend --no-edit
           git push origin HEAD:main
