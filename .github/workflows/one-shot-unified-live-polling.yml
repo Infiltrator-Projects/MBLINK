@@ -18,234 +18,69 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-
-      - name: Wire the module control to LINK's unified scheduler
+      - name: Apply module polling control
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected one match, got {count}\nANCHOR:\n{old}")
-              p.write_text(text.replace(old, new, 1))
-
-          # Public MBLINK API. LINK only receives an opaque scheduled-job token;
-          # all Mercedes applicability and route semantics remain in MBLINK.
-          replace_once(
-              'platform/apple/MBLinkDiagnosticsController.h',
-              '- (NSArray<MBLinkMercedesDataSnapshot *> *)\n    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;\n',
-              '- (NSArray<MBLinkMercedesDataSnapshot *> *)\n    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;\n\n'
-              '- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;\n'
-              '- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;\n'
-              '- (void)setManufacturerLivePollingEnabled:(BOOL)enabled\n'
-              '                       forModuleIdentifier:(NSString *)identifier;\n')
-
-          replace_once(
-              'platform/apple/MBLinkDiagnosticsController.m',
-              'static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =\n    UINT32_C(750);\n',
-              'static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =\n    UINT32_C(750);\n'
-              'static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =\n'
-              '    @"mblink.disabledManufacturerLivePolling.v1";\n')
-
-          snapshots = '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
-    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
-{
-    if (identifier.length == 0U) return @[];
-    NSArray<MBLinkMercedesDataSnapshot *> *values =
-        _manufacturerDataByModule[identifier];
-    return values != nil ? [values copy] : @[];
-}
-'''
-          polling_api = snapshots + '''
-- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:
-    (NSString *)identifier
-{
-    if (identifier.length == 0U) return NO;
-
-    /*
-     * There is currently one recurring Mercedes manufacturer job: the
-     * field-verified GS 21 30 actual-value read. Do not expose a switch on
-     * another ECU until MBLINK has registered a LINK scheduler job for it.
-     */
-    NSString *scheduledModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    if (scheduledModule.length == 0U ||
-        ![scheduledModule isEqualToString:identifier]) {
-        return NO;
-    }
-
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:identifier];
-    if (module == NULL) return NO;
-    NSArray<NSNumber *> *runtime =
-        [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:identifier];
-    NSArray<NSNumber *> *candidates =
-        [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:identifier];
-    return runtime.count != 0U || candidates.count != 0U;
-}
-
-- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
-    (NSString *)identifier
-{
-    if (identifier.length == 0U) return NO;
-    NSArray<NSString *> *disabled =
-        [[NSUserDefaults standardUserDefaults]
-            stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-    return disabled == nil || ![disabled containsObject:identifier];
-}
-
-- (void)setManufacturerLivePollingEnabled:(BOOL)enabled
-                       forModuleIdentifier:(NSString *)identifier
-{
-    if (identifier.length == 0U ||
-        ![self manufacturerLivePollingSupportedForModuleIdentifier:identifier]) {
-        return;
-    }
-
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSArray<NSString *> *stored =
-        [defaults stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-    NSMutableSet<NSString *> *disabled = [NSMutableSet setWithArray:
-        stored != nil ? stored : @[]];
-    if (enabled) [disabled removeObject:identifier];
-    else [disabled addObject:identifier];
-    [defaults setObject:[[disabled allObjects]
-        sortedArrayUsingSelector:@selector(compare:)]
-             forKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-
-    [self updateScheduledManufacturerLiveJob];
-    [self notifyDelegate];
-}
-'''
-          replace_once(
-              'platform/apple/MBLinkDiagnosticsController.m',
-              snapshots,
-              polling_api)
-
-          replace_once(
-              'platform/apple/MBLinkDiagnosticsController.m',
-              '            shouldEnable = runtime.count != 0U || candidates.count != 0U;\n',
-              '            shouldEnable =\n'
-              '                (runtime.count != 0U || candidates.count != 0U) &&\n'
-              '                [self manufacturerLivePollingEnabledForModuleIdentifier:\n'
-              '                    transmissionModule];\n')
-
-          replace_once(
-              'platform/apple/MBLinkDiagnosticsController.m',
-              '''    NSString *transmissionModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:transmissionModule];
-''',
-              '''    NSString *transmissionModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    if (![self manufacturerLivePollingEnabledForModuleIdentifier:
-            transmissionModule]) {
-        _scheduledManufacturerJobActive = NO;
-        if (_scheduledManufacturerJobRegistered) {
-            (void)[_shared setLiveManufacturerJobEnabled:NO
-                token:MBLinkScheduledTransmissionLiveJobToken];
-        }
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-        return;
-    }
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:transmissionModule];
-''')
-
-          replace_once(
-              'app/ios/MBLINK/ConnectionViewModel.swift',
-              '''    func rescanManufacturerData(moduleID: String) {
-        guard isActive else { return }
-        controller.rescanManufacturerData(
-            forModuleIdentifier: moduleID)
-        refresh()
-    }
-
-    func toggleFavourite(stableKey: String) {
-''',
-              '''    func rescanManufacturerData(moduleID: String) {
-        guard isActive else { return }
-        controller.rescanManufacturerData(
-            forModuleIdentifier: moduleID)
-        refresh()
-    }
-
-    func manufacturerLivePollingSupported(moduleID: String) -> Bool {
-        controller.manufacturerLivePollingSupported(
-            forModuleIdentifier: moduleID)
-    }
-
-    func manufacturerLivePollingEnabled(moduleID: String) -> Bool {
-        controller.manufacturerLivePollingEnabled(
-            forModuleIdentifier: moduleID)
-    }
-
-    func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {
-        controller.setManufacturerLivePollingEnabled(
-            enabled, forModuleIdentifier: moduleID)
-        refresh()
-    }
-
-    func toggleFavourite(stableKey: String) {
-''')
-
-          factory_header = '''        MBSectionHeader(
-            title: "Factory data",
-            kicker: factoryDataKicker(module))
-
-'''
-          factory_control = factory_header + '''        if connection.manufacturerLivePollingSupported(moduleID: module.id) {
-            MBPanel {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle(
-                        "Poll live factory data",
-                        isOn: Binding(
-                            get: {
-                                connection.manufacturerLivePollingEnabled(
-                                    moduleID: module.id)
-                            },
-                            set: {
-                                connection.setManufacturerLivePolling(
-                                    $0, moduleID: module.id)
-                            }))
-                        .font(MBTypography.subheadlineBold)
-                        .tint(MBBrand.success)
-                    Text("Only runtime-safe values are queued. Turning this off removes this module's recurring Mercedes job from LINK's adapter schedule, so it consumes no recurring polling bandwidth.")
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-
-'''
-          replace_once('app/ios/MBLINK/MBLINKApp.swift', factory_header, factory_control)
-
-          # Final architectural assertions before a source commit is allowed.
-          controller = Path('platform/apple/MBLinkDiagnosticsController.m').read_text()
-          view_model = Path('app/ios/MBLINK/ConnectionViewModel.swift').read_text()
-          app = Path('app/ios/MBLINK/MBLINKApp.swift').read_text()
-          assert 'MBLinkDisabledManufacturerPollingDefaultsKey' in controller
-          assert 'manufacturerLivePollingSupportedForModuleIdentifier' in controller
-          assert '[self manufacturerLivePollingEnabledForModuleIdentifier:' in controller
-          assert 'setLiveManufacturerJobEnabled:NO' in controller
-          assert 'func setManufacturerLivePolling(_ enabled: Bool' in view_model
-          assert 'Poll live factory data' in app
+          import re
+          def read(path): return Path(path).read_text()
+          def write(path, text): Path(path).write_text(text)
+          def insert_after(path, anchor, addition, marker):
+              text = read(path)
+              if marker in text: return
+              if anchor not in text: raise SystemExit(f'{path}: anchor not found: {anchor!r}')
+              write(path, text.replace(anchor, anchor + addition, 1))
+          def insert_before(path, anchor, addition, marker, start_marker=None):
+              text = read(path)
+              if marker in text: return
+              start = text.find(start_marker) if start_marker else 0
+              if start < 0: raise SystemExit(f'{path}: start marker not found')
+              pos = text.find(anchor, start)
+              if pos < 0: raise SystemExit(f'{path}: anchor not found after start')
+              write(path, text[:pos] + addition + text[pos:])
+          header = 'platform/apple/MBLinkDiagnosticsController.h'
+          insert_after(header, '- (NSArray<MBLinkMercedesDataSnapshot *> *)\n    manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;\n', '\n- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;\n- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;\n- (void)setManufacturerLivePollingEnabled:(BOOL)enabled\n                       forModuleIdentifier:(NSString *)identifier;\n', 'manufacturerLivePollingSupportedForModuleIdentifier')
+          controller = 'platform/apple/MBLinkDiagnosticsController.m'
+          insert_after(controller, 'static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =\n    UINT32_C(750);\n', 'static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =\n    @"mblink.disabledManufacturerLivePolling.v1";\n', 'MBLinkDisabledManufacturerPollingDefaultsKey')
+          methods = '\n- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:\n    (NSString *)identifier\n{\n    if (identifier.length == 0U) return NO;\n    NSString *scheduledModule =\n        [self automaticTransmissionTemperatureModuleIdentifier];\n    if (scheduledModule.length == 0U ||\n        ![scheduledModule isEqualToString:identifier]) return NO;\n    const MblinkMercedesModuleScanEntry *module =\n        [self moduleEntryForIdentifier:identifier];\n    if (module == NULL) return NO;\n    NSArray<NSNumber *> *runtime =\n        [self runtimeManufacturerDataIdentifiersForModule:module\n                                               identifier:identifier];\n    NSArray<NSNumber *> *candidates =\n        [self runtimeCandidateIdentifiersForModule:module\n                                         identifier:identifier];\n    return runtime.count != 0U || candidates.count != 0U;\n}\n\n- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:\n    (NSString *)identifier\n{\n    if (identifier.length == 0U) return NO;\n    NSArray<NSString *> *disabled =\n        [[NSUserDefaults standardUserDefaults]\n            stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];\n    return disabled == nil || ![disabled containsObject:identifier];\n}\n\n- (void)setManufacturerLivePollingEnabled:(BOOL)enabled\n                       forModuleIdentifier:(NSString *)identifier\n{\n    if (identifier.length == 0U ||\n        ![self manufacturerLivePollingSupportedForModuleIdentifier:identifier]) return;\n    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];\n    NSArray<NSString *> *stored =\n        [defaults stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];\n    NSMutableSet<NSString *> *disabled =\n        [NSMutableSet setWithArray:stored != nil ? stored : @[]];\n    if (enabled) [disabled removeObject:identifier];\n    else [disabled addObject:identifier];\n    [defaults setObject:[[disabled allObjects]\n        sortedArrayUsingSelector:@selector(compare:)]\n             forKey:MBLinkDisabledManufacturerPollingDefaultsKey];\n    [self updateScheduledManufacturerLiveJob];\n    [self notifyDelegate];\n}\n\n'
+          insert_before(controller, '- (void)discoverManufacturerDataForModuleIdentifier:', methods, 'manufacturerLivePollingSupportedForModuleIdentifier:', 'manufacturerDataSnapshotsForModuleIdentifier:')
+          text = read(controller)
+          if '[self manufacturerLivePollingEnabledForModuleIdentifier:\n                    transmissionModule]' not in text:
+              old = '            shouldEnable = runtime.count != 0U || candidates.count != 0U;'
+              new = '            shouldEnable =\n                (runtime.count != 0U || candidates.count != 0U) &&\n                [self manufacturerLivePollingEnabledForModuleIdentifier:\n                    transmissionModule];'
+              if text.count(old) != 1: raise SystemExit(f'{controller}: shouldEnable anchor count {text.count(old)}')
+              text = text.replace(old, new, 1)
+              write(controller, text)
+          text = read(controller)
+          guard_marker = 'if (![self manufacturerLivePollingEnabledForModuleIdentifier:\n            transmissionModule])'
+          if guard_marker not in text:
+              method_start = text.find('- (void)beginScheduledTransmissionLiveJob')
+              if method_start < 0: raise SystemExit('scheduled method missing')
+              assign = '    NSString *transmissionModule =\n        [self automaticTransmissionTemperatureModuleIdentifier];\n'
+              pos = text.find(assign, method_start)
+              if pos < 0: raise SystemExit('scheduled transmission assignment missing')
+              addition = '    if (![self manufacturerLivePollingEnabledForModuleIdentifier:\n            transmissionModule]) {\n        _scheduledManufacturerJobActive = NO;\n        if (_scheduledManufacturerJobRegistered) {\n            (void)[_shared setLiveManufacturerJobEnabled:NO\n                token:MBLinkScheduledTransmissionLiveJobToken];\n        }\n        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];\n        return;\n    }\n'
+              pos += len(assign)
+              text = text[:pos] + addition + text[pos:]
+              write(controller, text)
+          vm = 'app/ios/MBLINK/ConnectionViewModel.swift'
+          bridge = '    func manufacturerLivePollingSupported(moduleID: String) -> Bool {\n        controller.manufacturerLivePollingSupported(\n            forModuleIdentifier: moduleID)\n    }\n\n    func manufacturerLivePollingEnabled(moduleID: String) -> Bool {\n        controller.manufacturerLivePollingEnabled(\n            forModuleIdentifier: moduleID)\n    }\n\n    func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {\n        controller.setManufacturerLivePollingEnabled(\n            enabled, forModuleIdentifier: moduleID)\n        refresh()\n    }\n\n'
+          insert_before(vm, '    func toggleFavourite(stableKey: String)', bridge, 'func manufacturerLivePollingSupported(moduleID:', '    func rescanManufacturerData(moduleID: String)')
+          app = 'app/ios/MBLINK/MBLINKApp.swift'
+          ui = '        if connection.manufacturerLivePollingSupported(moduleID: module.id) {\n            MBPanel {\n                VStack(alignment: .leading, spacing: 8) {\n                    Toggle(\n                        "Poll live factory data",\n                        isOn: Binding(\n                            get: { connection.manufacturerLivePollingEnabled(moduleID: module.id) },\n                            set: { connection.setManufacturerLivePolling($0, moduleID: module.id) }))\n                        .font(MBTypography.subheadlineBold)\n                        .tint(MBBrand.success)\n                    Text("Only runtime-safe values are queued. Turning this off removes this module recurring Mercedes job from LINK adapter schedule, so it consumes no recurring polling bandwidth.")\n                        .font(MBTypography.caption)\n                        .foregroundStyle(MBBrand.muted)\n                        .fixedSize(horizontal: false, vertical: true)\n                }\n            }\n        }\n\n'
+          insert_before(app, '        if scanningThisModule {', ui, 'Poll live factory data', '    private func factoryDataSection(_ module: DiagnosticModule)')
+          c = read(controller); v = read(vm); a = read(app); h = read(header)
+          assert 'MBLinkDisabledManufacturerPollingDefaultsKey' in c
+          assert 'manufacturerLivePollingSupportedForModuleIdentifier' in h
+          assert 'setLiveManufacturerJobEnabled:NO' in c
+          assert 'func setManufacturerLivePolling(_ enabled: Bool' in v
+          assert 'Poll live factory data' in a
           PY
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add platform/apple/MBLinkDiagnosticsController.h \
-                  platform/apple/MBLinkDiagnosticsController.m \
-                  app/ios/MBLINK/ConnectionViewModel.swift \
-                  app/ios/MBLINK/MBLINKApp.swift
+          git add platform/apple/MBLinkDiagnosticsController.h platform/apple/MBLinkDiagnosticsController.m app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK/MBLINKApp.swift
+          git diff --cached --check
           git commit -m "Add module control for unified manufacturer polling"
           git push origin HEAD:main
