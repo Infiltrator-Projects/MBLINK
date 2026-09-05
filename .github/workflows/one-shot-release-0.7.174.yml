@@ -58,6 +58,6 @@ jobs:
           test "$(grep -Fc 'MARKETING_VERSION = 0.7.174;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/one-shot-release-0.7.174.yml
+          git add -A
           git commit -m 'Release 0.7.174: mirror UI polish on Linux'
           git push origin HEAD:main
