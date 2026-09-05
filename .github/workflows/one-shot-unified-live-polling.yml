@@ -11,48 +11,57 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  prepare-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Correct polling guard placement
+      - name: Prepare MBLINK 0.7.171 source metadata
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('platform/apple/MBLinkDiagnosticsController.m')
-          text = path.read_text()
-          assign = '    NSString *transmissionModule =\n        [self automaticTransmissionTemperatureModuleIdentifier];\n'
-          guard = '    if (![self manufacturerLivePollingEnabledForModuleIdentifier:\n            transmissionModule]) {\n        _scheduledManufacturerJobActive = NO;\n        if (_scheduledManufacturerJobRegistered) {\n            (void)[_shared setLiveManufacturerJobEnabled:NO\n                token:MBLinkScheduledTransmissionLiveJobToken];\n        }\n        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];\n        return;\n    }\n'
-          wrong = assign + guard + '    BOOL shouldEnable = NO;\n'
-          if wrong in text:
-              text = text.replace(wrong, assign + '    BOOL shouldEnable = NO;\n', 1)
-          impl = '- (void)beginScheduledTransmissionLiveJob\n{\n'
-          start = text.find(impl)
-          if start < 0: raise SystemExit('scheduled implementation not found')
-          pos = text.find(assign, start)
-          if pos < 0: raise SystemExit('scheduled transmission assignment not found')
-          pos += len(assign)
-          if not text.startswith(guard, pos):
-              text = text[:pos] + guard + text[pos:]
-          update_start = text.find('- (void)updateScheduledManufacturerLiveJob\n{\n')
-          begin_start = text.find(impl)
-          update_slice = text[update_start:begin_start]
-          if 'completeManufacturerExtensionRestoringAdapter:NO' in update_slice:
-              raise SystemExit('updateScheduledManufacturerLiveJob still owns an extension-completion guard')
-          begin_end = text.find('\n- (void)beginScheduledManufacturerChannelRestore', begin_start)
-          begin_slice = text[begin_start:begin_end]
-          if guard not in begin_slice:
-              raise SystemExit('scheduled implementation does not contain preference guard')
-          path.write_text(text)
+
+          version = Path('VERSION')
+          if version.read_text().strip() != '0.7.170':
+              raise SystemExit('unexpected current VERSION')
+          version.write_text('0.7.171\n')
+
+          header = Path('include/mblink/version.h')
+          text = header.read_text()
+          old = '#define MBLINK_VERSION_STRING "0.7.170"'
+          new = '#define MBLINK_VERSION_STRING "0.7.171"'
+          if text.count(old) != 1:
+              raise SystemExit('unexpected version.h state')
+          header.write_text(text.replace(old, new, 1))
+
+          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = project.read_text()
+          old = 'MARKETING_VERSION = 0.7.170;'
+          if text.count(old) != 2:
+              raise SystemExit(f'unexpected Xcode marketing version count: {text.count(old)}')
+          project.write_text(text.replace(old, 'MARKETING_VERSION = 0.7.171;'))
+
+          app = Path('app/ios/MBLINK/MBLINKApp.swift')
+          text = app.read_text()
+          old = "Only runtime-safe values are queued. Turning this off removes this module recurring Mercedes job from LINK adapter schedule, so it consumes no recurring polling bandwidth."
+          new = "Only runtime-safe values are queued. Turning this off removes this module's recurring Mercedes job from LINK's adapter schedule, so it consumes no recurring polling bandwidth."
+          if text.count(old) != 1:
+              raise SystemExit(f'unexpected polling help text count: {text.count(old)}')
+          app.write_text(text.replace(old, new, 1))
+
+          # Release invariants.
+          assert Path('VERSION').read_text().strip() == '0.7.171'
+          assert '#define MBLINK_VERSION_STRING "0.7.171"' in header.read_text()
+          assert project.read_text().count('MARKETING_VERSION = 0.7.171;') == 2
+          assert "module's recurring Mercedes job from LINK's adapter schedule" in app.read_text()
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add platform/apple/MBLinkDiagnosticsController.m
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj app/ios/MBLINK/MBLINKApp.swift
           git diff --cached --check
-          git commit -m "Correct unified manufacturer polling guard"
+          git commit -m "Prepare MBLINK 0.7.171 release metadata"
           git push origin HEAD:main
