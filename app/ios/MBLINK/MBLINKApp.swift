@@ -14,7 +14,7 @@ private enum MBBrand {
     static let silverBright = Color(red: 0.91, green: 0.93, blue: 0.95)
     static let muted = Color(red: 0.48, green: 0.51, blue: 0.55)
     static let line = Color(red: 0.24, green: 0.26, blue: 0.29)
-    static let active = Color(red: 0.00, green: 0.78, blue: 0.86)
+    static let active = Color(red: 0.00, green: 0.678431, blue: 0.937255) // Mercedes me Adapter #00ADEF
     static let success = Color(red: 0.31, green: 0.67, blue: 0.48)
     static let warning = Color(red: 0.82, green: 0.62, blue: 0.28)
     static let fault = Color(red: 0.78, green: 0.28, blue: 0.28)
@@ -164,7 +164,7 @@ private let mbLinkTheme = LinkDiagnosticTheme(
     secondaryText: MBBrand.silver,
     mutedText: MBBrand.muted,
     border: MBBrand.line,
-    accent: MBBrand.silverBright,
+    accent: MBBrand.active,
     success: MBBrand.success,
     warning: MBBrand.warning,
     fault: MBBrand.fault,
