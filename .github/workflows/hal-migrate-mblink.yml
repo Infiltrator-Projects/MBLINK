@@ -157,6 +157,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          rm -rf build-hal-migration
           rm -f .github/hal_migrate_mblink.py .github/workflows/hal-migrate-mblink.yml
           rm -rf .github/__pycache__
           git add -A
