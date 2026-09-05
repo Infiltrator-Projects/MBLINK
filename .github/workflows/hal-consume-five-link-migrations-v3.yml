@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LINK_SHA=9a64aacabb669d63f1797124b7147d7c502753c4
+          LINK_SHA=b070ce488d99d3e7fb3faaadc4b1ecce66edf063
           git -C src/link fetch origin "$LINK_SHA"
           git -C src/link checkout "$LINK_SHA"
           python3 - <<'PY'
@@ -40,13 +40,30 @@ jobs:
               raise SystemExit('obsolete Xcode metadata block marker missing')
           body = body.split(obsolete, 1)[0] + '\n'
           exec(body, {'__name__': '__main__'})
+
+          cpath = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = cpath.read_text()
+          start = s.index('        var responderPIDs = [String: Set<UInt8>]()')
+          end = s.index('        var modules = [DiagnosticModule]()', start)
+          replacement = '''        var responderPIDs = [String: Set<UInt8>]()
+          for responder in LinkVehicleProfileStandardResponders(profile as NSDictionary) {
+              let rx = responder.responderCANIdentifier
+              let extended = responder.isExtendedID
+              let key = String(format: "%@:%08X", extended ? "29" : "11", rx)
+              let pids = responder.pids.compactMap { UInt8(exactly: $0.uintValue) }
+              responderPIDs[key, default: []].formUnion(pids)
+          }
+
+          '''
+          s = s[:start] + replacement + s[end:]
+          cpath.write_text(s)
           PY
           git diff --check
           if grep -n 'liveResponders' app/ios/MBLINK/ConnectionViewModel.swift; then
             echo 'MBLINK still knows LINK liveResponders schema' >&2
             exit 1
           fi
-          grep -n 'LinkPIDSelectionStore\|LinkInterfaceLanguage\|SavedVehicleProfileSummary(' \
+          grep -n 'LinkPIDSelectionStore\|LinkInterfaceLanguage\|LinkVehicleProfileStandardResponders\|SavedVehicleProfileSummary(' \
             app/ios/MBLINK/ConnectionViewModel.swift
 
       - name: Record source and submodule pin
@@ -60,7 +77,7 @@ jobs:
                   app/ios/MBLINK/MBLINKApp.swift
           git diff --cached --check
           git commit -m "Consume five small LINK migrations"
-          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "9a64aacabb669d63f1797124b7147d7c502753c4"
+          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "b070ce488d99d3e7fb3faaadc4b1ecce66edf063"
 
       - name: Validate MBLINK shared core
         shell: bash
