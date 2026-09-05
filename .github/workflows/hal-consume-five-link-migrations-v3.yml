@@ -1,0 +1,75 @@
+name: HAL consume five LINK migrations v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-consume-five-link-migrations-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Apply robust migration script
+        shell: bash
+        run: |
+          set -euo pipefail
+          LINK_SHA=9a64aacabb669d63f1797124b7147d7c502753c4
+          git -C src/link fetch origin "$LINK_SHA"
+          git -C src/link checkout "$LINK_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+          source = Path('.github/workflows/hal-consume-five-link-migrations-v2.yml').read_text()
+          body = source.split("python3 - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+          body = textwrap.dedent(body)
+          body = re.sub(
+              r'''(?m)^\s*'profile\["liveResponders"\]'\s*,?\s*$''',
+              '', body)
+          exec(body, {'__name__': '__main__'})
+          PY
+          git diff --check
+          if grep -n 'liveResponders' app/ios/MBLINK/ConnectionViewModel.swift; then
+            echo 'MBLINK still knows LINK liveResponders schema' >&2
+            exit 1
+          fi
+          grep -n 'LinkPIDSelectionStore\|LinkInterfaceLanguage\|SavedVehicleProfileSummary(' \
+            app/ios/MBLINK/ConnectionViewModel.swift
+
+      - name: Record source and submodule pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add src/link \
+                  app/ios/MBLINK/ConnectionViewModel.swift \
+                  app/ios/MBLINK/MBLINKApp.swift \
+                  app/ios/MBLINK.xcodeproj/project.pbxproj
+          git diff --cached --check
+          git commit -m "Consume five small LINK migrations"
+          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "9a64aacabb669d63f1797124b7147d7c502753c4"
+
+      - name: Validate MBLINK shared core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DBUILD_TESTING=ON
+          cmake --build build -j2
+          ctest --test-dir build --output-on-failure
+          rm -rf build
+
+      - name: Publish MBLINK migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
