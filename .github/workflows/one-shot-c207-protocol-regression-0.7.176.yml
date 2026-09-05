@@ -25,45 +25,45 @@ jobs:
 
           path = Path('tests/test_c207_obd_flow_replay.c')
           text = path.read_text()
-          anchor = '''    CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) ==
-                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
-          '''
-          insertion = '''    /*
-           * LINK 0.15.2 reports the active ELM protocol after PID discovery.
-           * Replay that supplementary probe explicitly so this C207 regression
-           * follows the current front-half sequence without weakening the VIN,
-           * DTC or Mercedes-extension checks that follow.
-           */
-          CHECK(link_diagnostic_flow_next_action(&flow, 750U, &action) ==
-                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
-          CHECK(strcmp(action.command, "ATDP") == 0);
-          response = ok_response("AUTO, ISO 15765-4 (CAN 11/500)", false);
-          CHECK(link_diagnostic_flow_accept_response(
-                    &flow, &response, 750U, &event) ==
-                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
-          CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_NONE);
-
-          CHECK(link_diagnostic_flow_next_action(&flow, 760U, &action) ==
-                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
-          CHECK(strcmp(action.command, "ATDPN") == 0);
-          response = ok_response("A6", false);
-          CHECK(link_diagnostic_flow_accept_response(
-                    &flow, &response, 760U, &event) ==
-                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
-          CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_PROTOCOL_IDENTIFIED);
-          CHECK(event.protocol != NULL);
-          CHECK(event.protocol->family ==
-                LINK_ELM327_PROTOCOL_FAMILY_ISO_15765_4);
-          CHECK(event.protocol->bit_rate == UINT32_C(500000));
-          CHECK(event.protocol_was_automatic);
-          CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
-
-          '''
+          needle = 'CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) =='
           if 'CHECK(strcmp(action.command, "ATDPN") == 0);' in text:
               raise SystemExit('C207 protocol regression block already present')
-          if anchor not in text:
-              raise SystemExit('C207 VIN action anchor not found')
-          path.write_text(text.replace(anchor, insertion + anchor, 1))
+          pos = text.find(needle)
+          if pos < 0:
+              raise SystemExit('C207 VIN action not found')
+          line_start = text.rfind('\n', 0, pos) + 1
+          insertion = '''    /*
+     * LINK 0.15.2 reports the active ELM protocol after PID discovery.
+     * Replay that supplementary probe explicitly so this C207 regression
+     * follows the current front-half sequence without weakening the VIN,
+     * DTC or Mercedes-extension checks that follow.
+     */
+    CHECK(link_diagnostic_flow_next_action(&flow, 750U, &action) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(strcmp(action.command, "ATDP") == 0);
+    response = ok_response("AUTO, ISO 15765-4 (CAN 11/500)", false);
+    CHECK(link_diagnostic_flow_accept_response(
+              &flow, &response, 750U, &event) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_NONE);
+
+    CHECK(link_diagnostic_flow_next_action(&flow, 760U, &action) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(strcmp(action.command, "ATDPN") == 0);
+    response = ok_response("A6", false);
+    CHECK(link_diagnostic_flow_accept_response(
+              &flow, &response, 760U, &event) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_PROTOCOL_IDENTIFIED);
+    CHECK(event.protocol != NULL);
+    CHECK(event.protocol->family ==
+          LINK_ELM327_PROTOCOL_FAMILY_ISO_15765_4);
+    CHECK(event.protocol->bit_rate == UINT32_C(500000));
+    CHECK(event.protocol_was_automatic);
+    CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
+
+'''
+          path.write_text(text[:line_start] + insertion + text[line_start:])
           PY
 
           rm .github/workflows/one-shot-c207-protocol-regression-0.7.176.yml
