@@ -41,6 +41,11 @@ jobs:
           new = '''    start = text.rfind(start_marker)\n    if start < 0:\n        raise SystemExit(f"{path}: start marker not found: {start_marker!r}")\n'''
           if old not in text:
               raise SystemExit('replace_braced helper shape changed')
+          text = text.replace(old, new, 1)
+          old = '''if "__LINK_NATIVE_" in source:\n    raise SystemExit("Unresolved LINK native installer placeholder")\n'''
+          new = '''if "__LINK_NATIVE_" in source.replace("__LINK_NATIVE_PAYLOAD_BELOW__", ""):\n    raise SystemExit("Unresolved LINK native installer placeholder")\n'''
+          if old not in text:
+              raise SystemExit('native installer placeholder guard shape changed')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
 
