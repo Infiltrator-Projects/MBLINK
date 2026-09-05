@@ -11,49 +11,283 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
-
-      - name: Reapply source-only unified polling change
+      - name: Add manufacturer polling control and prepare 0.7.171 metadata
         shell: bash
-        env:
-          OLD_LINK: 6827152ee41faaddd9e79e5f181ae958601c909a
-          NEW_LINK: dd86d291505f6371fe72f6b37649c3516f7dbf50
         run: |
           set -euo pipefail
-          git show HEAD^^:.github/workflows/one-shot-unified-live-polling.yml > "$RUNNER_TEMP/previous.yml"
           python3 - <<'PY'
           from pathlib import Path
-          import os
-          text = Path(os.environ['RUNNER_TEMP'] + '/previous.yml').read_text()
-          marker = '      - name: Move recurring Mercedes live polling onto LINK scheduler\n'
-          pos = text.index(marker)
-          run_pos = text.index('        run: |\n', pos) + len('        run: |\n')
-          block = text[run_pos:]
-          lines = []
-          for line in block.splitlines():
-              if line.startswith('          '):
-                  lines.append(line[10:])
-              elif line.strip() == '':
-                  lines.append('')
-              else:
-                  break
-          script = '\n'.join(lines) + '\n'
-          guard = script.find('# Guard the architecture in CI:')
-          config = script.find('git config user.name', guard)
-          if guard < 0 or config < 0:
-              raise SystemExit('Could not isolate old CI rewrite block')
-          script = script[:guard] + script[config:]
-          script = script.replace(
-              'git add src/link platform/apple/MBLinkDiagnosticsController.m \\\n  app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/ci.yml\ngit rm .github/workflows/one-shot-unified-live-polling.yml\n',
-              'git add src/link platform/apple/MBLinkDiagnosticsController.m \\\n  app/ios/MBLINK.xcodeproj/project.pbxproj\n')
-          if '.github/workflows/ci.yml' in script or 'git rm .github/workflows/one-shot-unified-live-polling.yml' in script:
-              raise SystemExit('Workflow rewrite was not fully removed')
-          Path(os.environ['RUNNER_TEMP'] + '/apply-source.sh').write_text(script)
+
+          def once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, got {n}")
+              p.write_text(s.replace(old, new, 1))
+
+          # Public MBLINK API for the module-screen switch. Manufacturer
+          # semantics stay here; LINK sees only an opaque enabled/disabled job.
+          once('platform/apple/MBLinkDiagnosticsController.h',
+          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+
+          - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+          ''',
+          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+
+          /** True when this exact module has at least one runtime-safe factory read. */
+          - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
+          /** Persisted per-module live manufacturer polling preference. */
+          - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;
+          - (void)setManufacturerLivePollingEnabled:(BOOL)enabled
+                                 forModuleIdentifier:(NSString *)identifier;
+
+          - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
+          ''')
+
+          # Controller persistence and scheduler wiring.
+          once('platform/apple/MBLinkDiagnosticsController.m',
+          '''static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
+              UINT32_C(750);
+
+          typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
+          ''',
+          '''static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
+              UINT32_C(750);
+          static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =
+              @"mblink.disabledManufacturerLivePolling.v1";
+
+          /*
+           * Historical CI tombstones: the former independent
+           * runAutomaticManufacturerDataRefreshWithGeneration /
+           * MBLinkAutomaticManufacturerRefreshDelayMs loop is intentionally
+           * absent. Recurring Mercedes work is now owned by LINK's queue.
+           */
+          typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
+          ''')
+
+          once('platform/apple/MBLinkDiagnosticsController.m',
+          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
+          {
+              if (identifier.length == 0U) return @[];
+              NSArray<MBLinkMercedesDataSnapshot *> *values =
+                  _manufacturerDataByModule[identifier];
+              return values != nil ? [values copy] : @[];
+          }
+
+          - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
+          ''',
+          '''- (NSArray<MBLinkMercedesDataSnapshot *> *)
+              manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier
+          {
+              if (identifier.length == 0U) return @[];
+              NSArray<MBLinkMercedesDataSnapshot *> *values =
+                  _manufacturerDataByModule[identifier];
+              return values != nil ? [values copy] : @[];
+          }
+
+          - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:
+              (NSString *)identifier
+          {
+              if (identifier.length == 0U) return NO;
+              const MblinkMercedesModuleScanEntry *module =
+                  [self moduleEntryForIdentifier:identifier];
+              if (module == NULL) return NO;
+              return [self runtimeManufacturerDataIdentifiersForModule:module
+                                                               identifier:identifier].count != 0U ||
+                     [self runtimeCandidateIdentifiersForModule:module
+                                                       identifier:identifier].count != 0U;
+          }
+
+          - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
+              (NSString *)identifier
+          {
+              if (identifier.length == 0U) return NO;
+              NSArray<NSString *> *disabled =
+                  [[NSUserDefaults standardUserDefaults]
+                      stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey] ?: @[];
+              return ![disabled containsObject:identifier];
+          }
+
+          - (void)setManufacturerLivePollingEnabled:(BOOL)enabled
+                                 forModuleIdentifier:(NSString *)identifier
+          {
+              if (identifier.length == 0U) return;
+              NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+              NSMutableSet<NSString *> *disabled = [NSMutableSet setWithArray:
+                  [defaults stringArrayForKey:
+                      MBLinkDisabledManufacturerPollingDefaultsKey] ?: @[]];
+              if (enabled) [disabled removeObject:identifier];
+              else [disabled addObject:identifier];
+              [defaults setObject:[[disabled allObjects]
+                  sortedArrayUsingSelector:@selector(compare:)]
+                           forKey:MBLinkDisabledManufacturerPollingDefaultsKey];
+              [self updateScheduledManufacturerLiveJob];
+              [self notifyDelegate];
+          }
+
+          - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
+          ''')
+
+          once('platform/apple/MBLinkDiagnosticsController.m',
+          '''            shouldEnable = runtime.count != 0U || candidates.count != 0U;
+          ''',
+          '''            shouldEnable =
+                  (runtime.count != 0U || candidates.count != 0U) &&
+                  [self manufacturerLivePollingEnabledForModuleIdentifier:
+                      transmissionModule];
+          ''')
+
+          # Swift bridge: module detail screen directly controls the registered
+          # manufacturer job; OFF means zero scheduled wire slots for it.
+          once('app/ios/MBLINK/ConnectionViewModel.swift',
+          '''    func rescanManufacturerData(moduleID: String) {
+              controller.rescanManufacturerData(forModuleIdentifier: moduleID)
+              refresh()
+          }
+
+          func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
+          ''',
+          '''    func rescanManufacturerData(moduleID: String) {
+              controller.rescanManufacturerData(forModuleIdentifier: moduleID)
+              refresh()
+          }
+
+          func manufacturerLivePollingSupported(moduleID: String) -> Bool {
+              controller.manufacturerLivePollingSupported(
+                  forModuleIdentifier: moduleID)
+          }
+
+          func manufacturerLivePollingEnabled(moduleID: String) -> Bool {
+              controller.manufacturerLivePollingEnabled(
+                  forModuleIdentifier: moduleID)
+          }
+
+          func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {
+              controller.setManufacturerLivePollingEnabled(
+                  enabled, forModuleIdentifier: moduleID)
+              refresh()
+          }
+
+          func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
+          ''')
+
+          # Module UI: existing SAE Poll switches stay per PID, while runtime-safe
+          # manufacturer traffic gets a single explicit per-module switch.
+          once('app/ios/MBLINK/MBLINKApp.swift',
+          '''        MBSectionHeader(
+              title: "Factory data",
+              kicker: factoryDataKicker(module))
+
+          if scanningThisModule {
+          ''',
+          '''        MBSectionHeader(
+              title: "Factory data",
+              kicker: factoryDataKicker(module))
+
+          if connection.manufacturerLivePollingSupported(moduleID: module.id) {
+              MBPanel {
+                  VStack(alignment: .leading, spacing: 8) {
+                      Toggle(
+                          "Poll live factory data",
+                          isOn: Binding(
+                              get: {
+                                  connection.manufacturerLivePollingEnabled(
+                                      moduleID: module.id)
+                              },
+                              set: {
+                                  connection.setManufacturerLivePolling(
+                                      $0, moduleID: module.id)
+                              }))
+                          .font(MBTypography.subheadlineBold)
+                          .tint(MBBrand.success)
+                      Text("Only runtime-safe values are queued. Turning this off removes this module's recurring manufacturer job from LINK's adapter schedule, so it uses no polling bandwidth.")
+                          .font(MBTypography.caption)
+                          .foregroundStyle(MBBrand.muted)
+                          .fixedSize(horizontal: false, vertical: true)
+                  }
+              }
+          }
+
+          if scanningThisModule {
+          ''')
+
+          # Prepare the project-side version before the direct release commit.
+          pbx = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = pbx.read_text()
+          if 'MARKETING_VERSION = 0.7.170;' not in text:
+              raise SystemExit('expected 0.7.170 Xcode marketing version')
+          pbx.write_text(text.replace(
+              'MARKETING_VERSION = 0.7.170;',
+              'MARKETING_VERSION = 0.7.171;'))
           PY
-          bash "$RUNNER_TEMP/apply-source.sh"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add platform/apple/MBLinkDiagnosticsController.h \
+                  platform/apple/MBLinkDiagnosticsController.m \
+                  app/ios/MBLINK/ConnectionViewModel.swift \
+                  app/ios/MBLINK/MBLINKApp.swift \
+                  app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m "Add module control for unified manufacturer polling"
+          git push origin HEAD:main
+
+  verify-linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+      - name: Build and test portable core
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+      - name: Prove one recurring GS range and no competing timer
+        run: |
+          set -euo pipefail
+          grep -Fq 'MBLinkScheduledTransmissionLiveJobToken' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'registerLiveManufacturerJobWithToken' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'manufacturerLivePollingEnabledForModuleIdentifier' platform/apple/MBLinkDiagnosticsController.m
+          ! grep -Eq '^[[:space:]]*-[[:space:]]*\(void\)runAutomaticManufacturerDataRefreshWithGeneration' platform/apple/MBLinkDiagnosticsController.m
+          ! grep -Eq '^static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs' platform/apple/MBLinkDiagnosticsController.m
+          grep -A25 'mblink_mercedes_data_identifier_is_runtime_refreshable' src/mercedes/data_scan.c | grep -Fq 'identifier == UINT16_C(0x0030)'
+
+  verify-apple:
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+      - name: Build portable core on macOS
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-macos --parallel
+          ctest --test-dir build-macos --output-on-failure
+      - name: Compile iOS Debug and Release
+        run: |
+          set -euo pipefail
+          for configuration in Debug Release; do
+            xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+              -configuration "$configuration" -sdk iphonesimulator \
+              -destination 'generic/platform=iOS Simulator' \
+              -derivedDataPath "$RUNNER_TEMP/derived-$configuration" \
+              CODE_SIGNING_ALLOWED=NO MARKETING_VERSION=0.7.171 \
+              MBLINK_SOURCE_REVISION="$(git rev-parse HEAD)" build
+          done
