@@ -1,0 +1,327 @@
+name: HAL consume quick shared migration
+
+on:
+  push:
+    paths:
+      - .github/workflows/hal-consume-quick5-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Pin corrected shared LINK
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='c5f389ecdc35cd899330ae5fe1cf9b8e26e92be1'
+          git -C src/link fetch --quiet origin main
+          git -C src/link checkout --detach "$target"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          s = p.read_text()
+          old = 'f20613a3c2bc1c4b9641ff921e84c0a5c5da7538'
+          new = 'c5f389ecdc35cd899330ae5fe1cf9b8e26e92be1'
+          if old not in s:
+              raise SystemExit('old LINK_SOURCE_REVISION missing')
+          p.write_text(s.replace(old, new))
+          PY
+
+      - name: Consume five small shared behaviours
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if s.count(old) != 1:
+                  raise SystemExit(f'anchor count {s.count(old)} in {path}: {old[:100]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          # 1. Linux graph defaults now come from LINK.
+          p = Path('app/linux/session_trace.h')
+          s = p.read_text()
+          s = re.sub(r'\nextern const uint8_t\n    mblink_linux_graph_pids\[MBLINK_LINUX_GRAPH_TRACE_COUNT\];\n', '\n', s, count=1)
+          p.write_text(s)
+
+          p = Path('app/linux/session_trace.c')
+          s = p.read_text()
+          s = re.sub(
+              r'const uint8_t mblink_linux_graph_pids\[MBLINK_LINUX_GRAPH_TRACE_COUNT\] = \{.*?\};\n\n',
+              '', s, count=1, flags=re.S)
+          start = s.index('static void ensure_graph_configuration')
+          end = s.index('\nvoid mblink_linux_trace_reset_graph', start)
+          replacement = '''static void ensure_graph_configuration(MblinkLinuxSessionTrace *trace)
+          {
+              size_t graph_count = 0U;
+              const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
+              if (trace == NULL || graph_pids == NULL ||
+                  graph_count > LINK_SESSION_TRACE_MAX_GRAPHS) return;
+              if (trace->graph_count == graph_count &&
+                  memcmp(trace->graph_pids, graph_pids, graph_count) == 0) return;
+              memcpy(trace->graph_pids, graph_pids, graph_count);
+              trace->graph_count = graph_count;
+          }
+
+          size_t mblink_linux_graph_trace_index(uint8_t pid)
+          {
+              size_t graph_count = 0U;
+              const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
+              size_t index;
+              if (graph_pids == NULL) return graph_count;
+              for (index = 0U; index < graph_count; ++index) {
+                  if (graph_pids[index] == pid) return index;
+              }
+              return graph_count;
+          }
+          '''
+          s = s[:start] + replacement + s[end:]
+          p.write_text(s)
+
+          p = Path('app/linux/main.c')
+          s = p.read_text()
+          s = s.replace(
+              'const uint8_t pid = mblink_linux_graph_pids[index];',
+              'const uint8_t pid = context->session_trace.graph_pids[index];')
+
+          # 2. Fresh Linux polling defaults now come from LINK.
+          pattern = re.compile(r'static void initialise_polling_policy\(MblinkLinuxContext \*context\)\n\{.*?\n\}\n\nstatic bool mblink_polling_enabled', re.S)
+          replacement = '''static void initialise_polling_policy(MblinkLinuxContext *context)
+          {
+              size_t count = 0U;
+              const uint8_t *default_pids = link_scheduler_default_obd2_pids(&count);
+              size_t index;
+              if (context == NULL) return;
+              memset(context->polling_enabled, 0, sizeof(context->polling_enabled));
+              if (default_pids == NULL) return;
+              for (index = 0U; index < count; ++index)
+                  context->polling_enabled[default_pids[index]] = true;
+          }
+
+          static bool mblink_polling_enabled'''
+          s, n = pattern.subn(replacement, s, count=1)
+          if n != 1:
+              raise SystemExit('initialise_polling_policy anchor not found')
+          p.write_text(s)
+
+          # 4/5. Remove the unused product localization implementation and
+          # route all Apple unit conversion through LINK instead of formulas.
+          p = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = p.read_text()
+          s, n = re.subn(
+              r'\nenum MBLINKUnitProfile: String, CaseIterable, Identifiable \{.*?\n\}\n\n',
+              '\n', s, count=1, flags=re.S)
+          if n != 1: raise SystemExit('MBLINKUnitProfile block missing')
+          s, n = re.subn(
+              r'\nprivate func mblinkLocalized\(_ key: String\) -> String \{.*?\n\}\n\n',
+              '\n', s, count=1, flags=re.S)
+          if n != 1: raise SystemExit('mblinkLocalized block missing')
+          s, n = re.subn(
+              r'\n    private var unitProfile: MBLINKUnitProfile \{.*?\n    \}\n',
+              '\n', s, count=1, flags=re.S)
+          if n != 1: raise SystemExit('unitProfile block missing')
+          s = s.replace(
+              'legacy == MBLINKUnitProfile.usCustomary.rawValue',
+              'legacy == "us"')
+
+          start = s.index('    private func displayScalar(')
+          end = s.index('\n    private func loadDiagnosticParameters(', start)
+          new_helpers = '''    private func displayScalar(pid: UInt8, rawValue: Double) -> Double {
+              controller.displayValue(pid: pid, canonicalValue: rawValue)
+          }
+
+          private func displaySuffix(
+              pid: UInt8,
+              definition: UnsafePointer<MblinkParameterDefinition>
+          ) -> String {
+              let unit = controller.displayUnit(pid: pid)
+              if !unit.isEmpty { return " \\(unit)" }
+              return string(from: definition.pointee.suffix)
+          }
+
+          private func formattedValue(
+              pid: UInt8,
+              definition: UnsafePointer<MblinkParameterDefinition>,
+              value: Double?
+          ) -> String {
+              guard let value else { return "N/A" }
+              let displayed = displayScalar(pid: pid, rawValue: value)
+              let suffix = displaySuffix(pid: pid, definition: definition)
+              let places = Int(definition.pointee.decimal_places)
+              return String(format: "%.*f%@", places, displayed, suffix)
+          }
+          '''
+          s = s[:start] + new_helpers + s[end:]
+          s = s.replace('displaySuffix(definition: scalarDefinition)',
+                        'displaySuffix(pid: pid, definition: scalarDefinition)')
+          s = s.replace('displayScalar(definition: scalarDefinition, rawValue: $0)',
+                        'displayScalar(pid: pid, rawValue: $0)')
+          s = s.replace('formattedValue(definition: scalarDefinition, value: rawValue)',
+                        'formattedValue(pid: pid, definition: scalarDefinition, value: rawValue)')
+
+          temp_pattern = re.compile(
+              r'                let celsius = Double\(b\[11\]\) - 50\.0\n'
+              r'                let displayedValue: Double\n'
+              r'                let temperatureSuffix: String\n'
+              r'                if unitProfile == \.usCustomary \{\n'
+              r'                    displayedValue = celsius \* 9\.0 / 5\.0 \+ 32\.0\n'
+              r'                    temperatureSuffix = " °F"\n'
+              r'                \} else \{\n'
+              r'                    displayedValue = celsius\n'
+              r'                    temperatureSuffix = " °C"\n'
+              r'                \}')
+          s, n = temp_pattern.subn(
+              '                let celsius = Double(b[11]) - 50.0\n'
+              '                let displayedValue = controller.displayTemperature(celsius: celsius)\n'
+              '                let temperatureSuffix = " " + controller.displayTemperatureUnit()',
+              s, count=1)
+          if n != 1: raise SystemExit('manual ATF temperature conversion block missing')
+          p.write_text(s)
+
+          # Objective-C product facade is now only a thin bridge to LINK's unit engine.
+          p = Path('platform/apple/MBLinkDiagnosticsController.h')
+          s = p.read_text()
+          anchor = '- (void)setSelectedMeasurementSystemKey:(NSString *)key;\n'
+          addition = '''- (void)setSelectedMeasurementSystemKey:(NSString *)key;
+          - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+              NS_SWIFT_NAME(displayValue(pid:canonicalValue:));
+          - (NSString *)displayUnitForPID:(uint8_t)pid
+              NS_SWIFT_NAME(displayUnit(pid:));
+          - (double)displayTemperatureCelsius:(double)celsius
+              NS_SWIFT_NAME(displayTemperature(celsius:));
+          - (NSString *)displayTemperatureUnit
+              NS_SWIFT_NAME(displayTemperatureUnit());
+          '''
+          if s.count(anchor) != 1: raise SystemExit('Apple header unit anchor missing')
+          p.write_text(s.replace(anchor, addition, 1))
+
+          p = Path('platform/apple/MBLinkDiagnosticsController.m')
+          s = p.read_text()
+          anchor = '- (void)setSelectedMeasurementSystemKey:(NSString *)key { [_shared setSelectedMeasurementSystemKey:key]; }\n\n- (void)start'
+          methods = '''- (void)setSelectedMeasurementSystemKey:(NSString *)key { [_shared setSelectedMeasurementSystemKey:key]; }
+
+          - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+          {
+              LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+              LinkObd2UnitCode unit = LINK_OBD2_UNIT_NONE;
+              double display = value;
+              const char *label = "";
+              (void)link_measurement_system_from_key(
+                  _shared.selectedMeasurementSystemKey.UTF8String, &system);
+              if (link_parameter_obd2_expected_unit(pid, &unit) &&
+                  link_units_convert_obd2(unit, value, system, &display, &label))
+                  return display;
+              return value;
+          }
+
+          - (NSString *)displayUnitForPID:(uint8_t)pid
+          {
+              return [_shared displayUnitForPID:pid];
+          }
+
+          - (double)displayTemperatureCelsius:(double)celsius
+          {
+              LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+              double display = celsius;
+              const char *label = "°C";
+              (void)link_measurement_system_from_key(
+                  _shared.selectedMeasurementSystemKey.UTF8String, &system);
+              if (link_units_convert_obd2(
+                      LINK_OBD2_UNIT_CELSIUS, celsius, system, &display, &label))
+                  return display;
+              return celsius;
+          }
+
+          - (NSString *)displayTemperatureUnit
+          {
+              LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+              double display = 0.0;
+              const char *label = "°C";
+              (void)link_measurement_system_from_key(
+                  _shared.selectedMeasurementSystemKey.UTF8String, &system);
+              (void)link_units_convert_obd2(
+                  LINK_OBD2_UNIT_CELSIUS, 0.0, system, &display, &label);
+              return label != NULL ? [NSString stringWithUTF8String:label] : @"°C";
+          }
+
+          - (void)start'''
+          if s.count(anchor) != 1: raise SystemExit('Apple implementation unit anchor missing')
+          p.write_text(s.replace(anchor, methods, 1))
+          PY
+
+          # 3. Product script now supplies only product metadata; LINK assembles the .run.
+          cat > scripts/build-native-installer.sh <<'EOF'
+          #!/usr/bin/env bash
+          # SPDX-License-Identifier: GPL-3.0-or-later
+          set -Eeuo pipefail
+          project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+          version="$(tr -d '[:space:]' < "$project_root/VERSION")"
+          output="${1:-$project_root/MBLINK-${version}-linux-native.run}"
+
+          test -f "$project_root/src/link/VERSION"
+          test -f "$project_root/src/link/src/infiltratr-common/VERSION"
+          builder="$project_root/src/link/packaging/build-native-product-installer.sh"
+          test -x "$builder"
+
+          export LINK_NATIVE_PRODUCT_NAME='MBLINK'
+          export LINK_NATIVE_PRODUCT_SLUG='mblink'
+          export LINK_NATIVE_PACKAGE_NAME='mblink'
+          export LINK_NATIVE_CMAKE_ENABLE_OPTION='MBLINK_BUILD_LINUX_APP'
+          export LINK_NATIVE_CMAKE_PROFILE_OPTION='MBLINK_BUILD_PROFILE'
+          export LINK_NATIVE_CMAKE_PACKAGE_VERSION_OPTION='MBLINK_PACKAGE_VERSION'
+          export LINK_NATIVE_LEGACY_CLEANUP_PATHS='/usr/local/bin/mblink-linux:/usr/local/share/icons/hicolor/180x180/apps/mblink.png:/usr/local/share/pixmaps/mblink.png:/usr/local/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop:/usr/local/share/doc/mblink'
+
+          exec "$builder" "$project_root" "$output"
+          EOF
+          chmod 0755 scripts/build-native-installer.sh
+
+          # Hard assertions that the five migrations really consumed LINK.
+          ! grep -q 'mblink_linux_graph_pids\[' app/linux/session_trace.c
+          grep -q 'link_session_trace_default_graph_pids' app/linux/session_trace.c
+          grep -q 'link_scheduler_default_obd2_pids' app/linux/main.c
+          grep -q 'build-native-product-installer.sh' scripts/build-native-installer.sh
+          ! grep -q 'private func mblinkLocalized' app/ios/MBLINK/ConnectionViewModel.swift
+          ! grep -q '0.621371192237334\|0.14503773773020923\|0.2641720523581484\|9.0 / 5.0' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -q 'displayValue(pid:' app/ios/MBLINK/ConnectionViewModel.swift
+
+      - name: Commit local tree so gitlink validation sees the new LINK pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Consume five small LINK shared behaviours'
+
+      - name: Build and test MBLINK shared core and native installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-hal-quick5 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_LINUX_APP=OFF -DBUILD_TESTING=ON
+          cmake --build build-hal-quick5 --parallel 2
+          ctest --test-dir build-hal-quick5 --output-on-failure
+          ./scripts/build-native-installer.sh /tmp/MBLINK-hal-quick5.run
+          /tmp/MBLINK-hal-quick5.run --help >/dev/null
+
+      - name: Publish final tree without helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build-hal-quick5
+          rm -f .github/workflows/hal-consume-quick5-migration.yml
+          git add -A
+          git diff --cached --check
+          git commit --amend --no-edit
+          git push origin HEAD:main
