@@ -1,0 +1,80 @@
+name: One-shot C207 protocol regression 0.7.176
+
+on:
+  push:
+    paths:
+      - .github/workflows/one-shot-c207-protocol-regression-0.7.176.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-c207-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update C207 replay for LINK protocol reporting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_c207_obd_flow_replay.c')
+          text = path.read_text()
+          marker = '''    /*
+           * The old MBLINK path jumped to the Mercedes extension here.  Current
+           * behaviour must attempt standard VIN and all three standard DTC modes
+           * first.  The captured VIN and stored-DTC framing are replayed below;
+           * pending remains an explicit NO DATA control and permanent mode uses the
+           * exact captured negative-response shape.
+           */
+          '''
+          insertion = '''    /*
+           * LINK 0.15.2 reports the active ELM protocol after PID discovery.
+           * Replay that supplementary probe explicitly so this C207 regression
+           * follows the current front-half sequence without weakening the VIN,
+           * DTC or Mercedes-extension checks that follow.
+           */
+          CHECK(link_diagnostic_flow_next_action(&flow, 750U, &action) ==
+                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+          CHECK(strcmp(action.command, "ATDP") == 0);
+          response = ok_response("AUTO, ISO 15765-4 (CAN 11/500)", false);
+          CHECK(link_diagnostic_flow_accept_response(
+                    &flow, &response, 750U, &event) ==
+                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+          CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_NONE);
+
+          CHECK(link_diagnostic_flow_next_action(&flow, 760U, &action) ==
+                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+          CHECK(strcmp(action.command, "ATDPN") == 0);
+          response = ok_response("A6", false);
+          CHECK(link_diagnostic_flow_accept_response(
+                    &flow, &response, 760U, &event) ==
+                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+          CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_PROTOCOL_IDENTIFIED);
+          CHECK(event.protocol != NULL);
+          CHECK(event.protocol->family ==
+                LINK_ELM327_PROTOCOL_FAMILY_ISO_15765_4);
+          CHECK(event.protocol->bit_rate == UINT32_C(500000));
+          CHECK(event.protocol_was_automatic);
+          CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
+
+          '''
+          if insertion in text:
+              raise SystemExit('C207 protocol regression block already present')
+          if marker not in text:
+              raise SystemExit('C207 insertion marker not found')
+          path.write_text(text.replace(marker, insertion + marker, 1))
+          PY
+
+          rm .github/workflows/one-shot-c207-protocol-regression-0.7.176.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_c207_obd_flow_replay.c .github/workflows/one-shot-c207-protocol-regression-0.7.176.yml
+          git commit -m "Release 0.7.176: align C207 replay with protocol reporting"
+          git push origin HEAD:main
