@@ -1,0 +1,278 @@
+name: HAL consume five LINK migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-consume-five-link-migrations.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Repin LINK and remove five local implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          LINK_SHA=9a64aacabb669d63f1797124b7147d7c502753c4
+          git -C src/link fetch origin "$LINK_SHA"
+          git -C src/link checkout "$LINK_SHA"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          connection_path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = connection_path.read_text()
+
+          store_marker = '''    private let vehicleProfileStore = LinkVehicleProfileStore(
+              productNamespace: "mblink",
+              legacyProfileKey: "mblink.vehicleProfiles.v1",
+              legacySelectedVINKey: "mblink.selectedVehicleVIN.v1",
+              legacyAdapterMappingKey: "mblink.adapterPeripheralByVehicle.v1")
+          '''
+          store_add = store_marker + '''    private let pidSelectionStore = LinkPIDSelectionStore(
+              productNamespace: "mblink",
+              legacyGlobalKey: "mblink.polling.enabledStableKeys.v2",
+              legacyVehicleKey: "mblink.pidSelectionsByVehicle.v1")
+          '''
+          if 'private let pidSelectionStore = LinkPIDSelectionStore' not in s:
+              if store_marker not in s:
+                  raise SystemExit('vehicle profile store marker missing')
+              s = s.replace(store_marker, store_add, 1)
+
+          s = s.replace(
+              '    private static let pollingDefaultsKey = "mblink.polling.enabledStableKeys.v2"\n', '')
+          s = s.replace(
+              '    private static let pidSelectionsByVehicleDefaultsKey =\n        "mblink.pidSelectionsByVehicle.v1"\n', '')
+
+          old = '        UserDefaults.standard.set(Array(enabledKeys).sorted(), forKey: Self.pollingDefaultsKey)'
+          new = '        pidSelectionStore.setGlobalStableKeys(Array(enabledKeys).sorted())'
+          if old not in s:
+              raise SystemExit('setPolling persistence marker missing')
+          s = s.replace(old, new, 1)
+
+          old = '''    var interfaceLocaleIdentifier: String {
+              MBInterfaceLanguage.canonical(selectedLanguageID)
+          }
+          '''
+          new = '''    var interfaceLocaleIdentifier: String {
+              LinkInterfaceLanguage.canonical(
+                  selectedLanguageID, aliases: mbLegacyLanguageAliases)
+          }
+          '''
+          if old not in s:
+              raise SystemExit('interface locale marker missing')
+          s = s.replace(old, new, 1)
+
+          s, count = re.subn(
+              r'\n    private func storedPIDSelectionsByVehicle\(\) -> \[String: \[String: \[String\]\]\] \{.*?\n    \}\n\n    private func supportedStableKeys',
+              '\n    private func supportedStableKeys', s, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('storedPIDSelectionsByVehicle block not removed')
+
+          old_start = s.index('    private func modulePIDSelectionSet(moduleID: String) -> Set<String> {')
+          old_end = s.index('    private func storeModulePIDSelection(', old_start)
+          module_func = '''    private func modulePIDSelectionSet(moduleID: String) -> Set<String> {
+              let supported = supportedStableKeys(moduleID: moduleID)
+              guard !supported.isEmpty else { return [] }
+
+              guard let vin = effectivePIDConfigurationVIN else {
+                  return Set(pidSelectionStore.globalStableKeys).intersection(supported)
+              }
+              if pidSelectionStore.hasSelection(
+                  forVIN: vin, controllerIdentifier: moduleID) {
+                  return Set(pidSelectionStore.stableKeys(
+                      forVIN: vin, controllerIdentifier: moduleID)).intersection(supported)
+              }
+              // Legacy/global choices may seed only an exact responder that
+              // actually advertised the PID; LINK owns persistence from here on.
+              return Set(pidSelectionStore.globalStableKeys).intersection(supported)
+          }
+
+          '''
+          s = s[:old_start] + module_func + s[old_end:]
+
+          store_start = s.index('    private func storeModulePIDSelection(')
+          store_end = s.index('    private func applyConfiguredPollingForSelectedVehicle()', store_start)
+          store_func = '''    private func storeModulePIDSelection(
+              _ selection: Set<String>,
+              moduleID: String
+          ) {
+              let boundedSelection =
+                  selection.intersection(supportedStableKeys(moduleID: moduleID))
+
+              guard let vin = effectivePIDConfigurationVIN else {
+                  pidSelectionStore.setGlobalStableKeys(Array(boundedSelection).sorted())
+                  return
+              }
+
+              pidSelectionStore.setStableKeys(
+                  Array(boundedSelection).sorted(),
+                  forVIN: vin,
+                  controllerIdentifier: moduleID)
+          }
+
+          '''
+          s = s[:store_start] + store_func + s[store_end:]
+
+          old = '''        // Keep the legacy/global polling key in sync with the responder-bounded
+              // union so the existing live-data engine polls each requested Mode 01
+              // PID once without leaking unsupported selections between modules.
+              UserDefaults.standard.set(
+                  Array(selectedKeys).sorted(), forKey: Self.pollingDefaultsKey)
+          '''
+          new = '''        // LINK persists the responder-bounded union used by the shared
+              // live-data engine; MBLINK only supplies Mercedes controller context.
+              pidSelectionStore.setGlobalStableKeys(Array(selectedKeys).sorted())
+          '''
+          if old not in s:
+              raise SystemExit('configured polling persistence marker missing')
+          s = s.replace(old, new, 1)
+
+          refresh_start = s.index('    private func refreshSavedVehicleProfiles() {')
+          refresh_end = s.index('    private func storedPollingKeys() -> Set<String> {', refresh_start)
+          refresh_func = '''    private func refreshSavedVehicleProfiles() {
+              var summaries = [SavedVehicleProfileSummary]()
+              for profile in vehicleProfileStore.savedProfiles {
+                  guard let vin = profile["vin"] as? String, vin.count == 17 else { continue }
+                  let modules = profile["modules"] as? [[String: Any]] ?? []
+                  let fallbackDisplayName =
+                      decodeVehicleIdentity(vin: vin)?.model ?? "Mercedes-Benz vehicle"
+                  if let summary = SavedVehicleProfileSummary(
+                      profile: profile as NSDictionary,
+                      moduleCount: modules.count,
+                      fallbackDisplayName: fallbackDisplayName) {
+                      summaries.append(summary)
+                  }
+              }
+              savedVehicleProfiles = summaries.sorted {
+                  ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
+              }
+
+              if let selectedVehicleVIN,
+                 savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
+                  return
+              }
+
+              // No remembered current vehicle means exactly that. Never manufacture
+              // a current vehicle by picking the newest unrelated saved profile.
+              selectedVehicleVIN = nil
+              vehicleProfileStore.clearSelectedVehicle()
+          }
+
+          '''
+          s = s[:refresh_start] + refresh_func + s[refresh_end:]
+
+          poll_start = s.index('    private func storedPollingKeys() -> Set<String> {')
+          poll_end = s.index('    private func standardStableKey(for pid: UInt8) -> String {', poll_start)
+          poll_func = '''    private func storedPollingKeys() -> Set<String> {
+              if pidSelectionStore.hasGlobalSelection {
+                  return Set(pidSelectionStore.globalStableKeys)
+              }
+
+              /*
+               * One-time upgrade from the pre-v2 automatic-core policy. LINK
+               * owns all persistence after this compatibility decision.
+               */
+              let defaults = UserDefaults.standard
+              var initial = Set<String>()
+              if let legacyValues =
+                  defaults.array(forKey: Self.legacyPollingDefaultsKey) as? [String] {
+                  let legacy = Set(legacyValues)
+                  if legacy != Self.legacyAutomaticPollingStableKeys {
+                      initial = legacy
+                  }
+              }
+
+              pidSelectionStore.setGlobalStableKeys(Array(initial).sorted())
+              return initial
+          }
+
+          '''
+          s = s[:poll_start] + poll_func + s[poll_end:]
+
+          old = '''            controller.setSelectedLanguageTag(
+                      MBInterfaceLanguage.canonical(legacy))
+          '''
+          new = '''            controller.setSelectedLanguageTag(
+                      LinkInterfaceLanguage.canonical(
+                          legacy, aliases: mbLegacyLanguageAliases))
+          '''
+          if old not in s:
+              raise SystemExit('legacy language migration marker missing')
+          s = s.replace(old, new, 1)
+
+          if 'pollingDefaultsKey' in s or 'pidSelectionsByVehicleDefaultsKey' in s or 'storedPIDSelectionsByVehicle' in s:
+              raise SystemExit('local PID persistence implementation still referenced')
+          if 'profile["liveResponders"]' in s:
+              raise SystemExit('LINK profile schema leak still present')
+          connection_path.write_text(s)
+
+          app_path = Path('app/ios/MBLINK/MBLINKApp.swift')
+          a = app_path.read_text()
+          start = a.index('struct MBInterfaceLanguage: Identifiable, Hashable {')
+          end = a.index('\nprivate var mblinkAboutInfo:', start)
+          replacement = '''let mbLegacyLanguageAliases: [String: String] = [
+              "en": "en-AU",
+              "de": "de-DE",
+              "pl": "pl-PL"
+          ]
+
+          typealias MBInterfaceLanguage = LinkInterfaceLanguage
+          '''
+          a = a[:start] + replacement + a[end:]
+          if 'struct MBInterfaceLanguage:' in a:
+              raise SystemExit('local language catalogue implementation still present')
+          app_path.write_text(a)
+
+          project_path = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          p = project_path.read_text()
+          target = '9a64aacabb669d63f1797124b7147d7c502753c4'
+          p, count = re.subn(
+              r'(LINK_SOURCE_REVISION = )[0-9a-f]{40}(;)',
+              rf'\g<1>{target}\g<2>', p)
+          if count != 2:
+              raise SystemExit(f'expected 2 LINK_SOURCE_REVISION entries, got {count}')
+          project_path.write_text(p)
+          PY
+
+          git diff --check
+
+      - name: Record repin before MBLINK validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add src/link \
+                  app/ios/MBLINK/ConnectionViewModel.swift \
+                  app/ios/MBLINK/MBLINKApp.swift \
+                  app/ios/MBLINK.xcodeproj/project.pbxproj
+          git diff --cached --check
+          git commit -m "Consume five small LINK migrations"
+          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "9a64aacabb669d63f1797124b7147d7c502753c4"
+
+      - name: Validate MBLINK shared core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DBUILD_TESTING=ON
+          cmake --build build -j2
+          ctest --test-dir build --output-on-failure
+          rm -rf build
+
+      - name: Publish MBLINK source migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git push origin HEAD:main
