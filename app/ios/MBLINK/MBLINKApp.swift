@@ -14,6 +14,7 @@ private enum MBBrand {
     static let silverBright = Color(red: 0.91, green: 0.93, blue: 0.95)
     static let muted = Color(red: 0.48, green: 0.51, blue: 0.55)
     static let line = Color(red: 0.24, green: 0.26, blue: 0.29)
+    static let active = Color(red: 0.00, green: 0.78, blue: 0.86)
     static let success = Color(red: 0.31, green: 0.67, blue: 0.48)
     static let warning = Color(red: 0.82, green: 0.62, blue: 0.28)
     static let fault = Color(red: 0.78, green: 0.28, blue: 0.28)
@@ -207,7 +208,21 @@ private struct MBStatusPill: View {
     let active: Bool
 
     var body: some View {
-        LinkStatusPill(text: text, active: active)
+        HStack(spacing: 7) {
+            Circle()
+                .fill(active ? MBBrand.active : MBBrand.muted)
+                .frame(width: 7, height: 7)
+            Text(LocalizedStringKey(text))
+                .textCase(.uppercase)
+                .font(MBTypography.caption2Bold)
+                .tracking(0.8)
+                .lineLimit(1)
+        }
+        .foregroundStyle(MBBrand.silverBright)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(MBBrand.panelRaised))
+        .overlay(Capsule().stroke(MBBrand.line, lineWidth: 1))
     }
 }
 
@@ -670,7 +685,7 @@ private struct MBCommandCentreView: View {
                     Image(systemName: connection.isReady
                           ? "checkmark.circle.fill"
                           : connection.isActive ? "dot.radiowaves.left.and.right" : "cable.connector")
-                        .foregroundStyle(connection.isReady ? MBBrand.success : MBBrand.silver)
+                        .foregroundStyle(connection.isReady ? MBBrand.active : MBBrand.silver)
                 }
 
                 Button {
@@ -726,20 +741,17 @@ private struct MBCommandCentreView: View {
     }
 
     private var primaryGrid: some View {
-        LinkDiagnosticGrid {
-            LinkTaskTile(.vehicle) { MBVehicleView() }
-            LinkTaskTile(.log) { MBEvidenceView() }
-            LinkTaskTile(.errors) { MBFaultsView() }
-            LinkTaskTile(.dashboard) { MBDashboardView() }
-            LinkTaskTile(.table) { MBDataTableView() }
-            LinkTaskTile(.graph) { MBGraphsView() }
-            LinkTaskTile(.tests) { MBTestsView() }
-            LinkTaskTile(.services) { MBServicesView() }
-            LinkTaskTile(.settings) { MBSettingsView() }
-        }
+    LinkDiagnosticGrid {
+        LinkTaskTile(.vehicle) { MBVehicleView() }
+        LinkTaskTile(.errors) { MBFaultsView() }
+        LinkTaskTile(.dashboard) { MBDashboardView() }
+        LinkTaskTile(.table) { MBDataTableView() }
+        LinkTaskTile(.graph) { MBGraphsView() }
     }
+}
 
     private var supportingTools: some View {
+    VStack(alignment: .leading, spacing: 14) {
         MBPanel {
             VStack(alignment: .leading, spacing: 9) {
                 MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
@@ -779,7 +791,18 @@ private struct MBCommandCentreView: View {
                 .opacity(connection.isActive ? 0.45 : 1.0)
             }
         }
+
+        MBSectionHeader(
+            title: "More diagnostics",
+            kicker: "Evidence, tests, services and preferences")
+        LinkDiagnosticGrid {
+            LinkTaskTile(.log) { MBEvidenceView() }
+            LinkTaskTile(.tests) { MBTestsView() }
+            LinkTaskTile(.services) { MBServicesView() }
+            LinkTaskTile(.settings) { MBSettingsView() }
+        }
     }
+}
 
     private var connectionProgress: some View {
         MBPanel {
@@ -1636,7 +1659,7 @@ private struct MBModuleDetailView: View {
                             get: { connection.manufacturerLivePollingEnabled(moduleID: module.id) },
                             set: { connection.setManufacturerLivePolling($0, moduleID: module.id) }))
                         .font(MBTypography.subheadlineBold)
-                        .tint(MBBrand.success)
+                        .tint(MBBrand.active)
                     Text("Only runtime-safe values are queued. Turning this off removes this module's recurring Mercedes job from LINK's adapter schedule, so it consumes no recurring polling bandwidth.")
                         .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
@@ -1902,7 +1925,7 @@ private struct MBModuleDetailView: View {
                         }
                     ))
                     .labelsHidden()
-                    .tint(MBBrand.success)
+                    .tint(MBBrand.active)
                     .controlSize(.small)
 
                     Button {
@@ -2405,11 +2428,10 @@ private struct MBLiveDataView: View {
 
 private struct MBDataTableView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @AppStorage("mblink.showUnsupportedParameters.v2") private var showUnsupportedParameters = false
 
     private var sorted: [DiagnosticParameter] {
         connection.diagnosticParameters
-            .filter { showUnsupportedParameters || $0.isSupported || $0.isAvailable }
+            .filter { $0.isSupported || $0.isAvailable }
             .sorted { $0.title < $1.title }
     }
 
@@ -2418,19 +2440,6 @@ private struct MBDataTableView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 9) {
-                            Toggle("Show unsupported catalogue entries",
-                                   isOn: $showUnsupportedParameters)
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Text("Not polled = supported by the vehicle but disabled. Waiting for sample = polling is enabled but no value has arrived yet. Not advertised = the vehicle did not report support for that PID.")
-                                .font(MBTypography.caption)
-                                .foregroundStyle(MBBrand.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
                     MBPanel {
                         VStack(spacing: 0) {
                         ForEach(sorted) { parameter in
@@ -2778,6 +2787,17 @@ private struct MBGraphsView: View {
                                             .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                     }
+                                    if let minimum = parameter.history.min(),
+                               let maximum = parameter.history.max() {
+                                HStack(spacing: 14) {
+                                    Text("MIN \(minimum.formatted()) \(parameter.suffix)")
+                                    Text("MAX \(maximum.formatted()) \(parameter.suffix)")
+                                    Spacer()
+                                    Text("\(parameter.history.count) samples")
+                                }
+                                .font(MBTypography.caption2Bold)
+                                .foregroundStyle(MBBrand.muted)
+                            }
                                     if parameter.history.count > 1 {
                                         Chart(Array(parameter.history.enumerated()), id: \.offset) { point in
                                             LineMark(
