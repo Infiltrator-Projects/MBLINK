@@ -2,5 +2,14 @@
 <gresources>
   <gresource prefix="/com/github/Infiltrator-Projects/MBLINK">
     <file alias="mblink-emblem.png">assets/mblink-emblem.png</file>
+    <file alias="nav-vehicle.png">assets/mercedes-adapter/nav-vehicle.png</file>
+    <file alias="nav-errors.png">assets/mercedes-adapter/nav-errors.png</file>
+    <file alias="nav-table.png">assets/mercedes-adapter/nav-table.png</file>
+    <file alias="nav-dashboard.png">assets/mercedes-adapter/nav-dashboard.png</file>
+    <file alias="nav-graph.png">assets/mercedes-adapter/nav-graph.png</file>
+    <file alias="nav-tests.png">assets/mercedes-adapter/nav-tests.png</file>
+    <file alias="nav-services.png">assets/mercedes-adapter/nav-services.png</file>
+    <file alias="nav-log.png">assets/mercedes-adapter/nav-log.png</file>
+    <file alias="nav-settings.png">assets/mercedes-adapter/nav-settings.png</file>
   </gresource>
 </gresources>

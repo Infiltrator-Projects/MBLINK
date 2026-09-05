@@ -2625,6 +2625,34 @@ static bool verify_display_preferences(void)
     return true;
 }
 
+
+static const char *mblink_navigation_icon_resource(size_t section, void *opaque)
+{
+    (void)opaque;
+    switch ((LinkWorkspaceSection)section) {
+    case LINK_WORKSPACE_VEHICLE:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-vehicle.png";
+    case LINK_WORKSPACE_FAULTS:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-errors.png";
+    case LINK_WORKSPACE_TABLE:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-table.png";
+    case LINK_WORKSPACE_DASHBOARD:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-dashboard.png";
+    case LINK_WORKSPACE_GRAPHS:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-graph.png";
+    case LINK_WORKSPACE_TESTS:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-tests.png";
+    case LINK_WORKSPACE_SERVICES:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-services.png";
+    case LINK_WORKSPACE_LOG:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-log.png";
+    case LINK_WORKSPACE_SETTINGS:
+        return "/com/github/Infiltrator-Projects/MBLINK/nav-settings.png";
+    default:
+        return NULL;
+    }
+}
+
 int main(int argc, char **argv)
 {
     MblinkLinuxContext context = {0};
@@ -2706,6 +2734,7 @@ int main(int argc, char **argv)
         : "MERCEDES-BENZ · LINK DIAGNOSTICS";
     descriptor.version = mblink_version();
     descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
+    descriptor.navigation_icon_resource = mblink_navigation_icon_resource;
     descriptor.use_client_side_titlebar = true;
     runtime_css = g_strconcat(
         mblink_linux_style_base_css(),
