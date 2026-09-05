@@ -70,15 +70,22 @@ static NSString * const MBLinkVehicleProfilesDefaultsKey =
 static const NSInteger MBLinkVehicleProfileSchemaVersion = 5;
 static const NSInteger MBLinkOldestReadableVehicleProfileSchemaVersion = 3;
 /*
- * Manufacturer live reads temporarily borrow the ELM channel from the
- * shared SAE scheduler. Keep the delay short enough for GS actual
- * values to feel live, while still giving ordinary OBD polling a gap
- * between channel switches.
+ * Recurring Mercedes live work is an opaque LINK scheduler job. LINK
+ * owns the one adapter-wire queue; MBLINK owns the GS route, KWP
+ * request set and decoder. One GS refresh can yield gear, target gear,
+ * ATF temperature and the other RLI actual values without competing
+ * with a second timer/poll loop.
  */
-static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs =
-    UINT64_C(750);
-static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
-    UINT64_C(750);
+static const uint32_t MBLinkScheduledTransmissionLiveJobToken =
+    UINT32_C(0x4D420001);
+static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
+    UINT32_C(750);
+
+typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
+    MBLinkScheduledRestoreNone = 0,
+    MBLinkScheduledRestoreHeader,
+    MBLinkScheduledRestoreFilter
+};
 
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
@@ -134,10 +141,11 @@ static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
             (const MblinkMercedesModuleScanEntry *)module
                                                       identifier:
             (NSString *)identifier;
-- (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-    (uint64_t)delayMs;
-- (void)runAutomaticManufacturerDataRefreshWithGeneration:
-    (NSUInteger)generation;
+- (void)updateScheduledManufacturerLiveJob;
+- (void)beginScheduledTransmissionLiveJob;
+- (void)beginScheduledManufacturerChannelRestore;
+- (void)processScheduledManufacturerRestoreResponse:
+    (const MblinkElm327Response *)response;
 - (void)beginCurrentMercedesDataScanCommand;
 - (void)processMercedesDataScanResponse:
     (const MblinkElm327Response *)response;
@@ -180,9 +188,9 @@ static const uint64_t MBLinkAutomaticManufacturerBusyRetryMs =
     BOOL _manufacturerDataForceFullScan;
     BOOL _automaticTransmissionTemperatureProbeAttempted;
     BOOL _manufacturerDataScanLiveOnly;
-    NSUInteger _automaticManufacturerRefreshGeneration;
-    NSUInteger _automaticManufacturerRefreshCursor;
-    NSUInteger _automaticManufacturerRefreshCycle;
+    BOOL _scheduledManufacturerJobRegistered;
+    BOOL _scheduledManufacturerJobActive;
+    MBLinkScheduledRestoreStage _scheduledManufacturerRestoreStage;
     NSMutableSet<NSString *> *_automaticManufacturerCandidateAttempts;
 }
 
@@ -773,12 +781,12 @@ static bool MBLinkSimulatorResponder(
     _manufacturerDataForceFullScan = NO;
     _automaticTransmissionTemperatureProbeAttempted = NO;
     _manufacturerDataScanLiveOnly = NO;
-    _automaticManufacturerRefreshCursor = 0U;
-    _automaticManufacturerRefreshCycle = 0U;
+    _scheduledManufacturerJobRegistered = NO;
+    _scheduledManufacturerJobActive = NO;
+    _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     _automaticManufacturerCandidateAttempts =
         [[NSMutableSet alloc] init];
     ++_manufacturerDataRequestGeneration;
-    ++_automaticManufacturerRefreshGeneration;
 }
 
 - (void)notifyDelegate
@@ -882,8 +890,10 @@ static bool MBLinkSimulatorResponder(
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
+    _scheduledManufacturerJobRegistered = NO;
+    _scheduledManufacturerJobActive = NO;
+    _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     ++_manufacturerDataRequestGeneration;
-    ++_automaticManufacturerRefreshGeneration;
     [_shared disconnect];
 }
 
@@ -1256,9 +1266,25 @@ static bool MBLinkSimulatorResponder(
 }
 
 - (void)linkDiagnosticsController:(LinkDiagnosticsController *)controller
+  beginScheduledManufacturerJob:(uint32_t)token
+{
+    (void)controller;
+    if (token != MBLinkScheduledTransmissionLiveJobToken) {
+        [_shared failWithStatus:@"Unknown scheduled Mercedes live job"];
+        return;
+    }
+    [self beginScheduledTransmissionLiveJob];
+}
+
+- (void)linkDiagnosticsController:(LinkDiagnosticsController *)controller
   didReceiveManufacturerResponse:(const LinkElm327Response *)response
 {
     (void)controller;
+    if (_scheduledManufacturerRestoreStage != MBLinkScheduledRestoreNone) {
+        [self processScheduledManufacturerRestoreResponse:
+            (const MblinkElm327Response *)response];
+        return;
+    }
     if (self.manufacturerDataScanActive) {
         [self processMercedesDataScanResponse:
             (const MblinkElm327Response *)response];
@@ -1293,10 +1319,10 @@ static bool MBLinkSimulatorResponder(
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
+        _scheduledManufacturerJobActive = NO;
+        _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
         ++_manufacturerDataRequestGeneration;
         [self notifyDelegate];
-        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-            UINT64_C(2500)];
         return;
     }
     if (_moduleScanActive) {
@@ -1559,109 +1585,144 @@ for (NSNumber *candidate in candidates) {
 return [runtimeSafe copy];
 }
 
-- (void)scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-    (uint64_t)delayMs
+- (void)updateScheduledManufacturerLiveJob
 {
     if (!_shared.isActive) return;
-    const NSUInteger generation =
-        ++_automaticManufacturerRefreshGeneration;
-    const uint64_t boundedDelay =
-        delayMs > UINT64_C(60000) ? UINT64_C(60000) : delayMs;
 
-    dispatch_after(
-        dispatch_time(
-            DISPATCH_TIME_NOW,
-            (int64_t)boundedDelay * NSEC_PER_MSEC),
-        dispatch_get_main_queue(), ^{
-            if (generation == self->_automaticManufacturerRefreshGeneration)
-                [self runAutomaticManufacturerDataRefreshWithGeneration:
-                    generation];
-        });
+    NSString *transmissionModule =
+        [self automaticTransmissionTemperatureModuleIdentifier];
+    BOOL shouldEnable = NO;
+    if (transmissionModule.length != 0U) {
+        const MblinkMercedesModuleScanEntry *module =
+            [self moduleEntryForIdentifier:transmissionModule];
+        if (module != NULL) {
+            NSArray<NSNumber *> *runtime =
+                [self runtimeManufacturerDataIdentifiersForModule:module
+                                                       identifier:transmissionModule];
+            NSArray<NSNumber *> *candidates =
+                [self runtimeCandidateIdentifiersForModule:module
+                                                 identifier:transmissionModule];
+            shouldEnable = runtime.count != 0U || candidates.count != 0U;
+        }
+    }
+
+    if (!_scheduledManufacturerJobRegistered) {
+        if (!shouldEnable) return;
+        if (![_shared registerLiveManufacturerJobWithToken:
+                MBLinkScheduledTransmissionLiveJobToken
+                intervalMilliseconds:
+                    MBLinkScheduledTransmissionLiveIntervalMs
+                priority:LINK_SCHEDULER_PRIORITY_HIGH]) {
+            self.manufacturerDataScanStatusText =
+                @"Could not register Mercedes live job with LINK scheduler";
+            [self notifyDelegate];
+            return;
+        }
+        _scheduledManufacturerJobRegistered = YES;
+    } else {
+        (void)[_shared setLiveManufacturerJobEnabled:shouldEnable
+            token:MBLinkScheduledTransmissionLiveJobToken];
+    }
+
+    if (shouldEnable)
+        _automaticTransmissionTemperatureProbeAttempted = YES;
 }
 
-- (void)runAutomaticManufacturerDataRefreshWithGeneration:
-    (NSUInteger)generation
+- (void)beginScheduledTransmissionLiveJob
 {
-    if (generation != _automaticManufacturerRefreshGeneration ||
-        !_shared.isActive) {
+    if (!_shared.isActive) return;
+
+    /* LINK already owns/reserved this adapter slot. Never wait or retry
+     * for a second scheduler here. If another explicit operation is
+     * active, release the slot and let the next normal deadline try. */
+    if (self.manufacturerDataScanActive || _moduleScanActive ||
+        _manufacturerProbeActive || _cachedModuleRefreshActive) {
+        _scheduledManufacturerJobActive = NO;
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
     }
 
-    if (self.manufacturerDataScanActive ||
-        _moduleScanActive || _manufacturerProbeActive ||
-        _cachedModuleRefreshActive) {
-        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-            MBLinkAutomaticManufacturerBusyRetryMs];
-        return;
-    }
-
-    /*
-     * Background manufacturer traffic is intentionally GS-only.
-     * Discovery still identifies HU/ORC/ESP/body controllers and
-     * explicit user scans remain available, but background polling
-     * must not keep waking those ECUs. The 2026-09-04 C207 capture
-     * correlated HU_204 KWP traffic with infotainment wakeups.
-     */
-    NSString *transmissionModule = nil;
-    const size_t count =
-        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
-    for (size_t index = 0U; index < count; ++index) {
-        const MblinkMercedesModuleScanEntry *module =
-            mblink_mercedes_module_scan_module_at(
-                &_mercedesModuleScan, index);
-        if (!MBLinkMercedesModuleIsTransmissionController(module))
-            continue;
-
-        NSString *identifier = MBLinkMercedesModuleIdentifier(module);
-        NSArray<NSNumber *> *runtime =
-            [self runtimeManufacturerDataIdentifiersForModule:module
-                                                   identifier:identifier];
-        NSArray<NSNumber *> *candidates =
-            [self runtimeCandidateIdentifiersForModule:module
-                                             identifier:identifier];
-        if (runtime.count == 0U && candidates.count == 0U)
-            continue;
-        transmissionModule = identifier;
-        break;
-    }
-
-    if (transmissionModule.length == 0U)
-        return;
-
+    NSString *transmissionModule =
+        [self automaticTransmissionTemperatureModuleIdentifier];
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:transmissionModule];
     if (module == NULL) {
-        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-            MBLinkAutomaticManufacturerRefreshDelayMs];
+        _scheduledManufacturerJobActive = NO;
+        if (_scheduledManufacturerJobRegistered) {
+            (void)[_shared setLiveManufacturerJobEnabled:NO
+                token:MBLinkScheduledTransmissionLiveJobToken];
+        }
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
     }
 
     NSArray<NSNumber *> *runtime =
         [self runtimeManufacturerDataIdentifiersForModule:module
                                                identifier:transmissionModule];
-    if (runtime.count != 0U) {
-        [self beginManufacturerDataOperationForModuleIdentifier:
-            transmissionModule
-                                              forceFullScan:NO
-                                                   liveOnly:YES
-                                       candidateIdentifiers:nil];
-        return;
-    }
-
     NSArray<NSNumber *> *candidates =
         [self runtimeCandidateIdentifiersForModule:module
                                          identifier:transmissionModule];
-    if (candidates.count != 0U) {
-        [self beginManufacturerDataOperationForModuleIdentifier:
-            transmissionModule
-                                              forceFullScan:NO
-                                                   liveOnly:YES
-                                       candidateIdentifiers:candidates];
+    if (runtime.count == 0U && candidates.count == 0U) {
+        _scheduledManufacturerJobActive = NO;
+        (void)[_shared setLiveManufacturerJobEnabled:NO
+            token:MBLinkScheduledTransmissionLiveJobToken];
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
     }
 
-    [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-        MBLinkAutomaticManufacturerRefreshDelayMs];
+    _scheduledManufacturerJobActive = YES;
+    [self beginManufacturerDataOperationForModuleIdentifier:
+        transmissionModule
+                                          forceFullScan:NO
+                                               liveOnly:YES
+                                   candidateIdentifiers:
+        runtime.count != 0U ? nil : candidates];
+}
+
+- (void)beginScheduledManufacturerChannelRestore
+{
+    _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreHeader;
+    if (![_shared beginManufacturerCommand:"ATSH7DF" timeout:1000U]) {
+        _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
+        _scheduledManufacturerJobActive = NO;
+        if (![_shared completeManufacturerExtensionRestoringAdapter:YES])
+            [_shared failWithStatus:@"Could not restore OBD channel after Mercedes live job"];
+    }
+}
+
+- (void)processScheduledManufacturerRestoreResponse:
+    (const MblinkElm327Response *)response
+{
+    if (response == NULL || response->result != MBLINK_ELM327_RESULT_OK ||
+        !response->ok_seen) {
+        _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
+        _scheduledManufacturerJobActive = NO;
+        if (![_shared completeManufacturerExtensionRestoringAdapter:YES])
+            [_shared failWithStatus:@"Mercedes live channel restore failed"];
+        return;
+    }
+
+    if (_scheduledManufacturerRestoreStage ==
+            MBLinkScheduledRestoreHeader) {
+        _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreFilter;
+        if (![_shared beginManufacturerCommand:"ATAR" timeout:1000U]) {
+            _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
+            _scheduledManufacturerJobActive = NO;
+            if (![_shared completeManufacturerExtensionRestoringAdapter:YES])
+                [_shared failWithStatus:@"Could not clear Mercedes receive filter"];
+        }
+        return;
+    }
+
+    _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
+    _scheduledManufacturerJobActive = NO;
+    if (![_shared completeManufacturerExtensionRestoringAdapter:NO]) {
+        [_shared failWithStatus:
+            @"Could not resume standard diagnostics after Mercedes live job"];
+        return;
+    }
+    [self updateScheduledManufacturerLiveJob];
+    [self notifyDelegate];
 }
 
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
@@ -1760,14 +1821,15 @@ return [runtimeSafe copy];
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
-        if (liveOnly) {
-            [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-                MBLinkAutomaticManufacturerRefreshDelayMs];
+        if (liveOnly && _scheduledManufacturerJobActive) {
+            _scheduledManufacturerJobActive = NO;
+            (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         }
         return;
     }
 
-    if (![_shared beginLiveManufacturerExtension]) {
+    if (!_scheduledManufacturerJobActive &&
+        ![_shared beginLiveManufacturerExtension]) {
         if (attempt < 80U) {
             dispatch_after(
                 dispatch_time(
@@ -1789,10 +1851,6 @@ return [runtimeSafe copy];
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
-        if (liveOnly) {
-            [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-                MBLinkAutomaticManufacturerBusyRetryMs];
-        }
         return;
     }
 
@@ -1988,16 +2046,18 @@ return [runtimeSafe copy];
      */
     if (liveOnly &&
         result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
+        const BOOL scheduled = _scheduledManufacturerJobActive;
+        _scheduledManufacturerJobActive = NO;
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:
+            scheduled ? NO : YES];
         self.manufacturerDataScanStatusText =
             @"No proven live Mercedes data identifiers remain for this module";
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         ++_manufacturerDataRequestGeneration;
+        [self updateScheduledManufacturerLiveJob];
         [self notifyDelegate];
-        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-            MBLinkAutomaticManufacturerRefreshDelayMs];
         return;
     }
 
@@ -2306,19 +2366,35 @@ return [runtimeSafe copy];
         @"%@ · %@ · %zu checked · %zu responded this pass · %lu retained",
         module, status, attempted, positive, (unsigned long)retained];
 
+    const BOOL scheduledLive =
+        _scheduledManufacturerJobActive && _manufacturerDataScanLiveOnly;
+    const BOOL fastCanRestore =
+        scheduledLive && finishedModule != NULL &&
+        !finishedModule->extended_id &&
+        finishedModule->tx_can_id == UINT32_C(0x7e1) &&
+        finishedModule->rx_can_id == UINT32_C(0x7e9) &&
+        mblink_mercedes_module_scan_entry_protocol(finishedModule) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
 
+    if (fastCanRestore) {
+        [self beginScheduledManufacturerChannelRestore];
+        [self notifyDelegate];
+        return;
+    }
+
+    _scheduledManufacturerJobActive = NO;
     if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
         [_shared failWithStatus:
             @"Could not resume standard diagnostics after Mercedes data scan"];
     }
+    [self updateScheduledManufacturerLiveJob];
     [self notifyDelegate];
-    [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-        MBLinkAutomaticManufacturerRefreshDelayMs];
 }
 
 - (void)beginMercedesProbe
@@ -2554,43 +2630,12 @@ return [runtimeSafe copy];
         [self saveCurrentVehicleProfile];
         _cachedModuleRefreshActive = NO;
 
-        /*
-         * Once a transmission ECU has actually been discovered, perform one
-         * family-scoped read so its appropriate data set is available without
-         * requiring the driver to open the module screen first. No CAN route
-         * is treated as proof of a transmission family.
-         */
-        NSString *temperatureModule =
-            [self automaticTransmissionTemperatureModuleIdentifier];
-        const BOOL shouldProbeTransmissionTemperature =
-            !_automaticTransmissionTemperatureProbeAttempted &&
-            temperatureModule.length != 0U;
-        if (shouldProbeTransmissionTemperature)
-            _automaticTransmissionTemperatureProbeAttempted = YES;
-
+        /* Recurring GS actual values are now registered before the
+         * startup extension returns. LINK preserves external jobs when it
+         * later builds the standard SAE schedule, so the first GS slot and
+         * every subsequent one are serialized with OBD from the outset. */
+        [self updateScheduledManufacturerLiveJob];
         [self finishMercedesExtensionRestoringAdapter:YES];
-
-        if (shouldProbeTransmissionTemperature) {
-            dispatch_after(
-                dispatch_time(
-                    DISPATCH_TIME_NOW,
-                    (int64_t)UINT64_C(500) * NSEC_PER_MSEC),
-                dispatch_get_main_queue(), ^{
-                    if (self.isActive &&
-                        !self.manufacturerDataScanActive) {
-                        [self beginManufacturerDataScanForModuleIdentifier:
-                            temperatureModule forceFullScan:NO];
-                    }
-                });
-        }
-
-        /*
-         * Once topology is stable, keep a narrow runtime observer alive. It
-         * yields to the initial GS discovery and to the shared SAE scheduler,
-         * then re-reads only proven/candidate-safe actual-value identifiers.
-         */
-        [self scheduleAutomaticManufacturerDataRefreshAfterMilliseconds:
-            UINT64_C(2500)];
         return;
     }
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||
