@@ -41,7 +41,7 @@ jobs:
           project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
           text = project.read_text()
           old = 'MARKETING_VERSION = 0.7.170;'
-          if text.count(old) != 2:
+          if text.count(old) != 4:
               raise SystemExit(f'unexpected Xcode marketing version count: {text.count(old)}')
           project.write_text(text.replace(old, 'MARKETING_VERSION = 0.7.171;'))
 
@@ -53,10 +53,9 @@ jobs:
               raise SystemExit(f'unexpected polling help text count: {text.count(old)}')
           app.write_text(text.replace(old, new, 1))
 
-          # Release invariants.
           assert Path('VERSION').read_text().strip() == '0.7.171'
           assert '#define MBLINK_VERSION_STRING "0.7.171"' in header.read_text()
-          assert project.read_text().count('MARKETING_VERSION = 0.7.171;') == 2
+          assert project.read_text().count('MARKETING_VERSION = 0.7.171;') == 4
           assert "module's recurring Mercedes job from LINK's adapter schedule" in app.read_text()
           PY
           git config user.name "github-actions[bot]"
