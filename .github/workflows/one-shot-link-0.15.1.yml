@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot LINK 0.15.1 repin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-link-0.15.1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prepare MBLINK 0.7.172 on LINK 0.15.1
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          version = Path('VERSION')
+          if version.read_text().strip() != '0.7.171':
+              raise SystemExit(f'unexpected current VERSION: {version.read_text().strip()}')
+          version.write_text('0.7.172\n')
+
+          header = Path('include/mblink/version.h')
+          text = header.read_text()
+          old = '#define MBLINK_VERSION_STRING "0.7.171"'
+          new = '#define MBLINK_VERSION_STRING "0.7.172"'
+          if text.count(old) != 1:
+              raise SystemExit(f'unexpected version.h state: {text.count(old)} matches')
+          header.write_text(text.replace(old, new, 1))
+
+          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = project.read_text()
+          old_marketing = 'MARKETING_VERSION = 0.7.171;'
+          if text.count(old_marketing) != 4:
+              raise SystemExit(f'unexpected Xcode marketing version count: {text.count(old_marketing)}')
+          text = text.replace(old_marketing, 'MARKETING_VERSION = 0.7.172;')
+
+          old_link = 'LINK_SOURCE_REVISION=\\\\\\"dd86d291505f6371fe72f6b37649c3516f7dbf50\\\\\\"'
+          new_link = 'LINK_SOURCE_REVISION=\\\\\\"756f736cbbbbcbeaaae1b23f3f7c648ee1afb3e9\\\\\\"'
+          if text.count(old_link) != 2:
+              raise SystemExit(f'unexpected LINK revision count: {text.count(old_link)}')
+          text = text.replace(old_link, new_link)
+          project.write_text(text)
+
+          assert version.read_text().strip() == '0.7.172'
+          assert '#define MBLINK_VERSION_STRING "0.7.172"' in header.read_text()
+          assert project.read_text().count('MARKETING_VERSION = 0.7.172;') == 4
+          assert project.read_text().count('756f736cbbbbcbeaaae1b23f3f7c648ee1afb3e9') == 2
+          PY
+
+          git -C src/link fetch origin 756f736cbbbbcbeaaae1b23f3f7c648ee1afb3e9
+          git -C src/link checkout --detach 756f736cbbbbcbeaaae1b23f3f7c648ee1afb3e9
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.15.1"
+          test "$(git -C src/link rev-parse HEAD)" = "756f736cbbbbcbeaaae1b23f3f7c648ee1afb3e9"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj src/link
+          git diff --cached --check
+          git commit -m "Prepare MBLINK 0.7.172 with LINK 0.15.1"
+          git push origin HEAD:main
