@@ -34,7 +34,7 @@ jobs:
           if count != 2:
               raise SystemExit(f'expected two old LINK revision entries, found {count}')
           project.write_text(text.replace(old, new))
-          Path('VERSION').write_text('0.7.179\n\n')
+          Path('VERSION').write_text('0.7.179')
           Path('.github/workflows/hal-sync-link-revision.yml').unlink()
           PY
           git diff --check
