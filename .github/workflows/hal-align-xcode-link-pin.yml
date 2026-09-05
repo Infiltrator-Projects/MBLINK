@@ -1,0 +1,48 @@
+name: HAL align Xcode LINK pin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-align-xcode-link-pin.yml
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Align both Xcode LINK revision definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          s = p.read_text()
+          old = 'LINK_SOURCE_REVISION=\\\\\\"c5f389ecdc35cd899330ae5fe1cf9b8e26e92be1\\\\\\"'
+          new = 'LINK_SOURCE_REVISION=\\\\\\"b070ce488d99d3e7fb3faaadc4b1ecce66edf063\\\\\\"'
+          count = s.count(old)
+          if count != 2:
+              raise SystemExit(f'expected 2 stale LINK source revisions, found {count}')
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+          git diff --check
+          test "$(grep -Fc 'LINK_SOURCE_REVISION=\\\"b070ce488d99d3e7fb3faaadc4b1ecce66edf063\\\"' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+          test "$(git ls-tree HEAD src/link | awk '{print $3}')" = "b070ce488d99d3e7fb3faaadc4b1ecce66edf063"
+      - name: Publish alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add app/ios/MBLINK.xcodeproj/project.pbxproj
+          git diff --cached --check
+          git commit -m "Align Xcode with migrated LINK pin"
+          git push origin HEAD:main
