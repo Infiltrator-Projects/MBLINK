@@ -1,0 +1,177 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL consume quick-five LINK boundaries
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message == 'Add quick-five LINK consumption helper'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Consume shared LINK boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'HAL migration'
+          git config user.email 'actions@users.noreply.github.com'
+          link_rev='e4bd1503afd14618b8a47196ae0dd25b46675ebb'
+          git -C src/link fetch origin "$link_rev"
+          git -C src/link checkout --detach "$link_rev"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f"{path}: expected {count}, found {actual}")
+              p.write_text(text.replace(old, new, count))
+
+          controller = 'platform/apple/MBLinkDiagnosticsController.m'
+          replace(controller, '''- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    LinkObd2UnitCode unit = LINK_OBD2_UNIT_NONE;
+    double display = value;
+    const char *label = "";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    if (link_parameter_obd2_expected_unit(pid, &unit) &&
+        link_units_convert_obd2(unit, value, system, &display, &label))
+        return display;
+    return value;
+}''', '''- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+{
+    return [_shared displayValueForPID:pid canonicalValue:value];
+}''')
+          replace(controller, '''- (double)displayTemperatureCelsius:(double)celsius
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    double display = celsius;
+    const char *label = "°C";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    if (link_units_convert_obd2(
+            LINK_OBD2_UNIT_CELSIUS, celsius, system, &display, &label))
+        return display;
+    return celsius;
+}''', '''- (double)displayTemperatureCelsius:(double)celsius
+{
+    return [_shared displayTemperatureCelsius:celsius];
+}''')
+          replace(controller, '''- (NSString *)displayTemperatureUnit
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    double display = 0.0;
+    const char *label = "°C";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    (void)link_units_convert_obd2(
+        LINK_OBD2_UNIT_CELSIUS, 0.0, system, &display, &label);
+    return label != NULL ? [NSString stringWithUTF8String:label] : @"°C";
+}''', '''- (NSString *)displayTemperatureUnit
+{
+    return _shared.displayTemperatureUnit;
+}''')
+          replace(controller, '''- (BOOL)supportsPID:(uint8_t)pid
+{
+    const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
+    return flow != NULL &&
+        link_obd2_pid_set_contains(&flow->supported_pids, pid);
+}''', '''- (BOOL)supportsPID:(uint8_t)pid
+{
+    return [_shared supportsPID:pid];
+}''')
+          replace(controller, '''    NSArray *liveResponders = [_cachedVehicleProfile[@"liveResponders"]
+        isKindOfClass:[NSArray class]]
+        ? _cachedVehicleProfile[@"liveResponders"] : nil;
+    if (liveResponders.count != 0U)
+        profile[@"liveResponders"] = liveResponders;
+''', '')
+
+          viewmodel = 'app/ios/MBLINK/ConnectionViewModel.swift'
+          replace(viewmodel, '''        let filename = "MBLINK-diagnostic-evidence-\(UUID().uuidString).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        isPreparingCSV = true
+
+        Task { [weak self] in
+            do {
+                try await Task.detached(priority: .utility) {
+                    try data.write(to: url, options: .atomic)
+                }.value
+                guard let self else {
+                    try? FileManager.default.removeItem(at: url)
+                    return
+                }
+                self.clearPreparedExport()
+                self.csvExportURL = url
+            } catch {
+                try? FileManager.default.removeItem(at: url)
+            }
+            self?.isPreparingCSV = false
+        }''', '''        isPreparingCSV = true
+
+        Task { [weak self] in
+            do {
+                let url = try await LinkEvidenceExport.prepareTemporaryCSV(
+                    data, productName: "MBLINK")
+                guard let self else {
+                    LinkEvidenceExport.removeTemporaryFile(url)
+                    return
+                }
+                self.clearPreparedExport()
+                self.csvExportURL = url
+            } catch {
+                // Export remains unavailable; live diagnostics continue.
+            }
+            self?.isPreparingCSV = false
+        }''')
+          replace(viewmodel, '''    private func clearPreparedExport() {
+        if let url = csvExportURL { try? FileManager.default.removeItem(at: url) }
+        csvExportURL = nil
+    }''', '''    private func clearPreparedExport() {
+        LinkEvidenceExport.removeTemporaryFile(csvExportURL)
+        csvExportURL = nil
+    }''')
+
+          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = project.read_text()
+          old = 'b070ce488d99d3e7fb3faaadc4b1ecce66edf063'
+          new = 'e4bd1503afd14618b8a47196ae0dd25b46675ebb'
+          count = text.count(old)
+          if count != 4:
+              raise SystemExit(f'project.pbxproj: expected 4 LINK revision anchors, found {count}')
+          project.write_text(text.replace(old, new))
+          PY
+
+          git add src/link platform/apple/MBLinkDiagnosticsController.m app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m 'Consume five small LINK Apple boundaries'
+      - name: Validate MBLINK core against new LINK pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C src/link rev-parse HEAD)" = 'e4bd1503afd14618b8a47196ae0dd25b46675ebb'
+          grep -Fq 'return [_shared displayValueForPID:pid canonicalValue:value];' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'return [_shared supportsPID:pid];' platform/apple/MBLinkDiagnosticsController.m
+          ! grep -Fq '_cachedVehicleProfile[@"liveResponders"]' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'LinkEvidenceExport.prepareTemporaryCSV' app/ios/MBLINK/ConnectionViewModel.swift
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+      - name: Publish MBLINK migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
