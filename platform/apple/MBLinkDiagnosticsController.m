@@ -1593,16 +1593,6 @@ return [runtimeSafe copy];
 
     NSString *transmissionModule =
         [self automaticTransmissionTemperatureModuleIdentifier];
-    if (![self manufacturerLivePollingEnabledForModuleIdentifier:
-            transmissionModule]) {
-        _scheduledManufacturerJobActive = NO;
-        if (_scheduledManufacturerJobRegistered) {
-            (void)[_shared setLiveManufacturerJobEnabled:NO
-                token:MBLinkScheduledTransmissionLiveJobToken];
-        }
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-        return;
-    }
     BOOL shouldEnable = NO;
     if (transmissionModule.length != 0U) {
         const MblinkMercedesModuleScanEntry *module =
@@ -1659,6 +1649,16 @@ return [runtimeSafe copy];
 
     NSString *transmissionModule =
         [self automaticTransmissionTemperatureModuleIdentifier];
+    if (![self manufacturerLivePollingEnabledForModuleIdentifier:
+            transmissionModule]) {
+        _scheduledManufacturerJobActive = NO;
+        if (_scheduledManufacturerJobRegistered) {
+            (void)[_shared setLiveManufacturerJobEnabled:NO
+                token:MBLinkScheduledTransmissionLiveJobToken];
+        }
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        return;
+    }
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:transmissionModule];
     if (module == NULL) {
