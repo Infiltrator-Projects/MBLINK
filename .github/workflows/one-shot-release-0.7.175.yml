@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK 0.7.175 release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-release-0.7.175.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply exact Mercedes Adapter active blue and release 0.7.175
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one {old!r}, found {count}')
+              p.write_text(s.replace(old, new, 1))
+
+          style = Path('app/linux/style.c')
+          s = style.read_text()
+          replacements = {
+              '.link-link-button { background: #58d7e7; color: #071012; border-color: #58d7e7; }':
+                  '.link-link-button { background: #00adef; color: #031018; border-color: #00adef; }',
+              '.link-link-button:hover { background: #8ee5ee; border-color: #8ee5ee; }':
+                  '.link-link-button:hover { background: #33bdf2; border-color: #33bdf2; }',
+              '.link-nav-row:selected { background: rgba(32,187,211,0.16); border-color: rgba(88,215,231,0.58); }':
+                  '.link-nav-row:selected { background: rgba(0,173,239,0.16); border-color: rgba(0,173,239,0.58); }',
+              '.link-nav-row:selected .link-section-title { color: #72e7f2; }':
+                  '.link-nav-row:selected .link-section-title { color: #00adef; }',
+              '.link-nav-row:selected .link-section-summary { color: #9cdce4; }':
+                  '.link-nav-row:selected .link-section-summary { color: #82d8f7; }',
+              '.link-status-online { background: rgba(32,187,211,0.12); border-color: rgba(88,215,231,0.52); color: #72e7f2; }':
+                  '.link-status-online { background: rgba(0,173,239,0.12); border-color: rgba(0,173,239,0.52); color: #00adef; }',
+              '.link-toolbar-button:hover, .link-save-session-button:hover, .link-about-button:hover { border-color: rgba(88,215,231,0.42); }':
+                  '.link-toolbar-button:hover, .link-save-session-button:hover, .link-about-button:hover { border-color: rgba(0,173,239,0.42); }',
+              'checkbutton:checked { color: #72e7f2; }':
+                  'checkbutton:checked { color: #00adef; }',
+          }
+          for old, new in replacements.items():
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'app/linux/style.c: expected exactly one {old!r}, found {count}')
+              s = s.replace(old, new, 1)
+          style.write_text(s)
+
+          replace_once(
+              'app/ios/MBLINK/MBLINKApp.swift',
+              'static let active = Color(red: 0.00, green: 0.78, blue: 0.86)',
+              'static let active = Color(red: 0.00, green: 0.678431, blue: 0.937255) // Mercedes me Adapter #00ADEF')
+          replace_once(
+              'app/ios/MBLINK/MBLINKApp.swift',
+              'accent: MBBrand.silverBright,',
+              'accent: MBBrand.active,')
+
+          version = Path('VERSION')
+          if version.read_text().strip() != '0.7.174':
+              raise SystemExit(f'Unexpected VERSION: {version.read_text()!r}')
+          version.write_text('0.7.175\n')
+
+          replace_once(
+              'include/mblink/version.h',
+              '#define MBLINK_VERSION_STRING "0.7.174"',
+              '#define MBLINK_VERSION_STRING "0.7.175"')
+
+          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          p = project.read_text()
+          old = 'MARKETING_VERSION = 0.7.174;'
+          if p.count(old) != 4:
+              raise SystemExit(f'Expected 4 MARKETING_VERSION entries, found {p.count(old)}')
+          project.write_text(p.replace(old, 'MARKETING_VERSION = 0.7.175;'))
+          PY
+
+          git rm .github/workflows/one-shot-release-0.7.175.yml
+          git diff --check
+          test "$(tr -d '[:space:]' < VERSION)" = '0.7.175'
+          grep -Fq '#define MBLINK_VERSION_STRING "0.7.175"' include/mblink/version.h
+          test "$(grep -Fc 'MARKETING_VERSION = 0.7.175;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          grep -Fq '.link-link-button { background: #00adef;' app/linux/style.c
+          grep -Fq '.link-nav-row:selected .link-section-title { color: #00adef; }' app/linux/style.c
+          grep -Fq 'Mercedes me Adapter #00ADEF' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'accent: MBBrand.active,' app/ios/MBLINK/MBLINKApp.swift
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION include/mblink/version.h app/linux/style.c app/ios/MBLINK/MBLINKApp.swift app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m 'Release 0.7.175: use exact Mercedes Adapter active blue'
+          git push origin HEAD:main
