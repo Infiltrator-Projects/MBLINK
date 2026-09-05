@@ -25,6 +25,20 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Select Objective-C implementations in migration helper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/hal_migrate_mblink.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    start = text.find(start_marker)\n    if start < 0:\n        raise SystemExit(f"{path}: start marker not found: {start_marker!r}")\n    if text.find(start_marker, start + 1) >= 0:\n        raise SystemExit(f"{path}: start marker is ambiguous: {start_marker!r}")\n'''
+          new = '''    start = text.rfind(start_marker)\n    if start < 0:\n        raise SystemExit(f"{path}: start marker not found: {start_marker!r}")\n'''
+          if old not in text:
+              raise SystemExit('replace_braced helper shape changed')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Apply LINK ownership migration
         run: python3 .github/hal_migrate_mblink.py
 
