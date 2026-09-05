@@ -741,14 +741,14 @@ private struct MBCommandCentreView: View {
     }
 
     private var primaryGrid: some View {
-    LinkDiagnosticGrid {
-        LinkTaskTile(.vehicle) { MBVehicleView() }
-        LinkTaskTile(.errors) { MBFaultsView() }
-        LinkTaskTile(.dashboard) { MBDashboardView() }
-        LinkTaskTile(.table) { MBDataTableView() }
-        LinkTaskTile(.graph) { MBGraphsView() }
+        LinkDiagnosticGrid {
+            LinkTaskTile(.vehicle) { MBVehicleView() }
+            LinkTaskTile(.errors) { MBFaultsView() }
+            LinkTaskTile(.dashboard) { MBDashboardView() }
+            LinkTaskTile(.table) { MBDataTableView() }
+            LinkTaskTile(.graph) { MBGraphsView() }
+        }
     }
-}
 
     private var supportingTools: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -2788,16 +2788,16 @@ private struct MBGraphsView: View {
                                             .foregroundStyle(MBBrand.silverBright)
                                     }
                                     if let minimum = parameter.history.min(),
-                               let maximum = parameter.history.max() {
-                                HStack(spacing: 14) {
-                                    Text("MIN \(minimum.formatted()) \(parameter.suffix)")
-                                    Text("MAX \(maximum.formatted()) \(parameter.suffix)")
-                                    Spacer()
-                                    Text("\(parameter.history.count) samples")
-                                }
-                                .font(MBTypography.caption2Bold)
-                                .foregroundStyle(MBBrand.muted)
-                            }
+                                       let maximum = parameter.history.max() {
+                                        HStack(spacing: 14) {
+                                            Text("MIN \(minimum.formatted()) \(parameter.suffix)")
+                                            Text("MAX \(maximum.formatted()) \(parameter.suffix)")
+                                            Spacer()
+                                            Text("\(parameter.history.count) samples")
+                                        }
+                                        .font(MBTypography.caption2Bold)
+                                        .foregroundStyle(MBBrand.muted)
+                                    }
                                     if parameter.history.count > 1 {
                                         Chart(Array(parameter.history.enumerated()), id: \.offset) { point in
                                             LineMark(
