@@ -74,6 +74,15 @@ static const char mblink_metrics_css[] =
 
 
 
+    ".mblink-cockpit-card { background: linear-gradient(155deg,#20262c,#11161b 58%,#080a0d); border-color: #4a525b; }"
+    ".mblink-cockpit-flow, .mblink-trace-flow { margin-top: 6px; }"
+    ".mblink-cockpit-gauge { background: linear-gradient(155deg,#171c21,#0b0e11); border: 1px solid #394149; border-radius: 12px; padding: 10px 10px 12px 10px; }"
+    ".mblink-gauge-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-size: 20px; font-weight: 700; }"
+    ".mblink-gauge-pid { color: #7f8991; font-size: 10px; }"
+    ".mblink-gauge-title { color: #dce2e6; font-size: 13px; font-weight: 700; }"
+    ".mblink-trace-card { background: linear-gradient(155deg,#171c21,#0b0e11); border-color: #3e464f; min-width: 300px; }"
+    ".mblink-trace-card .link-card-note { color: #00adef; font-size: 14px; }"
+
     ".mblink-settings-note { font-size: 12px; }"
     ".link-about-dialog { background: #050608; }"
     ".link-about-dialog stackswitcher { margin: 6px 12px 8px 12px; }"
