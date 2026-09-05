@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot MBLINK 0.7.173 release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-release-0.7.173.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Bump MBLINK to 0.7.173
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          old = '0.7.172'
+          new = '0.7.173'
+
+          version = Path('VERSION')
+          if version.read_text().strip() != old:
+              raise SystemExit(f'Unexpected VERSION: {version.read_text()!r}')
+          version.write_text(new + '\n')
+
+          header = Path('include/mblink/version.h')
+          s = header.read_text()
+          needle = f'#define MBLINK_VERSION_STRING "{old}"'
+          if s.count(needle) != 1:
+              raise SystemExit('Unexpected MBLINK version header state')
+          header.write_text(s.replace(needle, f'#define MBLINK_VERSION_STRING "{new}"', 1))
+
+          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          s = project.read_text()
+          needle = f'MARKETING_VERSION = {old};'
+          count = s.count(needle)
+          if count != 4:
+              raise SystemExit(f'Expected 4 MARKETING_VERSION entries, found {count}')
+          project.write_text(s.replace(needle, f'MARKETING_VERSION = {new};'))
+          PY
+          git diff --check
+          test "$(tr -d '[:space:]' < VERSION)" = '0.7.173'
+          grep -Fq '#define MBLINK_VERSION_STRING "0.7.173"' include/mblink/version.h
+          test "$(grep -Fc 'MARKETING_VERSION = 0.7.173;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+      - name: Commit release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m 'Release 0.7.173: quick UI polish'
+          git push origin HEAD:main
