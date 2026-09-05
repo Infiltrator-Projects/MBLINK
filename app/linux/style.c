@@ -11,12 +11,13 @@ static const char mblink_css[] =
     "button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     "dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-connection-bar { background: #101318; border-color: #353a40; }"
+    ".link-connection-bar { background: #0e1115; border-color: #31363b; padding: 10px 12px; }"
+    ".link-device-row { min-height: 34px; }"
     ".link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }"
     ".link-brand-subtitle { color: #aeb6bd; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-brand-version { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-section-summary { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
+    ".link-section-summary { color: #98a1a9; font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-content-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-content-summary { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
     ".link-card { background: linear-gradient(135deg,#171b20,#0d1014); border-color: #353a40; }"
@@ -28,19 +29,23 @@ static const char mblink_css[] =
     ".link-status-chip { border-color: #3b4147; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
-    ".link-link-button { background: #00adef; color: #031018; border-color: #00adef; }"
-    ".link-link-button:hover { background: #33bdf2; border-color: #33bdf2; }"
+    ".link-toolbar-button, .link-save-session-button { min-height: 32px; padding: 4px 10px; font-size: 12px; }"
+    ".link-link-button { background: #00adef; color: #031018; border-color: #00adef; min-width: 82px; min-height: 32px; padding: 5px 14px; border-radius: 8px; font-size: 12px; }"
+    ".link-link-button:hover { background: #25b8f0; border-color: #25b8f0; }"
     ".link-save-session-button, .link-save-session-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-connection-status { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-title { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-description { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
-    ".link-nav-row:selected { background: rgba(0,173,239,0.16); border-color: rgba(0,173,239,0.58); }"
+    ".link-nav-icon { opacity: 0.92; margin-right: 2px; }"
+    ".link-nav-row:selected { background: rgba(0,173,239,0.075); border-color: rgba(0,173,239,0.48); }"
+    ".link-nav-row:selected .link-nav-icon { opacity: 1; }"
     ".link-nav-row:selected .link-section-title { color: #00adef; }"
-    ".link-nav-row:selected .link-section-summary { color: #82d8f7; }"
-    ".link-nav-row:nth-child(6) { margin-top: 14px; }"
-    ".link-status-online { background: rgba(0,173,239,0.12); border-color: rgba(0,173,239,0.52); color: #00adef; }"
-    ".link-toolbar-button:hover, .link-save-session-button:hover, .link-about-button:hover { border-color: rgba(0,173,239,0.42); }"
+    ".link-nav-row:selected .link-section-summary { color: #79cae8; }"
+    ".link-nav-row:nth-child(6) { margin-top: 18px; }"
+    ".link-status-online { background: rgba(0,173,239,0.10); border-color: rgba(0,173,239,0.46); color: #00adef; }"
+    ".link-status-offline { background: rgba(209,158,71,0.045); border-color: rgba(209,158,71,0.22); color: #c69a4c; }"
+    ".link-toolbar-button:hover, .link-save-session-button:hover, .link-about-button:hover { border-color: rgba(0,173,239,0.36); }"
     "checkbutton:checked { color: #00adef; }"
     ".state-warning { color: #d19e47; border-color: #72572f; }"
     ".state-success { color: #63ab7c; border-color: #365f45; }"
@@ -71,11 +76,11 @@ static const char mblink_metrics_css[] =
 
     ".mblink-settings-note { font-size: 12px; }"
     ".link-about-dialog { background: #050608; }"
-    ".link-about-dialog stackswitcher { margin: 8px 14px 12px 14px; }"
+    ".link-about-dialog stackswitcher { margin: 6px 12px 8px 12px; }"
     ".link-about-dialog stackswitcher button, .link-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
     ".link-about-dialog textview, .link-about-dialog textview text { font-weight: 400; }"
-    ".link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
+    ".link-about-dialog scrolledwindow { min-width: 460px; min-height: 260px; }";
 
 static bool register_one_project_font(FcConfig *config, const char *filename)
 {
@@ -117,7 +122,6 @@ bool mblink_linux_style_register_fonts(void)
     }
     return FcConfigBuildFonts(config) != FcFalse;
 }
-
 
 const char *mblink_linux_style_base_css(void)
 {
