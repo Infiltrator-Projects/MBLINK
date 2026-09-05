@@ -25,13 +25,8 @@ jobs:
 
           path = Path('tests/test_c207_obd_flow_replay.c')
           text = path.read_text()
-          marker = '''    /*
-           * The old MBLINK path jumped to the Mercedes extension here.  Current
-           * behaviour must attempt standard VIN and all three standard DTC modes
-           * first.  The captured VIN and stored-DTC framing are replayed below;
-           * pending remains an explicit NO DATA control and permanent mode uses the
-           * exact captured negative-response shape.
-           */
+          anchor = '''    CHECK(link_diagnostic_flow_next_action(&flow, 800U, &action) ==
+                LINK_DIAGNOSTIC_FLOW_RESULT_OK);
           '''
           insertion = '''    /*
            * LINK 0.15.2 reports the active ELM protocol after PID discovery.
@@ -64,11 +59,11 @@ jobs:
           CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
 
           '''
-          if insertion in text:
+          if 'CHECK(strcmp(action.command, "ATDPN") == 0);' in text:
               raise SystemExit('C207 protocol regression block already present')
-          if marker not in text:
-              raise SystemExit('C207 insertion marker not found')
-          path.write_text(text.replace(marker, insertion + marker, 1))
+          if anchor not in text:
+              raise SystemExit('C207 VIN action anchor not found')
+          path.write_text(text.replace(anchor, insertion + anchor, 1))
           PY
 
           rm .github/workflows/one-shot-c207-protocol-regression-0.7.176.yml
