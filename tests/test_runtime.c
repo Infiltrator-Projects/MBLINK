@@ -140,7 +140,14 @@ static int test_scheduler_fairness(void)
               &scheduler, &supported, 0U) == MBLINK_SCHEDULER_RESULT_OK);
     CHECK(scheduler.count == sizeof(expected));
 
-    for (size_t dispatch_count = 0U; dispatch_count < 16U; ++dispatch_count) {
+    /*
+     * Priority-aware LINK deliberately protects fast live work under overload.
+     * Fairness is now provided by deadline aging, so LOW jobs may take several
+     * of their own periods before they are promoted enough to run. Keep the
+     * test long enough to prove eventual service rather than requiring the old
+     * deadline-only ordering.
+     */
+    for (size_t dispatch_count = 0U; dispatch_count < 40U; ++dispatch_count) {
         CHECK(mblink_scheduler_next(&scheduler, now_ms, &dispatch) ==
               MBLINK_SCHEDULER_NEXT_READY);
         seen[dispatch.pid] = true;
