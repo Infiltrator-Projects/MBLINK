@@ -21,16 +21,16 @@ jobs:
 
       - name: Reapply source-only unified polling change
         shell: bash
+        env:
+          OLD_LINK: 6827152ee41faaddd9e79e5f181ae958601c909a
+          NEW_LINK: dd86d291505f6371fe72f6b37649c3516f7dbf50
         run: |
           set -euo pipefail
-          # The immediately preceding revision of this temporary workflow
-          # contains the already-validated source transformation. Reuse that
-          # exact script, but remove its CI-workflow rewrite and self-deletion;
-          # those are repository administration, not product code.
-          git show HEAD^:.github/workflows/one-shot-unified-live-polling.yml > "$RUNNER_TEMP/previous.yml"
+          git show HEAD^^:.github/workflows/one-shot-unified-live-polling.yml > "$RUNNER_TEMP/previous.yml"
           python3 - <<'PY'
           from pathlib import Path
-          text = Path(__import__('os').environ['RUNNER_TEMP'] + '/previous.yml').read_text()
+          import os
+          text = Path(os.environ['RUNNER_TEMP'] + '/previous.yml').read_text()
           marker = '      - name: Move recurring Mercedes live polling onto LINK scheduler\n'
           pos = text.index(marker)
           run_pos = text.index('        run: |\n', pos) + len('        run: |\n')
@@ -54,6 +54,6 @@ jobs:
               'git add src/link platform/apple/MBLinkDiagnosticsController.m \\\n  app/ios/MBLINK.xcodeproj/project.pbxproj\n')
           if '.github/workflows/ci.yml' in script or 'git rm .github/workflows/one-shot-unified-live-polling.yml' in script:
               raise SystemExit('Workflow rewrite was not fully removed')
-          Path(__import__('os').environ['RUNNER_TEMP'] + '/apply-source.sh').write_text(script)
+          Path(os.environ['RUNNER_TEMP'] + '/apply-source.sh').write_text(script)
           PY
           bash "$RUNNER_TEMP/apply-source.sh"
