@@ -80,7 +80,7 @@ static const char mblink_metrics_css[] =
     ".link-about-dialog stackswitcher button, .link-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
     ".link-about-dialog textview, .link-about-dialog textview text { font-weight: 400; }"
-    ".link-about-dialog scrolledwindow { min-width: 460px; min-height: 260px; }";
+    ".link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
 
 static bool register_one_project_font(FcConfig *config, const char *filename)
 {
