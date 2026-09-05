@@ -161,6 +161,36 @@ int main(void)
     CHECK(link_obd2_pid_definition(UINT8_C(0x01), UINT8_C(0xaa)) != NULL);
 
     /*
+     * LINK 0.15.2 reports the active ELM protocol after PID discovery.
+     * Replay that supplementary probe explicitly so this C207 regression
+     * follows the current front-half sequence without weakening the VIN,
+     * DTC or Mercedes-extension checks that follow.
+     */
+    CHECK(link_diagnostic_flow_next_action(&flow, 750U, &action) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(strcmp(action.command, "ATDP") == 0);
+    response = ok_response("AUTO, ISO 15765-4 (CAN 11/500)", false);
+    CHECK(link_diagnostic_flow_accept_response(
+              &flow, &response, 750U, &event) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_NONE);
+
+    CHECK(link_diagnostic_flow_next_action(&flow, 760U, &action) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(strcmp(action.command, "ATDPN") == 0);
+    response = ok_response("A6", false);
+    CHECK(link_diagnostic_flow_accept_response(
+              &flow, &response, 760U, &event) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(event.kind == LINK_DIAGNOSTIC_FLOW_EVENT_PROTOCOL_IDENTIFIED);
+    CHECK(event.protocol != NULL);
+    CHECK(event.protocol->family ==
+          LINK_ELM327_PROTOCOL_FAMILY_ISO_15765_4);
+    CHECK(event.protocol->bit_rate == UINT32_C(500000));
+    CHECK(event.protocol_was_automatic);
+    CHECK(flow.stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN);
+
+    /*
      * The old MBLINK path jumped to the Mercedes extension here.  Current
      * behaviour must attempt standard VIN and all three standard DTC modes
      * first.  The captured VIN and stored-DTC framing are replayed below;
