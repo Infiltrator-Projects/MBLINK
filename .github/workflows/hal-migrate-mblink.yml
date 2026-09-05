@@ -47,11 +47,48 @@ jobs:
       - name: Apply LINK ownership migration
         run: python3 .github/hal_migrate_mblink.py
 
+      - name: Wire shared session trace into Apple target
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  '\t\tA22100000000000000000016 /* link_units.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000016 /* link_units.c */; };\n',
+                  '\t\tA22100000000000000000016 /* link_units.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000016 /* link_units.c */; };\n'
+                  '\t\tA22100000000000000000017 /* link_session_trace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000017 /* link_session_trace.c */; };\n'
+              ),
+              (
+                  '\t\tA22000000000000000000016 /* link_units.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_units.c"; path = "../../src/link/src/core/units.c"; sourceTree = SOURCE_ROOT; };\n',
+                  '\t\tA22000000000000000000016 /* link_units.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_units.c"; path = "../../src/link/src/core/units.c"; sourceTree = SOURCE_ROOT; };\n'
+                  '\t\tA22000000000000000000017 /* link_session_trace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_session_trace.c"; path = "../../src/link/src/core/session_trace.c"; sourceTree = SOURCE_ROOT; };\n'
+              ),
+              (
+                  '\t\t\t\tA22000000000000000000016 /* link_units.c */,\n',
+                  '\t\t\t\tA22000000000000000000016 /* link_units.c */,\n'
+                  '\t\t\t\tA22000000000000000000017 /* link_session_trace.c */,\n'
+              ),
+              (
+                  '\t\t\t\tA22100000000000000000016 /* link_units.c in Sources */,\n',
+                  '\t\t\t\tA22100000000000000000016 /* link_units.c in Sources */,\n'
+                  '\t\t\t\tA22100000000000000000017 /* link_session_trace.c in Sources */,\n'
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'Xcode project anchor count {text.count(old)} for {old.strip()}')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Validate ownership boundaries
         shell: bash
         run: |
           set -euxo pipefail
           python3 -m py_compile .github/hal_migrate_mblink.py
+          rm -rf .github/__pycache__
           test "$(git -C src/link rev-parse HEAD)" = cb830ec2d04d11f97cf0a2a6dd7a29bae6c7a13b
           grep -Fq 'typedef LinkSessionTrace MblinkLinuxSessionTrace' app/linux/session_trace.h
           grep -Fq 'link_session_trace_record_graph' app/linux/session_trace.c
@@ -61,6 +98,8 @@ jobs:
           grep -Fq 'mergeStandardCapabilitiesFromDiagnosticFlow' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'typealias DiagnosticParameter = LinkDiagnosticParameter' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'LinkMetricTile(parameter: parameter)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq '../../src/link/src/core/session_trace.c' app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(grep -Fc 'link_session_trace.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
           test ! -e packaging/native-installer.sh
           grep -Fq 'src/link/packaging/native-product-installer.sh.in' scripts/build-native-installer.sh
           ! grep -Fq '0.14503773773020923' app/linux/main.c
@@ -114,6 +153,7 @@ jobs:
         run: |
           set -euxo pipefail
           rm -f .github/hal_migrate_mblink.py .github/workflows/hal-migrate-mblink.yml
+          rm -rf .github/__pycache__
           git add -A
           git diff --cached --check
           git commit --amend -m 'Consume shared LINK product behaviour'
