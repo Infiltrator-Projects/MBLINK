@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   migrate:
-    if: github.event.head_commit.message == 'Add quick-five LINK consumption helper'
+    if: github.event.head_commit.message == 'Fix quick-five LINK consumption helper'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -27,135 +27,10 @@ jobs:
           link_rev='e4bd1503afd14618b8a47196ae0dd25b46675ebb'
           git -C src/link fetch origin "$link_rev"
           git -C src/link checkout --detach "$link_rev"
-
           python3 - <<'PY'
-          from pathlib import Path
-
-          def replace(path, old, new, count=1):
-              p = Path(path)
-              text = p.read_text()
-              actual = text.count(old)
-              if actual != count:
-                  raise SystemExit(f"{path}: expected {count}, found {actual}")
-              p.write_text(text.replace(old, new, count))
-
-          controller = 'platform/apple/MBLinkDiagnosticsController.m'
-          replace(controller, '''- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
-{
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    LinkObd2UnitCode unit = LINK_OBD2_UNIT_NONE;
-    double display = value;
-    const char *label = "";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    if (link_parameter_obd2_expected_unit(pid, &unit) &&
-        link_units_convert_obd2(unit, value, system, &display, &label))
-        return display;
-    return value;
-}''', '''- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
-{
-    return [_shared displayValueForPID:pid canonicalValue:value];
-}''')
-          replace(controller, '''- (double)displayTemperatureCelsius:(double)celsius
-{
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    double display = celsius;
-    const char *label = "°C";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    if (link_units_convert_obd2(
-            LINK_OBD2_UNIT_CELSIUS, celsius, system, &display, &label))
-        return display;
-    return celsius;
-}''', '''- (double)displayTemperatureCelsius:(double)celsius
-{
-    return [_shared displayTemperatureCelsius:celsius];
-}''')
-          replace(controller, '''- (NSString *)displayTemperatureUnit
-{
-    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
-    double display = 0.0;
-    const char *label = "°C";
-    (void)link_measurement_system_from_key(
-        _shared.selectedMeasurementSystemKey.UTF8String, &system);
-    (void)link_units_convert_obd2(
-        LINK_OBD2_UNIT_CELSIUS, 0.0, system, &display, &label);
-    return label != NULL ? [NSString stringWithUTF8String:label] : @"°C";
-}''', '''- (NSString *)displayTemperatureUnit
-{
-    return _shared.displayTemperatureUnit;
-}''')
-          replace(controller, '''- (BOOL)supportsPID:(uint8_t)pid
-{
-    const LinkDiagnosticFlow *flow = [_shared diagnosticFlow];
-    return flow != NULL &&
-        link_obd2_pid_set_contains(&flow->supported_pids, pid);
-}''', '''- (BOOL)supportsPID:(uint8_t)pid
-{
-    return [_shared supportsPID:pid];
-}''')
-          replace(controller, '''    NSArray *liveResponders = [_cachedVehicleProfile[@"liveResponders"]
-        isKindOfClass:[NSArray class]]
-        ? _cachedVehicleProfile[@"liveResponders"] : nil;
-    if (liveResponders.count != 0U)
-        profile[@"liveResponders"] = liveResponders;
-''', '')
-
-          viewmodel = 'app/ios/MBLINK/ConnectionViewModel.swift'
-          replace(viewmodel, '''        let filename = "MBLINK-diagnostic-evidence-\(UUID().uuidString).csv"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        isPreparingCSV = true
-
-        Task { [weak self] in
-            do {
-                try await Task.detached(priority: .utility) {
-                    try data.write(to: url, options: .atomic)
-                }.value
-                guard let self else {
-                    try? FileManager.default.removeItem(at: url)
-                    return
-                }
-                self.clearPreparedExport()
-                self.csvExportURL = url
-            } catch {
-                try? FileManager.default.removeItem(at: url)
-            }
-            self?.isPreparingCSV = false
-        }''', '''        isPreparingCSV = true
-
-        Task { [weak self] in
-            do {
-                let url = try await LinkEvidenceExport.prepareTemporaryCSV(
-                    data, productName: "MBLINK")
-                guard let self else {
-                    LinkEvidenceExport.removeTemporaryFile(url)
-                    return
-                }
-                self.clearPreparedExport()
-                self.csvExportURL = url
-            } catch {
-                // Export remains unavailable; live diagnostics continue.
-            }
-            self?.isPreparingCSV = false
-        }''')
-          replace(viewmodel, '''    private func clearPreparedExport() {
-        if let url = csvExportURL { try? FileManager.default.removeItem(at: url) }
-        csvExportURL = nil
-    }''', '''    private func clearPreparedExport() {
-        LinkEvidenceExport.removeTemporaryFile(csvExportURL)
-        csvExportURL = nil
-    }''')
-
-          project = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
-          text = project.read_text()
-          old = 'b070ce488d99d3e7fb3faaadc4b1ecce66edf063'
-          new = 'e4bd1503afd14618b8a47196ae0dd25b46675ebb'
-          count = text.count(old)
-          if count != 4:
-              raise SystemExit(f'project.pbxproj: expected 4 LINK revision anchors, found {count}')
-          project.write_text(text.replace(old, new))
+          import base64
+          exec(base64.b64decode("CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKZGVmIHJlcGxhY2UocGF0aCwgb2xkLCBuZXcsIGNvdW50PTEpOgogICAgcCA9IFBhdGgocGF0aCkKICAgIHRleHQgPSBwLnJlYWRfdGV4dCgpCiAgICBhY3R1YWwgPSB0ZXh0LmNvdW50KG9sZCkKICAgIGlmIGFjdHVhbCAhPSBjb3VudDoKICAgICAgICByYWlzZSBTeXN0ZW1FeGl0KGYie3BhdGh9OiBleHBlY3RlZCB7Y291bnR9LCBmb3VuZCB7YWN0dWFsfSIpCiAgICBwLndyaXRlX3RleHQodGV4dC5yZXBsYWNlKG9sZCwgbmV3LCBjb3VudCkpCgpjb250cm9sbGVyID0gInBsYXRmb3JtL2FwcGxlL01CTGlua0RpYWdub3N0aWNzQ29udHJvbGxlci5tIgpyZXBsYWNlKGNvbnRyb2xsZXIsICcnJy0gKGRvdWJsZSlkaXNwbGF5VmFsdWVGb3JQSUQ6KHVpbnQ4X3QpcGlkIGNhbm9uaWNhbFZhbHVlOihkb3VibGUpdmFsdWUKewogICAgTGlua01lYXN1cmVtZW50U3lzdGVtIHN5c3RlbSA9IExJTktfTUVBU1VSRU1FTlRfU1lTVEVNX01FVFJJQzsKICAgIExpbmtPYmQyVW5pdENvZGUgdW5pdCA9IExJTktfT0JEMl9VTklUX05PTkU7CiAgICBkb3VibGUgZGlzcGxheSA9IHZhbHVlOwogICAgY29uc3QgY2hhciAqbGFiZWwgPSAiIjsKICAgICh2b2lkKWxpbmtfbWVhc3VyZW1lbnRfc3lzdGVtX2Zyb21fa2V5KAogICAgICAgIF9zaGFyZWQuc2VsZWN0ZWRNZWFzdXJlbWVudFN5c3RlbUtleS5VVEY4U3RyaW5nLCAmc3lzdGVtKTsKICAgIGlmIChsaW5rX3BhcmFtZXRlcl9vYmQyX2V4cGVjdGVkX3VuaXQocGlkLCAmdW5pdCkgJiYKICAgICAgICBsaW5rX3VuaXRzX2NvbnZlcnRfb2JkMih1bml0LCB2YWx1ZSwgc3lzdGVtLCAmZGlzcGxheSwgJmxhYmVsKSkKICAgICAgICByZXR1cm4gZGlzcGxheTsKICAgIHJldHVybiB2YWx1ZTsKfScnJywgJycnLSAoZG91YmxlKWRpc3BsYXlWYWx1ZUZvclBJRDoodWludDhfdClwaWQgY2Fub25pY2FsVmFsdWU6KGRvdWJsZSl2YWx1ZQp7CiAgICByZXR1cm4gW19zaGFyZWQgZGlzcGxheVZhbHVlRm9yUElEOnBpZCBjYW5vbmljYWxWYWx1ZTp2YWx1ZV07Cn0nJycpCnJlcGxhY2UoY29udHJvbGxlciwgJycnLSAoZG91YmxlKWRpc3BsYXlUZW1wZXJhdHVyZUNlbHNpdXM6KGRvdWJsZSljZWxzaXVzCnsKICAgIExpbmtNZWFzdXJlbWVudFN5c3RlbSBzeXN0ZW0gPSBMSU5LX01FQVNVUkVNRU5UX1NZU1RFTV9NRVRSSUM7CiAgICBkb3VibGUgZGlzcGxheSA9IGNlbHNpdXM7CiAgICBjb25zdCBjaGFyICpsYWJlbCA9ICLCsEMiOwogICAgKHZvaWQpbGlua19tZWFzdXJlbWVudF9zeXN0ZW1fZnJvbV9rZXkoCiAgICAgICAgX3NoYXJlZC5zZWxlY3RlZE1lYXN1cmVtZW50U3lzdGVtS2V5LlVURjhTdHJpbmcsICZzeXN0ZW0pOwogICAgaWYgKGxpbmtfdW5pdHNfY29udmVydF9vYmQyKAogICAgICAgICAgICBMSU5LX09CRDJfVU5JVF9DRUxTSVVTLCBjZWxzaXVzLCBzeXN0ZW0sICZkaXNwbGF5LCAmbGFiZWwpKQogICAgICAgIHJldHVybiBkaXNwbGF5OwogICAgcmV0dXJuIGNlbHNpdXM7Cn0nJycsICcnJy0gKGRvdWJsZSlkaXNwbGF5VGVtcGVyYXR1cmVDZWxzaXVzOihkb3VibGUpY2Vsc2l1cwp7CiAgICByZXR1cm4gW19zaGFyZWQgZGlzcGxheVRlbXBlcmF0dXJlQ2Vsc2l1czpjZWxzaXVzXTsKfScnJykKcmVwbGFjZShjb250cm9sbGVyLCAnJyctIChOU1N0cmluZyAqKWRpc3BsYXlUZW1wZXJhdHVyZVVuaXQKewogICAgTGlua01lYXN1cmVtZW50U3lzdGVtIHN5c3RlbSA9IExJTktfTUVBU1VSRU1FTlRfU1lTVEVNX01FVFJJQzsKICAgIGRvdWJsZSBkaXNwbGF5ID0gMC4wOwogICAgY29uc3QgY2hhciAqbGFiZWwgPSAiwrBDIjsKICAgICh2b2lkKWxpbmtfbWVhc3VyZW1lbnRfc3lzdGVtX2Zyb21fa2V5KAogICAgICAgIF9zaGFyZWQuc2VsZWN0ZWRNZWFzdXJlbWVudFN5c3RlbUtleS5VVEY4U3RyaW5nLCAmc3lzdGVtKTsKICAgICh2b2lkKWxpbmtfdW5pdHNfY29udmVydF9vYmQyKAogICAgICAgIExJTktfT0JEMl9VTklUX0NFTFNJVVMsIDAuMCwgc3lzdGVtLCAmZGlzcGxheSwgJmxhYmVsKTsKICAgIHJldHVybiBsYWJlbCAhPSBOVUxMID8gW05TU3RyaW5nIHN0cmluZ1dpdGhVVEY4U3RyaW5nOmxhYmVsXSA6IEAiwrBDIjsKfScnJywgJycnLSAoTlNTdHJpbmcgKilkaXNwbGF5VGVtcGVyYXR1cmVVbml0CnsKICAgIHJldHVybiBfc2hhcmVkLmRpc3BsYXlUZW1wZXJhdHVyZVVuaXQ7Cn0nJycpCnJlcGxhY2UoY29udHJvbGxlciwgJycnLSAoQk9PTClzdXBwb3J0c1BJRDoodWludDhfdClwaWQKewogICAgY29uc3QgTGlua0RpYWdub3N0aWNGbG93ICpmbG93ID0gW19zaGFyZWQgZGlhZ25vc3RpY0Zsb3ddOwogICAgcmV0dXJuIGZsb3cgIT0gTlVMTCAmJgogICAgICAgIGxpbmtfb2JkMl9waWRfc2V0X2NvbnRhaW5zKCZmbG93LT5zdXBwb3J0ZWRfcGlkcywgcGlkKTsKfScnJywgJycnLSAoQk9PTClzdXBwb3J0c1BJRDoodWludDhfdClwaWQKewogICAgcmV0dXJuIFtfc2hhcmVkIHN1cHBvcnRzUElEOnBpZF07Cn0nJycpCnJlcGxhY2UoY29udHJvbGxlciwgJycnICAgIE5TQXJyYXkgKmxpdmVSZXNwb25kZXJzID0gW19jYWNoZWRWZWhpY2xlUHJvZmlsZVtAImxpdmVSZXNwb25kZXJzIl0KICAgICAgICBpc0tpbmRPZkNsYXNzOltOU0FycmF5IGNsYXNzXV0KICAgICAgICA/IF9jYWNoZWRWZWhpY2xlUHJvZmlsZVtAImxpdmVSZXNwb25kZXJzIl0gOiBuaWw7CiAgICBpZiAobGl2ZVJlc3BvbmRlcnMuY291bnQgIT0gMFUpCiAgICAgICAgcHJvZmlsZVtAImxpdmVSZXNwb25kZXJzIl0gPSBsaXZlUmVzcG9uZGVyczsKJycnLCAnJykKCnZpZXdtb2RlbCA9ICJhcHAvaW9zL01CTElOSy9Db25uZWN0aW9uVmlld01vZGVsLnN3aWZ0IgpyZXBsYWNlKHZpZXdtb2RlbCwgJycnICAgICAgICBsZXQgZmlsZW5hbWUgPSAiTUJMSU5LLWRpYWdub3N0aWMtZXZpZGVuY2UtXFwoVVVJRCgpLnV1aWRTdHJpbmcpLmNzdiIKICAgICAgICBsZXQgdXJsID0gRmlsZU1hbmFnZXIuZGVmYXVsdC50ZW1wb3JhcnlEaXJlY3RvcnkuYXBwZW5kaW5nUGF0aENvbXBvbmVudChmaWxlbmFtZSkKICAgICAgICBpc1ByZXBhcmluZ0NTViA9IHRydWUKCiAgICAgICAgVGFzayB7IFt3ZWFrIHNlbGZdIGluCiAgICAgICAgICAgIGRvIHsKICAgICAgICAgICAgICAgIHRyeSBhd2FpdCBUYXNrLmRldGFjaGVkKHByaW9yaXR5OiAudXRpbGl0eSkgewogICAgICAgICAgICAgICAgICAgIHRyeSBkYXRhLndyaXRlKHRvOiB1cmwsIG9wdGlvbnM6IC5hdG9taWMpCiAgICAgICAgICAgICAgICB9LnZhbHVlCiAgICAgICAgICAgICAgICBndWFyZCBsZXQgc2VsZiBlbHNlIHsKICAgICAgICAgICAgICAgICAgICB0cnk/IEZpbGVNYW5hZ2VyLmRlZmF1bHQucmVtb3ZlSXRlbShhdDogdXJsKQogICAgICAgICAgICAgICAgICAgIHJldHVybgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgc2VsZi5jbGVhclByZXBhcmVkRXhwb3J0KCkKICAgICAgICAgICAgICAgIHNlbGYuY3N2RXhwb3J0VVJMID0gdXJsCiAgICAgICAgICAgIH0gY2F0Y2ggewogICAgICAgICAgICAgICAgdHJ5PyBGaWxlTWFuYWdlci5kZWZhdWx0LnJlbW92ZUl0ZW0oYXQ6IHVybCkKICAgICAgICAgICAgfQogICAgICAgICAgICBzZWxmPy5pc1ByZXBhcmluZ0NTViA9IGZhbHNlCiAgICAgICAgfScnJywgJycnICAgICAgICBpc1ByZXBhcmluZ0NTViA9IHRydWUKCiAgICAgICAgVGFzayB7IFt3ZWFrIHNlbGZdIGluCiAgICAgICAgICAgIGRvIHsKICAgICAgICAgICAgICAgIGxldCB1cmwgPSB0cnkgYXdhaXQgTGlua0V2aWRlbmNlRXhwb3J0LnByZXBhcmVUZW1wb3JhcnlDU1YoCiAgICAgICAgICAgICAgICAgICAgZGF0YSwgcHJvZHVjdE5hbWU6ICJNQkxJTksiKQogICAgICAgICAgICAgICAgZ3VhcmQgbGV0IHNlbGYgZWxzZSB7CiAgICAgICAgICAgICAgICAgICAgTGlua0V2aWRlbmNlRXhwb3J0LnJlbW92ZVRlbXBvcmFyeUZpbGUodXJsKQogICAgICAgICAgICAgICAgICAgIHJldHVybgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgc2VsZi5jbGVhclByZXBhcmVkRXhwb3J0KCkKICAgICAgICAgICAgICAgIHNlbGYuY3N2RXhwb3J0VVJMID0gdXJsCiAgICAgICAgICAgIH0gY2F0Y2ggewogICAgICAgICAgICAgICAgLy8gRXhwb3J0IHJlbWFpbnMgdW5hdmFpbGFibGU7IGxpdmUgZGlhZ25vc3RpY3MgY29udGludWUuCiAgICAgICAgICAgIH0KICAgICAgICAgICAgc2VsZj8uaXNQcmVwYXJpbmdDU1YgPSBmYWxzZQogICAgICAgIH0nJycpCnJlcGxhY2Uodmlld21vZGVsLCAnJycgICAgcHJpdmF0ZSBmdW5jIGNsZWFyUHJlcGFyZWRFeHBvcnQoKSB7CiAgICAgICAgaWYgbGV0IHVybCA9IGNzdkV4cG9ydFVSTCB7IHRyeT8gRmlsZU1hbmFnZXIuZGVmYXVsdC5yZW1vdmVJdGVtKGF0OiB1cmwpIH0KICAgICAgICBjc3ZFeHBvcnRVUkwgPSBuaWwKICAgIH0nJycsICcnJyAgICBwcml2YXRlIGZ1bmMgY2xlYXJQcmVwYXJlZEV4cG9ydCgpIHsKICAgICAgICBMaW5rRXZpZGVuY2VFeHBvcnQucmVtb3ZlVGVtcG9yYXJ5RmlsZShjc3ZFeHBvcnRVUkwpCiAgICAgICAgY3N2RXhwb3J0VVJMID0gbmlsCiAgICB9JycnKQoKcHJvamVjdCA9IFBhdGgoImFwcC9pb3MvTUJMSU5LLnhjb2RlcHJvai9wcm9qZWN0LnBieHByb2oiKQp0ZXh0ID0gcHJvamVjdC5yZWFkX3RleHQoKQpvbGQgPSAiYjA3MGNlNDg4ZDk5ZDNlN2ZiM2ZhYWFkYzRiMWVjY2U2NmVkZjA2MyIKbmV3ID0gImU0YmQxNTAzYWZkMTQ2MThiOGE0NzE5NmFlMGRkMjViNDY2NzVlYmIiCmFjdHVhbCA9IHRleHQuY291bnQob2xkKQppZiBhY3R1YWwgIT0gNDoKICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJwcm9qZWN0LnBieHByb2o6IGV4cGVjdGVkIDQgTElOSyByZXZpc2lvbiBhbmNob3JzLCBmb3VuZCB7YWN0dWFsfSIpCnByb2plY3Qud3JpdGVfdGV4dCh0ZXh0LnJlcGxhY2Uob2xkLCBuZXcpKQo="))
           PY
-
           git add src/link platform/apple/MBLinkDiagnosticsController.m app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK.xcodeproj/project.pbxproj
           git commit -m 'Consume five small LINK Apple boundaries'
       - name: Validate MBLINK core against new LINK pin
