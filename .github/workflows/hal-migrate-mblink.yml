@@ -1,0 +1,93 @@
+name: HAL one-shot MBLINK migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-migrate-mblink.yml
+      - .github/hal_migrate_mblink.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hal-one-shot-mblink-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out MBLINK recursively
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply LINK ownership migration
+        run: python3 .github/hal_migrate_mblink.py
+
+      - name: Validate ownership boundaries
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 -m py_compile .github/hal_migrate_mblink.py
+          test "$(git -C src/link rev-parse HEAD)" = e8121c5507a2df4df57bd0bf8bd5f1b236e79023
+          grep -Fq 'typedef LinkSessionTrace MblinkLinuxSessionTrace' app/linux/session_trace.h
+          grep -Fq 'link_session_trace_record_graph' app/linux/session_trace.c
+          grep -Fq 'link_units_convert_obd2_with_preferences' app/linux/main.c
+          grep -Fq 'link_discover_standard_uds29_target_at' src/mercedes/discover_plan.c
+          grep -Fq 'LinkVehicleProfileCachedPIDs' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'mergeStandardCapabilitiesFromDiagnosticFlow' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'typealias DiagnosticParameter = LinkDiagnosticParameter' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'LinkMetricTile(parameter: parameter)' app/ios/MBLINK/MBLINKApp.swift
+          test ! -e packaging/native-installer.sh
+          grep -Fq 'src/link/packaging/native-product-installer.sh.in' scripts/build-native-installer.sh
+          ! grep -Fq '0.14503773773020923' app/linux/main.c
+          ! grep -Fq '0.621371192237334' app/linux/main.c
+          ! grep -Fq '0.2641720523581484' app/linux/main.c
+          ! grep -Fq '0.2199692482990878' app/linux/main.c
+          ! grep -Fq '0.1322773573109265' app/linux/main.c
+          ! grep -Fq '235.214583' app/linux/main.c
+          ! grep -Fq '282.480936' app/linux/main.c
+          bash -n scripts/build-native-installer.sh
+
+      - name: Install Linux build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev
+
+      - name: Build and test MBLINK with Linux face
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build-hal-migration \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMBLINK_BUILD_LINUX_APP=ON \
+            -DBUILD_TESTING=ON
+          cmake --build build-hal-migration --parallel 2
+          ctest --test-dir build-hal-migration --output-on-failure --parallel 2
+
+      - name: Exercise shared native installer generator
+        shell: bash
+        run: |
+          set -euxo pipefail
+          scripts/build-native-installer.sh /tmp/MBLINK-native-migration.run
+          /tmp/MBLINK-native-migration.run --help >/dev/null
+          rm -f /tmp/MBLINK-native-migration.run
+
+      - name: Commit tested MBLINK migration and remove one-shot files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -f .github/hal_migrate_mblink.py .github/workflows/hal-migrate-mblink.yml
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Consume shared LINK product behaviour'
+          git push origin HEAD:main
