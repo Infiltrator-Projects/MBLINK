@@ -37,6 +37,12 @@ static const char mblink_css[] =
     ".link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-title { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-settings-description { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }"
+    ".mblink-settings-section { margin-top: 2px; }"
+    ".mblink-settings-row { padding: 10px 0; }"
+    ".mblink-settings-row dropdown { min-width: 210px; }"
+    ".mblink-settings-note { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-size: 11px; font-weight: 400; }";
+
+static const char mblink_metrics_css[] =
     ".link-nav-icon { opacity: 0.92; margin-right: 2px; }"
     ".link-nav-row:selected { background: rgba(0,173,239,0.075); border-color: rgba(0,173,239,0.48); }"
     ".link-nav-row:selected .link-nav-icon { opacity: 1; }"
@@ -49,12 +55,6 @@ static const char mblink_css[] =
     "checkbutton:checked { color: #00adef; }"
     ".state-warning { color: #d19e47; border-color: #72572f; }"
     ".state-success { color: #63ab7c; border-color: #365f45; }"
-    ".mblink-settings-section { margin-top: 2px; }"
-    ".mblink-settings-row { padding: 10px 0; }"
-    ".mblink-settings-row dropdown { min-width: 210px; }"
-    ".mblink-settings-note { color: #899198; font-family: \"MB Corpo S Title WEB\"; font-size: 11px; font-weight: 400; }";
-
-static const char mblink_metrics_css[] =
 
     ".link-titlebar { background: #202125; border-bottom: 1px solid #353a40; }"
     ".link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
