@@ -3000,6 +3000,7 @@ return [runtimeSafe copy];
 
 - (void)saveCurrentVehicleProfile
 {
+    /* LINK owns liveResponders; MBLINK deliberately does not copy or rewrite it. */
     if (_shared.isSimulated || self.mercedesVINText.length == 0U)
         return;
 
