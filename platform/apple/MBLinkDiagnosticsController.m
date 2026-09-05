@@ -855,6 +855,50 @@ static bool MBLinkSimulatorResponder(
 - (void)setSelectedLanguageTag:(NSString *)tag { [_shared setSelectedLanguageTag:tag]; }
 - (void)setSelectedMeasurementSystemKey:(NSString *)key { [_shared setSelectedMeasurementSystemKey:key]; }
 
+- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    LinkObd2UnitCode unit = LINK_OBD2_UNIT_NONE;
+    double display = value;
+    const char *label = "";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    if (link_parameter_obd2_expected_unit(pid, &unit) &&
+        link_units_convert_obd2(unit, value, system, &display, &label))
+        return display;
+    return value;
+}
+
+- (NSString *)displayUnitForPID:(uint8_t)pid
+{
+    return [_shared displayUnitForPID:pid];
+}
+
+- (double)displayTemperatureCelsius:(double)celsius
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    double display = celsius;
+    const char *label = "°C";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    if (link_units_convert_obd2(
+            LINK_OBD2_UNIT_CELSIUS, celsius, system, &display, &label))
+        return display;
+    return celsius;
+}
+
+- (NSString *)displayTemperatureUnit
+{
+    LinkMeasurementSystem system = LINK_MEASUREMENT_SYSTEM_METRIC;
+    double display = 0.0;
+    const char *label = "°C";
+    (void)link_measurement_system_from_key(
+        _shared.selectedMeasurementSystemKey.UTF8String, &system);
+    (void)link_units_convert_obd2(
+        LINK_OBD2_UNIT_CELSIUS, 0.0, system, &display, &label);
+    return label != NULL ? [NSString stringWithUTF8String:label] : @"°C";
+}
+
 - (void)start
 {
     [self resetMercedesState];

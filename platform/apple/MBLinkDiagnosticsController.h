@@ -110,6 +110,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)localizedTextForKey:(NSString *)key;
 - (void)setSelectedLanguageTag:(NSString *)tag;
 - (void)setSelectedMeasurementSystemKey:(NSString *)key;
+- (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
+    NS_SWIFT_NAME(displayValue(pid:canonicalValue:));
+- (NSString *)displayUnitForPID:(uint8_t)pid
+    NS_SWIFT_NAME(displayUnit(pid:));
+- (double)displayTemperatureCelsius:(double)celsius
+    NS_SWIFT_NAME(displayTemperature(celsius:));
+- (NSString *)displayTemperatureUnit
+    NS_SWIFT_NAME(displayTemperatureUnit());
 
 /**
  * Discover read-only Mercedes manufacturer data identifiers on one exact ECU

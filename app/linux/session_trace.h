@@ -16,8 +16,6 @@
 
 typedef LinkSessionTrace MblinkLinuxSessionTrace;
 
-extern const uint8_t
-    mblink_linux_graph_pids[MBLINK_LINUX_GRAPH_TRACE_COUNT];
 
 size_t mblink_linux_graph_trace_index(uint8_t pid);
 void mblink_linux_trace_reset_graph(MblinkLinuxSessionTrace *trace);

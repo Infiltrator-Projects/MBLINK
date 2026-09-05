@@ -5,31 +5,28 @@
 
 #include <string.h>
 
-const uint8_t mblink_linux_graph_pids[MBLINK_LINUX_GRAPH_TRACE_COUNT] = {
-    UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
-    UINT8_C(0x2f), UINT8_C(0x11), UINT8_C(0x46), UINT8_C(0x49)
-};
-
 static void ensure_graph_configuration(MblinkLinuxSessionTrace *trace)
 {
-    if (trace == NULL) return;
-    if (trace->graph_count == MBLINK_LINUX_GRAPH_TRACE_COUNT &&
-        memcmp(trace->graph_pids, mblink_linux_graph_pids,
-               MBLINK_LINUX_GRAPH_TRACE_COUNT) == 0) {
-        return;
-    }
-    memcpy(trace->graph_pids, mblink_linux_graph_pids,
-           MBLINK_LINUX_GRAPH_TRACE_COUNT);
-    trace->graph_count = MBLINK_LINUX_GRAPH_TRACE_COUNT;
+    size_t graph_count = 0U;
+    const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
+    if (trace == NULL || graph_pids == NULL ||
+        graph_count > LINK_SESSION_TRACE_MAX_GRAPHS) return;
+    if (trace->graph_count == graph_count &&
+        memcmp(trace->graph_pids, graph_pids, graph_count) == 0) return;
+    memcpy(trace->graph_pids, graph_pids, graph_count);
+    trace->graph_count = graph_count;
 }
 
 size_t mblink_linux_graph_trace_index(uint8_t pid)
 {
+    size_t graph_count = 0U;
+    const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
     size_t index;
-    for (index = 0U; index < MBLINK_LINUX_GRAPH_TRACE_COUNT; ++index) {
-        if (mblink_linux_graph_pids[index] == pid) return index;
+    if (graph_pids == NULL) return graph_count;
+    for (index = 0U; index < graph_count; ++index) {
+        if (graph_pids[index] == pid) return index;
     }
-    return MBLINK_LINUX_GRAPH_TRACE_COUNT;
+    return graph_count;
 }
 
 void mblink_linux_trace_reset_graph(MblinkLinuxSessionTrace *trace)

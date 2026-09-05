@@ -4,19 +4,6 @@ import Foundation
 import UIKit
 
 
-enum MBLINKUnitProfile: String, CaseIterable, Identifiable {
-    case metric
-    case usCustomary = "us"
-
-    var id: String { rawValue }
-    var displayName: String {
-        switch self {
-        case .metric: return "Metric"
-        case .usCustomary: return "US customary"
-        }
-    }
-}
-
 typealias DiagnosticParameter = LinkDiagnosticParameter
 
 typealias DiagnosticModule = LinkDiagnosticModule
@@ -84,17 +71,6 @@ struct MercedesVehicleIdentity: Equatable {
     let country: String?
     let steering: String?
     let serialNumber: String?
-}
-
-private func mblinkLocalized(_ key: String) -> String {
-    let stored = UserDefaults.standard.string(
-        forKey: "link.displayLanguage") ?? "en-AU"
-    let language = MBInterfaceLanguage.canonical(stored)
-    guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
-          let bundle = Bundle(path: path) else {
-        return key
-    }
-    return bundle.localizedString(forKey: key, value: key, table: nil)
 }
 
 @MainActor
@@ -804,10 +780,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
     }
 
-    private var unitProfile: MBLINKUnitProfile {
-        controller.selectedMeasurementSystemKey == "us-customary"
-            ? .usCustomary : .metric
-    }
 
     private func migrateLegacySharedSettings() {
         let defaults = UserDefaults.standard
@@ -821,7 +793,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         if defaults.object(forKey: "link.measurementSystem") == nil,
            let legacy = defaults.string(forKey: "mblink.units") {
             controller.setSelectedMeasurementSystemKey(
-                legacy == MBLINKUnitProfile.usCustomary.rawValue
+                legacy == "us"
                     ? "us-customary" : "metric")
         }
     }
@@ -907,62 +879,30 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         codes.map { resolveFault($0, state: state) }
     }
 
-    private func displayScalar(
-        definition: UnsafePointer<MblinkParameterDefinition>,
-        rawValue: Double
-    ) -> Double {
-        guard unitProfile == .usCustomary else { return rawValue }
-        switch string(from: definition.pointee.suffix) {
-        case " °C": return rawValue * 9.0 / 5.0 + 32.0
-        case " km/h": return rawValue * 0.621371192237334
-        case " kPa": return rawValue * 0.14503773773020923
-        case " L/h": return rawValue * 0.2641720523581484
-        default: return rawValue
-        }
-    }
+    private func displayScalar(pid: UInt8, rawValue: Double) -> Double {
+    controller.displayValue(pid: pid, canonicalValue: rawValue)
+}
 
-    private func displaySuffix(
-        definition: UnsafePointer<MblinkParameterDefinition>
-    ) -> String {
-        guard unitProfile == .usCustomary else { return string(from: definition.pointee.suffix) }
-        switch string(from: definition.pointee.suffix) {
-        case " °C": return " °F"
-        case " km/h": return " mph"
-        case " kPa": return " psi"
-        case " L/h": return " US gal/h"
-        default: return string(from: definition.pointee.suffix)
-        }
-    }
+private func displaySuffix(
+    pid: UInt8,
+    definition: UnsafePointer<MblinkParameterDefinition>
+) -> String {
+    let unit = controller.displayUnit(pid: pid)
+    if !unit.isEmpty { return " \(unit)" }
+    return string(from: definition.pointee.suffix)
+}
 
-    private func formattedValue(
-        definition: UnsafePointer<MblinkParameterDefinition>,
-        value: Double?
-    ) -> String {
-        guard let value else { return "N/A" }
-        if unitProfile == .usCustomary {
-            let displayed = displayScalar(definition: definition, rawValue: value)
-            let suffix = displaySuffix(definition: definition)
-            switch suffix {
-            case " °F", " mph": return String(format: "%.1f%@", displayed, suffix)
-            case " psi":
-                return abs(displayed) < 10.0
-                    ? String(format: "%.2f%@", displayed, suffix)
-                    : String(format: "%.1f%@", displayed, suffix)
-            case " US gal/h": return String(format: "%.2f%@", displayed, suffix)
-            default: break
-            }
-        }
-        var buffer = [CChar](repeating: 0, count: 96)
-        let success = buffer.withUnsafeMutableBufferPointer { storage in
-            mblink_parameter_format_value(definition, true, value,
-                                          storage.baseAddress, storage.count)
-        }
-        guard success else { return "N/A" }
-        return buffer.withUnsafeBufferPointer { storage in
-            guard let baseAddress = storage.baseAddress else { return "N/A" }
-            return String(cString: baseAddress)
-        }
-    }
+private func formattedValue(
+    pid: UInt8,
+    definition: UnsafePointer<MblinkParameterDefinition>,
+    value: Double?
+) -> String {
+    guard let value else { return "N/A" }
+    let displayed = displayScalar(pid: pid, rawValue: value)
+    let suffix = displaySuffix(pid: pid, definition: definition)
+    let places = Int(definition.pointee.decimal_places)
+    return String(format: "%.*f%@", places, displayed, suffix)
+}
 
     private func loadDiagnosticParameters(
         responderCANIdentifier: UInt32? = nil,
@@ -1020,10 +960,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             if let scalarDefinition {
                 title = string(from: scalarDefinition.pointee.name)
                 shortName = string(from: scalarDefinition.pointee.short_name)
-                suffix = displaySuffix(definition: scalarDefinition)
-                history = rawHistory.map { displayScalar(definition: scalarDefinition, rawValue: $0) }
-                value = rawValue.map { displayScalar(definition: scalarDefinition, rawValue: $0) }
-                formatted = formattedValue(definition: scalarDefinition, value: rawValue)
+                suffix = displaySuffix(pid: pid, definition: scalarDefinition)
+                history = rawHistory.map { displayScalar(pid: pid, rawValue: $0) }
+                value = rawValue.map { displayScalar(pid: pid, rawValue: $0) }
+                formatted = formattedValue(pid: pid, definition: scalarDefinition, value: rawValue)
             } else {
                 title = string(from: catalogue.name)
                 shortName = String(format: "PID %02X", pid)
@@ -1313,15 +1253,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                         rawHex: rli30.rawHex, quality: dasQuality)
 
                 let celsius = Double(b[11]) - 50.0
-                let displayedValue: Double
-                let temperatureSuffix: String
-                if unitProfile == .usCustomary {
-                    displayedValue = celsius * 9.0 / 5.0 + 32.0
-                    temperatureSuffix = " °F"
-                } else {
-                    displayedValue = celsius
-                    temperatureSuffix = " °C"
-                }
+                let displayedValue = controller.displayTemperature(celsius: celsius)
+                let temperatureSuffix = " " + controller.displayTemperatureUnit()
                 addNumeric(id: "mercedes.transmission.oil_temperature",
                            identifier: 0x30, shortName: "ATF",
                            title: "Transmission oil temperature",

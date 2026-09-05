@@ -230,18 +230,14 @@ static bool effective_polling_enabled(
 
 static void initialise_polling_policy(MblinkLinuxContext *context)
 {
-    static const uint8_t default_pids[] = {
-        UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05), UINT8_C(0x23),
-        UINT8_C(0x11), UINT8_C(0x49), UINT8_C(0x4a), UINT8_C(0x46),
-        UINT8_C(0x2f)
-    };
+    size_t count = 0U;
+    const uint8_t *default_pids = link_scheduler_default_obd2_pids(&count);
     size_t index;
     if (context == NULL) return;
     memset(context->polling_enabled, 0, sizeof(context->polling_enabled));
-    for (index = 0U;
-         index < sizeof(default_pids) / sizeof(default_pids[0]); ++index) {
+    if (default_pids == NULL) return;
+    for (index = 0U; index < count; ++index)
         context->polling_enabled[default_pids[index]] = true;
-    }
 }
 
 static bool mblink_polling_enabled(uint8_t pid, void *opaque)
@@ -1897,7 +1893,7 @@ static void append_graphs(
         context->diagnostic_ready ? "state-success" : "state-warning");
 
     for (index = 0U; index < MBLINK_LINUX_GRAPH_TRACE_COUNT; ++index) {
-        const uint8_t pid = mblink_linux_graph_pids[index];
+        const uint8_t pid = context->session_trace.graph_pids[index];
         const size_t count =
             context->session_trace.graph_history_count[index];
         const MblinkObd2PidDefinition *definition;
