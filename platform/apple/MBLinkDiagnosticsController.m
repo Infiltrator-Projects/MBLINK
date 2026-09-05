@@ -80,6 +80,8 @@ static const uint32_t MBLinkScheduledTransmissionLiveJobToken =
     UINT32_C(0x4D420001);
 static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
     UINT32_C(750);
+static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =
+    @"mblink.disabledManufacturerLivePolling.v1";
 
 typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     MBLinkScheduledRestoreNone = 0,
@@ -1591,6 +1593,16 @@ return [runtimeSafe copy];
 
     NSString *transmissionModule =
         [self automaticTransmissionTemperatureModuleIdentifier];
+    if (![self manufacturerLivePollingEnabledForModuleIdentifier:
+            transmissionModule]) {
+        _scheduledManufacturerJobActive = NO;
+        if (_scheduledManufacturerJobRegistered) {
+            (void)[_shared setLiveManufacturerJobEnabled:NO
+                token:MBLinkScheduledTransmissionLiveJobToken];
+        }
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        return;
+    }
     BOOL shouldEnable = NO;
     if (transmissionModule.length != 0U) {
         const MblinkMercedesModuleScanEntry *module =
@@ -1602,7 +1614,10 @@ return [runtimeSafe copy];
             NSArray<NSNumber *> *candidates =
                 [self runtimeCandidateIdentifiersForModule:module
                                                  identifier:transmissionModule];
-            shouldEnable = runtime.count != 0U || candidates.count != 0U;
+            shouldEnable =
+                (runtime.count != 0U || candidates.count != 0U) &&
+                [self manufacturerLivePollingEnabledForModuleIdentifier:
+                    transmissionModule];
         }
     }
 
@@ -1732,6 +1747,56 @@ return [runtimeSafe copy];
     NSArray<MBLinkMercedesDataSnapshot *> *values =
         _manufacturerDataByModule[identifier];
     return values != nil ? [values copy] : @[];
+}
+
+
+- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:
+    (NSString *)identifier
+{
+    if (identifier.length == 0U) return NO;
+    NSString *scheduledModule =
+        [self automaticTransmissionTemperatureModuleIdentifier];
+    if (scheduledModule.length == 0U ||
+        ![scheduledModule isEqualToString:identifier]) return NO;
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    if (module == NULL) return NO;
+    NSArray<NSNumber *> *runtime =
+        [self runtimeManufacturerDataIdentifiersForModule:module
+                                               identifier:identifier];
+    NSArray<NSNumber *> *candidates =
+        [self runtimeCandidateIdentifiersForModule:module
+                                         identifier:identifier];
+    return runtime.count != 0U || candidates.count != 0U;
+}
+
+- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
+    (NSString *)identifier
+{
+    if (identifier.length == 0U) return NO;
+    NSArray<NSString *> *disabled =
+        [[NSUserDefaults standardUserDefaults]
+            stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
+    return disabled == nil || ![disabled containsObject:identifier];
+}
+
+- (void)setManufacturerLivePollingEnabled:(BOOL)enabled
+                       forModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U ||
+        ![self manufacturerLivePollingSupportedForModuleIdentifier:identifier]) return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSArray<NSString *> *stored =
+        [defaults stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
+    NSMutableSet<NSString *> *disabled =
+        [NSMutableSet setWithArray:stored != nil ? stored : @[]];
+    if (enabled) [disabled removeObject:identifier];
+    else [disabled addObject:identifier];
+    [defaults setObject:[[disabled allObjects]
+        sortedArrayUsingSelector:@selector(compare:)]
+             forKey:MBLinkDisabledManufacturerPollingDefaultsKey];
+    [self updateScheduledManufacturerLiveJob];
+    [self notifyDelegate];
 }
 
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier

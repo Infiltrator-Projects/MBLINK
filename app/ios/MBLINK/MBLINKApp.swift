@@ -1627,6 +1627,24 @@ private struct MBModuleDetailView: View {
             title: "Factory data",
             kicker: factoryDataKicker(module))
 
+        if connection.manufacturerLivePollingSupported(moduleID: module.id) {
+            MBPanel {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(
+                        "Poll live factory data",
+                        isOn: Binding(
+                            get: { connection.manufacturerLivePollingEnabled(moduleID: module.id) },
+                            set: { connection.setManufacturerLivePolling($0, moduleID: module.id) }))
+                        .font(MBTypography.subheadlineBold)
+                        .tint(MBBrand.success)
+                    Text("Only runtime-safe values are queued. Turning this off removes this module recurring Mercedes job from LINK adapter schedule, so it consumes no recurring polling bandwidth.")
+                        .font(MBTypography.caption)
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+
         if scanningThisModule {
             MBPanel {
                 VStack(alignment: .leading, spacing: 9) {

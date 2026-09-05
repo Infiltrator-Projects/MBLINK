@@ -575,6 +575,22 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         refresh()
     }
 
+    func manufacturerLivePollingSupported(moduleID: String) -> Bool {
+        controller.manufacturerLivePollingSupported(
+            forModuleIdentifier: moduleID)
+    }
+
+    func manufacturerLivePollingEnabled(moduleID: String) -> Bool {
+        controller.manufacturerLivePollingEnabled(
+            forModuleIdentifier: moduleID)
+    }
+
+    func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {
+        controller.setManufacturerLivePollingEnabled(
+            enabled, forModuleIdentifier: moduleID)
+        refresh()
+    }
+
     func toggleFavourite(stableKey: String) {
         guard let pid = pidForStableKey(stableKey) else { return }
         controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)

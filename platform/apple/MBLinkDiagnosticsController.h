@@ -129,6 +129,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
 
+- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
+- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;
+- (void)setManufacturerLivePollingEnabled:(BOOL)enabled
+                       forModuleIdentifier:(NSString *)identifier;
+
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                                       limit:(NSUInteger)limit;
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
