@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot apply Mercedes cousin UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Stage Mercedes cousin UI application'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply staged cockpit, graph and metallic styling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main = Path('app/linux/main.c')
+          text = main.read_text()
+          dash = Path('tools/cousin-dashboard.inc').read_text().rstrip() + '\n\n'
+          graph = Path('tools/cousin-graphs.inc').read_text().rstrip() + '\n\n'
+
+          dash_pat = re.compile(r'static void append_dashboard\(GtkWidget \*body, const MblinkLinuxContext \*context\)\n\{.*?\n\}\n\nstatic void append_graphs\(', re.S)
+          m = dash_pat.search(text)
+          if not m:
+              raise SystemExit('append_dashboard block not found')
+          text = text[:m.start()] + dash + 'static void append_graphs(' + text[m.end():]
+
+          graph_pat = re.compile(r'static void append_graphs\(\n    GtkWidget \*body,\n    const MblinkLinuxContext \*context\)\n\{.*?\n\}\n\nstatic size_t live_sample_count', re.S)
+          m = graph_pat.search(text)
+          if not m:
+              raise SystemExit('append_graphs block not found')
+          text = text[:m.start()] + graph + 'static size_t live_sample_count' + text[m.end():]
+          main.write_text(text)
+
+          style = Path('app/linux/style.c')
+          css = style.read_text()
+          cousin = Path('tools/cousin-css.inc').read_text()
+          marker = '    ".mblink-settings-note { font-size: 12px; }"\n'
+          if marker not in css:
+              raise SystemExit('style insertion marker not found')
+          if '.mblink-cockpit-card {' not in css:
+              css = css.replace(marker, cousin + '\n' + marker, 1)
+          style.write_text(css)
+          PY
+
+          rm tools/cousin-dashboard.inc tools/cousin-graphs.inc tools/cousin-css.inc
+          grep -Fq 'LIVE COCKPIT' app/linux/main.c
+          grep -Fq 'mblink_cockpit_gauge_draw' app/linux/main.c
+          grep -Fq 'Instrument-panel telemetry history' app/linux/main.c
+          grep -Fq '.mblink-cockpit-card {' app/linux/style.c
+          grep -Fq '.mblink-trace-card {' app/linux/style.c
+
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add app/linux/main.c app/linux/style.c tools/cousin-dashboard.inc tools/cousin-graphs.inc tools/cousin-css.inc
+          git commit -m 'Polish Linux Dashboard and Graph as Mercedes cousin'
+          git push origin HEAD:main
