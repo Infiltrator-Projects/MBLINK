@@ -121,11 +121,11 @@ endif()
 add_subdirectory("${MBLINK_LINK_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/link" EXCLUDE_FROM_ALL)
 if(TARGET link-core)
     target_compile_definitions(link-core PRIVATE
-        MBLINK_VERSION="${PROJECT_VERSION}"
-        MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
+        LINK_TELEMETRY_PRODUCT_VERSION="${PROJECT_VERSION}"
+        LINK_TELEMETRY_PRODUCT_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
     if(MBLINK_SOURCE_REVISION)
         target_compile_definitions(link-core PRIVATE
-            MBLINK_BUILD_REVISION="${MBLINK_SOURCE_REVISION}")
+            LINK_TELEMETRY_PRODUCT_BUILD_REVISION="${MBLINK_SOURCE_REVISION}")
     endif()
 endif()
 add_library(mblink STATIC

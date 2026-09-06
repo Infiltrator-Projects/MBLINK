@@ -2327,35 +2327,10 @@ private struct MBDashboardView: View {
             set: { dashboardModeRaw = $0.rawValue })
     }
 
-    private let defaultKeys = [
-        "obd2.engine.rpm", "obd2.vehicle.speed",
-        "mercedes.transmission.actual_gear",
-        "mercedes.transmission.oil_temperature",
-        "obd2.engine.coolant", "obd2.diesel.rail_pressure",
-        "obd2.fuel.tank_level", "obd2.dpf.bank1_delta_pressure",
-        "obd2.aftertreatment.egt_b1s1"
-    ]
-
     private var displayed: [DiagnosticParameter] {
-        let available = connection.dashboardParameters.filter {
+        connection.dashboardParameters.filter {
             $0.pollingEnabled && $0.isAvailable
         }
-        let transmissionPriority = [
-            available.first { $0.id == "mercedes.transmission.actual_gear" },
-            available.first { $0.id == "mercedes.transmission.oil_temperature" }
-        ].compactMap { $0 }
-        let preferred = defaultKeys.compactMap { key in
-            available.first { $0.id == key }
-        }
-        if !preferred.isEmpty { return preferred }
-
-        var fallback = Array(available.prefix(
-            max(0, 6 - transmissionPriority.count)))
-        for parameter in transmissionPriority.reversed()
-            where !fallback.contains(where: { $0.id == parameter.id }) {
-            fallback.insert(parameter, at: 0)
-        }
-        return fallback
     }
 
     var body: some View {
@@ -2958,6 +2933,33 @@ private struct MBSettingsView: View {
                             .tint(MBBrand.silverBright)
                         }
                     }
+
+                    MBPanel {
+                        NavigationLink {
+                            MBDashboardSelectionView()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName:
+                                    "gauge.with.dots.needle.67percent")
+                                    .font(MBTypography.title3)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Dashboard measurements")
+                                        .font(MBTypography.headline)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text("Choose supported live values")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(MBTypography.captionBold)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(16)
             }
@@ -2973,6 +2975,62 @@ private struct MBSettingsView: View {
                 for: connection.selectedLanguageID)
         }
         return connection.languageNames[index]
+    }
+}
+
+private struct MBDashboardSelectionView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    private var parameters: [DiagnosticParameter] {
+        connection.diagnosticParameters.filter(\.vehicleSupported)
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                MBPanel {
+                    if parameters.isEmpty {
+                        Text(
+                            "Connect once to choose measurements supported by this vehicle.")
+                            .font(MBTypography.subheadline)
+                            .foregroundStyle(MBBrand.silver)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(parameters) { parameter in
+                                Button {
+                                    connection.toggleDashboard(parameter)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(parameter.title)
+                                                .font(MBTypography.subheadline)
+                                                .foregroundStyle(MBBrand.silverBright)
+                                            Text(parameter.shortName)
+                                                .font(MBTypography.caption)
+                                                .foregroundStyle(MBBrand.muted)
+                                        }
+                                        Spacer()
+                                        Image(systemName:
+                                            connection.dashboardSelected(parameter)
+                                                ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(MBBrand.silverBright)
+                                    }
+                                    .padding(.vertical, 10)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                if parameter.id != parameters.last?.id {
+                                    Divider().overlay(MBBrand.muted.opacity(0.35))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Dashboard measurements")
     }
 }
 

@@ -73,10 +73,8 @@ struct MercedesVehicleIdentity: Equatable {
 }
 
 @MainActor
-final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsControllerDelegate {
-    @Published private(set) var statusText = "Idle"
-    @Published private(set) var peripheralName = "No adapter"
-    @Published private(set) var adapterIdentifier = "Unknown"
+final class ConnectionViewModel: LinkStandardProductViewModel,
+    MBLinkDiagnosticsControllerDelegate {
     @Published private(set) var mercedesProbeStatusText = "Not attempted"
     @Published private(set) var mercedesProbeEndpointText = "Source-corroborated endpoint not selected"
     @Published private(set) var mercedesVINText = "Not captured"
@@ -87,60 +85,26 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     @Published private(set) var mercedesUDSFaultStatusText = "Not scanned"
     @Published private(set) var mercedesUDSFaults = [String]()
     @Published private(set) var vehicleProfileStatusText = "Waiting for VIN"
-    @Published private(set) var faultScanStatusText = "Not scanned"
-    @Published private(set) var storedDTCs = [String]()
-    @Published private(set) var pendingDTCs = [String]()
-    @Published private(set) var permanentDTCs = [String]()
     @Published private(set) var storedFaults = [DiagnosticFault]()
     @Published private(set) var pendingFaults = [DiagnosticFault]()
     @Published private(set) var permanentFaults = [DiagnosticFault]()
-    @Published private(set) var readinessStatusText = "Not collected"
-    @Published private(set) var readinessMonitorStatus = [String]()
-    @Published private(set) var freezeFrameContext = [String]()
-    @Published private(set) var diagnosticCapabilityText = "Unknown / probing"
-    @Published private(set) var diagnosticCapabilityDetailText = ""
-    @Published private(set) var standardResponderSummary = "0 physical responders"
-    @Published private(set) var supportedPIDSummary = "0 advertised PIDs"
-    @Published private(set) var standardVINText = "Unavailable / not yet read"
-    @Published private(set) var standardLiveValueRows = [String]()
-    @Published private(set) var isActive = false
-    @Published private(set) var isReady = false
-    @Published private(set) var isSimulationActive = false
     @Published private(set) var connectionAlertText: String?
 
-    @Published private(set) var diagnosticParameters = [DiagnosticParameter]()
-    @Published private(set) var dashboardParameters = [DiagnosticParameter]()
     @Published private(set) var diagnosticModules = [DiagnosticModule]()
     @Published private(set) var pidConfigurationModules = [DiagnosticModule]()
     @Published private(set) var pidConfigurationSourceText =
         "Connect once to learn which PIDs each controller supports"
-    @Published private(set) var savedVehicleProfiles = [SavedVehicleProfileSummary]()
-    @Published private(set) var selectedVehicleVIN: String?
     @Published private(set) var manufacturerDataScanActive = false
     @Published private(set) var manufacturerDataScanStatusText = "Not scanned"
     @Published private(set) var manufacturerDataScanModuleID: String?
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var mercedesNativeDataIdentities = [MercedesNativeDataIdentity]()
-    @Published private(set) var recordedSampleCount = 0
-    @Published private(set) var csvExportURL: URL?
-    @Published private(set) var isPreparingCSV = false
-    @Published private(set) var languageTags = [String]()
-    @Published private(set) var languageNames = [String]()
-    @Published private(set) var selectedLanguageID = "en-AU"
-    @Published private(set) var measurementKeys = [String]()
-    @Published private(set) var measurementNames = [String]()
-    @Published private(set) var selectedMeasurementID = "metric"
-
-    private let controller = MBLinkDiagnosticsController()
-    private let vehicleProfileStore = LinkVehicleProfileStore(
-        productNamespace: "mblink",
-        legacyProfileKey: "mblink.vehicleProfiles.v1",
-        legacySelectedVINKey: "mblink.selectedVehicleVIN.v1",
-        legacyAdapterMappingKey: "mblink.adapterPeripheralByVehicle.v1")
-    private let pidSelectionStore = LinkPIDSelectionStore(
-        productNamespace: "mblink",
-        legacyGlobalKey: "mblink.polling.enabledStableKeys.v2",
-        legacyVehicleKey: "mblink.pidSelectionsByVehicle.v1")
+    private var controller: MBLinkDiagnosticsController {
+        productController as! MBLinkDiagnosticsController
+    }
+    private var pidSelectionStore: LinkPIDSelectionStore {
+        pollingSelectionStore
+    }
     private var lastConnectionAlertText: String?
     private var manufacturerNumericHistory = [String: [Double]]()
     private var manufacturerLastRawByParameter = [String: String]()
@@ -204,65 +168,57 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     override init() {
-        super.init()
+        let controller = MBLinkDiagnosticsController()
+        let version = mblink_version().map { String(cString: $0) } ?? "Unknown"
+        super.init(
+            controller: controller,
+            configuration: LinkStandardProductConfiguration(
+                productName: "MBLINK",
+                productNamespace: "mblink",
+                manufacturerName: "Mercedes-Benz",
+                vehicleName: "Mercedes-Benz vehicle",
+                versionText: version,
+                legacyProfileKey: "mblink.vehicleProfiles.v1",
+                legacySelectedVINKey: "mblink.selectedVehicleVIN.v1",
+                legacyAdapterMappingKey:
+                    "mblink.adapterPeripheralByVehicle.v1",
+                dashboardSelectionNamespace: "mblink-dashboard",
+                pollingSelectionNamespace: "mblink",
+                legacyPollingGlobalKey:
+                    "mblink.polling.enabledStableKeys.v2",
+                legacyPollingVehicleKey:
+                    "mblink.pidSelectionsByVehicle.v1",
+                seedDefaultPollingSelection: false,
+                defaultDashboardStableKeys: [
+                    "obd2.engine.rpm", "obd2.vehicle.speed",
+                    "obd2.engine.coolant", "obd2.diesel.rail_pressure",
+                    "obd2.fuel.tank_level"
+                ],
+                standardPIDStableKey: { pid in
+                    if let definition = mblink_parameter_obd2_definition(pid),
+                       let key = definition.pointee.stable_key {
+                        let value = String(cString: key)
+                        if !value.isEmpty { return value }
+                    }
+                    return String(format: "sae.obd2.mode01.%02X", pid)
+                }))
         migrateLegacySharedSettings()
-        selectedVehicleVIN = vehicleProfileStore.selectedVehicleVIN
         applyStoredPollingPolicy()
         controller.delegate = self
         mercedesTargetSignals = loadMercedesTargetSignals()
         mercedesNativeDataIdentities = loadMercedesNativeDataIdentities()
-        refresh()
+        refreshStandardState()
 #if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1" {
-            isSimulationActive = true
-            controller.startSimulated()
+            startSimulatedDiagnostics()
         }
 #endif
     }
 
-    func connect() {
-        clearPreparedExport()
-        if isActive { return }
+    override func connect() {
         connectionAlertText = nil
         lastConnectionAlertText = nil
-
-        let currentVehicleText: String
-        if let identity = vehicleIdentity,
-           let model = identity.model, !model.isEmpty {
-            currentVehicleText = "\(model) · \(identity.vin)"
-        } else if let vin = selectedVehicleVIN {
-            currentVehicleText = vin
-        } else {
-            currentVehicleText = "No saved vehicle loaded"
-        }
-
-        LinkConnectionPresentation.presentPicker(
-            vehicleText: currentVehicleText,
-            knownAdapterIdentifier: associatedAdapterIdentifier(
-                for: selectedVehicleVIN)
-        ) { [weak self] source in
-            self?.beginConnection(source)
-        }
-    }
-
-    private func beginConnection(_ source: LinkConnectionSource) {
-        guard !isActive else { return }
-        switch source {
-        case .automatic:
-            isSimulationActive = false
-            controller.start()
-        case .simulated:
-            isSimulationActive = true
-            controller.startSimulated()
-        case .peripheral(let identifier):
-            isSimulationActive = false
-            controller.start(withPeripheralIdentifier: identifier)
-        }
-    }
-
-    func disconnect() {
-        controller.disconnect()
-        isSimulationActive = false
+        super.connect()
     }
 
     func dismissConnectionAlert() {
@@ -319,12 +275,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         pidConfigurationModules.first { $0.id == id }
     }
 
-    func selectSavedVehicle(vin: String) {
+    override func selectSavedVehicle(vin: String) {
         // A live VIN is authoritative. Saved-profile selection is an offline
         // operation and must never override the physical car.
-        guard !controller.isActive,
-              vehicleProfileStore.selectOfflineVehicle(withVIN: vin) else { return }
-        selectedVehicleVIN = vin
+        guard !isActive else { return }
+        super.selectSavedVehicle(vin: vin)
+        guard selectedVehicleVIN == vin else { return }
         mercedesVINText = vin
         vehicleIdentity = decodeVehicleIdentity(vin: vin)
         vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
@@ -332,7 +288,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesProbeStatusText = "Disconnected · saved vehicle profile"
         refreshPIDConfiguration()
         applyConfiguredPollingForSelectedVehicle()
-        refreshPresentation()
+        refreshStandardState()
     }
 
     func pidConfigurationItems(moduleID: String) -> [PIDConfigurationItem] {
@@ -438,14 +394,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         guard isActive else { return }
         controller.discoverManufacturerData(
             forModuleIdentifier: moduleID)
-        refresh()
+        refreshStandardState()
     }
 
     func rescanManufacturerData(moduleID: String) {
         guard isActive else { return }
         controller.rescanManufacturerData(
             forModuleIdentifier: moduleID)
-        refresh()
+        refreshStandardState()
     }
 
     func manufacturerLivePollingSupported(moduleID: String) -> Bool {
@@ -461,13 +417,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {
         controller.setManufacturerLivePollingEnabled(
             enabled, forModuleIdentifier: moduleID)
-        refresh()
-    }
-
-    func toggleFavourite(stableKey: String) {
-        guard let pid = pidForStableKey(stableKey) else { return }
-        controller.setFavourite(!controller.favourite(forPID: pid), forPID: pid)
-        refresh()
+        refreshStandardState()
     }
 
     func setPolling(_ enabled: Bool, stableKey: String) {
@@ -476,31 +426,11 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
         pidSelectionStore.setGlobalStableKeys(Array(enabledKeys).sorted())
         controller.setPollingEnabled(enabled, forPID: pid)
-        refresh()
+        refreshStandardState()
     }
 
     func refreshPresentation() {
-        diagnosticParameters = loadPrimaryDiagnosticParameters()
-        dashboardParameters = loadDashboardParameters()
-    }
-
-    var interfaceLocaleIdentifier: String {
-        LinkInterfaceLanguage.canonical(
-            selectedLanguageID, aliases: mbLegacyLanguageAliases)
-    }
-
-    func localizedText(_ key: String) -> String {
-        controller.localizedText(forKey: key)
-    }
-
-    func selectLanguage(_ id: String) {
-        controller.setSelectedLanguageTag(id)
-        refresh()
-    }
-
-    func selectMeasurementSystem(_ id: String) {
-        controller.setSelectedMeasurementSystemKey(id)
-        refresh()
+        refreshStandardState()
     }
 
     func udsStatusText(_ status: UInt8) -> String {
@@ -517,41 +447,8 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         }
     }
 
-    func prepareCSVExport() {
-        guard !isPreparingCSV else { return }
-        /*
-         * Snapshot the recorder's mutable bytes on the main actor, then move
-         * UTF-8/file-system work away from CoreBluetooth and the 100 ms
-         * diagnostic-session tick. Preparing evidence must never stop polling.
-         */
-        guard let data = controller.csvDataSnapshot() else { return }
-
-        isPreparingCSV = true
-
-        Task { [weak self] in
-            do {
-                let url = try await LinkEvidenceExport.prepareTemporaryCSV(
-                    data, productName: "MBLINK")
-                guard let self else {
-                    LinkEvidenceExport.removeTemporaryFile(url)
-                    return
-                }
-                self.clearPreparedExport()
-                self.csvExportURL = url
-            } catch {
-                // Export remains unavailable; live diagnostics continue.
-            }
-            self?.isPreparingCSV = false
-        }
-    }
-
     nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
-        Task { @MainActor [weak self] in self?.refresh() }
-    }
-
-    private func clearPreparedExport() {
-        LinkEvidenceExport.removeTemporaryFile(csvExportURL)
-        csvExportURL = nil
+        Task { @MainActor [weak self] in self?.refreshStandardState() }
     }
 
     private var effectivePIDConfigurationVIN: String? {
@@ -637,33 +534,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 selectedKeys.contains(standardStableKey(for: pid)),
                 forPID: pid)
         }
-    }
-
-    private func refreshSavedVehicleProfiles() {
-        var summaries = [SavedVehicleProfileSummary]()
-        for profile in vehicleProfileStore.savedProfiles {
-            guard let vin = profile["vin"] as? String, vin.count == 17 else { continue }
-            let modules = profile["modules"] as? [[String: Any]] ?? []
-            let fallbackDisplayName =
-                decodeVehicleIdentity(vin: vin)?.model ?? "Mercedes-Benz vehicle"
-            if let summary = SavedVehicleProfileSummary(
-                profile: profile as NSDictionary,
-                moduleCount: modules.count,
-                fallbackDisplayName: fallbackDisplayName) {
-                summaries.append(summary)
-            }
-        }
-        savedVehicleProfiles = summaries.sorted {
-            ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
-        }
-
-        if let selectedVehicleVIN,
-           savedVehicleProfiles.contains(where: { $0.vin == selectedVehicleVIN }) {
-            return
-        }
-
-        selectedVehicleVIN = nil
-        vehicleProfileStore.clearSelectedVehicle()
     }
 
     private func storedPollingKeys() -> Set<String> {
@@ -1063,28 +933,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         return parameters
     }
 
-    private func loadDashboardParameters() -> [DiagnosticParameter] {
-        var parameters: [DiagnosticParameter]
-        if let engine = diagnosticModules.first(where: {
-            !$0.extendedID && $0.responseCANIdentifier == 0x7E8 &&
-                $0.livePIDCount > 0
-        }) {
-            parameters = loadDiagnosticParameters(
-                responderCANIdentifier: engine.responseCANIdentifier,
-                extendedID: engine.extendedID,
-                sourceLabel: "\(engine.name) · \(engine.addressText)")
-        } else {
-            parameters = diagnosticParameters
-        }
-
-        let existing = Set(parameters.map(\.id))
-        parameters.append(contentsOf:
-            transmissionDiagnosticParameters().filter {
-                !existing.contains($0.id)
-            })
-        return parameters
-    }
-
     private func offlineModuleName(
         tx: UInt32,
         rx: UInt32,
@@ -1413,15 +1261,20 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
 
-    private func associatedAdapterIdentifier(for vin: String?) -> String? {
-        guard let vin, vin.count == 17 else { return nil }
-        return vehicleProfileStore.associatedAdapterIdentifier(forVIN: vin)
+    override func productModuleCountForVehicleProfile(
+        _ profile: [AnyHashable: Any]
+    ) -> Int {
+        (profile["modules"] as? [[String: Any]])?.count ?? 0
     }
 
+    override func productDiagnosticParameters(
+        standard: [LinkDiagnosticParameter]
+    ) -> [LinkDiagnosticParameter] {
+        loadPrimaryDiagnosticParameters()
+    }
 
-    private func refresh() {
-        let updatedStatus = controller.statusText
-        statusText = updatedStatus
+    override func productDidRefreshStandardState() {
+        let updatedStatus = statusText
         let isTransportBoundary =
             updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||
             updatedStatus.contains("No compatible BLE diagnostic adapter found")
@@ -1429,17 +1282,14 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             lastConnectionAlertText = updatedStatus
             connectionAlertText = updatedStatus
         }
-        peripheralName = controller.peripheralName ?? "No adapter"
-        adapterIdentifier = controller.adapterIdentifier ?? "Unknown"
-        refreshSavedVehicleProfiles()
 
-        let capturedVIN = controller.isActive ? controller.mercedesVINText : nil
+        let capturedVIN = isActive ? controller.mercedesVINText : nil
         let currentVIN = capturedVIN?.count == 17
             ? capturedVIN : selectedVehicleVIN
         mercedesVINText = currentVIN ?? "Not captured"
         vehicleIdentity = decodeVehicleIdentity(vin: currentVIN)
 
-        if controller.isActive {
+        if isActive {
             mercedesProbeStatusText = controller.mercedesProbeStatusText
             mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
             mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
@@ -1472,36 +1322,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             mercedesUDSFaults = []
             vehicleProfileStatusText = "No vehicle loaded · connect to a vehicle"
         }
-        faultScanStatusText = controller.faultScanStatusText
-
-        let rawStoredDTCs = controller.storedDTCs
-        let rawPendingDTCs = controller.pendingDTCs
-        let rawPermanentDTCs = controller.permanentDTCs
-        storedFaults = resolveFaults(rawStoredDTCs, state: "Stored")
-        pendingFaults = resolveFaults(rawPendingDTCs, state: "Pending")
-        permanentFaults = resolveFaults(rawPermanentDTCs, state: "Permanent")
-        storedDTCs = storedFaults.map(\.displayText)
-        pendingDTCs = pendingFaults.map(\.displayText)
-        permanentDTCs = permanentFaults.map(\.displayText)
-        readinessStatusText = controller.readinessStatusText
-        readinessMonitorStatus = controller.readinessMonitorStatus
-        freezeFrameContext = controller.freezeFrameContext
-        diagnosticCapabilityText = controller.diagnosticCapabilityText
-        diagnosticCapabilityDetailText = controller.diagnosticCapabilityDetailText
-        standardResponderSummary = controller.standardResponderSummary
-        supportedPIDSummary = controller.supportedPIDSummary
-        standardVINText = controller.standardVINText
-        standardLiveValueRows = controller.standardLiveValueRows
-
-        languageTags = controller.availableLanguageTags
-        languageNames = controller.availableLanguageNames
-        selectedLanguageID = controller.selectedLanguageTag
-        measurementKeys = controller.availableMeasurementSystemKeys
-        measurementNames = controller.availableMeasurementSystemNames
-        selectedMeasurementID = controller.selectedMeasurementSystemKey
-
-        isActive = controller.isActive
-        isReady = controller.isReady
+        storedFaults = resolveFaults(storedDTCs, state: "Stored")
+        pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
+        permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
 #if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
            isSimulationActive {
@@ -1517,7 +1340,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                 "fault_status=\(faultScanStatusText)\n" +
                 "stored_codes=\(storedFaults.map(\.code).joined(separator: ","))\n" +
                 "stored_states=\(storedFaults.map(\.state).joined(separator: ","))\n" +
-                "stored_faults=\(storedDTCs.joined(separator: " | "))\n" +
+                "stored_faults=\(storedFaults.map(\.displayText).joined(separator: " | "))\n" +
                 "probe=\(controller.mercedesProbeStatusText)\n" +
                 "profile=\(controller.vehicleProfileStatusText)\n"
             if let directory = FileManager.default.urls(
@@ -1531,21 +1354,10 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             }
         }
 #endif
-        if controller.isActive, !isSimulationActive,
-           let liveVIN = controller.mercedesVINText,
-           liveVIN.count == 17 {
-            // LINK records the live VIN as authoritative and updates the
-            // optional per-vehicle adapter association.
-            vehicleProfileStore.recordLiveVIN(liveVIN)
-            selectedVehicleVIN = liveVIN
-        }
-        diagnosticModules = controller.isActive ? loadDiagnosticModules() : []
+        diagnosticModules = isActive ? loadDiagnosticModules() : []
         refreshPIDConfiguration()
-        diagnosticParameters = loadPrimaryDiagnosticParameters()
         manufacturerDataScanActive = controller.isManufacturerDataScanActive
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
         manufacturerDataScanModuleID = controller.manufacturerDataScanModuleIdentifier
-        dashboardParameters = loadDashboardParameters()
-        recordedSampleCount = Int(clamping: controller.recordedSampleCount)
     }
 }

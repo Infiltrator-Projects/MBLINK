@@ -3,31 +3,11 @@
 #include "session_trace.h"
 #include "style.h"
 
-/*
- * CI SOURCE-OWNERSHIP MANIFEST ONLY.
- *
- * Executable Linux styling and font registration live in style.c.  These
- * literal anchors keep the established source-layout assertions meaningful
- * across the split without duplicating CSS state or runtime behaviour here.
- * .link-brand { color: #eef1f3; font-family: "MB Corpo A Title Cond WEB"; font-weight: 400; }
- * .link-section-title { color: #e7ebee; font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * .link-card-title { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * .link-detail-value { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * window *, popover, popover * { font-family: "MB Corpo S Title WEB"; }
- * button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }
- * entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }
- * .link-toolbar-button, .link-toolbar-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- * .link-about-dialog stackswitcher button
- * .link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }
- * static const char mblink_metrics_css[] =
- * runtime_css = g_strconcat(mblink_css, mblink_metrics_css, NULL);
- * .link-titlebar-label { font-family: "MB Corpo S Title WEB"; font-weight: 700; }
- */
 #include "link-gtk-shell.h"
 #include "link-gtk-widgets.h"
 #include "link/dtc_knowledge.h"
 #include "link/fuel_economy.h"
+#include "link/i18n.h"
 #include "link/units.h"
 #include "link/workspace.h"
 #include "link/dashboard.h"
@@ -46,6 +26,40 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+typedef struct MblinkLiteralTranslation {
+    const char *english;
+    const char *german;
+    const char *polish;
+} MblinkLiteralTranslation;
+
+static const char *mblink_translate_text(const char *text, void *context)
+{
+    static const MblinkLiteralTranslation translations[] = {
+        {"MERCEDES PROFILE", "MERCEDES-PROFIL", "PROFIL MERCEDES"},
+        {"MERCEDES ENGINE", "MERCEDES-MOTOR", "SILNIK MERCEDES"},
+        {"Mercedes factory direct", "Mercedes-Werkswert direkt", "Bezpośrednia wartość fabryczna Mercedes"},
+        {"Mercedes factory counters", "Mercedes-Werkszähler", "Fabryczne liczniki Mercedes"},
+        {"Mercedes factory fuel rate", "Mercedes-Werks-Kraftstoffrate", "Fabryczny przepływ paliwa Mercedes"},
+        {"Mercedes factory source", "Mercedes-Werksquelle", "Fabryczne źródło Mercedes"},
+        {"Mercedes-Benz diagnostics", "Mercedes-Benz-Diagnose", "Diagnostyka Mercedes-Benz"},
+        {"MERCEDES-BENZ · C207 / OM651", "MERCEDES-BENZ · C207 / OM651", "MERCEDES-BENZ · C207 / OM651"}
+    };
+    const char *locale = link_i18n_locale();
+    size_t index;
+    int language = 0;
+    (void)context;
+    if (text == NULL) return "";
+    if (locale != NULL && strncmp(locale, "de", 2U) == 0) language = 1;
+    else if (locale != NULL && strncmp(locale, "pl", 2U) == 0) language = 2;
+    if (language == 0) return text;
+    for (index = 0U; index < sizeof(translations) / sizeof(translations[0]); ++index) {
+        if (strcmp(text, translations[index].english) == 0)
+            return language == 1 ? translations[index].german
+                                 : translations[index].polish;
+    }
+    return text;
+}
 
 /*
  * MBLINK keeps its stable preference names for on-disk/UI compatibility, but
@@ -2962,6 +2976,7 @@ int main(int argc, char **argv)
         mblink_linux_style_metrics_css(), NULL);
     if (runtime_css == NULL) return 6;
     descriptor.css = runtime_css;
+    descriptor.translate_text = mblink_translate_text;
     descriptor.render_section = render_section;
     descriptor.about = &about_info;
     descriptor.connection_changed = connection_changed;
