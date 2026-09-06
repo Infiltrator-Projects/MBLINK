@@ -88,7 +88,8 @@ jobs:
           grep -Fq 'NVIC_SystemReset();' embedded/stm32c092-mercedes-server/Src-main.c
           grep -q 'src/uds/uds_services.c' src/link/CMakeLists.txt
           grep -q 'link_uds_standard_service_count' src/link/src/uds/uds_services.c
-          grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
+          grep -Fq '#include "../link/platform/apple/LinkPortableUds.c"' src/uds/uds.c
+          ! grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
           grep -q 'link_elm327_parser_feed' src/link/src/elm327/elm327.c
           grep -q 'link_elm327_can_decode_pdu' src/link/src/elm327/can.c
           grep -q 'link_elm327_session_begin' src/link/src/elm327/session.c
@@ -452,7 +453,8 @@ jobs:
           test "$project_versions" = "$version"
           status="$(git submodule status --recursive)"
           ! grep -Eq '^[+-U]' <<<"$status"
-          grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
+          grep -Fq '#include "../link/platform/apple/LinkPortableUds.c"' src/uds/uds.c
+          ! grep -Fq '#include "../link/src/uds/uds_services.c"' src/uds/uds.c
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
