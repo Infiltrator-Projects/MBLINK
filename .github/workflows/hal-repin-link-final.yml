@@ -1,0 +1,67 @@
+name: HAL final LINK repin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-repin-link-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Repin corrected LINK and synchronise Apple metadata
+        env:
+          LINK_SHA: f19eedcf5b26abde6107ee411d904f9015ef8ac1
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C src/link fetch origin "$LINK_SHA"
+          git -C src/link checkout --detach "$LINK_SHA"
+          git add src/link
+          export LINK_SHA
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          target = os.environ['LINK_SHA']
+          lines = p.read_text().splitlines(keepends=True)
+          count = 0
+          for i, line in enumerate(lines):
+              if 'LINK_SOURCE_REVISION=' not in line:
+                  continue
+              updated, n = re.subn(r'[0-9a-f]{40}', target, line, count=1)
+              if n != 1:
+                  raise SystemExit(f'Cannot identify LINK SHA on Xcode line {i+1}')
+              lines[i] = updated
+              count += 1
+          if count == 0:
+              raise SystemExit('No LINK_SOURCE_REVISION entries found')
+          text = ''.join(lines)
+          if any(target not in line for line in text.splitlines() if 'LINK_SOURCE_REVISION=' in line):
+              raise SystemExit('Xcode LINK_SOURCE_REVISION verification failed')
+          p.write_text(text)
+          print(f'Synchronised {count} Apple LINK source revision entries')
+          PY
+          git add app/ios/MBLINK.xcodeproj/project.pbxproj
+          git rm -f apple-ci-error-extract.txt || true
+          git diff --cached --check
+          test "$(git ls-files -s src/link | awk '{print $2}')" = "$LINK_SHA"
+
+      - name: Publish final source state and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git rm .github/workflows/hal-repin-link-final.yml
+          git commit -m "Repin LINK with corrected Apple optional bridge"
+          git push origin HEAD:main
