@@ -569,6 +569,8 @@ jobs:
           grep -Fq '"seat-driver"' include/mblink/mercedes_module_catalog.h
           grep -Fq 'vehicleProfileStatusText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MercedesVehicleIdentity' app/ios/MBLINK/ConnectionViewModel.swift
+          test "$(grep -Fc '#if MBLINK_CI_SIMULATED_FLOW' app/ios/MBLINK/ConnectionViewModel.swift)" -eq 2
+          grep -Fq 'SWIFT_ACTIVE_COMPILATION_CONDITIONS="$swift_conditions"' .github/workflows/ci.yml
           grep -Fq 'MBVehicleFactGrid' app/ios/MBLINK/MBLINKApp.swift
           # Text(detail) is legitimate in ECU evidence rows; only the removed
           # legacy About implementation must stay absent.
@@ -589,12 +591,17 @@ jobs:
         run: |
           set -euo pipefail
           for configuration in Debug Release; do
+            swift_conditions='$(inherited)'
+            if test "$configuration" = Debug; then
+              swift_conditions="$swift_conditions MBLINK_CI_SIMULATED_FLOW"
+            fi
             xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
               -configuration "$configuration" -sdk iphonesimulator \
               -destination 'generic/platform=iOS Simulator' \
               -derivedDataPath "$RUNNER_TEMP/derived-simulator-$configuration" \
               CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
-              MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+              MBLINK_SOURCE_REVISION="$GITHUB_SHA" \
+              SWIFT_ACTIVE_COMPILATION_CONDITIONS="$swift_conditions" build
           done
       - name: Launch iOS simulator smoke
         shell: bash
@@ -645,8 +652,8 @@ jobs:
             else
               echo 'The app produced no simulated-flow marker.'
             fi
-            xcrun simctl spawn "$udid" log show --last 5m --style compact \
-              --predicate 'process == "MBLINK"' || true
+            xcrun simctl spawn "$udid" log show --last 2m --style compact \
+              --predicate 'process == "MBLINK" AND (messageType == error OR messageType == fault)' || true
             exit 1
           fi
           xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK

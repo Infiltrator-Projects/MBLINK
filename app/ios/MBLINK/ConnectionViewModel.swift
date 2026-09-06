@@ -213,7 +213,7 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesTargetSignals = loadMercedesTargetSignals()
         mercedesNativeDataIdentities = loadMercedesNativeDataIdentities()
         refresh()
-#if DEBUG
+#if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1" {
             isSimulationActive = true
             controller.startSimulated()
@@ -1532,7 +1532,7 @@ private func formattedValue(
 
         isActive = controller.isActive
         isReady = controller.isReady
-#if DEBUG
+#if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
            isSimulationActive {
             let liveVIN = controller.mercedesVINText ?? ""
