@@ -30,20 +30,24 @@ jobs:
           from pathlib import Path
 
           p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
-          s = p.read_text()
           target = os.environ['LINK_GITLINK']
-          pattern = re.compile(r'LINK_SOURCE_REVISION=\\\\\\\"[0-9a-f]{40}\\\\\\\"')
-          matches = pattern.findall(s)
-          if not matches:
+          lines = p.read_text().splitlines(keepends=True)
+          count = 0
+          for index, line in enumerate(lines):
+              if 'LINK_SOURCE_REVISION=' not in line:
+                  continue
+              updated, replacements = re.subn(r'[0-9a-f]{40}', target, line, count=1)
+              if replacements != 1:
+                  raise SystemExit(f'Unable to identify LINK SHA on Xcode project line {index + 1}')
+              lines[index] = updated
+              count += 1
+          if count == 0:
               raise SystemExit('No LINK_SOURCE_REVISION definitions found in Xcode project')
-          replacement = f'LINK_SOURCE_REVISION=\\\\\\\"{target}\\\\\\\"'
-          s2, count = pattern.subn(replacement, s)
-          if count != len(matches):
-              raise SystemExit(f'Expected to replace {len(matches)} definitions, replaced {count}')
-          remaining = pattern.findall(s2)
-          if len(remaining) != count or any(target not in item for item in remaining):
+          output = ''.join(lines)
+          revision_lines = [line for line in output.splitlines() if 'LINK_SOURCE_REVISION=' in line]
+          if len(revision_lines) != count or any(target not in line for line in revision_lines):
               raise SystemExit('LINK source revision verification failed after replacement')
-          p.write_text(s2)
+          p.write_text(output)
           print(f'Synchronised {count} LINK_SOURCE_REVISION definitions to {target}')
           PY
           git diff --check
