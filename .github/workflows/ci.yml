@@ -620,14 +620,19 @@ jobs:
           data_container="$(xcrun simctl get_app_container "$udid" com.github.The-First-Infiltrator.MBLINK data)"
           marker="$data_container/Documents/mblink-ci-simulated-flow.ok"
           flow_ready=false
+          last_marker=''
           for attempt in $(seq 1 60); do
             if test -f "$marker"; then
-              cat "$marker"
-              if grep -Fq 'ready=true' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
+              current_marker="$(cat "$marker")"
+              if test "$current_marker" != "$last_marker"; then
+                printf '%s\n' "$current_marker"
+                last_marker="$current_marker"
+              fi
+              if grep -Fq 'state=ready' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
                 flow_ready=true
                 break
               fi
-              if grep -Fq 'ready=false' "$marker"; then
+              if grep -Fq 'state=failed' "$marker"; then
                 break
               fi
             fi

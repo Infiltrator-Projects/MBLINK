@@ -1534,29 +1534,22 @@ private func formattedValue(
         isReady = controller.isReady
 #if DEBUG
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
-           isSimulationActive, isReady,
-           let liveVIN = controller.mercedesVINText, liveVIN.count == 17 {
-            let marker = "ready=true\nvin=\(liveVIN)\nstatus=\(controller.statusText)\nprofile=\(controller.vehicleProfileStatusText)\n"
-            if let directory = FileManager.default.urls(
-                    for: .documentDirectory, in: .userDomainMask).first {
-                try? marker.write(
-                    to: directory.appendingPathComponent(
-                        "mblink-ci-simulated-flow.ok"),
-                    atomically: true, encoding: .utf8)
-            }
-        }
-#endif
-#if DEBUG
-        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
-           isSimulationActive,
-           controller.statusText.localizedCaseInsensitiveContains("failed") {
+           isSimulationActive {
             let liveVIN = controller.mercedesVINText ?? ""
-            let marker = "ready=false\n" +
+            let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
+            let state = isReady && liveVIN.count == 17
+                ? "ready" : (failed ? "failed" : "pending")
+            let marker = "state=\(state)\n" +
                 "vin=\(liveVIN)\n" +
+                "active=\(isActive)\n" +
+                "ready=\(isReady)\n" +
                 "status=\(controller.statusText)\n" +
+                "probe=\(controller.mercedesProbeStatusText)\n" +
                 "profile=\(controller.vehicleProfileStatusText)\n"
             if let directory = FileManager.default.urls(
                     for: .documentDirectory, in: .userDomainMask).first {
+                try? FileManager.default.createDirectory(
+                    at: directory, withIntermediateDirectories: true)
                 try? marker.write(
                     to: directory.appendingPathComponent(
                         "mblink-ci-simulated-flow.ok"),
