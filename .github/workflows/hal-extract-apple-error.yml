@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api -H 'Accept: application/vnd.github+json' "/repos/${GITHUB_REPOSITORY}/actions/jobs/${FAILED_JOB_ID}/logs" > /tmp/apple-job.log
+          gh api --allow-escape-sequences -H 'Accept: application/vnd.github+json' "/repos/${GITHUB_REPOSITORY}/actions/jobs/${FAILED_JOB_ID}/logs" > /tmp/apple-job.log
           python3 - <<'PY'
           from pathlib import Path
           lines = Path('/tmp/apple-job.log').read_text(errors='replace').splitlines()
