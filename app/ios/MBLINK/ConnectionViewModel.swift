@@ -1544,6 +1544,10 @@ private func formattedValue(
                 "active=\(isActive)\n" +
                 "ready=\(isReady)\n" +
                 "status=\(controller.statusText)\n" +
+                "fault_status=\(faultScanStatusText)\n" +
+                "stored_codes=\(storedFaults.map(\.code).joined(separator: ","))\n" +
+                "stored_states=\(storedFaults.map(\.state).joined(separator: ","))\n" +
+                "stored_faults=\(storedDTCs.joined(separator: " | "))\n" +
                 "probe=\(controller.mercedesProbeStatusText)\n" +
                 "profile=\(controller.vehicleProfileStatusText)\n"
             if let directory = FileManager.default.urls(

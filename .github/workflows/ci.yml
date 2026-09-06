@@ -635,7 +635,12 @@ jobs:
                 printf '%s\n' "$current_marker"
                 last_marker="$current_marker"
               fi
-              if grep -Fq 'state=ready' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
+              if grep -Fq 'state=ready' "$marker" &&
+                 grep -Fq 'vin=WDD2073022F123456' "$marker" &&
+                 grep -Fq 'fault_status=Complete ·' "$marker" &&
+                 grep -Fq 'stored_codes=P0401,P0101' "$marker" &&
+                 grep -Fq 'stored_states=Stored,Stored' "$marker" &&
+                 grep -Fq 'stored_faults=P0401 — Exhaust Gas Recirculation Flow Insufficient Detected | P0101 — Mass or Volume Air Flow Circuit Range/Performance' "$marker"; then
                 flow_ready=true
                 break
               fi
