@@ -28,6 +28,9 @@ jobs:
       - name: Apply LINK 0.15.4 dashboard face
         run: python3 .github/hal_dashboard_face.py
 
+      - name: Add LINK dashboard source to Apple bridge
+        run: python3 .github/hal_dashboard_pbx_fix.py
+
       - name: Create exact unpushed test commit
         shell: bash
         run: |
@@ -50,9 +53,12 @@ jobs:
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.15.4"
           grep -Fq 'LinkDashboardModePicker(selection: dashboardModeBinding)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LinkDashboardMetric(' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq '../../src/link/src/core/dashboard.c' app/ios/MBLINK.xcodeproj/project.pbxproj
+          grep -Fq 'link_dashboard.c in Sources' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -Fq 'link_dashboard_gauge_range_for_parameter' app/linux/main.c
           grep -Fq 'LINK_DASHBOARD_PRESENTATION_COMBINED' app/linux/main.c
           test ! -e .github/hal_dashboard_face.py
+          test ! -e .github/hal_dashboard_pbx_fix.py
           test ! -e .github/workflows/hal-dashboard-face.yml
 
       - name: Push tested commit to main
