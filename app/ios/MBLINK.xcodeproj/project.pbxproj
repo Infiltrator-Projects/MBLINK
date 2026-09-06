@@ -58,9 +58,9 @@
 		A2210000000000000000000A /* link_mercedes_me_adapter.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000A /* link_mercedes_me_adapter.c */; };
 		A2210000000000000000000B /* link_mercedes_me_native_protocol.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000B /* link_mercedes_me_native_protocol.c */; };
 		A2210000000000000000000C /* link_mercedes_me_diagnostic.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000C /* link_mercedes_me_diagnostic.c */; };
-		A2210000000000000000000D /* link_mercedes_me_data_ids.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000D /* link_mercedes_me_data_ids.c */; };
-		A2210000000000000000000E /* link_mercedes_me_diaglogic.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000E /* link_mercedes_me_diaglogic.c */; };
-		A2210000000000000000000F /* link_mercedes_me_whisper.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000F /* link_mercedes_me_whisper.c */; };
+		A2210000000000000000000D /* mblink_mercedes_me_data_ids.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000D /* mblink_mercedes_me_data_ids.c */; };
+		A2210000000000000000000E /* mblink_mercedes_me_diaglogic.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000E /* mblink_mercedes_me_diaglogic.c */; };
+		A2210000000000000000000F /* mblink_mercedes_me_whisper.c in Sources */ = {isa = PBXBuildFile; fileRef = A2200000000000000000000F /* mblink_mercedes_me_whisper.c */; };
 		A22100000000000000000010 /* link_transport.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000010 /* link_transport.c */; };
 		A22100000000000000000011 /* link_elm327.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000011 /* link_elm327.c */; };
 		A22100000000000000000012 /* link_elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000012 /* link_elm327_can.c */; };
@@ -164,9 +164,9 @@
 		A2200000000000000000000A /* link_mercedes_me_adapter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_adapter.c"; path = "../../src/link/src/core/mercedes_me_adapter.c"; sourceTree = SOURCE_ROOT; };
 		A2200000000000000000000B /* link_mercedes_me_native_protocol.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_native_protocol.c"; path = "../../src/link/src/core/mercedes_me_native_protocol.c"; sourceTree = SOURCE_ROOT; };
 		A2200000000000000000000C /* link_mercedes_me_diagnostic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_diagnostic.c"; path = "../../src/link/src/core/mercedes_me_diagnostic.c"; sourceTree = SOURCE_ROOT; };
-		A2200000000000000000000D /* link_mercedes_me_data_ids.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_data_ids.c"; path = "../../src/link/src/core/mercedes_me_data_ids.c"; sourceTree = SOURCE_ROOT; };
-		A2200000000000000000000E /* link_mercedes_me_diaglogic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_diaglogic.c"; path = "../../src/link/src/core/mercedes_me_diaglogic.c"; sourceTree = SOURCE_ROOT; };
-		A2200000000000000000000F /* link_mercedes_me_whisper.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_mercedes_me_whisper.c"; path = "../../src/link/src/core/mercedes_me_whisper.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000D /* mblink_mercedes_me_data_ids.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mblink_mercedes_me_data_ids.c"; path = "../../src/mercedes/mercedes_me_data_ids.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000E /* mblink_mercedes_me_diaglogic.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mblink_mercedes_me_diaglogic.c"; path = "../../src/mercedes/mercedes_me_diaglogic.c"; sourceTree = SOURCE_ROOT; };
+		A2200000000000000000000F /* mblink_mercedes_me_whisper.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mblink_mercedes_me_whisper.c"; path = "../../src/mercedes/mercedes_me_whisper.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000010 /* link_transport.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_transport.c"; path = "../../src/link/src/core/transport.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000011 /* link_elm327.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327.c"; path = "../../src/link/src/elm327/elm327.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000012 /* link_elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_elm327_can.c"; path = "../../src/link/src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
@@ -251,9 +251,9 @@
 				A2200000000000000000000A /* link_mercedes_me_adapter.c */,
 				A2200000000000000000000B /* link_mercedes_me_native_protocol.c */,
 				A2200000000000000000000C /* link_mercedes_me_diagnostic.c */,
-				A2200000000000000000000D /* link_mercedes_me_data_ids.c */,
-				A2200000000000000000000E /* link_mercedes_me_diaglogic.c */,
-				A2200000000000000000000F /* link_mercedes_me_whisper.c */,
+				A2200000000000000000000D /* mblink_mercedes_me_data_ids.c */,
+				A2200000000000000000000E /* mblink_mercedes_me_diaglogic.c */,
+				A2200000000000000000000F /* mblink_mercedes_me_whisper.c */,
 				A22000000000000000000010 /* link_transport.c */,
 				A22000000000000000000011 /* link_elm327.c */,
 				A22000000000000000000012 /* link_elm327_can.c */,
@@ -518,9 +518,9 @@
 				A2210000000000000000000A /* link_mercedes_me_adapter.c in Sources */,
 				A2210000000000000000000B /* link_mercedes_me_native_protocol.c in Sources */,
 				A2210000000000000000000C /* link_mercedes_me_diagnostic.c in Sources */,
-				A2210000000000000000000D /* link_mercedes_me_data_ids.c in Sources */,
-				A2210000000000000000000E /* link_mercedes_me_diaglogic.c in Sources */,
-				A2210000000000000000000F /* link_mercedes_me_whisper.c in Sources */,
+				A2210000000000000000000D /* mblink_mercedes_me_data_ids.c in Sources */,
+				A2210000000000000000000E /* mblink_mercedes_me_diaglogic.c in Sources */,
+				A2210000000000000000000F /* mblink_mercedes_me_whisper.c in Sources */,
 				A22100000000000000000010 /* link_transport.c in Sources */,
 				A22100000000000000000011 /* link_elm327.c in Sources */,
 				A22100000000000000000012 /* link_elm327_can.c in Sources */,

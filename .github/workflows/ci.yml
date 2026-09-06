@@ -532,9 +532,6 @@ jobs:
             src/core/mercedes_me_adapter.c \
             src/core/mercedes_me_native_protocol.c \
             src/core/mercedes_me_diagnostic.c \
-            src/core/mercedes_me_data_ids.c \
-            src/core/mercedes_me_diaglogic.c \
-            src/core/mercedes_me_whisper.c \
             src/core/transport.c \
             src/elm327/elm327.c \
             src/elm327/can.c \
@@ -544,6 +541,13 @@ jobs:
             src/discover/ecu_probe.c; do
             grep -Fq "../../src/link/$apple_source" app/ios/MBLINK.xcodeproj/project.pbxproj
           done
+          for apple_source in \
+            mercedes_me_data_ids.c \
+            mercedes_me_diaglogic.c \
+            mercedes_me_whisper.c; do
+            grep -Fq "../../src/mercedes/$apple_source" app/ios/MBLINK.xcodeproj/project.pbxproj
+          done
+          grep -Fq '#include "mblink/mercedes_me_data_ids.h"' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
           ! grep -Fq 'LINK_TELEMETRY_LINK_VERSION' src/link/src/core/telemetry.c
           ! grep -Fq '"0.14.26"' src/link/src/core/telemetry.c
