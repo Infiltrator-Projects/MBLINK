@@ -493,7 +493,7 @@ jobs:
           grep -Fq 'observedPIDsForResponderCANIdentifier' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'liveResponders' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'record_responder_sample_named' src/link/platform/apple/LinkDiagnosticsController.m
-          grep -Fq 'dashboardParameters' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq '@Published private(set) var dashboardParameters' src/link/platform/apple/LinkDiagnosticUI.swift
           grep -Fq 'mblink_obd2_pid_definition_count()' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'standardDataSnapshot' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED' platform/apple/MBLinkDiagnosticsController.m
