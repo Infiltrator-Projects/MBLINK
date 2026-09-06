@@ -823,29 +823,29 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
     }
 
     private func displayScalar(pid: UInt8, rawValue: Double) -> Double {
-    controller.displayValue(pid: pid, canonicalValue: rawValue)
-}
+        controller.displayValue(forPID: pid, canonicalValue: rawValue)
+    }
 
-private func displaySuffix(
-    pid: UInt8,
-    definition: UnsafePointer<MblinkParameterDefinition>
-) -> String {
-    let unit = controller.displayUnit(pid: pid)
-    if !unit.isEmpty { return " \(unit)" }
-    return string(from: definition.pointee.suffix)
-}
+    private func displaySuffix(
+        pid: UInt8,
+        definition: UnsafePointer<MblinkParameterDefinition>
+    ) -> String {
+        let unit = controller.displayUnit(forPID: pid)
+        if !unit.isEmpty { return " \(unit)" }
+        return string(from: definition.pointee.suffix)
+    }
 
-private func formattedValue(
-    pid: UInt8,
-    definition: UnsafePointer<MblinkParameterDefinition>,
-    value: Double?
-) -> String {
-    guard let value else { return "N/A" }
-    let displayed = displayScalar(pid: pid, rawValue: value)
-    let suffix = displaySuffix(pid: pid, definition: definition)
-    let places = Int(definition.pointee.decimal_places)
-    return String(format: "%.*f%@", places, displayed, suffix)
-}
+    private func formattedValue(
+        pid: UInt8,
+        definition: UnsafePointer<MblinkParameterDefinition>,
+        value: Double?
+    ) -> String {
+        guard let value else { return "N/A" }
+        let displayed = displayScalar(pid: pid, rawValue: value)
+        let suffix = displaySuffix(pid: pid, definition: definition)
+        let places = Int(definition.pointee.decimal_places)
+        return String(format: "%.*f%@", places, displayed, suffix)
+    }
 
     private func loadDiagnosticParameters(
         responderCANIdentifier: UInt32? = nil,
