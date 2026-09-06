@@ -54,3 +54,5 @@ jobs:
           git diff --cached --check
           git commit -m 'Fix iOS simulator diagnostic smoke readiness race'
           git push origin HEAD:main
+
+# one-shot workflow: second commit intentionally triggers execution
