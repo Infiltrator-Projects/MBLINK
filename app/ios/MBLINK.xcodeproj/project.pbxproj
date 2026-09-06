@@ -609,7 +609,7 @@
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"bc5ebe79c972b632e26292f888d02cae3440a13f\\\"",
+					"LINK_SOURCE_REVISION=\\\"93dc1052bb513a0fdcc069bc1365171ce4e617ff\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
@@ -645,7 +645,7 @@
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"bc5ebe79c972b632e26292f888d02cae3440a13f\\\"",
+					"LINK_SOURCE_REVISION=\\\"93dc1052bb513a0fdcc069bc1365171ce4e617ff\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",

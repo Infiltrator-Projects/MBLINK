@@ -614,14 +614,29 @@ jobs:
           marker="$data_container/Documents/mblink-ci-simulated-flow.ok"
           flow_ready=false
           for attempt in $(seq 1 60); do
-            if test -f "$marker" && grep -Fq 'ready=true' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
+            if test -f "$marker"; then
               cat "$marker"
-              flow_ready=true
-              break
+              if grep -Fq 'ready=true' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
+                flow_ready=true
+                break
+              fi
+              if grep -Fq 'ready=false' "$marker"; then
+                break
+              fi
             fi
             sleep 1
           done
-          test "$flow_ready" = true
+          if test "$flow_ready" != true; then
+            echo '::error::Simulated diagnostic flow did not reach live-ready state.'
+            if test -f "$marker"; then
+              cat "$marker"
+            else
+              echo 'The app produced no simulated-flow marker.'
+            fi
+            xcrun simctl spawn "$udid" log show --last 5m --style compact \
+              --predicate 'process == "MBLINK"' || true
+            exit 1
+          fi
           xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
 
       - name: Build and package IPA
