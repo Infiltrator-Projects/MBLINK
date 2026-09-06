@@ -12,7 +12,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
       - name: Add terminal failure marker without weakening smoke gate
@@ -21,34 +21,39 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/ios/MBLINK/ConnectionViewModel.swift')
-          s = p.read_text()
-          needle = '''#endif
-        if controller.isActive, !isSimulationActive,'''
-          insert = '''#endif
-#if DEBUG
-        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
-           isSimulationActive,
-           controller.statusText.localizedCaseInsensitiveContains("failed") {
-            let liveVIN = controller.mercedesVINText ?? ""
-            let marker = "ready=false\\n" +
-                "vin=\\(liveVIN)\\n" +
-                "status=\\(controller.statusText)\\n" +
-                "profile=\\(controller.vehicleProfileStatusText)\\n"
-            if let directory = FileManager.default.urls(
-                    for: .documentDirectory, in: .userDomainMask).first {
-                try? marker.write(
-                    to: directory.appendingPathComponent(
-                        "mblink-ci-simulated-flow.ok"),
-                    atomically: true, encoding: .utf8)
-            }
-        }
-#endif
-        if controller.isActive, !isSimulationActive,'''
-          if needle not in s:
+          lines = p.read_text().splitlines()
+          marker = '        if controller.isActive, !isSimulationActive,'
+          insert_at = None
+          for i in range(len(lines) - 1):
+              if lines[i] == '#endif' and lines[i + 1].startswith(marker):
+                  insert_at = i + 1
+                  break
+          if insert_at is None:
               raise SystemExit('target marker block not found')
-          if 'ready=false\\n' in s:
+          if any('ready=false\\n' in line for line in lines):
               raise SystemExit('failure diagnostic already present')
-          p.write_text(s.replace(needle, insert, 1))
+          diag = [
+              '#if DEBUG',
+              '        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",',
+              '           isSimulationActive,',
+              '           controller.statusText.localizedCaseInsensitiveContains("failed") {',
+              '            let liveVIN = controller.mercedesVINText ?? ""',
+              '            let marker = "ready=false\\n" +',
+              '                "vin=\\(liveVIN)\\n" +',
+              '                "status=\\(controller.statusText)\\n" +',
+              '                "profile=\\(controller.vehicleProfileStatusText)\\n"',
+              '            if let directory = FileManager.default.urls(',
+              '                    for: .documentDirectory, in: .userDomainMask).first {',
+              '                try? marker.write(',
+              '                    to: directory.appendingPathComponent(',
+              '                        "mblink-ci-simulated-flow.ok"),',
+              '                    atomically: true, encoding: .utf8)',
+              '            }',
+              '        }',
+              '#endif',
+          ]
+          lines[insert_at:insert_at] = diag
+          p.write_text('\n'.join(lines) + '\n')
           PY
       - name: Commit source-only diagnostic
         shell: bash
