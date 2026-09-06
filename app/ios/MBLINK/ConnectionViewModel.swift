@@ -1481,7 +1481,7 @@ private func formattedValue(
         }
 
         var responderPIDs = [String: Set<UInt8>]()
-for responder in LinkVehicleProfileStandardResponders(profile as NSDictionary) {
+for responder in LinkVehicleProfileStandardResponders(profile) {
     let rx = responder.responderCANIdentifier
     let extended = responder.isExtendedID
     let key = String(format: "%@:%08X", extended ? "29" : "11", rx)
