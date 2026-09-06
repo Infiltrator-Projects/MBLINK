@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Fix iOS simulator smoke
+
+on:
+  push:
+    paths:
+      - .github/workflows/fix-ios-simulator-smoke.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Repair launch readiness gate and clean helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/ci.yml')
+          s = p.read_text()
+          old = '''          xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+          booted=false
+          for attempt in $(seq 1 90); do
+            if xcrun simctl list devices | grep -F "$udid" | grep -Fq '(Booted)'; then
+              booted=true
+              break
+            fi
+            sleep 1
+          done
+          test "$booted" = true
+'''
+          new = '''          xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+          # Device state can report Booted before SpringBoard and app services
+          # are actually launch-ready. Wait for full simulator boot completion
+          # before installing and starting the diagnostic-flow smoke app.
+          xcrun simctl bootstatus "$udid" -b
+'''
+          if old not in s:
+              raise SystemExit('expected simulator boot gate not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/diagnose-simulated-flow.yml
+          rm -f .github/workflows/fix-ios-simulator-smoke.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/ci.yml .github/workflows/diagnose-simulated-flow.yml .github/workflows/fix-ios-simulator-smoke.yml
+          git diff --cached --check
+          git commit -m 'Fix iOS simulator diagnostic smoke readiness race'
+          git push origin HEAD:main
