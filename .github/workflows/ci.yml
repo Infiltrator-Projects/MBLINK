@@ -115,8 +115,10 @@ jobs:
           test ! -e app/linux/about-dialog.c
           test ! -e app/linux/about-dialog.h
           ! grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'diagnosticCapabilityText = controller.diagnosticCapabilityText' app/ios/MBLINK/ConnectionViewModel.swift
-          grep -Fq 'LinkConnectionPresentation.presentPicker' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'final class ConnectionViewModel: LinkStandardProductViewModel' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'configuration: LinkStandardProductConfiguration(' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'diagnosticCapabilityText = productController.diagnosticCapabilityText' src/link/platform/apple/LinkDiagnosticUI.swift
+          grep -Fq 'LinkConnectionPresentation.presentPicker' src/link/platform/apple/LinkDiagnosticUI.swift
           ! grep -Fq 'presentingViewController()' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq '@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController' platform/apple/MBLinkDiagnosticsController.h
           grep -Fq 'return _shared.standardLiveValueRows;' src/link/platform/apple/LinkDiagnosticsController.m
@@ -260,14 +262,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq '.link-brand { color: #eef1f3; font-family: "MB Corpo A Title Cond WEB"; font-weight: 400; }' app/linux/style.c
+          grep -Fq '.link-brand { color: #eef1f3; font-family: \"MB Corpo A Title Cond WEB\"; font-weight: 400; }' app/linux/style.c
           test "$(grep -Fc 'MB Corpo A Title Cond WEB' app/linux/style.c)" -eq 1
-          grep -Fq '.link-section-title { color: #e7ebee; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
-          grep -Fq '.link-card-title { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
-          grep -Fq '.link-detail-value { color: #eef1f3; font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
-          grep -Fq 'window *, popover, popover * { font-family: "MB Corpo S Title WEB"; }' app/linux/style.c
-          grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
-          grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }' app/linux/style.c
+          grep -Fq '.link-section-title { color: #e7ebee; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
+          grep -Fq '.link-card-title { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
+          grep -Fq '.link-detail-value { color: #eef1f3; font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
+          grep -Fq 'window *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; }' app/linux/style.c
+          grep -Fq 'button, button *, .link-toolbar-button, .link-toolbar-button *, .link-link-button, .link-link-button *, .link-save-session-button, .link-save-session-button *, .link-about-button, .link-about-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
+          grep -Fq 'dropdown, dropdown *, .link-adapter-combo, .link-adapter-combo *, popover, popover * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/style.c
           if grep -Eq '\.link-(connection-bar|device-row|adapter-combo|toolbar-button|link-button|save-session-button|card|status-chip)[^{]*\{[^}]*((min|max)-(width|height)|padding|border-radius)' app/linux/main.c app/linux/style.c; then
             echo 'Shared Linux shell geometry must come from LINK, not MBLINK CSS.' >&2
             exit 1
@@ -277,8 +279,8 @@ jobs:
             exit 1
           fi
           grep -Fq 'gtk_widget_set_hexpand(shell->device_combo, TRUE);' src/link/platform/linux/link-gtk-shell.c
-          grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: "MB Corpo S Title WEB"; font-weight: 400; }' app/linux/style.c
-          grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
+          grep -Fq 'entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-family: \"MB Corpo S Title WEB\"; font-weight: 400; }' app/linux/style.c
+          grep -Fq '.link-toolbar-button, .link-toolbar-button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
           grep -Fq 'static let title3 = bold(20, relativeTo: .title3)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'static let title2 = bold(22, relativeTo: .title2)' app/ios/MBLINK/MBLINKApp.swift
           test "$(grep -Fc 'MBTypography.display(' app/ios/MBLINK/MBLINKApp.swift)" -eq 2

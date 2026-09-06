@@ -167,7 +167,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return "Preparing diagnostic session"
     }
 
-    override init() {
+    init() {
         let controller = MBLinkDiagnosticsController()
         let version = mblink_version().map { String(cString: $0) } ?? "Unknown"
         super.init(
