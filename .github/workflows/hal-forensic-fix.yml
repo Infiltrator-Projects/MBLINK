@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# One-shot forensic fix. The tested release commit deletes this helper.
+# One-shot forensic fix. Workflow/helper cleanup is performed after the tested release lands.
 name: HAL MBLINK forensic fix
 
 on:
@@ -40,8 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/hal_forensic_fix.py
-          python3 -c 'from pathlib import Path; p=Path(".github/workflows/ci.yml"); t=p.read_text(); old="on:\n  push:\n    branches: [main]\n  workflow_dispatch:\n"; new="on:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\n  workflow_dispatch:\n"; assert old in t; p.write_text(t.replace(old,new,1))'
-          rm -f .github/hal_forensic_fix.py .github/workflows/hal-forensic-fix.yml
+          # GITHUB_TOKEN cannot safely publish commits that add/modify/delete workflow files.
+          # Keep workflow/helper plumbing at HEAD; publish only the tested product/source changes.
+          git restore --source=HEAD -- .github/workflows/hal-forensic-fix.yml .github/workflows/ci.yml .github/hal_forensic_fix.py
           git diff --check
           git add -A
           git diff --cached --check
