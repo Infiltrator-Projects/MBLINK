@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# One-shot forensic-fix retrigger; this workflow deletes itself in the tested branch.
 name: HAL MBLINK forensic fix
 
 on:
