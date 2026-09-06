@@ -6,13 +6,17 @@
  * A Mercedes module scan must learn WHAT a responding ECU is before it starts
  * asking that ECU for fault memory or live values.  The underlying bounded
  * transport/census state machine lives in mercedes_module_scan_core.h; this
- * public layer changes discovery order only:
+ * public layer orders discovery and fills missing cached transmission identity:
  *
  *   route/session setup -> ECU self-identification -> metadata -> DTC pass
  *
  * UDS ECUs are asked for F197/F187/F188/F191.  KWP2000 ECUs are asked first
  * with DaimlerChrysler ReadECUIdentification 1A 87 (mandatory DCX/MMC ECU
  * identification), then 1A 86 and 1A 89 as bounded read-only fallbacks.
+ * Transmission controllers collect all three replies, including on cached
+ * reconnects. Existing saved identities are retained; otherwise the first
+ * valid identity is used. The shared evidence recorder retains raw replies,
+ * refusals and ELM NO DATA results. Host transport failures use LINK recovery.
  * Unknown Mercedes gateway-routed targets try UDS identity first and then the
  * KWP identity service before falling back to presence probes.  Gateway NRCs
  * A0/A1 are never treated as proof that a destination ECU exists.
@@ -232,7 +236,7 @@ static inline bool mblink_mercedes_module_scan_decode_kwp_identity_record(
            MBLINK_KWP2000_RESULT_OK;
 }
 
-static inline void mblink_mercedes_module_scan_capture_kwp_87(
+static inline bool mblink_mercedes_module_scan_capture_kwp_87(
     MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response)
 {
@@ -243,7 +247,7 @@ static inline void mblink_mercedes_module_scan_capture_kwp_87(
         !mblink_mercedes_module_scan_decode_kwp_identity_record(
             response, UINT8_C(0x87), &record) ||
         record.data_length < 10U) {
-        return;
+        return false;
     }
 
     /*
@@ -296,6 +300,7 @@ static inline void mblink_mercedes_module_scan_capture_kwp_87(
         module->spare_part_number_available = true;
     }
     mblink_mercedes_module_scan_classify_identity(module);
+    return true;
 }
 
 static inline bool mblink_mercedes_module_scan_bcd_part_number(
@@ -322,7 +327,7 @@ static inline bool mblink_mercedes_module_scan_bcd_part_number(
     return true;
 }
 
-static inline void mblink_mercedes_module_scan_capture_kwp_86(
+static inline bool mblink_mercedes_module_scan_capture_kwp_86(
     MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response)
 {
@@ -333,7 +338,7 @@ static inline void mblink_mercedes_module_scan_capture_kwp_86(
         !mblink_mercedes_module_scan_decode_kwp_identity_record(
             response, UINT8_C(0x86), &record) ||
         record.data_length < 12U) {
-        return;
+        return false;
     }
 
     (void)snprintf(
@@ -369,9 +374,10 @@ static inline void mblink_mercedes_module_scan_capture_kwp_86(
         module->spare_part_number_available = true;
     }
     mblink_mercedes_module_scan_classify_identity(module);
+    return true;
 }
 
-static inline void mblink_mercedes_module_scan_capture_kwp_89(
+static inline bool mblink_mercedes_module_scan_capture_kwp_89(
     MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response)
 {
@@ -383,7 +389,7 @@ static inline void mblink_mercedes_module_scan_capture_kwp_89(
         !mblink_mercedes_module_scan_decode_kwp_identity_record(
             response, UINT8_C(0x89), &record) ||
         record.data_length == 0U) {
-        return;
+        return false;
     }
 
     offset = (size_t)snprintf(
@@ -403,26 +409,33 @@ static inline void mblink_mercedes_module_scan_capture_kwp_89(
     }
     module->identity_available = true;
     mblink_mercedes_module_scan_classify_identity(module);
+    return true;
 }
 
-static inline void mblink_mercedes_module_scan_capture_kwp_identity(
+static inline bool mblink_mercedes_module_scan_capture_kwp_identity(
     MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response,
     uint8_t option)
 {
     switch (option) {
     case UINT8_C(0x87):
-        mblink_mercedes_module_scan_capture_kwp_87(module, response);
-        break;
+        return mblink_mercedes_module_scan_capture_kwp_87(module, response);
     case UINT8_C(0x86):
-        mblink_mercedes_module_scan_capture_kwp_86(module, response);
-        break;
+        return mblink_mercedes_module_scan_capture_kwp_86(module, response);
     case UINT8_C(0x89):
-        mblink_mercedes_module_scan_capture_kwp_89(module, response);
-        break;
+        return mblink_mercedes_module_scan_capture_kwp_89(module, response);
     default:
-        break;
+        return false;
     }
+}
+
+static inline bool mblink_mercedes_module_scan_is_kwp_transmission(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    return module != NULL && module->definition != NULL &&
+           strcmp(module->definition->key, "transmission-vgs") == 0 &&
+           mblink_mercedes_module_scan_entry_protocol(module) ==
+               MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
 }
 
 static inline void mblink_mercedes_module_scan_start_kwp_identity_fallback(
@@ -499,9 +512,12 @@ mblink_mercedes_module_scan_command(
     size_t buffer_size,
     size_t *written)
 {
-    if (mblink_mercedes_module_scan_identity_first_active(scan) &&
+    if ((scan != NULL && scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
+         scan->dtc_index < scan->module_count &&
+         scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY) ||
+        (mblink_mercedes_module_scan_identity_first_active(scan) &&
         scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY &&
-        mblink_mercedes_module_scan_kwp_identity_mode(scan)) {
+        mblink_mercedes_module_scan_kwp_identity_mode(scan))) {
         return mblink_mercedes_module_scan_format_kwp_identity_command(
                    mblink_mercedes_module_scan_kwp_identity_option(scan),
                    buffer, buffer_size, written)
@@ -524,6 +540,7 @@ mblink_mercedes_module_scan_accept_identity(
     if (mblink_mercedes_module_scan_kwp_identity_mode(scan)) {
         const uint8_t option =
             mblink_mercedes_module_scan_kwp_identity_option(scan);
+        if (option == UINT8_C(0x87)) scan->kwp_identity_captured = false;
         state = mblink_mercedes_module_scan_identity_response_state(
             response, MBLINK_KWP2000_SERVICE_READ_ECU_IDENTIFICATION,
             UINT8_C(0x5a), option, &nrc);
@@ -534,9 +551,16 @@ mblink_mercedes_module_scan_accept_identity(
             module = mblink_mercedes_module_scan_record_module(scan, false);
             if (module != NULL) {
                 module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-                mblink_mercedes_module_scan_capture_kwp_identity(
-                    module, response, option);
+                if (!scan->kwp_identity_captured)
+                    scan->kwp_identity_captured =
+                        mblink_mercedes_module_scan_capture_kwp_identity(
+                            module, response, option);
             }
+            /* Collect the variant too, and never stop on a truncated 5A. */
+            if ((mblink_mercedes_module_scan_is_kwp_transmission(module) ||
+                 !scan->kwp_identity_captured) &&
+                mblink_mercedes_module_scan_advance_kwp_identity(scan))
+                return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
             mblink_mercedes_module_scan_advance_candidate(scan);
         } else {
             if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_NEGATIVE) {
@@ -635,12 +659,43 @@ mblink_mercedes_module_scan_accept(
     if (scan == NULL || response == NULL)
         return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
 
+    if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
+        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY &&
+        scan->dtc_index < scan->module_count) {
+        if (!scan->kwp_identity_captured)
+            scan->kwp_identity_captured =
+                mblink_mercedes_module_scan_capture_kwp_identity(
+                    &scan->modules[scan->dtc_index], response,
+                    mblink_mercedes_module_scan_kwp_identity_option(scan));
+        /* No retries: unsupported, malformed and ELM NO DATA replies advance. */
+        if (++scan->vin_probe_index >= 3U)
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT;
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
+    }
+
     if (identity_first &&
         scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY) {
         return mblink_mercedes_module_scan_accept_identity(scan, response);
     }
 
     result = mblink_mercedes_module_scan_accept_core(scan, response);
+    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK &&
+        scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
+        before == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE &&
+        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE &&
+        scan->dtc_index < scan->module_count &&
+        mblink_mercedes_module_scan_is_kwp_transmission(
+            &scan->modules[scan->dtc_index])) {
+        scan->vin_probe_index = 0U;
+        /* These extra reads fill missing metadata without replacing a saved
+         * family label with an unresolved numeric KWP tuple. All raw replies
+         * still reach the shared recorder before this parser runs. */
+        scan->kwp_identity_captured =
+            scan->modules[scan->dtc_index].identity_available;
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT;
+    }
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK || !identity_first)
         return result;
 

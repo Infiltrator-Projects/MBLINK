@@ -524,6 +524,20 @@ static int test_family_names(void)
         "VGS3_0403 722.9") ==
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
     CHECK(mblink_mercedes_transmission_family_from_identity(
+        "VGS3_0402") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "vgsnag") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "VGS 725.0 9G-TRONIC") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "VGS") == MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
+        "KWP ECU S08 V02 D51 HW03.01 SW44.02.00") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN);
+    CHECK(mblink_mercedes_transmission_family_from_identity(
         "Ultimate-NAG52") ==
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52);
     CHECK(mblink_mercedes_transmission_family_from_identity(

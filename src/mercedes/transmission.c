@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_transmission.h"
+#include "mblink/mercedes_module_catalog.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -949,6 +950,7 @@ static bool contains_ascii_ci(const char *text, const char *needle)
 MblinkMercedesTransmissionFamily
 mblink_mercedes_transmission_family_from_identity(const char *identity)
 {
+    const MblinkMercedesControllerFamilyDefinition *definition;
     if (identity == NULL || identity[0] == '\0')
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 
@@ -956,12 +958,6 @@ mblink_mercedes_transmission_family_from_identity(const char *identity)
         contains_ascii_ci(identity, "ULTIMATE-NAG52")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52;
     }
-    if (contains_ascii_ci(identity, "EGS51"))
-        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51;
-    if (contains_ascii_ci(identity, "EGS52"))
-        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52;
-    if (contains_ascii_ci(identity, "EGS53"))
-        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53;
     /*
      * Match the specific later families before NAG2. "VGS" by itself is not
      * a safe family discriminator because Mercedes reused VGS terminology.
@@ -979,9 +975,18 @@ mblink_mercedes_transmission_family_from_identity(const char *identity)
         contains_ascii_ci(identity, "CVT")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT;
     }
-    if (contains_ascii_ci(identity, "722.9") ||
-        contains_ascii_ci(identity, "NAG2")) {
-        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+    /* Use the same aliases as module identification, including bare VGS3. */
+    definition = mblink_mercedes_controller_family_definition_for_evidence(
+        "transmission-vgs", identity, NULL, NULL);
+    if (definition != NULL) {
+        if (strcmp(definition->key, "transmission-egs51") == 0)
+            return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51;
+        if (strcmp(definition->key, "transmission-egs52") == 0)
+            return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52;
+        if (strcmp(definition->key, "transmission-egs53") == 0)
+            return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53;
+        if (strcmp(definition->key, "transmission-vgs-nag2") == 0)
+            return MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
     }
     if (contains_ascii_ci(identity, "AMG MCT"))
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT;

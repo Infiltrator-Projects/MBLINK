@@ -126,7 +126,10 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE,
-    MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT
 } MblinkMercedesModuleScanStage;
 
 typedef struct MblinkMercedesModuleScanEntry {
@@ -170,6 +173,7 @@ typedef struct MblinkMercedesModuleScan {
     bool candidate_route_locked;
     size_t vin_probe_index;
     bool vin_timeout_long;
+    bool kwp_identity_captured;
     size_t dtc_index;
 } MblinkMercedesModuleScan;
 
@@ -189,6 +193,9 @@ static inline const char *mblink_mercedes_module_scan_result_name(MblinkMercedes
 static inline const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage stage)
 {
     switch (stage) {
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT: return "transmission-identity-timeout";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY: return "transmission-identity";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT: return "transmission-identity-restore-timeout";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11: return "initialise-11-bit-can";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS: return "headers-off";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: return "auto-formatting";
@@ -1155,6 +1162,11 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     if (scan == NULL || buffer == NULL || written == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
 #define WRITE(cmd) (mblink_mercedes_module_scan_write_command((cmd), buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL)
     switch (scan->stage) {
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT: return WRITE("ATST64");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT: return WRITE("ATST20");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY:
+        /* The public identity layer formats the bounded KWP request. */
+        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11: return WRITE("ATSP6");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_HEADERS: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_AUTO_FORMAT: return WRITE("ATCAF1");
@@ -1646,6 +1658,21 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
                 MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER))
             goto adapter_failure;
         break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT:
+        if (!mblink_mercedes_module_scan_accept_adapter_transition(
+                scan, response,
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE))
+            goto adapter_failure;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY:
+        /* Accepted only by the public identity layer. */
+        goto failed_state;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER:
         if (!mblink_mercedes_module_scan_accept_adapter_transition(
                 scan, response,
