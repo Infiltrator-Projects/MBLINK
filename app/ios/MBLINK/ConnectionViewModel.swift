@@ -1377,13 +1377,13 @@ private func formattedValue(
     }
 
     private func loadMercedesNativeDataIdentities() -> [MercedesNativeDataIdentity] {
-        let count = Int(link_mercedes_me_data_id_count())
+        let count = Int(mblink_mercedes_me_data_id_count())
         guard count > 0 else { return [] }
 
         var result = [MercedesNativeDataIdentity]()
         result.reserveCapacity(count)
         for index in 0..<count {
-            guard let definition = link_mercedes_me_data_id_at(index) else { continue }
+            guard let definition = mblink_mercedes_me_data_id_at(index) else { continue }
             let symbol = string(from: definition.pointee.symbol)
             let dataID = string(from: definition.pointee.data_id)
             guard !symbol.isEmpty, !dataID.isEmpty else { continue }

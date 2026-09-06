@@ -548,6 +548,9 @@ jobs:
             grep -Fq "../../src/mercedes/$apple_source" app/ios/MBLINK.xcodeproj/project.pbxproj
           done
           grep -Fq '#include "mblink/mercedes_me_data_ids.h"' app/ios/MBLINK/MBLINK-Bridging-Header.h
+          grep -Fq 'mblink_mercedes_me_data_id_count()' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'mblink_mercedes_me_data_id_at(index)' app/ios/MBLINK/ConnectionViewModel.swift
+          ! grep -Eq '(^|[^[:alnum:]_])link_mercedes_me_data_id_' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq '#include "link/version.h"' src/link/src/core/telemetry.c
           ! grep -Fq 'LINK_TELEMETRY_LINK_VERSION' src/link/src/core/telemetry.c
           ! grep -Fq '"0.14.26"' src/link/src/core/telemetry.c
