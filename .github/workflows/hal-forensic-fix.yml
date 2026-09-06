@@ -34,12 +34,17 @@ jobs:
           git -C src/link submodule update --init --recursive
           test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.15.3"
 
-      - name: Apply forensic fixes
+      - name: Apply and stage forensic fixes
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/hal_forensic_fix.py
           git diff --check
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Prepare MBLINK 0.7.180 forensic fixes"
 
       - name: Build and test portable core
         shell: bash
@@ -61,13 +66,8 @@ jobs:
               CODE_SIGNING_ALLOWED=NO MARKETING_VERSION=0.7.180 build
           done
 
-      - name: Commit tested fix to main
+      - name: Push tested fix to main
         shell: bash
         run: |
           set -euo pipefail
-          git add -A
-          git diff --cached --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Prepare MBLINK 0.7.180 forensic fixes"
           git push origin HEAD:main
