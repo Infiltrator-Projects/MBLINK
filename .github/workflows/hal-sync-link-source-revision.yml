@@ -1,0 +1,59 @@
+name: HAL sync LINK source revision
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-sync-link-source-revision.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Synchronise Apple embedded LINK source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          link_gitlink="$(git ls-tree HEAD src/link | awk '{print $3}')"
+          test -n "$link_gitlink"
+          export LINK_GITLINK="$link_gitlink"
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          s = p.read_text()
+          target = os.environ['LINK_GITLINK']
+          pattern = re.compile(r'LINK_SOURCE_REVISION=\\\\\\\"[0-9a-f]{40}\\\\\\\"')
+          matches = pattern.findall(s)
+          if not matches:
+              raise SystemExit('No LINK_SOURCE_REVISION definitions found in Xcode project')
+          replacement = f'LINK_SOURCE_REVISION=\\\\\\\"{target}\\\\\\\"'
+          s2, count = pattern.subn(replacement, s)
+          if count != len(matches):
+              raise SystemExit(f'Expected to replace {len(matches)} definitions, replaced {count}')
+          p.write_text(s2)
+          print(f'Synchronised {count} LINK_SOURCE_REVISION definitions to {target}')
+          PY
+          git diff --check
+          grep -Fq "LINK_SOURCE_REVISION=\\\\\\\"$link_gitlink\\\\\\\"" app/ios/MBLINK.xcodeproj/project.pbxproj
+
+      - name: Publish source revision sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add app/ios/MBLINK.xcodeproj/project.pbxproj
+          git rm .github/workflows/hal-sync-link-source-revision.yml
+          git diff --cached --check
+          git commit -m "Sync Apple LINK source revision metadata"
+          git push origin HEAD:main
