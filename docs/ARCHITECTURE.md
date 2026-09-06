@@ -31,13 +31,17 @@ Discover is not a separate repository and is not a proposed `MBLINK-Reader` repl
 
 Infiltratr Common owns portable primitives useful across unrelated programs.
 
-LINK owns vehicle-diagnostics/application behaviour shared by MBLINK and JAGLINK. That includes the workspace model, Classical CAN and CAN-FD ISO-TP, transport contracts, ELM327 framing/parser/session behaviour, standard OBD-II, generic DTC knowledge, generic UDS and the complete standard service codec catalogue, parameter definitions/store/history, scheduling, telemetry/CSV, portable diagnostic sequencing, Discover safety/evidence, generic ECU/module interrogation machinery and the shared Windows OpenPort/J2534 scanner.
+LINK owns product-neutral vehicle-diagnostics and application behaviour shared across the complete LINK family. That includes the operator-task workspace and information architecture, common presentation behaviour, Classical CAN and CAN-FD ISO-TP, transport contracts, ELM327 framing/parser/session behaviour, standard OBD-II, generic DTC knowledge, generic UDS and the complete standard service codec catalogue, parameter definitions/store/history, scheduling, telemetry/CSV, portable diagnostic sequencing, diagnostic-generation classification, Discover safety/evidence, generic ECU/module interrogation machinery, shared Linux/Apple/Windows application infrastructure and the shared Windows OpenPort/J2534 scanner.
 
-MBLINK owns Mercedes-wide identity/catalogue logic, vehicle/engine/ECU-family profiles (including the current C207/OM651/CRD3 evidence profile), Mercedes endpoint/definition provenance, Mercedes DTC knowledge, Mercedes module topology and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
+MBLINK owns Mercedes-wide identity/catalogue logic, vehicle/engine/ECU-family profiles (including the current C207/OM651/CRD3 evidence profile), Mercedes endpoint/definition provenance, Mercedes DTC knowledge, Mercedes module topology, branding, manufacturer-specific presentation content and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
 
 The ownership rule applies to diagnostic knowledge as well as protocol code. Standards-defined generic DTC descriptions/classification, OBD freeze-frame/readiness semantics and generic UDS DTC status interpretation belong in LINK. Mercedes-Benz/CRD3/OM651-specific DTC definitions, module associations and manufacturer diagnostic metadata belong in MBLINK. See `FAULT_DIAGNOSTICS.md` for the normative product requirement.
 
 The same rule governs Discover. Generic scanning, transport, identification state, safety, evidence and dump formatting belong in LINK. Mercedes-specific module identities, known endpoints, evidence-backed read-only requests and decoders belong in MBLINK.
+
+The same rule also governs the normal application interface. Protocols such as OBD-II, OBDonUDS, UDS and Mercedes legacy diagnostics are data sources beneath LINK's shared operator-task model; they are not competing primary navigation destinations. MBLINK may add Mercedes-specific parameters, module scans, tests, services and evidence-backed workflows without forking the shared task structure.
+
+LINK supplies shared capabilities such as language selection, measurement conversion and the standard About surface. MBLINK owns the composition and appearance of its Settings page and any genuinely Mercedes-specific settings; LINK does not own a complete Settings screen.
 
 The exact LINK revision is the `src/link` gitlink. LINK owns its nested exact Common revision. MBLINK's CMake and CI validate that recursive dependency graph rather than maintaining duplicate expected-version constants.
 
@@ -73,9 +77,9 @@ SwiftUI / Objective-C                  GTK4 / C
                 adapter -> vehicle
 ```
 
-Objective-C owns Apple framework integration such as CoreBluetooth lifecycle and write/notification mechanics. SwiftUI owns iPhone presentation. Neither layer may carry an alternate ELM327/OBD/ISO-TP/UDS implementation or a separate fault-code lookup database.
+Objective-C owns Apple framework integration such as CoreBluetooth lifecycle and write/notification mechanics. SwiftUI remains the Apple presentation edge, but common operator-task information architecture, shared presentation contracts and reusable diagnostic controller behaviour belong in LINK. MBLINK supplies Mercedes identity, theme, wording and manufacturer-specific content rather than carrying an alternate ELM327/OBD/ISO-TP/UDS implementation or a separate fault-code lookup database.
 
-The Linux shell is C/GTK4 and renders the same portable workspace and Mercedes profile. Linux BLE/serial and native OpenPort 2.0 providers already live at LINK's transport edge; a future SocketCAN provider belongs at that same edge rather than in a protocol or manufacturer layer.
+The Linux shell is C/GTK4 and renders the same portable workspace and Mercedes profile. LINK owns common shell geometry and shared application behaviour; MBLINK supplies Mercedes theme, branding and manufacturer-specific page content. Linux BLE/serial and native OpenPort 2.0 providers already live at LINK's transport edge; a future SocketCAN provider belongs at that same edge rather than in a protocol or manufacturer layer.
 
 Windows Discover is a branded target over LINK's shared scanner shell. If Discover later gains Linux or Apple specialist shells, they should follow the same rule: presentation/provider code at the platform edge, manufacturer knowledge in MBLINK, generic scanner behaviour in LINK.
 
