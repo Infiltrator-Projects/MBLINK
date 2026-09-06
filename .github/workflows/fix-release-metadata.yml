@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Fix MBLINK release metadata
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-release-metadata.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Align all Apple release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          t = p.read_text()
+          old_version = 'MARKETING_VERSION = 0.7.179;'
+          old_link = 'f19eedcf5b26abde6107ee411d904f9015ef8ac1'
+          new_link = '0ec3d2614c2aebd706d23655d993496acd7fc69f'
+          if t.count(old_version) != 4:
+              raise SystemExit(f'expected 4 stale MARKETING_VERSION entries, found {t.count(old_version)}')
+          if t.count(old_link) != 1:
+              raise SystemExit(f'expected 1 stale LINK revision, found {t.count(old_link)}')
+          t = t.replace(old_version, 'MARKETING_VERSION = 0.7.180;')
+          t = t.replace(old_link, new_link)
+          p.write_text(t)
+          PY
+          test "$(tr -d '[:space:]' < VERSION)" = "0.7.180"
+          test "$(grep -E '^[[:space:]]*MARKETING_VERSION = ' app/ios/MBLINK.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);/\1/' | sort -u)" = "0.7.180"
+          ! grep -Fq 'f19eedcf5b26abde6107ee411d904f9015ef8ac1' app/ios/MBLINK.xcodeproj/project.pbxproj
+          test "$(grep -Fc 'LINK_SOURCE_REVISION=\\\"0ec3d2614c2aebd706d23655d993496acd7fc69f\\\"' app/ios/MBLINK.xcodeproj/project.pbxproj)" -ge 1
+          git diff --check
+          git add app/ios/MBLINK.xcodeproj/project.pbxproj
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Align Apple 0.7.180 release metadata"
+          git push origin HEAD:main
