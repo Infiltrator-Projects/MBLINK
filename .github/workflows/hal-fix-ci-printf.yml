@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL fix staged CI printf
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-fix-ci-printf.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Normalize simulator output command
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('.github/ci.proposed.yml')
+          text = p.read_text()
+          pattern = re.compile(r"^\s*printf '%s\n\s*' \"\$launch_output\"$", re.M)
+          text, count = pattern.subn("          printf '%s\\\\n' \"$launch_output\"", text, count=1)
+          if count != 1:
+              raise SystemExit(f'printf normalization count {count}')
+          p.write_text(text)
+          PY
+          git diff --check
+          grep -Fxq "          printf '%s\\n' \"\$launch_output\"" .github/ci.proposed.yml
+          grep -Fq '          launch_output="$(SIMCTL_CHILD_MBLINK_CI_SIMULATED_FLOW=1' .github/ci.proposed.yml
+          grep -Fq '          marker="$data_container/Documents/mblink-ci-simulated-flow.ok"' .github/ci.proposed.yml
+      - name: Publish corrected staging file
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add .github/ci.proposed.yml
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Normalize staged simulator smoke command"
+          git push origin HEAD:main
