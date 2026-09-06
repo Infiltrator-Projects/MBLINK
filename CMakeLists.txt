@@ -134,7 +134,10 @@ add_library(mblink STATIC
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
-    src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c)
+    src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c
+    src/mercedes/mercedes_me_data_ids.c
+    src/mercedes/mercedes_me_diaglogic.c
+    src/mercedes/mercedes_me_whisper.c)
 target_include_directories(mblink PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(mblink PRIVATE MBLINK_VERSION="${PROJECT_VERSION}" MBLINK_BUILD_PROFILE="${MBLINK_BUILD_PROFILE}")
 if(MBLINK_SOURCE_REVISION)
@@ -294,6 +297,9 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-uds-dtc tests/test_uds_dtc.c)
     mblink_add_test(mblink-test-discover-plan tests/test_discover_plan.c)
     mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)
+    mblink_add_test(mblink-test-mercedes-me-data-ids tests/test_mercedes_me_data_ids.c)
+    mblink_add_test(mblink-test-mercedes-me-diaglogic tests/test_mercedes_me_diaglogic.c)
+    mblink_add_test(mblink-test-mercedes-me-whisper tests/test_mercedes_me_whisper.c)
     mblink_add_test(mblink-test-mercedes-server tests/test_mercedes_server.c)
     mblink_add_test(mblink-test-stm32-reporter tests/test_stm32_reporter.c)
     target_sources(mblink-test-stm32-reporter PRIVATE

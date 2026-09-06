@@ -84,6 +84,8 @@ Manufacturer-specific data remains evidence-gated until documentation or reprodu
 
 Heavy unknown-vehicle research is a Linux/Windows responsibility: MBLINK Discover uses the shared LINK research engine for passive capture, module census, read-only data harvest and evidence analysis, while iPhone remains the normal diagnostic instrument. See `docs/VEHICLE_RESEARCH.md`.
 
+Mercedes me application semantics recovered from the archived official app (DataIds, DiagLogic and Whisper vocabulary/policies) are maintained in MBLINK; LINK owns only the reusable adapter transport/native framing boundary. See `docs/MERCEDES-ME-DATA-IDS.md`.
+
 ## Architecture
 
 Portable diagnostic behaviour is C11. C++ is used only where it materially improves a design. Platform-required languages remain narrow presentation/interop edges and must not become alternate protocol implementations.

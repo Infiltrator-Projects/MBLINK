@@ -35,6 +35,8 @@ LINK owns product-neutral vehicle-diagnostics and application behaviour shared a
 
 MBLINK owns Mercedes-wide identity/catalogue logic, vehicle/engine/ECU-family profiles (including the current C207/OM651/CRD3 evidence profile), Mercedes endpoint/definition provenance, Mercedes DTC knowledge, Mercedes module topology, branding, manufacturer-specific presentation content and genuinely Mercedes-specific diagnostic behaviour. Product-prefixed files that delegate to LINK are compatibility adaptors, not independent implementations.
 
+The recovered Mercedes me application semantic layer is also MBLINK-owned. Its DataIds catalogue, DiagLogic value/status schema and reference policies, and Whisper configuration vocabulary describe Mercedes application knowledge rather than a product-neutral adapter transport. LINK retains only the reusable adapter connection, byte-stream/native command framing and transport-neutral diagnostic bridge.
+
 The ownership rule applies to diagnostic knowledge as well as protocol code. Standards-defined generic DTC descriptions/classification, OBD freeze-frame/readiness semantics and generic UDS DTC status interpretation belong in LINK. Mercedes-Benz/CRD3/OM651-specific DTC definitions, module associations and manufacturer diagnostic metadata belong in MBLINK. See `FAULT_DIAGNOSTICS.md` for the normative product requirement.
 
 The same rule governs Discover. Generic scanning, transport, identification state, safety, evidence and dump formatting belong in LINK. Mercedes-specific module identities, known endpoints, evidence-backed read-only requests and decoders belong in MBLINK.
