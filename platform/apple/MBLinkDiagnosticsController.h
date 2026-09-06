@@ -31,6 +31,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+@interface MBLinkTransmissionLiveValueSnapshot : NSObject
+@property(nonatomic, copy, readonly) NSString *identifier;
+@property(nonatomic, readonly) uint16_t localIdentifier;
+@property(nonatomic, copy, readonly) NSString *shortName;
+@property(nonatomic, copy, readonly) NSString *title;
+@property(nonatomic, copy, readonly) NSString *suffix;
+@property(nonatomic, copy, readonly) NSString *formattedValue;
+@property(nonatomic, readonly, getter=isNumericValueAvailable) BOOL numericValueAvailable;
+@property(nonatomic, readonly) double numericValue;
+@property(nonatomic, copy, readonly) NSString *rawHex;
+@property(nonatomic, readonly, getter=isPollingEnabled) BOOL pollingEnabled;
+@property(nonatomic, copy, readonly) NSString *qualityNote;
+@end
+
 @interface MBLinkMercedesModuleSnapshot : NSObject
 
 @property(nonatomic, copy, readonly) NSString *identifier;
@@ -136,6 +150,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+
+/**
+ * Presentation-ready live GS 21 30 values decoded only by the portable
+ * Mercedes transmission layer. Swift must not reinterpret raw KWP bytes.
+ */
+- (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots;
 
 - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
 - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;

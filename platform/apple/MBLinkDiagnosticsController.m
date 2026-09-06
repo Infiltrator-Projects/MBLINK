@@ -34,6 +34,7 @@
 @property(nonatomic, copy, readwrite, nullable) NSString *unit;
 @property(nonatomic, copy, readwrite) NSString *formattedValue;
 @property(nonatomic, copy, readwrite) NSString *rawHex;
+@property(nonatomic, copy, readwrite) NSData *rawData;
 @property(nonatomic, readwrite, getter=isMapped) BOOL mapped;
 @property(nonatomic, readwrite, getter=isNumericValueAvailable)
     BOOL numericValueAvailable;
@@ -41,6 +42,22 @@
 @end
 
 @implementation MBLinkMercedesDataSnapshot
+@end
+
+@interface MBLinkTransmissionLiveValueSnapshot ()
+@property(nonatomic, copy, readwrite) NSString *identifier;
+@property(nonatomic, readwrite) uint16_t localIdentifier;
+@property(nonatomic, copy, readwrite) NSString *shortName;
+@property(nonatomic, copy, readwrite) NSString *title;
+@property(nonatomic, copy, readwrite) NSString *suffix;
+@property(nonatomic, copy, readwrite) NSString *formattedValue;
+@property(nonatomic, readwrite, getter=isNumericValueAvailable) BOOL numericValueAvailable;
+@property(nonatomic, readwrite) double numericValue;
+@property(nonatomic, copy, readwrite) NSString *rawHex;
+@property(nonatomic, readwrite, getter=isPollingEnabled) BOOL pollingEnabled;
+@property(nonatomic, copy, readwrite) NSString *qualityNote;
+@end
+@implementation MBLinkTransmissionLiveValueSnapshot
 @end
 
 @interface MBLinkMercedesModuleSnapshot ()
@@ -1760,6 +1777,144 @@ return [runtimeSafe copy];
 }
 
 
+- (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots
+{
+    const MblinkMercedesModuleScanEntry *module = NULL;
+    NSString *moduleIdentifier = nil;
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *candidate =
+            mblink_mercedes_module_scan_module_at(&_mercedesModuleScan, index);
+        if (candidate == NULL || candidate->extended_id ||
+            candidate->tx_can_id != UINT32_C(0x7e1) ||
+            candidate->rx_can_id != UINT32_C(0x7e9) ||
+            mblink_mercedes_module_scan_entry_protocol(candidate) !=
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) continue;
+        module = candidate;
+        moduleIdentifier = MBLinkMercedesModuleIdentifier(candidate);
+        break;
+    }
+    if (module == NULL || moduleIdentifier.length == 0U) return @[];
+
+    MBLinkMercedesDataSnapshot *rli30 = nil;
+    for (MBLinkMercedesDataSnapshot *candidate in
+         _manufacturerDataByModule[moduleIdentifier] ?: @[]) {
+        if (candidate.service == UINT8_C(0x21) &&
+            candidate.identifier == UINT16_C(0x30) &&
+            candidate.rawData.length != 0U) {
+            rli30 = candidate;
+            break;
+        }
+    }
+    if (rli30 == nil) return @[];
+
+    MblinkMercedesTransmissionLive2130 decoded;
+    if (!mblink_mercedes_transmission_decode_live_2130(
+            (const uint8_t *)rli30.rawData.bytes,
+            rli30.rawData.length, &decoded)) return @[];
+
+    NSMutableArray<MBLinkTransmissionLiveValueSnapshot *> *values =
+        [[NSMutableArray alloc] init];
+    NSString *quality = decoded.rich_layout
+        ? @"Mercedes GS 21 30 rich response · portable MBLINK decoder · response shape/evidence qualified; ECU family not inferred from route"
+        : @"Mercedes GS 21 30 compact response · portable MBLINK decoder · response shape/evidence qualified; ECU family not inferred from route";
+
+    if (decoded.oil_temperature_available) {
+        const double display =
+            [_shared displayTemperatureCelsius:decoded.oil_temperature_c];
+        NSString *unit = _shared.displayTemperatureUnit;
+        MBLinkTransmissionLiveValueSnapshot *value =
+            [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+        value.identifier = @"mercedes.transmission.oil_temperature";
+        value.localIdentifier = UINT16_C(0x30);
+        value.shortName = @"ATF";
+        value.title = @"Transmission oil temperature";
+        value.suffix = [@" " stringByAppendingString:unit];
+        value.formattedValue = [NSString stringWithFormat:@"%.6g %@", display, unit];
+        value.numericValueAvailable = YES;
+        value.numericValue = display;
+        value.rawHex = rli30.rawHex;
+        value.pollingEnabled = YES;
+        value.qualityNote = quality;
+        [values addObject:value];
+    }
+
+    if (decoded.actual_gear_available) {
+        MBLinkTransmissionLiveValueSnapshot *value =
+            [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+        value.identifier = @"mercedes.transmission.actual_gear";
+        value.localIdentifier = UINT16_C(0x30);
+        value.shortName = @"GEAR";
+        value.title = @"Current gear";
+        value.suffix = @"";
+        value.formattedValue = MBLinkStringFromCString(
+            mblink_mercedes_transmission_actual_gear_name(
+                decoded.actual_gear_code));
+        value.numericValueAvailable = NO;
+        value.rawHex = rli30.rawHex;
+        value.pollingEnabled = YES;
+        value.qualityNote = quality;
+        [values addObject:value];
+    }
+
+    if (decoded.target_gear_available) {
+        MBLinkTransmissionLiveValueSnapshot *value =
+            [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+        value.identifier = @"mercedes.transmission.target_gear";
+        value.localIdentifier = UINT16_C(0x30);
+        value.shortName = @"TARGET";
+        value.title = @"Target gear";
+        value.suffix = @"";
+        value.formattedValue = MBLinkStringFromCString(
+            mblink_mercedes_transmission_target_gear_name(
+                decoded.target_gear_code));
+        value.numericValueAvailable = NO;
+        value.rawHex = rli30.rawHex;
+        value.pollingEnabled = YES;
+        value.qualityNote = quality;
+        [values addObject:value];
+    }
+
+    if (decoded.selector_position_available) {
+        MBLinkTransmissionLiveValueSnapshot *value =
+            [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+        value.identifier = @"mercedes.transmission.selector_position";
+        value.localIdentifier = UINT16_C(0x30);
+        value.shortName = @"SELECT";
+        value.title = @"Selector position code";
+        value.suffix = @" raw";
+        value.formattedValue = [NSString stringWithFormat:@"%u raw",
+            (unsigned int)decoded.selector_position_code];
+        value.numericValueAvailable = YES;
+        value.numericValue = (double)decoded.selector_position_code;
+        value.rawHex = rli30.rawHex;
+        value.pollingEnabled = YES;
+        value.qualityNote = quality;
+        [values addObject:value];
+    }
+
+    if (decoded.drive_program_available) {
+        MBLinkTransmissionLiveValueSnapshot *value =
+            [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+        value.identifier = @"mercedes.transmission.drive_program";
+        value.localIdentifier = UINT16_C(0x30);
+        value.shortName = @"PROGRAM";
+        value.title = @"Transmission drive program code";
+        value.suffix = @" raw";
+        value.formattedValue = [NSString stringWithFormat:@"%u raw",
+            (unsigned int)decoded.drive_program_code];
+        value.numericValueAvailable = YES;
+        value.numericValue = (double)decoded.drive_program_code;
+        value.rawHex = rli30.rawHex;
+        value.pollingEnabled = YES;
+        value.qualityNote = quality;
+        [values addObject:value];
+    }
+
+    return [values copy];
+}
+
 - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:
     (NSString *)identifier
 {
@@ -2282,6 +2437,8 @@ return [runtimeSafe copy];
         snapshot.service = record->service;
         snapshot.codeText = MBLinkStringFromCString(code);
         snapshot.rawHex = MBLinkStringFromCString(raw);
+        snapshot.rawData = [NSData dataWithBytes:record->data
+                                         length:record->data_length];
 
         double numeric = 0.0;
         const char *numericName = NULL;

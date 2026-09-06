@@ -213,6 +213,12 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         mercedesTargetSignals = loadMercedesTargetSignals()
         mercedesNativeDataIdentities = loadMercedesNativeDataIdentities()
         refresh()
+#if DEBUG
+        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1" {
+            isSimulationActive = true
+            controller.startSimulated()
+        }
+#endif
     }
 
     func connect() {
@@ -1004,83 +1010,6 @@ private func formattedValue(
         return manufacturerNumericHistory[id] ?? []
     }
 
-    private func manufacturerBytes(_ rawHex: String) -> [UInt8] {
-        let hex = rawHex.filter { !$0.isWhitespace }
-        guard hex.count >= 2, hex.count % 2 == 0 else { return [] }
-        var result = [UInt8]()
-        result.reserveCapacity(hex.count / 2)
-        var index = hex.startIndex
-        while index < hex.endIndex {
-            let next = hex.index(index, offsetBy: 2)
-            guard let byte = UInt8(hex[index..<next], radix: 16) else {
-                return []
-            }
-            result.append(byte)
-            index = next
-        }
-        return result
-    }
-
-    private func manufacturerBE16(_ bytes: [UInt8], _ offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 1 < bytes.count else { return nil }
-        return (UInt16(bytes[offset]) << 8) | UInt16(bytes[offset + 1])
-    }
-
-    private func egs52GearText(_ code: UInt8) -> String {
-        switch code {
-        case 0: return "N"
-        case 1...7: return "\(code)"
-        case 8: return "D-CVT"
-        case 9: return "R-CVT"
-        case 10: return "R3"
-        case 11: return "R"
-        case 12: return "R2"
-        case 13: return "P"
-        case 14: return "No force"
-        default: return "Unavailable"
-        }
-    }
-
-    private func egs52RecognisedGearText(_ code: UInt8) -> String {
-        switch code {
-        case 0: return "Inactive"
-        case 1...5: return "D\(code)"
-        case 6: return "R"
-        case 7: return "R2"
-        case 23: return "Wrong gear"
-        case 88: return "Calculating"
-        case 255: return "Signal unavailable"
-        default: return String(format: "Code 0x%02X", code)
-        }
-    }
-
-    private func egs52TCCStateText(_ code: UInt8) -> String {
-        switch code {
-        case 0: return "Open"
-        case 1: return "Open → slipping"
-        case 2: return "Slipping → open"
-        case 3: return "Slipping"
-        case 4: return "Slipping → locked"
-        case 5: return "Locked → slipping"
-        case 6: return "Locked"
-        default: return String(format: "Code 0x%02X", code)
-        }
-    }
-
-    private func egs52ShiftValveText(_ code: UInt8) -> String {
-        switch code {
-        case 0: return "No shift valve"
-        case 1: return "1-2/4-5"
-        case 2: return "2-3"
-        case 3: return "1-2/4-5 + 2-3"
-        case 4: return "3-4"
-        case 5: return "1-2/4-5 + 3-4"
-        case 6: return "2-3 + 3-4"
-        case 7: return "All shift valves"
-        default: return String(format: "Code 0x%02X", code)
-        }
-    }
-
     private func transmissionDiagnosticParameters() -> [DiagnosticParameter] {
         guard let module = diagnosticModules.first(where: {
             !$0.extendedID &&
@@ -1088,290 +1017,35 @@ private func formattedValue(
                 $0.responseCANIdentifier == 0x7E9
         }) else { return [] }
 
-        var values = [UInt16: MercedesModuleDataValue]()
-        for value in manufacturerData(moduleID: module.id)
-            where value.service == 0x21 {
-            values[value.identifier] = value
-        }
         let source = "\(module.name) · \(module.addressText)"
-        var result = [DiagnosticParameter]()
-
-        func addNumeric(
-            id: String,
-            identifier: UInt16,
-            shortName: String,
-            title: String,
-            value: Double,
-            suffix: String = "",
-            rawHex: String,
-            quality: String
-        ) {
-            result.append(DiagnosticParameter(
-                id: id,
+        return controller.transmissionLiveValueSnapshots().map { snapshot in
+            let numeric = snapshot.isNumericValueAvailable
+                ? snapshot.numericValue : nil
+            return DiagnosticParameter(
+                id: snapshot.identifier,
                 protocolName: "kwp2000",
                 moduleIdentifier: 0x7E1,
-                parameterIdentifier: UInt32(0x2100) | UInt32(identifier),
-                shortName: shortName,
-                title: title,
-                suffix: suffix,
-                formattedValue: String(format: "%.6g%@", value, suffix),
-                value: value,
-                structuredValue: nil,
-                rawHex: rawHex,
+                parameterIdentifier: UInt32(0x2100) |
+                    UInt32(snapshot.localIdentifier),
+                shortName: snapshot.shortName,
+                title: snapshot.title,
+                suffix: snapshot.suffix,
+                formattedValue: snapshot.formattedValue,
+                value: numeric,
+                structuredValue: numeric == nil ? snapshot.formattedValue : nil,
+                rawHex: snapshot.rawHex,
                 vehicleSupported: true,
                 favourite: false,
-                pollingEnabled: true,
-                history: manufacturerHistory(
-                    id: id, value: value, rawHex: rawHex),
+                pollingEnabled: snapshot.isPollingEnabled,
+                history: numeric.map {
+                    manufacturerHistory(
+                        id: snapshot.identifier,
+                        value: $0,
+                        rawHex: snapshot.rawHex)
+                } ?? [],
                 sourceLabel: source,
-                qualityNote: quality))
+                qualityNote: snapshot.qualityNote)
         }
-
-        func addText(
-            id: String,
-            identifier: UInt16,
-            shortName: String,
-            title: String,
-            text: String,
-            rawHex: String,
-            quality: String
-        ) {
-            result.append(DiagnosticParameter(
-                id: id,
-                protocolName: "kwp2000",
-                moduleIdentifier: 0x7E1,
-                parameterIdentifier: UInt32(0x2100) | UInt32(identifier),
-                shortName: shortName,
-                title: title,
-                suffix: "",
-                formattedValue: text,
-                value: nil,
-                structuredValue: text,
-                rawHex: rawHex,
-                vehicleSupported: true,
-                favourite: false,
-                pollingEnabled: true,
-                history: [],
-                sourceLabel: source,
-                qualityNote: quality))
-        }
-
-        let dasQuality =
-            "Mercedes EGS52/DAS-compatible RLI layout corroborated by public EGS52 emulation source"
-
-        if let rli30 = values[0x30] {
-            let b = manufacturerBytes(rli30.rawHex)
-            if b.count >= 24 {
-                if let raw = manufacturerBE16(b, 0) {
-                    addNumeric(id: "mercedes.transmission.tcc_delta_speed",
-                               identifier: 0x30, shortName: "TCC Δ",
-                               title: "TCC delta speed (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-                if let raw = manufacturerBE16(b, 2) {
-                    addNumeric(id: "mercedes.transmission.tcc_speed",
-                               identifier: 0x30, shortName: "TCC SPD",
-                               title: "TCC speed (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-                if let raw = manufacturerBE16(b, 4) {
-                    addNumeric(id: "mercedes.transmission.tcc_pressure",
-                               identifier: 0x30, shortName: "TCC P",
-                               title: "TCC pressure (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-                addText(id: "mercedes.transmission.tcc_state",
-                        identifier: 0x30, shortName: "TCC",
-                        title: "Torque converter clutch state",
-                        text: egs52TCCStateText(b[6]),
-                        rawHex: rli30.rawHex, quality: dasQuality)
-                addNumeric(id: "mercedes.transmission.selector_position",
-                           identifier: 0x30, shortName: "SELECT",
-                           title: "Selector position code",
-                           value: Double(b[7]), suffix: " raw",
-                           rawHex: rli30.rawHex, quality: dasQuality)
-                addNumeric(id: "mercedes.transmission.drive_program",
-                           identifier: 0x30, shortName: "PROGRAM",
-                           title: "Transmission drive program code",
-                           value: Double(b[8]), suffix: " raw",
-                           rawHex: rli30.rawHex, quality: dasQuality)
-                addText(id: "mercedes.transmission.recognised_gear",
-                        identifier: 0x30, shortName: "REC GEAR",
-                        title: "Recognised gear",
-                        text: egs52RecognisedGearText(b[9]),
-                        rawHex: rli30.rawHex, quality: dasQuality)
-
-                let actual = b[10] & 0x0F
-                let target = (b[10] >> 4) & 0x0F
-                addText(id: "mercedes.transmission.actual_gear",
-                        identifier: 0x30, shortName: "GEAR",
-                        title: "Current gear",
-                        text: egs52GearText(actual),
-                        rawHex: rli30.rawHex, quality: dasQuality)
-                addText(id: "mercedes.transmission.target_gear",
-                        identifier: 0x30, shortName: "TARGET",
-                        title: "Target gear",
-                        text: egs52GearText(target),
-                        rawHex: rli30.rawHex, quality: dasQuality)
-
-                let celsius = Double(b[11]) - 50.0
-                let displayedValue = controller.displayTemperature(celsius: celsius)
-                let temperatureSuffix = " " + controller.displayTemperatureUnit()
-                addNumeric(id: "mercedes.transmission.oil_temperature",
-                           identifier: 0x30, shortName: "ATF",
-                           title: "Transmission oil temperature",
-                           value: displayedValue, suffix: temperatureSuffix,
-                           rawHex: rli30.rawHex, quality: dasQuality)
-
-                if let raw = manufacturerBE16(b, 12) {
-                    addNumeric(id: "mercedes.transmission.engine_torque_raw",
-                               identifier: 0x30, shortName: "ENG TQ",
-                               title: "Engine torque value (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-                if let raw = manufacturerBE16(b, 14) {
-                    addNumeric(id: "mercedes.transmission.converter_torque_raw",
-                               identifier: 0x30, shortName: "CONV TQ",
-                               title: "Converter torque value (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-                if let raw = manufacturerBE16(b, 16) {
-                    addNumeric(id: "mercedes.transmission.output_speed_raw",
-                               identifier: 0x30, shortName: "OUT SPD",
-                               title: "Transmission output speed (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli30.rawHex, quality: dasQuality)
-                }
-            }
-        }
-
-        if let rli31 = values[0x31] {
-            let b = manufacturerBytes(rli31.rawHex)
-            if b.count >= 20 {
-                let fields: [(String, String, String, Int, String)] = [
-                    ("mercedes.transmission.n2_pulse_count", "N2", "N2 pulse count", 0, ""),
-                    ("mercedes.transmission.n3_pulse_count", "N3", "N3 pulse count", 2, ""),
-                    ("mercedes.transmission.input_rpm", "INPUT", "Transmission input speed", 4, " rpm"),
-                    ("mercedes.transmission.engine_rpm", "ENG RPM", "Engine speed reported by TCU", 6, " rpm"),
-                    ("mercedes.transmission.wheel_fl_raw", "FL WHEEL", "Front-left wheel speed (raw)", 8, " raw"),
-                    ("mercedes.transmission.wheel_fr_raw", "FR WHEEL", "Front-right wheel speed (raw)", 10, " raw"),
-                    ("mercedes.transmission.wheel_rl_raw", "RL WHEEL", "Rear-left wheel speed (raw)", 12, " raw"),
-                    ("mercedes.transmission.wheel_rr_raw", "RR WHEEL", "Rear-right wheel speed (raw)", 14, " raw"),
-                    ("mercedes.transmission.rear_vehicle_speed", "REAR SPD", "Vehicle speed from rear wheels", 16, " km/h"),
-                    ("mercedes.transmission.front_vehicle_speed", "FRONT SPD", "Vehicle speed from front wheels", 18, " km/h")
-                ]
-                for field in fields {
-                    if let raw = manufacturerBE16(b, field.3) {
-                        addNumeric(id: field.0, identifier: 0x31,
-                                   shortName: field.1, title: field.2,
-                                   value: Double(raw), suffix: field.4,
-                                   rawHex: rli31.rawHex, quality: dasQuality)
-                    }
-                }
-            }
-        }
-
-        if let rli32 = values[0x32] {
-            let b = manufacturerBytes(rli32.rawHex)
-            if b.count >= 12 {
-                addNumeric(id: "mercedes.transmission.pedal_percent",
-                           identifier: 0x32, shortName: "PEDAL",
-                           title: "Accelerator pedal position",
-                           value: Double(b[0]), suffix: " %",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-                if let raw = manufacturerBE16(b, 1) {
-                    addNumeric(id: "mercedes.transmission.upshift_delta_rpm",
-                               identifier: 0x32, shortName: "UP ΔRPM",
-                               title: "Upshift RPM delta",
-                               value: Double(raw), suffix: " rpm",
-                               rawHex: rli32.rawHex, quality: dasQuality)
-                }
-                if let raw = manufacturerBE16(b, 3) {
-                    addNumeric(id: "mercedes.transmission.downshift_delta_rpm",
-                               identifier: 0x32, shortName: "DOWN ΔRPM",
-                               title: "Downshift RPM delta",
-                               value: Double(raw), suffix: " rpm",
-                               rawHex: rli32.rawHex, quality: dasQuality)
-                }
-                addNumeric(id: "mercedes.transmission.pedal_delta_percent",
-                           identifier: 0x32, shortName: "PEDAL Δ",
-                           title: "Accelerator pedal change",
-                           value: Double(b[5]), suffix: " %",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-                if let raw = manufacturerBE16(b, 6) {
-                    addNumeric(id: "mercedes.transmission.pitch_raw",
-                               identifier: 0x32, shortName: "PITCH",
-                               title: "Transmission pitch value (raw)",
-                               value: Double(raw), suffix: " raw",
-                               rawHex: rli32.rawHex, quality: dasQuality)
-                }
-                addNumeric(id: "mercedes.transmission.driving_status",
-                           identifier: 0x32, shortName: "DRV STAT",
-                           title: "Transmission driving-status code",
-                           value: Double(b[8]), suffix: " raw",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-                addNumeric(id: "mercedes.transmission.warmup_shift_state",
-                           identifier: 0x32, shortName: "WARMUP",
-                           title: "Warm-up shift-state code",
-                           value: Double(b[9]), suffix: " raw",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-                addNumeric(id: "mercedes.transmission.low_gear_limit",
-                           identifier: 0x32, shortName: "LOW LIM",
-                           title: "Requested low gear-range limit",
-                           value: Double(b[10]), suffix: " raw",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-                addNumeric(id: "mercedes.transmission.high_gear_limit",
-                           identifier: 0x32, shortName: "HIGH LIM",
-                           title: "Requested high gear-range limit",
-                           value: Double(b[11]), suffix: " raw",
-                           rawHex: rli32.rawHex, quality: dasQuality)
-            }
-        }
-
-        if let rli33 = values[0x33] {
-            let b = manufacturerBytes(rli33.rawHex)
-            if b.count >= 15 {
-                addNumeric(id: "mercedes.transmission.valve_flag",
-                           identifier: 0x33, shortName: "VALVE",
-                           title: "Shift-valve active flag",
-                           value: Double(b[0]), suffix: " raw",
-                           rawHex: rli33.rawHex, quality: dasQuality)
-                addText(id: "mercedes.transmission.shift_valve_state",
-                        identifier: 0x33, shortName: "SHIFT VALVE",
-                        title: "Shift-valve state",
-                        text: egs52ShiftValveText(b[1]),
-                        rawHex: rli33.rawHex, quality: dasQuality)
-
-                let fields: [(String, String, String, Int)] = [
-                    ("mercedes.transmission.spc_pressure_raw", "SPC P", "SPC pressure (raw)", 2),
-                    ("mercedes.transmission.mpc_pressure_raw", "MPC P", "MPC pressure (raw)", 4),
-                    ("mercedes.transmission.spc_target_current_raw", "SPC TGT", "SPC target current (raw)", 6),
-                    ("mercedes.transmission.spc_actual_current_raw", "SPC ACT", "SPC actual current (raw)", 8),
-                    ("mercedes.transmission.mpc_target_current_raw", "MPC TGT", "MPC target current (raw)", 10),
-                    ("mercedes.transmission.mpc_actual_current_raw", "MPC ACT", "MPC actual current (raw)", 12)
-                ]
-                for field in fields {
-                    if let raw = manufacturerBE16(b, field.3) {
-                        addNumeric(id: field.0, identifier: 0x33,
-                                   shortName: field.1, title: field.2,
-                                   value: Double(raw), suffix: " raw",
-                                   rawHex: rli33.rawHex, quality: dasQuality)
-                    }
-                }
-                addNumeric(id: "mercedes.transmission.tcc_pwm_raw",
-                           identifier: 0x33, shortName: "TCC PWM",
-                           title: "TCC PWM (raw)",
-                           value: Double(b[14]), suffix: " raw",
-                           rawHex: rli33.rawHex, quality: dasQuality)
-            }
-        }
-
-        return result
     }
 
     /*
@@ -1481,13 +1155,13 @@ private func formattedValue(
         }
 
         var responderPIDs = [String: Set<UInt8>]()
-for responder in LinkVehicleProfileStandardResponders(profile) {
-    let rx = responder.responderCANIdentifier
-    let extended = responder.isExtendedID
-    let key = String(format: "%@:%08X", extended ? "29" : "11", rx)
-    let pids = responder.pids.compactMap { UInt8(exactly: $0.uintValue) }
-    responderPIDs[key, default: []].formUnion(pids)
-}
+        for responder in LinkVehicleProfileStandardResponders(profile) {
+            let rx = responder.responderCANIdentifier
+            let extended = responder.isExtendedID
+            let key = String(format: "%@:%08X", extended ? "29" : "11", rx)
+            let pids = responder.pids.compactMap { UInt8(exactly: $0.uintValue) }
+            responderPIDs[key, default: []].formUnion(pids)
+        }
 
         var modules = [DiagnosticModule]()
         var support = [String: Set<UInt8>]()
@@ -1844,6 +1518,20 @@ for responder in LinkVehicleProfileStandardResponders(profile) {
 
         isActive = controller.isActive
         isReady = controller.isReady
+#if DEBUG
+        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
+           isSimulationActive, isReady,
+           let liveVIN = controller.mercedesVINText, liveVIN.count == 17 {
+            let marker = "ready=true\nvin=\(liveVIN)\nstatus=\(controller.statusText)\nprofile=\(controller.vehicleProfileStatusText)\n"
+            if let directory = FileManager.default.urls(
+                    for: .documentDirectory, in: .userDomainMask).first {
+                try? marker.write(
+                    to: directory.appendingPathComponent(
+                        "mblink-ci-simulated-flow.ok"),
+                    atomically: true, encoding: .utf8)
+            }
+        }
+#endif
         if controller.isActive, !isSimulationActive,
            let liveVIN = controller.mercedesVINText,
            liveVIN.count == 17 {

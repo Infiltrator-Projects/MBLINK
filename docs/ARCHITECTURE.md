@@ -55,7 +55,7 @@ A second executable does not justify a second repository when it shares the same
 
 The main application is the user-facing diagnostic product. Discover is the engineering-oriented reader/dumper that explores vehicle networks and modules more deeply while remaining read-oriented and evidence-preserving.
 
-The current Windows Discover target provides passive CAN capture and bounded OBD inventory. Future manufacturer-aware module discovery should extend this target rather than introducing a parallel `MBLINK Reader` codebase.
+The current Windows Discover target provides passive CAN capture, bounded OBD inventory and the explicit Mercedes FULL SWEEP built on LINK's shared deep read-only discovery-plan interface. Further manufacturer-aware research extends this target rather than introducing a parallel `MBLINK Reader` codebase.
 
 ## Platform boundaries
 

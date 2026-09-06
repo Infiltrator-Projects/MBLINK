@@ -67,6 +67,55 @@ bool mblink_mercedes_transmission_decode_2130(
     return true;
 }
 
+bool mblink_mercedes_transmission_decode_live_2130(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded)
+{
+    MblinkMercedesTransmissionLive2130 value;
+    if (data == NULL || decoded == NULL) return false;
+    memset(&value, 0, sizeof(value));
+
+    /*
+     * Two response shapes are corroborated for this local identifier. A
+     * 24-byte DAS-compatible RLI carries the richer values; the shorter
+     * public/custom-PID shape carries ATF temperature plus current gear. Do
+     * not silently reinterpret an unrecognised long payload as the compact
+     * layout: that would move offsets and manufacture believable values.
+     */
+    if (data_length >= 24U) {
+        MblinkMercedesKwpRli30 rich;
+        if (!mblink_mercedes_transmission_decode_kwp_rli30(
+                data, data_length, &rich)) return false;
+        if (rich.tcc_status > UINT8_C(6) ||
+            rich.actual_gear_code > UINT8_C(14) ||
+            rich.target_gear_code > UINT8_C(14)) return false;
+
+        value.rich_layout = true;
+        value.oil_temperature_available = true;
+        value.oil_temperature_c = rich.atf_temperature_c;
+        value.actual_gear_available = true;
+        value.actual_gear_code = rich.actual_gear_code;
+        value.target_gear_available = true;
+        value.target_gear_code = rich.target_gear_code;
+        value.selector_position_available = true;
+        value.selector_position_code = rich.selector_position;
+        value.drive_program_available = true;
+        value.drive_program_code = rich.drive_program;
+    } else {
+        MblinkMercedesTransmission2130 compact;
+        if (!mblink_mercedes_transmission_decode_2130(
+                data, data_length, &compact)) return false;
+        value.oil_temperature_available = compact.oil_temperature_available;
+        value.oil_temperature_c = compact.oil_temperature_c;
+        value.actual_gear_available = compact.actual_gear_code_available;
+        value.actual_gear_code = compact.actual_gear_code;
+    }
+
+    *decoded = value;
+    return value.oil_temperature_available || value.actual_gear_available;
+}
+
 bool mblink_mercedes_transmission_decode_egs51_gs218(
     const uint8_t *payload,
     size_t payload_length,

@@ -41,6 +41,33 @@ static int test_2130(void)
     CHECK(strcmp(mblink_mercedes_transmission_actual_gear_name(11U), "R") == 0);
     CHECK(strcmp(mblink_mercedes_transmission_actual_gear_name(13U), "P") == 0);
     CHECK(strcmp(mblink_mercedes_transmission_target_gear_name(14U), "Cancel") == 0);
+
+    MblinkMercedesTransmissionLive2130 live;
+    CHECK(mblink_mercedes_transmission_decode_live_2130(
+        data, sizeof(data), &live));
+    CHECK(!live.rich_layout);
+    CHECK(live.oil_temperature_available && live.oil_temperature_c == 50.0);
+    CHECK(live.actual_gear_available && live.actual_gear_code == 6U);
+    CHECK(!live.target_gear_available);
+
+    uint8_t rich[24] = {0};
+    rich[6] = UINT8_C(3);
+    rich[7] = UINT8_C(4);
+    rich[8] = UINT8_C(2);
+    rich[10] = UINT8_C(0x54);
+    rich[11] = UINT8_C(100);
+    CHECK(mblink_mercedes_transmission_decode_live_2130(
+        rich, sizeof(rich), &live));
+    CHECK(live.rich_layout);
+    CHECK(live.oil_temperature_c == 50.0);
+    CHECK(live.actual_gear_code == 4U);
+    CHECK(live.target_gear_code == 5U);
+    CHECK(live.selector_position_code == 4U);
+    CHECK(live.drive_program_code == 2U);
+
+    rich[6] = UINT8_C(0xff);
+    CHECK(!mblink_mercedes_transmission_decode_live_2130(
+        rich, sizeof(rich), &live));
     return 0;
 }
 

@@ -62,6 +62,26 @@ typedef struct MblinkMercedesTransmission2130 {
     uint8_t actual_gear_code;
 } MblinkMercedesTransmission2130;
 
+/**
+ * Canonical live values recoverable from a source/vehicle-corroborated
+ * Mercedes GS KWP 21 30 response. The decoder qualifies the response by
+ * layout/length and never treats diagnostic route 0x7E1 -> 0x7E9 as proof of
+ * a particular EGS/VGS controller family.
+ */
+typedef struct MblinkMercedesTransmissionLive2130 {
+    bool rich_layout;
+    bool oil_temperature_available;
+    double oil_temperature_c;
+    bool actual_gear_available;
+    uint8_t actual_gear_code;
+    bool target_gear_available;
+    uint8_t target_gear_code;
+    bool selector_position_available;
+    uint8_t selector_position_code;
+    bool drive_program_available;
+    uint8_t drive_program_code;
+} MblinkMercedesTransmissionLive2130;
+
 /* EGS51 / early 722.6: six-byte GS_218h broadcast. */
 typedef struct MblinkMercedesEgs51Gs218 {
     double torque_request;
@@ -332,6 +352,11 @@ bool mblink_mercedes_transmission_decode_2130(
     const uint8_t *data,
     size_t data_length,
     MblinkMercedesTransmission2130 *decoded);
+
+bool mblink_mercedes_transmission_decode_live_2130(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded);
 
 bool mblink_mercedes_transmission_decode_egs51_gs218(
     const uint8_t *payload,
