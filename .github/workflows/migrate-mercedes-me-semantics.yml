@@ -1,0 +1,157 @@
+name: Migrate Mercedes me semantic ownership
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/migrate-mercedes-me-semantics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Move manufacturer semantics into MBLINK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.')
+          link = root / 'src' / 'link'
+
+          moves = {
+              link / 'include/link/mercedes_me_data_ids.h': root / 'include/mblink/mercedes_me_data_ids.h',
+              link / 'include/link/mercedes_me_diaglogic.h': root / 'include/mblink/mercedes_me_diaglogic.h',
+              link / 'include/link/mercedes_me_whisper.h': root / 'include/mblink/mercedes_me_whisper.h',
+              link / 'src/core/mercedes_me_data_ids.c': root / 'src/mercedes/mercedes_me_data_ids.c',
+              link / 'src/core/mercedes_me_diaglogic.c': root / 'src/mercedes/mercedes_me_diaglogic.c',
+              link / 'src/core/mercedes_me_whisper.c': root / 'src/mercedes/mercedes_me_whisper.c',
+              link / 'tests/test_mercedes_me_data_ids.c': root / 'tests/test_mercedes_me_data_ids.c',
+              link / 'tests/test_mercedes_me_diaglogic.c': root / 'tests/test_mercedes_me_diaglogic.c',
+              link / 'tests/test_mercedes_me_whisper.c': root / 'tests/test_mercedes_me_whisper.c',
+              link / 'docs/MERCEDES-ME-DATA-IDS.md': root / 'docs/MERCEDES-ME-DATA-IDS.md',
+          }
+
+          for source, destination in moves.items():
+              if not source.exists():
+                  raise SystemExit(f'missing source evidence: {source}')
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+
+          semantic_files = [
+              root / 'include/mblink/mercedes_me_data_ids.h',
+              root / 'include/mblink/mercedes_me_diaglogic.h',
+              root / 'include/mblink/mercedes_me_whisper.h',
+              root / 'src/mercedes/mercedes_me_data_ids.c',
+              root / 'src/mercedes/mercedes_me_diaglogic.c',
+              root / 'src/mercedes/mercedes_me_whisper.c',
+              root / 'tests/test_mercedes_me_data_ids.c',
+              root / 'tests/test_mercedes_me_diaglogic.c',
+              root / 'tests/test_mercedes_me_whisper.c',
+          ]
+
+          for path in semantic_files:
+              text = path.read_text()
+              text = text.replace('"link/mercedes_me_data_ids.h"', '"mblink/mercedes_me_data_ids.h"')
+              text = text.replace('"link/mercedes_me_diaglogic.h"', '"mblink/mercedes_me_diaglogic.h"')
+              text = text.replace('"link/mercedes_me_whisper.h"', '"mblink/mercedes_me_whisper.h"')
+              text = text.replace('LINK_MERCEDES_ME_DATA_IDS_H', 'MBLINK_MERCEDES_ME_DATA_IDS_H')
+              text = text.replace('LINK_MERCEDES_ME_DIAGLOGIC_H', 'MBLINK_MERCEDES_ME_DIAGLOGIC_H')
+              text = text.replace('LINK_MERCEDES_ME_WHISPER_H', 'MBLINK_MERCEDES_ME_WHISPER_H')
+              text = text.replace('LinkMercedesMe', 'MblinkMercedesMe')
+              text = text.replace('LINK_MERCEDES_ME_', 'MBLINK_MERCEDES_ME_')
+              text = text.replace('link_mercedes_me_', 'mblink_mercedes_me_')
+              path.write_text(text)
+
+          cmake = Path('CMakeLists.txt')
+          text = cmake.read_text()
+          old = '    src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c)'
+          new = ('    src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c\n'
+                 '    src/mercedes/mercedes_me_data_ids.c\n'
+                 '    src/mercedes/mercedes_me_diaglogic.c\n'
+                 '    src/mercedes/mercedes_me_whisper.c)')
+          if old not in text:
+              raise SystemExit('MBLINK source-list anchor not found')
+          text = text.replace(old, new, 1)
+          test_anchor = '    mblink_add_test(mblink-test-mercedes tests/test_mercedes.c)\n'
+          test_insert = (
+              test_anchor +
+              '    mblink_add_test(mblink-test-mercedes-me-data-ids tests/test_mercedes_me_data_ids.c)\n'
+              '    mblink_add_test(mblink-test-mercedes-me-diaglogic tests/test_mercedes_me_diaglogic.c)\n'
+              '    mblink_add_test(mblink-test-mercedes-me-whisper tests/test_mercedes_me_whisper.c)\n')
+          if test_anchor not in text:
+              raise SystemExit('MBLINK test anchor not found')
+          text = text.replace(test_anchor, test_insert, 1)
+          cmake.write_text(text)
+
+          architecture = Path('docs/ARCHITECTURE.md')
+          text = architecture.read_text()
+          anchor = ('MBLINK owns Mercedes-wide identity/catalogue logic, vehicle/engine/ECU-family profiles')
+          if anchor not in text:
+              raise SystemExit('architecture ownership anchor not found')
+          paragraph = (
+              '\nThe recovered Mercedes me application semantic layer is also MBLINK-owned. '
+              'Its DataIds catalogue, DiagLogic value/status schema and reference policies, and '
+              'Whisper configuration vocabulary describe Mercedes application knowledge rather '
+              'than a product-neutral adapter transport. LINK retains only the reusable adapter '
+              'connection, byte-stream/native command framing and transport-neutral diagnostic bridge.\n')
+          marker = '\nThe ownership rule applies to diagnostic knowledge as well as protocol code.'
+          if paragraph.strip() not in text:
+              if marker not in text:
+                  raise SystemExit('architecture insertion point not found')
+              text = text.replace(marker, paragraph + marker, 1)
+          architecture.write_text(text)
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          note = ('\nMercedes me application semantics recovered from the archived official app '
+                  '(DataIds, DiagLogic and Whisper vocabulary/policies) are maintained in MBLINK; '
+                  'LINK owns only the reusable adapter transport/native framing boundary. '
+                  'See `docs/MERCEDES-ME-DATA-IDS.md`.\n')
+          if note.strip() not in text:
+              marker = '\n## Architecture\n'
+              if marker not in text:
+                  raise SystemExit('README architecture marker not found')
+              text = text.replace(marker, note + marker, 1)
+          readme.write_text(text)
+
+          moved_doc = Path('docs/MERCEDES-ME-DATA-IDS.md')
+          doc = moved_doc.read_text()
+          ownership = ('\n> Ownership: this Mercedes application semantic evidence belongs to MBLINK. '
+                       'LINK owns the product-neutral adapter transport and native framing only.\n\n')
+          if '> Ownership:' not in doc:
+              lines = doc.splitlines(keepends=True)
+              insert_at = 1 if lines and lines[0].startswith('<!--') else 0
+              lines.insert(insert_at, ownership)
+              moved_doc.write_text(''.join(lines))
+          PY
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git rm .github/workflows/migrate-mercedes-me-semantics.yml
+          git add CMakeLists.txt README.md docs/ARCHITECTURE.md docs/MERCEDES-ME-DATA-IDS.md include/mblink src/mercedes tests
+          git commit -m "Restore Mercedes me semantic ownership to MBLINK"
+          git push origin HEAD:main
