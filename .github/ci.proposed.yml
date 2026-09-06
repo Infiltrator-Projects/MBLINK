@@ -614,23 +614,23 @@ jobs:
           app="$derived/Build/Products/Debug-iphonesimulator/MBLINK.app"
           test -d "$app"
           xcrun simctl install "$udid" "$app"
-    launch_output="$(SIMCTL_CHILD_MBLINK_CI_SIMULATED_FLOW=1 xcrun simctl launch "$udid" com.github.The-First-Infiltrator.MBLINK)"
-    printf '%s
-' "$launch_output"
-    grep -Fq 'com.github.The-First-Infiltrator.MBLINK' <<<"$launch_output"
-    data_container="$(xcrun simctl get_app_container "$udid" com.github.The-First-Infiltrator.MBLINK data)"
-    marker="$data_container/Documents/mblink-ci-simulated-flow.ok"
-    flow_ready=false
-    for attempt in $(seq 1 60); do
-      if test -f "$marker" && grep -Fq 'ready=true' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
-        cat "$marker"
-        flow_ready=true
-        break
-      fi
-      sleep 1
-    done
-    test "$flow_ready" = true
-    xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+          launch_output="$(SIMCTL_CHILD_MBLINK_CI_SIMULATED_FLOW=1 xcrun simctl launch "$udid" com.github.The-First-Infiltrator.MBLINK)"
+          printf '%s
+      ' "$launch_output"
+          grep -Fq 'com.github.The-First-Infiltrator.MBLINK' <<<"$launch_output"
+          data_container="$(xcrun simctl get_app_container "$udid" com.github.The-First-Infiltrator.MBLINK data)"
+          marker="$data_container/Documents/mblink-ci-simulated-flow.ok"
+          flow_ready=false
+          for attempt in $(seq 1 60); do
+            if test -f "$marker" && grep -Fq 'ready=true' "$marker" && grep -Fq 'vin=WDD2073022F123456' "$marker"; then
+              cat "$marker"
+              flow_ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$flow_ready" = true
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
 
       - name: Build and package IPA
         shell: bash
@@ -785,7 +785,7 @@ jobs:
               echo "APT repository advertises $APP_ID $VERSION."
               exit 0
             fi
-            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/72)..."
+            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/6)..."
             sleep 10
           done
 
