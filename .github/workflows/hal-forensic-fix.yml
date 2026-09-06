@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# One-shot forensic-fix retrigger; this workflow deletes itself in the tested branch.
+# One-shot forensic fix. The tested release commit deletes this helper.
 name: HAL MBLINK forensic fix
 
 on:
@@ -47,7 +47,7 @@ jobs:
           git diff --cached --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Prepare MBLINK 0.7.180 forensic fixes"
+          git commit -m "Release 0.7.180: fix family-aware diagnostic decoding"
 
       - name: Build and test portable core
         shell: bash
@@ -69,8 +69,8 @@ jobs:
               CODE_SIGNING_ALLOWED=NO MARKETING_VERSION=0.7.180 build
           done
 
-      - name: Push tested fix to temporary PR branch
+      - name: Publish tested release commit to main
         shell: bash
         run: |
           set -euo pipefail
-          git push --force-with-lease origin HEAD:refs/heads/hal-mblink-forensic-fix
+          git push origin HEAD:main
