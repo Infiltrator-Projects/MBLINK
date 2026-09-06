@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #import <Foundation/Foundation.h>
+#import "../../src/link/platform/apple/LinkDiagnosticsController.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -71,12 +72,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)diagnosticsControllerDidUpdate:(MBLinkDiagnosticsController *)controller;
 @end
 
-@interface MBLinkDiagnosticsController : NSObject
+@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController
+
+- (instancetype)init;
 
 @property(nonatomic, weak, nullable) id<MBLinkDiagnosticsControllerDelegate> delegate;
-@property(nonatomic, copy, readonly) NSString *statusText;
-@property(nonatomic, copy, readonly, nullable) NSString *peripheralName;
-@property(nonatomic, copy, readonly, nullable) NSString *adapterIdentifier;
 @property(nonatomic, copy, readonly) NSString *mercedesProbeStatusText;
 @property(nonatomic, copy, readonly, nullable) NSString *mercedesProbeEndpointText;
 @property(nonatomic, copy, readonly, nullable) NSString *mercedesVINText;
@@ -93,37 +93,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *manufacturerDataScanStatusText;
 @property(nonatomic, copy, readonly, nullable)
     NSString *manufacturerDataScanModuleIdentifier;
-@property(nonatomic, copy, readonly) NSString *faultScanStatusText;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *storedDTCs;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *pendingDTCs;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *permanentDTCs;
-@property(nonatomic, copy, readonly) NSString *readinessStatusText;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *readinessMonitorStatus;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *freezeFrameContext;
-@property(nonatomic, copy, readonly) NSString *diagnosticCapabilityText;
-@property(nonatomic, copy, readonly) NSString *diagnosticCapabilityDetailText;
-@property(nonatomic, copy, readonly) NSString *standardResponderSummary;
-@property(nonatomic, copy, readonly) NSString *supportedPIDSummary;
-@property(nonatomic, copy, readonly) NSString *standardVINText;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *standardLiveValueRows;
-@property(nonatomic, readonly, getter=isActive) BOOL active;
-@property(nonatomic, readonly, getter=isReady) BOOL ready;
-@property(nonatomic, readonly) NSUInteger recordedSampleCount;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *availableLanguageTags;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *availableLanguageNames;
-@property(nonatomic, copy, readonly) NSString *selectedLanguageTag;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemKeys;
-@property(nonatomic, copy, readonly) NSArray<NSString *> *availableMeasurementSystemNames;
-@property(nonatomic, copy, readonly) NSString *selectedMeasurementSystemKey;
 
-- (void)start;
-/** Start through one exact CoreBluetooth peripheral selected by the user. */
-- (void)startWithPeripheralIdentifier:(NSString *)peripheralIdentifier;
-- (void)startSimulated;
-- (void)disconnect;
-- (NSString *)localizedTextForKey:(NSString *)key;
-- (void)setSelectedLanguageTag:(NSString *)tag;
-- (void)setSelectedMeasurementSystemKey:(NSString *)key;
+/* Preserve MBLINK's established Swift spellings for inherited unit helpers. */
 - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
     NS_SWIFT_NAME(displayValue(pid:canonicalValue:));
 - (NSString *)displayUnitForPID:(uint8_t)pid
@@ -163,8 +134,6 @@ NS_ASSUME_NONNULL_BEGIN
                        forModuleIdentifier:(NSString *)identifier;
 
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-                                      limit:(NSUInteger)limit;
-- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                      responderCANIdentifier:(uint32_t)responderCANIdentifier
                                   extendedID:(BOOL)extendedID
                                        limit:(NSUInteger)limit;
@@ -175,13 +144,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable MBLinkStandardDataSnapshot *)standardDataSnapshotForPID:(uint8_t)pid
                      responderCANIdentifier:(uint32_t)responderCANIdentifier
                                   extendedID:(BOOL)extendedID;
-- (BOOL)favouriteForPID:(uint8_t)pid;
-- (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid;
-- (BOOL)pollingEnabledForPID:(uint8_t)pid;
-- (void)setPollingEnabled:(BOOL)enabled forPID:(uint8_t)pid;
-- (BOOL)supportsPID:(uint8_t)pid;
-- (nullable NSData *)csvDataSnapshot;
-- (nullable NSString *)csvSnapshot;
 
 @end
 

@@ -189,7 +189,6 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 @end
 
 @implementation MBLinkDiagnosticsController {
-    LinkDiagnosticsController *_shared;
     LinkVehicleProfileStore *_vehicleProfileStore;
     MblinkMercedesEcuProbe _mercedesProbe;
     BOOL _manufacturerProbeActive;
@@ -772,9 +771,6 @@ static bool MBLinkSimulatorResponder(
 
 - (instancetype)init
 {
-    self = [super init];
-    if (self == nil) return nil;
-
     LinkDiagnosticFlowConfig flowConfig = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
     /*
      * Resolve the physical vehicle before doing the broader diagnostic work.
@@ -800,28 +796,25 @@ static bool MBLinkSimulatorResponder(
      * decoder continues to present the first matching standard value.
      */
     flowConfig.preserve_live_response_headers = true;
+    self = [super
+        initWithProductSlug:@"mblink"
+        flowConfig:flowConfig
+        liveStatusText:@"Live OBD-II and diesel scheduler active"
+        simulatedLiveStatusText:
+            @"Simulated ELM327 · live OBD-II and diesel data"
+        standardVINStatusText:@"Reading standard vehicle VIN"
+        simulatedAdapterIdentifier:@"ELM327 v2.3 MBLINK SIM"
+        simulatedVIN:@"WDD2073022F123456"];
+    if (self == nil) return nil;
+
     _vehicleProfileStore = [[LinkVehicleProfileStore alloc]
         initWithProductNamespace:@"mblink"
         legacyProfileKey:MBLinkVehicleProfilesDefaultsKey
         legacySelectedVINKey:@"mblink.selectedVehicleVIN.v1"
         legacyAdapterMappingKey:@"mblink.adapterPeripheralByVehicle.v1"];
 
-    _shared = [[LinkDiagnosticsController alloc]
-        initWithProductSlug:@"mblink"
-        flowConfig:flowConfig
-        liveStatusText:@"Live OBD-II and diesel scheduler active"
-        simulatedLiveStatusText:
-            @"Simulated ELM327 · live OBD-II and diesel data"
-        standardVINStatusText:@"Reading standard vehicle VIN"];
-    _shared.delegate = self;
-
     [self resetMercedesState];
     return self;
-}
-
-- (void)dealloc
-{
-    _shared.delegate = nil;
 }
 
 - (void)resetMercedesState
@@ -878,59 +871,6 @@ static bool MBLinkSimulatorResponder(
     [_shared failWithStatus:status];
 }
 
-- (NSString *)statusText { return _shared.statusText; }
-- (nullable NSString *)peripheralName { return _shared.peripheralName; }
-- (nullable NSString *)adapterIdentifier { return _shared.adapterIdentifier; }
-- (NSString *)faultScanStatusText { return _shared.faultScanStatusText; }
-- (NSArray<NSString *> *)storedDTCs { return _shared.storedDTCs; }
-- (NSArray<NSString *> *)pendingDTCs { return _shared.pendingDTCs; }
-- (NSArray<NSString *> *)permanentDTCs { return _shared.permanentDTCs; }
-- (NSString *)readinessStatusText { return _shared.readinessStatusText; }
-- (NSArray<NSString *> *)readinessMonitorStatus
-{
-    return _shared.readinessMonitorStatus;
-}
-- (NSArray<NSString *> *)freezeFrameContext
-{
-    return _shared.freezeFrameContext;
-}
-- (NSString *)diagnosticCapabilityText
-{
-    return _shared.diagnosticCapabilityText;
-}
-- (NSString *)diagnosticCapabilityDetailText
-{
-    return _shared.diagnosticCapabilityDetailText;
-}
-- (NSString *)standardResponderSummary
-{
-    return _shared.standardResponderSummary;
-}
-- (NSString *)supportedPIDSummary
-{
-    return _shared.supportedPIDSummary;
-}
-- (NSString *)standardVINText
-{
-    return _shared.standardVINText;
-}
-- (NSArray<NSString *> *)standardLiveValueRows
-{
-    return _shared.standardLiveValueRows;
-}
-- (BOOL)isActive { return _shared.isActive; }
-- (BOOL)isReady { return _shared.isReady; }
-- (NSUInteger)recordedSampleCount { return _shared.recordedSampleCount; }
-- (NSArray<NSString *> *)availableLanguageTags { return _shared.availableLanguageTags; }
-- (NSArray<NSString *> *)availableLanguageNames { return _shared.availableLanguageNames; }
-- (NSString *)selectedLanguageTag { return _shared.selectedLanguageTag; }
-- (NSArray<NSString *> *)availableMeasurementSystemKeys { return _shared.availableMeasurementSystemKeys; }
-- (NSArray<NSString *> *)availableMeasurementSystemNames { return _shared.availableMeasurementSystemNames; }
-- (NSString *)selectedMeasurementSystemKey { return _shared.selectedMeasurementSystemKey; }
-- (NSString *)localizedTextForKey:(NSString *)key { return [_shared localizedTextForKey:key]; }
-- (void)setSelectedLanguageTag:(NSString *)tag { [_shared setSelectedLanguageTag:tag]; }
-- (void)setSelectedMeasurementSystemKey:(NSString *)key { [_shared setSelectedMeasurementSystemKey:key]; }
-
 - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
 {
     return [_shared displayValueForPID:pid canonicalValue:value];
@@ -985,12 +925,6 @@ static bool MBLinkSimulatorResponder(
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     ++_manufacturerDataRequestGeneration;
     [_shared disconnect];
-}
-
-- (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
-                                      limit:(NSUInteger)limit
-{
-    return [_shared recentValuesForPID:pid limit:limit];
 }
 
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
@@ -1210,41 +1144,6 @@ static bool MBLinkSimulatorResponder(
         [snapshots addObject:snapshot];
     }
     return [snapshots copy];
-}
-
-- (BOOL)favouriteForPID:(uint8_t)pid
-{
-    return [_shared favouriteForPID:pid];
-}
-
-- (void)setFavourite:(BOOL)favourite forPID:(uint8_t)pid
-{
-    [_shared setFavourite:favourite forPID:pid];
-}
-
-- (BOOL)pollingEnabledForPID:(uint8_t)pid
-{
-    return [_shared pollingEnabledForPID:pid];
-}
-
-- (void)setPollingEnabled:(BOOL)enabled forPID:(uint8_t)pid
-{
-    [_shared setPollingEnabled:enabled forPID:pid];
-}
-
-- (BOOL)supportsPID:(uint8_t)pid
-{
-    return [_shared supportsPID:pid];
-}
-
-- (nullable NSData *)csvDataSnapshot
-{
-    return [_shared csvDataSnapshot];
-}
-
-- (nullable NSString *)csvSnapshot
-{
-    return [_shared csvSnapshot];
 }
 
 - (void)linkDiagnosticsControllerDidUpdate:

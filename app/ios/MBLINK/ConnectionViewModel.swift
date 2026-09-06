@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Combine
 import Foundation
-import UIKit
 
 
 typealias DiagnosticParameter = LinkDiagnosticParameter
@@ -227,11 +226,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
         connectionAlertText = nil
         lastConnectionAlertText = nil
 
-        guard let presenter = presentingViewController() else {
-            beginConnection(.automatic)
-            return
-        }
-
         let currentVehicleText: String
         if let identity = vehicleIdentity,
            let model = identity.model, !model.isEmpty {
@@ -242,18 +236,13 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
             currentVehicleText = "No saved vehicle loaded"
         }
 
-        let picker = LinkConnectionPickerViewController(
+        LinkConnectionPresentation.presentPicker(
             vehicleText: currentVehicleText,
             knownAdapterIdentifier: associatedAdapterIdentifier(
                 for: selectedVehicleVIN)
         ) { [weak self] source in
-            Task { @MainActor [weak self] in
-                self?.beginConnection(source)
-            }
+            self?.beginConnection(source)
         }
-        let navigation = UINavigationController(rootViewController: picker)
-        navigation.modalPresentationStyle = .pageSheet
-        presenter.present(navigation, animated: true)
     }
 
     private func beginConnection(_ source: LinkConnectionSource) {
@@ -558,25 +547,6 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
 
     nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
         Task { @MainActor [weak self] in self?.refresh() }
-    }
-
-    private func presentingViewController() -> UIViewController? {
-        guard let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }),
-              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else {
-            return nil
-        }
-        return topViewController(root)
-    }
-
-    private func topViewController(_ controller: UIViewController) -> UIViewController {
-        if let presented = controller.presentedViewController { return topViewController(presented) }
-        if let navigation = controller as? UINavigationController,
-           let visible = navigation.visibleViewController { return topViewController(visible) }
-        if let tabs = controller as? UITabBarController,
-           let selected = tabs.selectedViewController { return topViewController(selected) }
-        return controller
     }
 
     private func clearPreparedExport() {

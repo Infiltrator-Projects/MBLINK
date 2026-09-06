@@ -116,7 +116,10 @@ jobs:
           test ! -e app/linux/about-dialog.h
           ! grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'diagnosticCapabilityText = controller.diagnosticCapabilityText' app/ios/MBLINK/ConnectionViewModel.swift
-          grep -Fq 'return _shared.standardLiveValueRows;' platform/apple/MBLinkDiagnosticsController.m
+          grep -Fq 'LinkConnectionPresentation.presentPicker' app/ios/MBLINK/ConnectionViewModel.swift
+          ! grep -Fq 'presentingViewController()' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq '@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController' platform/apple/MBLinkDiagnosticsController.h
+          grep -Fq 'return _shared.standardLiveValueRows;' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'link_telemetry_recorder_continue' src/link/platform/apple/LinkDiagnosticsController.m
