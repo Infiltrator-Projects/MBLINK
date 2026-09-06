@@ -40,11 +40,13 @@ jobs:
           s2, count = pattern.subn(replacement, s)
           if count != len(matches):
               raise SystemExit(f'Expected to replace {len(matches)} definitions, replaced {count}')
+          remaining = pattern.findall(s2)
+          if len(remaining) != count or any(target not in item for item in remaining):
+              raise SystemExit('LINK source revision verification failed after replacement')
           p.write_text(s2)
           print(f'Synchronised {count} LINK_SOURCE_REVISION definitions to {target}')
           PY
           git diff --check
-          grep -Fq "LINK_SOURCE_REVISION=\\\\\\\"$link_gitlink\\\\\\\"" app/ios/MBLINK.xcodeproj/project.pbxproj
 
       - name: Publish source revision sync
         shell: bash
