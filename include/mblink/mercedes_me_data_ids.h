@@ -8,8 +8,8 @@
  * identify model keys/literals only; they do not imply a CAN/UDS DID, byte
  * layout, scaling, availability on every vehicle, or permission to transmit.
  */
-#ifndef MBMBLINK_MERCEDES_ME_DATA_IDS_H
-#define MBMBLINK_MERCEDES_ME_DATA_IDS_H
+#ifndef MBLINK_MERCEDES_ME_DATA_IDS_H
+#define MBLINK_MERCEDES_ME_DATA_IDS_H
 
 #include <stddef.h>
 

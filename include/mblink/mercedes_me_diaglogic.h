@@ -5,10 +5,10 @@
  *
  * The schema is an interoperability fact recovered from the official Mercedes
  * me Adapter 4.7.61 application. Decoding this protobuf does not imply that
- * LINK can decode the native ABI independently; active adapter use remains evidence-gated.
+ * MBLINK can decode the native ABI independently; active adapter use remains evidence-gated.
  */
-#ifndef MBMBLINK_MERCEDES_ME_DIAGLOGIC_H
-#define MBMBLINK_MERCEDES_ME_DIAGLOGIC_H
+#ifndef MBLINK_MERCEDES_ME_DIAGLOGIC_H
+#define MBLINK_MERCEDES_ME_DIAGLOGIC_H
 
 #include <stdbool.h>
 #include <stddef.h>

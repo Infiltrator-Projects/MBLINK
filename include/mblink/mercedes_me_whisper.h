@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#ifndef MBMBLINK_MERCEDES_ME_WHISPER_H
-#define MBMBLINK_MERCEDES_ME_WHISPER_H
+#ifndef MBLINK_MERCEDES_ME_WHISPER_H
+#define MBLINK_MERCEDES_ME_WHISPER_H
 
 #include "link/diagnostic_request.h"
 
