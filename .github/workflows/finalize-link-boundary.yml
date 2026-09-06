@@ -48,6 +48,10 @@ jobs:
           grep -Fq '#ifndef MBLINK_MERCEDES_ME_DATA_IDS_H' include/mblink/mercedes_me_data_ids.h
           grep -Fq '#ifndef MBLINK_MERCEDES_ME_DIAGLOGIC_H' include/mblink/mercedes_me_diaglogic.h
           grep -Fq '#ifndef MBLINK_MERCEDES_ME_WHISPER_H' include/mblink/mercedes_me_whisper.h
+          git config user.name "Shannon Smith"
+          git config user.email "infiltratr@yandex.com"
+          git add include/mblink/mercedes_me_data_ids.h include/mblink/mercedes_me_diaglogic.h include/mblink/mercedes_me_whisper.h src/link
+          git commit -m "Validate Mercedes me ownership boundary"
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -58,13 +62,11 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      - name: Commit final integration
+      - name: Publish final integration
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "Shannon Smith"
-          git config user.email "infiltratr@yandex.com"
           git rm .github/workflows/finalize-link-boundary.yml
-          git add include/mblink/mercedes_me_data_ids.h include/mblink/mercedes_me_diaglogic.h include/mblink/mercedes_me_whisper.h src/link
-          git commit -m "Finalize Mercedes me ownership boundary"
+          git add -A
+          git commit --amend -m "Finalize Mercedes me ownership boundary"
           git push origin HEAD:main
