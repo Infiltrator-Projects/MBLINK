@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL MBLINK dashboard face
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/hal-dashboard-face.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hal-mblink-dashboard-face
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply LINK 0.15.4 dashboard face
+        run: python3 .github/hal_dashboard_face.py
+
+      - name: Validate source and portable tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          cmake -S . -B build-dashboard -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-dashboard --parallel
+          ctest --test-dir build-dashboard --output-on-failure
+          test "$(tr -d '[:space:]' < VERSION)" = "0.7.181"
+          test "$(tr -d '[:space:]' < src/link/VERSION)" = "0.15.4"
+          grep -Fq 'LinkDashboardModePicker(selection: dashboardModeBinding)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkDashboardMetric(' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'link_dashboard_gauge_range_for_parameter' app/linux/main.c
+          grep -Fq 'LINK_DASHBOARD_PRESENTATION_COMBINED' app/linux/main.c
+          test ! -e .github/hal_dashboard_face.py
+          test ! -e .github/workflows/hal-dashboard-face.yml
+
+      - name: Commit tested dashboard face to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Prepare MBLINK 0.7.181 dashboard modes on LINK 0.15.4"
+          git push origin HEAD:main
