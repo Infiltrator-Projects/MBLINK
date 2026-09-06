@@ -3233,7 +3233,7 @@ return [runtimeSafe copy];
     if (engineEvidence.count != 0U)
         profile[@"engineEvidence"] = engineEvidence;
 
-    [_vehicleProfileStore saveProfile:[profile copy]
+    [_vehicleProfileStore mergeProfileFields:[profile copy]
                                      forVIN:self.mercedesVINText];
 
     _cachedVehicleProfile = [_vehicleProfileStore

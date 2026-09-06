@@ -108,6 +108,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var lastConnectionAlertText: String?
     private var manufacturerNumericHistory = [String: [Double]]()
     private var manufacturerLastRawByParameter = [String: String]()
+    private var manufacturerHistoryVIN: String?
+    private var manufacturerHistorySessionActive = false
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -1274,6 +1276,15 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     override func productDidRefreshStandardState() {
+        // Never join samples from separate sessions or vehicles in one graph.
+        let liveHistoryVIN = controller.mercedesVINText
+        if !isActive || !manufacturerHistorySessionActive ||
+            manufacturerHistoryVIN != liveHistoryVIN {
+            manufacturerNumericHistory.removeAll()
+            manufacturerLastRawByParameter.removeAll()
+        }
+        manufacturerHistorySessionActive = isActive
+        manufacturerHistoryVIN = isActive ? liveHistoryVIN : nil
         let updatedStatus = statusText
         let isTransportBoundary =
             updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||
