@@ -1546,6 +1546,24 @@ private func formattedValue(
             }
         }
 #endif
+#if DEBUG
+        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
+           isSimulationActive,
+           controller.statusText.localizedCaseInsensitiveContains("failed") {
+            let liveVIN = controller.mercedesVINText ?? ""
+            let marker = "ready=false\n" +
+                "vin=\(liveVIN)\n" +
+                "status=\(controller.statusText)\n" +
+                "profile=\(controller.vehicleProfileStatusText)\n"
+            if let directory = FileManager.default.urls(
+                    for: .documentDirectory, in: .userDomainMask).first {
+                try? marker.write(
+                    to: directory.appendingPathComponent(
+                        "mblink-ci-simulated-flow.ok"),
+                    atomically: true, encoding: .utf8)
+            }
+        }
+#endif
         if controller.isActive, !isSimulationActive,
            let liveVIN = controller.mercedesVINText,
            liveVIN.count == 17 {
