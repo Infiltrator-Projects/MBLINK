@@ -70,6 +70,7 @@ Several problems seen during physical C207/Vgate testing are now represented by 
 - CSV preparation snapshots recorder bytes and performs file I/O away from the Bluetooth/diagnostic execution path, so evidence export must not intentionally stop polling;
 - one controller lifetime retains distinct closed connection attempts in the evidence stream rather than erasing the first failed attempt when a later attempt succeeds;
 - live polling is explicit opt-in and persisted by stable parameter key, preventing the ELM/BLE link from being saturated by every supported PID by default.
+- recurring Mercedes GS `21 30` acquisition is serialized through LINK's single scheduler; known transmission families must match their own `0x30` semantics, while an unresolved family may use exact-route vehicle-positive evidence plus payload-shape validation without being falsely identified.
 
 These fixes have regression/CI coverage where they can be simulated. Physical adapter behaviour remains field validation rather than something CI can manufacture.
 

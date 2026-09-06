@@ -358,6 +358,26 @@ bool mblink_mercedes_transmission_decode_live_2130(
     size_t data_length,
     MblinkMercedesTransmissionLive2130 *decoded);
 
+/**
+ * True only for controller families where local identifier 0x30 is
+ * documented as the transmission actual-values record decoded above.
+ * UNKNOWN is deliberately false: route evidence may justify reading
+ * 0x30, but it does not prove the controller family's semantics.
+ */
+bool mblink_mercedes_transmission_family_uses_2130_actual_values(
+    MblinkMercedesTransmissionFamily family);
+
+/**
+ * Family-qualified 21 30 decoder. EGS52 requires the rich RLI-30
+ * shape; VGS/NAG2 requires the compact actual-values shape. Other
+ * families are rejected even if their namespace also contains 0x30.
+ */
+bool mblink_mercedes_transmission_decode_live_2130_for_family(
+    MblinkMercedesTransmissionFamily family,
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded);
+
 bool mblink_mercedes_transmission_decode_egs51_gs218(
     const uint8_t *payload,
     size_t payload_length,

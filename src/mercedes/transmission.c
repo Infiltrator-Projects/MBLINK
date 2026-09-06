@@ -62,6 +62,7 @@ bool mblink_mercedes_transmission_decode_2130(
      */
     value.actual_gear_code_available = data_length >= 4U;
     value.actual_gear_code = (uint8_t)(data[3] & UINT8_C(0x0f));
+    if (value.actual_gear_code > UINT8_C(14)) return false;
 
     *decoded = value;
     return true;
@@ -114,6 +115,43 @@ bool mblink_mercedes_transmission_decode_live_2130(
 
     *decoded = value;
     return value.oil_temperature_available || value.actual_gear_available;
+}
+
+bool mblink_mercedes_transmission_family_uses_2130_actual_values(
+    MblinkMercedesTransmissionFamily family)
+{
+    return family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+           family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+}
+
+bool mblink_mercedes_transmission_decode_live_2130_for_family(
+    MblinkMercedesTransmissionFamily family,
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded)
+{
+    if (!mblink_mercedes_transmission_family_uses_2130_actual_values(
+            family) || data == NULL || decoded == NULL) {
+        return false;
+    }
+
+    /* Local identifier numbers are family-scoped. Select semantics
+     * from controller identity first, then validate response shape. */
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52) {
+        if (data_length != 24U ||
+            !mblink_mercedes_transmission_decode_live_2130(
+                data, data_length, decoded)) {
+            return false;
+        }
+        return decoded->rich_layout;
+    }
+
+    if (data_length < 10U || data_length >= 24U ||
+        !mblink_mercedes_transmission_decode_live_2130(
+            data, data_length, decoded)) {
+        return false;
+    }
+    return !decoded->rich_layout;
 }
 
 bool mblink_mercedes_transmission_decode_egs51_gs218(

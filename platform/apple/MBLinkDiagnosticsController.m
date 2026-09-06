@@ -363,6 +363,65 @@ MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
     return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 }
 
+/*
+ * Exact-route evidence can authorise a safe 21 30 read while family
+ * identity is unresolved. A positively identified incompatible family
+ * wins over route coincidence; Ultimate NAG52 0x30 is clutch speeds.
+ */
+static BOOL MBLinkTransmissionModuleSupportsCanonical2130(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (!MBLinkMercedesModuleIsTransmissionController(module) ||
+        mblink_mercedes_module_scan_entry_protocol(module) !=
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        return NO;
+    }
+
+    const MblinkMercedesTransmissionFamily family =
+        MBLinkTransmissionFamilyForModule(module);
+    if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN) {
+        return mblink_mercedes_transmission_family_uses_2130_actual_values(
+            family);
+    }
+
+    const size_t evidenceCount =
+        mblink_mercedes_route_evidence_identifier_count(
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            mblink_mercedes_module_scan_entry_protocol(module),
+            module->kind);
+    for (size_t index = 0U; index < evidenceCount; ++index) {
+        const MblinkMercedesRouteEvidenceEntry *entry =
+            mblink_mercedes_route_evidence_identifier_at(
+                module->tx_can_id, module->rx_can_id,
+                module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module),
+                module->kind, index);
+        if (entry != NULL && entry->live &&
+            entry->identifier == UINT16_C(0x30)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static BOOL MBLinkDecodeTransmissionLive2130(
+    const MblinkMercedesModuleScanEntry *module,
+    const uint8_t *data,
+    size_t dataLength,
+    MblinkMercedesTransmissionLive2130 *decoded)
+{
+    if (!MBLinkTransmissionModuleSupportsCanonical2130(module))
+        return NO;
+    const MblinkMercedesTransmissionFamily family =
+        MBLinkTransmissionFamilyForModule(module);
+    if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN) {
+        return mblink_mercedes_transmission_decode_live_2130_for_family(
+            family, data, dataLength, decoded);
+    }
+    return mblink_mercedes_transmission_decode_live_2130(
+        data, dataLength, decoded);
+}
+
 static const char *
 MBLinkMercedesDataProfileKeyForModule(
     const MblinkMercedesModuleScanEntry *module)
@@ -1419,10 +1478,7 @@ static bool MBLinkSimulatorResponder(
                 MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
             continue;
         }
-        const MblinkMercedesTransmissionFamily family =
-            MBLinkTransmissionFamilyForModule(module);
-        if (mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-                family) != 0U) {
+        if (MBLinkTransmissionModuleSupportsCanonical2130(module)) {
             return MBLinkMercedesModuleIdentifier(module);
         }
     }
@@ -1809,16 +1865,31 @@ return [runtimeSafe copy];
     }
     if (rli30 == nil) return @[];
 
+    if (!MBLinkTransmissionModuleSupportsCanonical2130(module)) return @[];
     MblinkMercedesTransmissionLive2130 decoded;
-    if (!mblink_mercedes_transmission_decode_live_2130(
-            (const uint8_t *)rli30.rawData.bytes,
+    if (!MBLinkDecodeTransmissionLive2130(
+            module, (const uint8_t *)rli30.rawData.bytes,
             rli30.rawData.length, &decoded)) return @[];
+
+    const MblinkMercedesTransmissionFamily family =
+        MBLinkTransmissionFamilyForModule(module);
+    NSString *qualification = family ==
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN
+        ? @"family unresolved · exact-route vehicle-positive evidence"
+        : [NSString stringWithFormat:@"%@ family-qualified",
+            MBLinkStringFromCString(
+                mblink_mercedes_transmission_family_name(family))];
+    NSString *quality = [NSString stringWithFormat:
+        @"Mercedes GS 21 30 %@ response · portable MBLINK decoder · %@",
+        decoded.rich_layout ? @"rich" : @"compact", qualification];
+    const BOOL pollingEnabled =
+        [self manufacturerLivePollingSupportedForModuleIdentifier:
+            moduleIdentifier] &&
+        [self manufacturerLivePollingEnabledForModuleIdentifier:
+            moduleIdentifier];
 
     NSMutableArray<MBLinkTransmissionLiveValueSnapshot *> *values =
         [[NSMutableArray alloc] init];
-    NSString *quality = decoded.rich_layout
-        ? @"Mercedes GS 21 30 rich response · portable MBLINK decoder · response shape/evidence qualified; ECU family not inferred from route"
-        : @"Mercedes GS 21 30 compact response · portable MBLINK decoder · response shape/evidence qualified; ECU family not inferred from route";
 
     if (decoded.oil_temperature_available) {
         const double display =
@@ -1835,7 +1906,7 @@ return [runtimeSafe copy];
         value.numericValueAvailable = YES;
         value.numericValue = display;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = YES;
+        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -1853,7 +1924,7 @@ return [runtimeSafe copy];
                 decoded.actual_gear_code));
         value.numericValueAvailable = NO;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = YES;
+        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -1871,7 +1942,7 @@ return [runtimeSafe copy];
                 decoded.target_gear_code));
         value.numericValueAvailable = NO;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = YES;
+        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -1889,7 +1960,7 @@ return [runtimeSafe copy];
         value.numericValueAvailable = YES;
         value.numericValue = (double)decoded.selector_position_code;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = YES;
+        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -1907,7 +1978,7 @@ return [runtimeSafe copy];
         value.numericValueAvailable = YES;
         value.numericValue = (double)decoded.drive_program_code;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = YES;
+        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }

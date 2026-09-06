@@ -50,6 +50,28 @@ static int test_2130(void)
     CHECK(live.actual_gear_available && live.actual_gear_code == 6U);
     CHECK(!live.target_gear_available);
 
+    CHECK(mblink_mercedes_transmission_family_uses_2130_actual_values(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52));
+    CHECK(mblink_mercedes_transmission_family_uses_2130_actual_values(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2));
+    CHECK(!mblink_mercedes_transmission_family_uses_2130_actual_values(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN));
+    CHECK(!mblink_mercedes_transmission_family_uses_2130_actual_values(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52));
+    CHECK(mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2,
+        data, sizeof(data), &live));
+    CHECK(!live.rich_layout);
+    CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        data, sizeof(data), &live));
+    CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52,
+        data, sizeof(data), &live));
+    CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN,
+        data, sizeof(data), &live));
+
     uint8_t rich[24] = {0};
     rich[6] = UINT8_C(3);
     rich[7] = UINT8_C(4);
@@ -64,6 +86,16 @@ static int test_2130(void)
     CHECK(live.target_gear_code == 5U);
     CHECK(live.selector_position_code == 4U);
     CHECK(live.drive_program_code == 2U);
+    CHECK(mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        rich, sizeof(rich), &live));
+    CHECK(live.rich_layout);
+    CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2,
+        rich, sizeof(rich), &live));
+    CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52,
+        rich, sizeof(rich), &live));
 
     rich[6] = UINT8_C(0xff);
     CHECK(!mblink_mercedes_transmission_decode_live_2130(
