@@ -1,0 +1,60 @@
+name: One-shot iOS simulator failure diagnostic patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ci-debug-marker.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add terminal failure marker without weakening smoke gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          s = p.read_text()
+          needle = '''#endif
+        if controller.isActive, !isSimulationActive,'''
+          insert = '''#endif
+#if DEBUG
+        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
+           isSimulationActive,
+           controller.statusText.localizedCaseInsensitiveContains("failed") {
+            let liveVIN = controller.mercedesVINText ?? ""
+            let marker = "ready=false\\n" +
+                "vin=\\(liveVIN)\\n" +
+                "status=\\(controller.statusText)\\n" +
+                "profile=\\(controller.vehicleProfileStatusText)\\n"
+            if let directory = FileManager.default.urls(
+                    for: .documentDirectory, in: .userDomainMask).first {
+                try? marker.write(
+                    to: directory.appendingPathComponent(
+                        "mblink-ci-simulated-flow.ok"),
+                    atomically: true, encoding: .utf8)
+            }
+        }
+#endif
+        if controller.isActive, !isSimulationActive,'''
+          if needle not in s:
+              raise SystemExit('target marker block not found')
+          if 'ready=false\\n' in s:
+              raise SystemExit('failure diagnostic already present')
+          p.write_text(s.replace(needle, insert, 1))
+          PY
+      - name: Commit source-only diagnostic
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/ios/MBLINK/ConnectionViewModel.swift
+          git commit -m 'Add iOS simulator terminal failure diagnostics'
+          git push origin HEAD:main
