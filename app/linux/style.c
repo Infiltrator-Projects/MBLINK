@@ -83,11 +83,9 @@ static const char mblink_metrics_css[] =
 
     ".mblink-settings-note { font-size: 12px; }"
     ".link-about-dialog { background: #050608; }"
-    ".link-about-dialog stackswitcher { margin: 6px 12px 8px 12px; }"
     ".link-about-dialog stackswitcher button, .link-about-dialog stackswitcher button * { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }"
     ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"MB Corpo S Title WEB\"; font-size: 14px; }"
-    ".link-about-dialog textview, .link-about-dialog textview text { font-weight: 400; }"
-    ".link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }";
+    ".link-about-dialog textview, .link-about-dialog textview text { font-weight: 400; }";
 
 static bool register_one_project_font(FcConfig *config, const char *filename)
 {

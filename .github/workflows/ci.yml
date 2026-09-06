@@ -296,12 +296,14 @@ jobs:
           grep -Fq 'gtk_widget_set_size_request(widget, 520, 500);' src/link/platform/linux/link-gtk-about.c
           grep -Fq 'gtk_widget_add_css_class(widget, "link-about-dialog");' src/link/platform/linux/link-gtk-about.c
           grep -Fq '.link-about-dialog stackswitcher button' app/linux/style.c
-          grep -Fq '.link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' app/linux/style.c
+          grep -Fq '.link-about-dialog stackswitcher { margin: 6px 12px 8px 12px; }' src/link/platform/linux/link-gtk-shell.c
+          grep -Fq '.link-about-dialog scrolledwindow { min-width: 500px; min-height: 300px; }' src/link/platform/linux/link-gtk-shell.c
+          ! grep -Eq 'link-about-dialog (stackswitcher|scrolledwindow).*((min|max)-(width|height)|margin|padding)' app/linux/style.c
           grep -Fq 'font-family: \"MB Corpo S Title WEB\"' app/linux/style.c
           grep -Fq 'g_free(runtime_css);' app/linux/main.c
           grep -Fq 'g_free(about_description);' app/linux/main.c
           grep -Fq 'descriptor.use_client_side_titlebar = true;' app/linux/main.c
-          grep -Fq '.link-titlebar-label { font-family: "MB Corpo S Title WEB"; font-weight: 700; }' app/linux/style.c
+          grep -Fq '.link-titlebar-label { font-family: \"MB Corpo S Title WEB\"; font-weight: 700; }' app/linux/style.c
           grep -Fq 'bool use_client_side_titlebar;' src/link/platform/linux/link-gtk-shell.h
           grep -Fq 'gtk_window_set_titlebar(shell->window, titlebar);' src/link/platform/linux/link-gtk-shell.c
           grep -Fq 'mblink_project_info()' app/linux/main.c
@@ -555,6 +557,7 @@ jobs:
             grep -Fq "../../src/mercedes/$apple_source" app/ios/MBLINK.xcodeproj/project.pbxproj
           done
           grep -Fq '#include "mblink/mercedes_me_data_ids.h"' app/ios/MBLINK/MBLINK-Bridging-Header.h
+          grep -Fq '#include "mblink/mblink.h"' app/ios/MBLINK/MBLINK-Bridging-Header.h
           grep -Fq 'mblink_mercedes_me_data_id_count()' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'mblink_mercedes_me_data_id_at(index)' app/ios/MBLINK/ConnectionViewModel.swift
           ! grep -Eq '(^|[^[:alnum:]_])link_mercedes_me_data_id_' app/ios/MBLINK/ConnectionViewModel.swift
