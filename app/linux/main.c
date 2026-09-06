@@ -30,6 +30,7 @@
 #include "link/fuel_economy.h"
 #include "link/units.h"
 #include "link/workspace.h"
+#include "link/dashboard.h"
 #include "mblink/mblink.h"
 #include "mblink/project_info.h"
 #include "mblink/mercedes.h"
@@ -123,6 +124,7 @@ typedef struct MblinkLinuxContext {
     bool decoded_sample_responder_extended[256];
     MblinkLinuxSessionTrace session_trace;
     bool polling_enabled[256];
+    LinkDashboardPresentationMode dashboard_mode;
     MblinkTemperatureUnit temperature_unit;
     MblinkPressureUnit pressure_unit;
     MblinkSpeedUnit speed_unit;
@@ -303,6 +305,8 @@ static void initialise_display_preferences(MblinkLinuxContext *context)
     context->fuel_economy_unit = MBLINK_FUEL_ECONOMY_L_PER_100KM;
     context->fuel_rate_unit = MBLINK_FUEL_RATE_L_PER_HOUR;
     context->air_mass_unit = MBLINK_AIR_MASS_G_PER_SECOND;
+    /* Combined preserves the established Linux cockpit appearance by default. */
+    context->dashboard_mode = LINK_DASHBOARD_PRESENTATION_COMBINED;
     context->presentation_revision = 1U;
 
     path = preferences_config_path();
@@ -346,6 +350,11 @@ static void initialise_display_preferences(MblinkLinuxContext *context)
                 key_file, "units", "air_mass",
                 MBLINK_AIR_MASS_G_PER_SECOND,
                 MBLINK_AIR_MASS_LB_PER_MINUTE);
+        context->dashboard_mode = (LinkDashboardPresentationMode)
+            key_file_integer_or_default(
+                key_file, "display", "dashboard_mode",
+                LINK_DASHBOARD_PRESENTATION_COMBINED,
+                LINK_DASHBOARD_PRESENTATION_COMBINED);
 
         /*
          * Polling is a product preference, not a vehicle capability. Retain
@@ -397,6 +406,8 @@ static void save_display_preferences(const MblinkLinuxContext *context)
         key_file, "units", "fuel_rate", context->fuel_rate_unit);
     g_key_file_set_integer(
         key_file, "units", "air_mass", context->air_mass_unit);
+    g_key_file_set_integer(
+        key_file, "display", "dashboard_mode", context->dashboard_mode);
     for (unsigned int pid = 1U; pid <= UINT8_MAX; ++pid) {
         char key[24];
         if (mblink_obd2_mode01_identifier_status((uint8_t)pid) !=
@@ -469,6 +480,24 @@ static void preference_changed(
             context->air_mass_unit = (MblinkAirMassUnit)selected;
         break;
     }
+    ++context->presentation_revision;
+    save_display_preferences(context);
+}
+
+static void dashboard_mode_changed(
+    GtkDropDown *dropdown,
+    GParamSpec *spec,
+    gpointer opaque)
+{
+    MblinkLinuxContext *context = opaque;
+    const guint selected = gtk_drop_down_get_selected(dropdown);
+    (void)spec;
+    if (context == NULL ||
+        selected > LINK_DASHBOARD_PRESENTATION_COMBINED ||
+        context->dashboard_mode == (LinkDashboardPresentationMode)selected) {
+        return;
+    }
+    context->dashboard_mode = (LinkDashboardPresentationMode)selected;
     ++context->presentation_revision;
     save_display_preferences(context);
 }
@@ -1702,31 +1731,16 @@ static void mblink_cockpit_gauge_draw(
     cairo_stroke(cr);
 }
 
-static double mblink_cockpit_fraction(uint8_t pid, double value)
+static double mblink_cockpit_fraction(
+    const MblinkParameterDefinition *definition,
+    double value)
 {
-    double fraction;
-    switch (pid) {
-    case UINT8_C(0x0c):
-        fraction = value / 7000.0;
-        break;
-    case UINT8_C(0x0d):
-        fraction = value / 260.0;
-        break;
-    case UINT8_C(0x05):
-        fraction = (value + 40.0) / 190.0;
-        break;
-    case UINT8_C(0x23):
-        fraction = value / 200000.0;
-        break;
-    case UINT8_C(0x2f):
-        fraction = value / 100.0;
-        break;
-    default:
-        fraction = 0.0;
-        break;
+    LinkDashboardGaugeRange range;
+    double fraction = 0.0;
+    if (!link_dashboard_gauge_range_for_parameter(definition, &range) ||
+        !link_dashboard_gauge_fraction(&range, value, &fraction)) {
+        return 0.0;
     }
-    if (fraction < 0.0) return 0.0;
-    if (fraction > 1.0) return 1.0;
     return fraction;
 }
 
@@ -1773,7 +1787,7 @@ static GtkWidget *mblink_cockpit_gauge_new(
     return gauge;
 }
 
-static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
+static void append_dashboard(GtkWidget *body, MblinkLinuxContext *context)
 {
     static const struct {
         const char *stable_key;
@@ -1810,6 +1824,25 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
         context->diagnostic_ready ? "LIVE COCKPIT" : diagnostic_text(context),
         context->diagnostic_ready ? "state-success" : "state-warning");
 
+    {
+        static const char *mode_names[] = {
+            "Numbers", "Dials", "Combined", NULL
+        };
+        GtkWidget *mode_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *mode_label = gtk_label_new("DISPLAY");
+        GtkWidget *mode = gtk_drop_down_new_from_strings(mode_names);
+        gtk_widget_set_hexpand(mode_label, TRUE);
+        gtk_widget_set_halign(mode_label, GTK_ALIGN_START);
+        gtk_drop_down_set_selected(
+            GTK_DROP_DOWN(mode), (guint)context->dashboard_mode);
+        g_signal_connect(
+            mode, "notify::selected",
+            G_CALLBACK(dashboard_mode_changed), context);
+        gtk_box_append(GTK_BOX(mode_row), mode_label);
+        gtk_box_append(GTK_BOX(mode_row), mode);
+        gtk_box_append(GTK_BOX(cockpit), mode_row);
+    }
+
     for (index = 0U; index < G_N_ELEMENTS(gauges); ++index) {
         const MblinkParameterDefinition *definition =
             mblink_parameter_obd2_definition_for_stable_key(
@@ -1827,21 +1860,26 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
             format_sample(
                 &context->samples[pid], context, value, sizeof(value));
             fraction = mblink_cockpit_fraction(
-                pid, context->samples[pid].value);
+                definition, context->samples[pid].value);
         } else {
             (void)snprintf(value, sizeof(value), "Waiting");
         }
         (void)snprintf(
             pid_text, sizeof(pid_text), "PID 0x%02X",
             (unsigned int)pid);
-        gtk_flow_box_append(
-            GTK_FLOW_BOX(flow),
-            mblink_cockpit_gauge_new(
-                gauges[index].title, pid_text, value,
-                available, fraction));
+        if (context->dashboard_mode == LINK_DASHBOARD_PRESENTATION_NUMBERS) {
+            link_gtk_card_append_detail(cockpit, gauges[index].title, value);
+        } else {
+            gtk_flow_box_append(
+                GTK_FLOW_BOX(flow),
+                mblink_cockpit_gauge_new(
+                    gauges[index].title, pid_text, value,
+                    available, fraction));
+        }
     }
 
-    gtk_box_append(GTK_BOX(cockpit), flow);
+    if (context->dashboard_mode != LINK_DASHBOARD_PRESENTATION_NUMBERS)
+        gtk_box_append(GTK_BOX(cockpit), flow);
     link_gtk_card_append_note(
         cockpit,
         "Mercedes-style instrument presentation uses only measured diagnostic samples; no interpolation or synthetic live values are introduced.");
@@ -1866,7 +1904,8 @@ static void append_dashboard(GtkWidget *body, const MblinkLinuxContext *context)
     link_gtk_card_append_note(
         support,
         "Table remains the complete technical view; Dashboard intentionally concentrates the signals most useful at a glance.");
-    gtk_box_append(GTK_BOX(body), support);
+    if (context->dashboard_mode != LINK_DASHBOARD_PRESENTATION_DIALS)
+        gtk_box_append(GTK_BOX(body), support);
     append_fuel_economy(body, context);
 }
 

@@ -2314,6 +2314,18 @@ private struct MBDataTableView: View {
 
 private struct MBDashboardView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @AppStorage("link.dashboard.presentationMode.v1")
+    private var dashboardModeRaw = LinkDashboardPresentationMode.combined.rawValue
+
+    private var dashboardMode: LinkDashboardPresentationMode {
+        LinkDashboardPresentationMode(rawValue: dashboardModeRaw) ?? .combined
+    }
+
+    private var dashboardModeBinding: Binding<LinkDashboardPresentationMode> {
+        Binding(
+            get: { dashboardMode },
+            set: { dashboardModeRaw = $0.rawValue })
+    }
 
     private let defaultKeys = [
         "obd2.engine.rpm", "obd2.vehicle.speed",
@@ -2366,6 +2378,14 @@ private struct MBDashboardView: View {
                             }
                         }
                     }
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Dashboard display")
+                                .font(MBTypography.captionBold)
+                                .foregroundStyle(MBBrand.silver)
+                            LinkDashboardModePicker(selection: dashboardModeBinding)
+                        }
+                    }
                     if displayed.isEmpty {
                         MBPanel {
                             Text(connection.isActive
@@ -2377,7 +2397,9 @@ private struct MBDashboardView: View {
                     } else {
                         LazyVGrid(columns: mbDashboardColumns, spacing: 12) {
                             ForEach(displayed) { parameter in
-                                MBMetricTile(parameter: parameter)
+                                LinkDashboardMetric(
+                                    parameter: parameter,
+                                    mode: dashboardMode)
                             }
                         }
                     }

@@ -44,6 +44,7 @@
 		D1A900000000000000000007 /* link_i18n_platform.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000009 /* link_i18n_platform.c */; };
 		D1A900000000000000000010 /* link_language_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000011 /* link_language_pack.c */; };
 		A22100000000000000000001 /* link_workspace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000001 /* link_workspace.c */; };
+		A22100000000000000000018 /* link_dashboard.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000018 /* link_dashboard.c */; };
 		A22100000000000000000002 /* link_fuel_economy.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000002 /* link_fuel_economy.c */; };
 		A22100000000000000000016 /* link_units.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000016 /* link_units.c */; };
 		A22100000000000000000017 /* link_session_trace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000017 /* link_session_trace.c */; };
@@ -149,6 +150,7 @@
 		D1A900000000000000000033 /* ko-KR */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ko-KR"; path = "MBLINK/ko-KR.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		D1A900000000000000000034 /* id-ID */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id-ID"; path = "MBLINK/id-ID.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000001 /* link_workspace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_workspace.c"; path = "../../src/link/src/core/workspace.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000018 /* link_dashboard.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_dashboard.c"; path = "../../src/link/src/core/dashboard.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000002 /* link_fuel_economy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_fuel_economy.c"; path = "../../src/link/src/core/fuel_economy.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000016 /* link_units.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_units.c"; path = "../../src/link/src/core/units.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000017 /* link_session_trace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_session_trace.c"; path = "../../src/link/src/core/session_trace.c"; sourceTree = SOURCE_ROOT; };
@@ -235,6 +237,7 @@
 			isa = PBXGroup;
 			children = (
 				A22000000000000000000001 /* link_workspace.c */,
+				A22000000000000000000018 /* link_dashboard.c */,
 				A22000000000000000000002 /* link_fuel_economy.c */,
 				A22000000000000000000016 /* link_units.c */,
 				A22000000000000000000017 /* link_session_trace.c */,
@@ -501,6 +504,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A22100000000000000000001 /* link_workspace.c in Sources */,
+				A22100000000000000000018 /* link_dashboard.c in Sources */,
 				A22100000000000000000002 /* link_fuel_economy.c in Sources */,
 				A22100000000000000000016 /* link_units.c in Sources */,
 				A22100000000000000000017 /* link_session_trace.c in Sources */,
@@ -605,14 +609,14 @@
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"0ec3d2614c2aebd706d23655d993496acd7fc69f\\\"",
+					"LINK_SOURCE_REVISION=\\\"bc5ebe79c972b632e26292f888d02cae3440a13f\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.180;
+				MARKETING_VERSION = 0.7.181;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -641,14 +645,14 @@
 					"MBLINK_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"MBLINK_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"MBLINK_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"0ec3d2614c2aebd706d23655d993496acd7fc69f\\\"",
+					"LINK_SOURCE_REVISION=\\\"bc5ebe79c972b632e26292f888d02cae3440a13f\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.180;
+				MARKETING_VERSION = 0.7.181;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -697,7 +701,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.180;
+				MARKETING_VERSION = 0.7.181;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -739,7 +743,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.180;
+				MARKETING_VERSION = 0.7.181;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";

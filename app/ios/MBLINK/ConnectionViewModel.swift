@@ -320,7 +320,9 @@ final class ConnectionViewModel: NSObject, ObservableObject, MBLinkDiagnosticsCo
                     pollingEnabled: selected.contains(parameter.id),
                     history: parameter.history,
                     sourceLabel: parameter.sourceLabel,
-                    qualityNote: parameter.qualityNote)
+                    qualityNote: parameter.qualityNote,
+                    dashboardMinimum: parameter.dashboardMinimum,
+                    dashboardMaximum: parameter.dashboardMaximum)
             }
     }
 
@@ -964,6 +966,16 @@ private func formattedValue(
                 qualityNote = nil
             }
 
+            let dashboardRange: (Double, Double)? = {
+                guard let scalarDefinition else { return nil }
+                var range = LinkDashboardGaugeRange()
+                guard link_dashboard_gauge_range_for_parameter(
+                    scalarDefinition, &range) else { return nil }
+                return (
+                    displayScalar(pid: pid, rawValue: range.minimum),
+                    displayScalar(pid: pid, rawValue: range.maximum))
+            }()
+
             result.append(DiagnosticParameter(
                 id: stableKey,
                 protocolName: "obd2",
@@ -981,7 +993,9 @@ private func formattedValue(
                 pollingEnabled: controller.pollingEnabled(forPID: pid),
                 history: history,
                 sourceLabel: sourceLabel,
-                qualityNote: qualityNote))
+                qualityNote: qualityNote,
+                dashboardMinimum: dashboardRange?.0,
+                dashboardMaximum: dashboardRange?.1))
         }
         return result
     }
