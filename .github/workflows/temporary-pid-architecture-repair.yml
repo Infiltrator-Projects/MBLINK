@@ -3,6 +3,9 @@ name: Temporary PID Architecture Repair
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/repair/**'
+      - '.github/workflows/temporary-pid-architecture-repair.yml'
 
 permissions:
   contents: write
@@ -27,16 +30,18 @@ jobs:
           cmake -S . -B build-repair -DCMAKE_BUILD_TYPE=Release
           cmake --build build-repair --parallel
           ctest --test-dir build-repair --output-on-failure
-      - name: Commit real repair and remove scaffolding
+      - name: Commit validated source repair
         shell: bash
         run: |
           set -euo pipefail
           rm -rf build-repair
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git rm .github/workflows/temporary-pid-architecture-repair.yml
-          git rm -r .github/repair
-          git add -A
+          git add platform/apple/MBLinkDiagnosticsController.h
+          git add platform/apple/MBLinkDiagnosticsController.m
+          git add app/ios/MBLINK/ConnectionViewModel.swift
+          git add app/ios/MBLINK/MBLINKApp.swift
+          git add tests/test_mercedes_module_scan.c
           git diff --cached --check
           git commit -m 'Repair iPhone PID architecture and CI regressions'
           git push origin HEAD:main
