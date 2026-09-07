@@ -1,0 +1,221 @@
+name: Temporary UI Hierarchy Restore V2
+
+on:
+  push:
+    branches:
+      - ui-restore-smart-hierarchy
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-patch-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui-restore-smart-hierarchy
+          fetch-depth: 0
+
+      - name: Restore MBLINK diagnostic hierarchy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('app/ios/MBLINK/MBLINKApp.swift')
+          s = path.read_text()
+
+          def replace_once(old, new, label):
+              global s
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected one match, found {n}')
+              s = s.replace(old, new, 1)
+
+          def replace_region(start_marker, end_marker, replacement, label):
+              global s
+              start = s.find(start_marker)
+              if start < 0:
+                  raise SystemExit(f'{label}: start marker missing')
+              end = s.find(end_marker, start + len(start_marker))
+              if end < 0:
+                  raise SystemExit(f'{label}: end marker missing')
+              s = s[:start] + replacement + s[end:]
+
+          primary = '''    private var primaryGrid: some View {
+              LinkDiagnosticGrid {
+                  MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") {
+                      MBVehicleView()
+                  }
+                  MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") {
+                      MBModulesView()
+                  }
+                  MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") {
+                      MBFaultsView()
+                  }
+                  MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") {
+                      MBLiveDataView()
+                  }
+                  MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") {
+                      LinkStandardObdView(snapshot: obdSnapshot)
+                  }
+              }
+          }
+
+          private var obdSnapshot: LinkStandardObdSnapshot {
+              LinkStandardObdSnapshot(
+                  capability: connection.diagnosticCapabilityText,
+                  capabilityDetail: connection.diagnosticCapabilityDetailText,
+                  vin: connection.standardVINText,
+                  responderSummary: connection.standardResponderSummary,
+                  pidSummary: connection.supportedPIDSummary,
+                  readiness: connection.readinessStatusText,
+                  readinessMonitors: connection.readinessMonitorStatus,
+                  freezeFrame: connection.freezeFrameContext,
+                  storedDTCs: connection.storedDTCs,
+                  pendingDTCs: connection.pendingDTCs,
+                  permanentDTCs: connection.permanentDTCs,
+                  liveRows: connection.standardLiveValueRows)
+          }
+
+          '''
+          replace_region(
+              '    private var primaryGrid: some View {',
+              '    private var supportingTools: some View {',
+              primary,
+              'primary navigation')
+
+          tools = '''    private var supportingTools: some View {
+              VStack(alignment: .leading, spacing: 14) {
+                  MBSectionHeader(
+                      title: "Tools",
+                      kicker: "Evidence, tests, services and preferences")
+                  LinkDiagnosticGrid {
+                      MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") {
+                          MBEvidenceView()
+                      }
+                      MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") {
+                          MBTestsView()
+                      }
+                      MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") {
+                          MBServicesView()
+                      }
+                      MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") {
+                          MBSettingsView()
+                      }
+                  }
+              }
+          }
+
+          '''
+          replace_region(
+              '    private var supportingTools: some View {',
+              '    private var connectionProgress: some View {',
+              tools,
+              'secondary tools')
+
+          replace_once('title: "Saved Vehicles & PIDs",', 'title: "Vehicle Profiles & PID Setup",', 'profile heading')
+          replace_once('.mbDiagnosticScreen("Vehicles & PIDs")', '.mbDiagnosticScreen("Vehicle Profiles")', 'profile title')
+
+          # Remove the extra Add / Scan action inside saved profiles only.
+          panel_start = s.index('    private var savedVehiclePanel: some View {')
+          panel_end = s.index('    @ViewBuilder\n    private var controllerPanel', panel_start)
+          seg = s[panel_start:panel_end]
+          pat = re.compile(r'\n\s*Button \{\n\s*connection\.connect\(\)\n\s*\} label: \{.*?\.opacity\(connection\.isActive \? 0\.45 : 1\.0\)\n', re.S)
+          seg2, n = pat.subn('\n', seg, count=1)
+          if n != 1:
+              raise SystemExit(f'saved profile duplicate Add / Scan: expected one match, found {n}')
+          s = s[:panel_start] + seg2 + s[panel_end:]
+
+          replace_once(
+              'No VIN profile has been stored yet. Use Add / Scan New Vehicle and MBLINK will save the VIN, controller map and observed capabilities for later use.',
+              'No VIN profile has been stored yet. Connect from the MBLINK home screen and the live VIN, controller map and observed capabilities will be saved automatically.',
+              'empty profile guidance')
+          replace_once(
+              'Load a saved VIN profile above, or use Add / Scan New Vehicle to identify a car and learn its controller routes.',
+              'Load a saved VIN profile above, or connect from the MBLINK home screen to identify a car and learn its controller routes.',
+              'controller guidance')
+
+          # Vehicle owns saved profiles, but live connection starts from one obvious home button.
+          vstart = s.index('private struct MBVehicleView: View')
+          vend = s.index('private struct MBModulesView: View', vstart)
+          v = s[vstart:vend]
+          v = v.replace('MBSectionHeader(title: "Current vehicle", kicker: "Profile selection")',
+                        'MBSectionHeader(title: "Vehicle profile", kicker: "Saved vehicle")', 1)
+          v = v.replace('Label("Change / Load Vehicle",', 'Label("Saved Vehicle Profiles",', 1)
+          add_pat = re.compile(r'\n\s*Divider\(\)\.overlay\(MBBrand\.line\)\n\n\s*Button \{\n\s*connection\.connect\(\)\n\s*\} label: \{.*?\.opacity\(connection\.isActive \? 0\.45 : 1\.0\)\n', re.S)
+          v2, n = add_pat.subn('\n', v, count=1)
+          if n != 1:
+              raise SystemExit(f'vehicle duplicate Add / Scan: expected one match, found {n}')
+          v2 = v2.replace(
+              'A connection always reads the live VIN. If that VIN already has a profile MBLINK loads it; otherwise MBLINK creates a new vehicle profile from the scan.',
+              'Use the home-screen Connect button to identify the live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.',
+              1)
+          v2 = v2.replace('Use Add / Scan New Vehicle, or load a saved VIN profile.',
+                          'Connect from the home screen, or load a saved VIN profile.', 1)
+          s = s[:vstart] + v2 + s[vend:]
+
+          replace_once('MBSectionHeader(title: "Errors", kicker: "Mercedes-Benz diagnostic memory")',
+                       'MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")',
+                       'fault heading')
+          replace_once('.mbDiagnosticScreen("Errors")', '.mbDiagnosticScreen("Faults")', 'fault screen title')
+          replace_once('.mbDiagnosticScreen("Log")', '.mbDiagnosticScreen("Evidence")', 'evidence screen title')
+
+          # Make Live Data the presentation hub instead of spending three home tiles on it.
+          lstart = s.index('private struct MBLiveDataView: View')
+          lend = s.index('private struct MBDashboardView: View', lstart)
+          live = s[lstart:lend]
+          shortcut_start = live.find('                    MBPanel {\n                        HStack(spacing: 18) {')
+          shortcut_end_marker = '                        .minimumScaleFactor(0.78)\n                    }'
+          shortcut_end = live.find(shortcut_end_marker, shortcut_start)
+          if shortcut_start < 0 or shortcut_end < 0:
+              raise SystemExit('live data shortcuts: markers missing')
+          shortcut_end += len(shortcut_end_marker)
+          live_grid = '''                    LinkDiagnosticGrid {
+                          MBHomeTile("Dashboard", "Selected values at a glance", "gauge.with.dots.needle.67percent") {
+                              MBDashboardView()
+                          }
+                          MBHomeTile("Table", "Search and inspect live values", "tablecells") {
+                              MBDataTableView()
+                          }
+                          MBHomeTile("Graphs", "Plot selected values over time", "chart.xyaxis.line") {
+                              MBGraphsView()
+                          }
+                          MBHomeTile("Factory Data", "Mercedes manufacturer measurements", "engine.combustion.fill") {
+                              MBDieselView()
+                          }
+                      }'''
+          live = live[:shortcut_start] + live_grid + live[shortcut_end:]
+          s = s[:lstart] + live + s[lend:]
+
+          path.write_text(s)
+
+          version = Path('VERSION')
+          if version.read_text().strip() != '0.7.186':
+              raise SystemExit('VERSION baseline mismatch')
+          version.write_text('0.7.187\n')
+
+          vh = Path('include/mblink/version.h')
+          vhs = vh.read_text()
+          if vhs.count('0.7.186') != 1:
+              raise SystemExit('version.h baseline mismatch')
+          vh.write_text(vhs.replace('0.7.186', '0.7.187'))
+
+          pbx = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          pbxs = pbx.read_text()
+          count = pbxs.count('MARKETING_VERSION = 0.7.186;')
+          if count != 4:
+              raise SystemExit(f'Xcode version baseline mismatch: {count}')
+          pbx.write_text(pbxs.replace('MARKETING_VERSION = 0.7.186;', 'MARKETING_VERSION = 0.7.187;'))
+          PY
+
+          git diff --check
+          git diff --stat
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ios/MBLINK/MBLINKApp.swift VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m "Release 0.7.187: restore smart diagnostic navigation [ui-patch-applied]"
+          git push origin HEAD:ui-restore-smart-hierarchy
