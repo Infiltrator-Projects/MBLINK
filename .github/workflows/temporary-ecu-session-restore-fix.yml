@@ -1,0 +1,169 @@
+name: Temporary ECU Session Restore Fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/temporary-ecu-session-restore-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch Mercedes module session teardown
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('include/mblink/mercedes_module_scan_core.h')
+          text = path.read_text()
+
+          def replace_once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, got {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29,',
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29,')
+
+          replace_once(
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE,',
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION,\n'
+              '    MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE,')
+
+          replace_once(
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29:',
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION: return "discover-default-session";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29:')
+
+          replace_once(
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return "read-module-faults";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE:',
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return "read-module-faults";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION: return "fault-default-session";\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE:')
+
+          replace_once(
+              '    if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_QUICK) {',
+              '    {\n'
+              '        const MblinkMercedesKnownRoute *route =\n'
+              '            mblink_mercedes_module_scan_known_route(scan);\n'
+              '        if (scan->stage !=\n'
+              '                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION &&\n'
+              '            route != NULL &&\n'
+              '            route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS) {\n'
+              '            scan->stage =\n'
+              '                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION;\n'
+              '            return;\n'
+              '        }\n'
+              '    }\n\n'
+              '    if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_QUICK) {')
+
+          replace_once(
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:',
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION: return WRITE("1001");\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION: return WRITE("1001");\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:')
+
+          replace_once(
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:\n'
+              '        if (!mblink_mercedes_module_scan_at_ok(response))\n'
+              '            goto adapter_failure;\n'
+              '        scan->vin_timeout_long = false;\n'
+              '        mblink_mercedes_module_scan_advance_candidate(scan);\n'
+              '        break;\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:',
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:\n'
+              '        if (!mblink_mercedes_module_scan_at_ok(response))\n'
+              '            goto adapter_failure;\n'
+              '        scan->vin_timeout_long = false;\n'
+              '        mblink_mercedes_module_scan_advance_candidate(scan);\n'
+              '        break;\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION:\n'
+              '        /* Best-effort ECU teardown: a timeout/negative reply still\n'
+              '         * means we stop holding the ECU in an extended session. */\n'
+              '        mblink_mercedes_module_scan_advance_candidate(scan);\n'
+              '        break;\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:')
+
+          replace_once(
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ:\n'
+              '        if (scan->dtc_index >= scan->module_count)\n'
+              '            goto failed_state;\n'
+              '        mblink_mercedes_module_scan_capture_dtc(\n'
+              '            &scan->modules[scan->dtc_index], response);\n'
+              '        ++scan->dtc_index;\n'
+              '        scan->stage = scan->single_module_refresh ||\n'
+              '                      scan->dtc_index >= scan->module_count\n'
+              '            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE\n'
+              '            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;\n'
+              '        break;',
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ:\n'
+              '        if (scan->dtc_index >= scan->module_count)\n'
+              '            goto failed_state;\n'
+              '        mblink_mercedes_module_scan_capture_dtc(\n'
+              '            &scan->modules[scan->dtc_index], response);\n'
+              '        {\n'
+              '            const MblinkMercedesKnownRoute *route =\n'
+              '                mblink_mercedes_module_scan_known_entry_route(\n'
+              '                    &scan->modules[scan->dtc_index]);\n'
+              '            if (route != NULL &&\n'
+              '                route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS) {\n'
+              '                scan->stage =\n'
+              '                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION;\n'
+              '                break;\n'
+              '            }\n'
+              '        }\n'
+              '        ++scan->dtc_index;\n'
+              '        scan->stage = scan->single_module_refresh ||\n'
+              '                      scan->dtc_index >= scan->module_count\n'
+              '            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE\n'
+              '            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;\n'
+              '        break;\n'
+              '    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION:\n'
+              '        if (scan->dtc_index >= scan->module_count)\n'
+              '            goto failed_state;\n'
+              '        ++scan->dtc_index;\n'
+              '        scan->stage = scan->single_module_refresh ||\n'
+              '                      scan->dtc_index >= scan->module_count\n'
+              '            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE\n'
+              '            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;\n'
+              '        break;')
+
+          path.write_text(text)
+          PY
+
+      - name: Verify safety markers
+        shell: bash
+        run: |
+          grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION' include/mblink/mercedes_module_scan_core.h
+          grep -Fq 'MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION' include/mblink/mercedes_module_scan_core.h
+          test "$(grep -Fc 'return WRITE("1001")' include/mblink/mercedes_module_scan_core.h)" -ge 2
+
+      - name: Commit source repair
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add include/mblink/mercedes_module_scan_core.h
+          git diff --cached --check
+          git commit -m 'Fix Mercedes UDS session teardown after module scans'
+          git push origin HEAD:main
