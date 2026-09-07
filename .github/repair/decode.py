@@ -21,6 +21,18 @@ decoded = b"".join(decoded_parts)
 try:
     source = decoded.decode("utf-8")
 except UnicodeDecodeError as exc:
+    offset = 0
+    for index, chunk in enumerate(decoded_parts):
+        if offset <= exc.start < offset + len(chunk):
+            local = exc.start - offset
+            lo = max(0, local - 120)
+            hi = min(len(chunk), local + 120)
+            window = chunk[lo:hi]
+            print(f"bad UTF-8 in part{index}: global={exc.start} local={local} chunk_len={len(chunk)}")
+            print(f"window_hex={window.hex()}")
+            print("window_text=" + window.decode("utf-8", errors="replace"))
+            break
+        offset += len(chunk)
     raise SystemExit(f"reconstructed repair is not UTF-8 Python: {exc}") from exc
 
 compile(source, "/tmp/repair.py", "exec")
