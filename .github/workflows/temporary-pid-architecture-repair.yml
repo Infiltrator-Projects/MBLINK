@@ -1,0 +1,39 @@
+name: Temporary PID Architecture Repair
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply PID architecture repair
+        shell: bash
+        env:
+          PATCH_B64: PLACEHOLDER
+        run: |
+          set -euo pipefail
+          printf '%s' "$PATCH_B64" | base64 -d > /tmp/repair.py
+          python3 /tmp/repair.py
+          git diff --check
+          git status --short
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add platform/apple/MBLinkDiagnosticsController.h \
+                  platform/apple/MBLinkDiagnosticsController.m \
+                  app/ios/MBLINK/ConnectionViewModel.swift \
+                  app/ios/MBLINK/MBLINKApp.swift
+          git commit -m 'Repair iPhone module PID catalogue architecture'
+          git push origin HEAD:main
