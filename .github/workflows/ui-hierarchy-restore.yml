@@ -1,0 +1,406 @@
+name: Temporary UI Hierarchy Restore
+
+on:
+  push:
+    branches:
+      - ui-restore-smart-hierarchy
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-patch-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui-restore-smart-hierarchy
+          fetch-depth: 0
+
+      - name: Restore MBLINK diagnostic hierarchy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/ios/MBLINK/MBLINKApp.swift')
+          s = path.read_text()
+
+          def replace_once(old, new, label):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              s = s.replace(old, new, 1)
+
+          old_primary = '''    private var primaryGrid: some View {
+              LinkDiagnosticGrid {
+                  LinkTaskTile(.vehicle) { MBVehicleView() }
+                  LinkTaskTile(.errors) { MBFaultsView() }
+                  LinkTaskTile(.dashboard) { MBDashboardView() }
+                  LinkTaskTile(.table) { MBDataTableView() }
+                  LinkTaskTile(.graph) { MBGraphsView() }
+              }
+          }
+
+          '''
+          new_primary = '''    private var primaryGrid: some View {
+              LinkDiagnosticGrid {
+                  MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") {
+                      MBVehicleView()
+                  }
+                  MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") {
+                      MBModulesView()
+                  }
+                  MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") {
+                      MBFaultsView()
+                  }
+                  MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") {
+                      MBLiveDataView()
+                  }
+                  MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") {
+                      LinkStandardObdView(snapshot: obdSnapshot)
+                  }
+              }
+          }
+
+          private var obdSnapshot: LinkStandardObdSnapshot {
+              LinkStandardObdSnapshot(
+                  capability: connection.diagnosticCapabilityText,
+                  capabilityDetail: connection.diagnosticCapabilityDetailText,
+                  vin: connection.standardVINText,
+                  responderSummary: connection.standardResponderSummary,
+                  pidSummary: connection.supportedPIDSummary,
+                  readiness: connection.readinessStatusText,
+                  readinessMonitors: connection.readinessMonitorStatus,
+                  freezeFrame: connection.freezeFrameContext,
+                  storedDTCs: connection.storedDTCs,
+                  pendingDTCs: connection.pendingDTCs,
+                  permanentDTCs: connection.permanentDTCs,
+                  liveRows: connection.standardLiveValueRows)
+          }
+
+          '''
+          replace_once(old_primary, new_primary, 'primary diagnostic grid')
+
+          old_tools = '''    private var supportingTools: some View {
+              VStack(alignment: .leading, spacing: 14) {
+                  MBPanel {
+                      VStack(alignment: .leading, spacing: 9) {
+                          MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
+                          MBCompactLink(
+                              "Saved Vehicles & PIDs",
+                              "Load a saved VIN and configure each controller's advertised PIDs offline",
+                              "list.bullet.rectangle.portrait.fill"
+                          ) { MBPIDSetupView() }
+
+                          Divider().overlay(MBBrand.line)
+
+                          Button {
+                              connection.connect()
+                          } label: {
+                              HStack(alignment: .center, spacing: 12) {
+                                  Image(systemName: "plus.circle.fill")
+                                      .font(MBTypography.title3)
+                                      .foregroundStyle(MBBrand.silverBright)
+                                      .frame(width: 30)
+                                  VStack(alignment: .leading, spacing: 3) {
+                                      Text("Add / Scan New Vehicle")
+                                          .font(MBTypography.subheadlineBold)
+                                          .foregroundStyle(MBBrand.silverBright)
+                                      Text("Read the connected car's VIN; load its saved profile if known, otherwise create a new one")
+                                          .font(MBTypography.caption)
+                                          .foregroundStyle(MBBrand.muted)
+                                          .fixedSize(horizontal: false, vertical: true)
+                                  }
+                                  Spacer()
+                                  Image(systemName: "chevron.right")
+                                      .foregroundStyle(MBBrand.muted)
+                              }
+                              .contentShape(Rectangle())
+                          }
+                          .buttonStyle(.plain)
+                          .disabled(connection.isActive)
+                          .opacity(connection.isActive ? 0.45 : 1.0)
+                      }
+                  }
+
+                  MBSectionHeader(
+                      title: "More diagnostics",
+                      kicker: "Evidence, tests, services and preferences")
+                  LinkDiagnosticGrid {
+                      LinkTaskTile(.log) { MBEvidenceView() }
+                      LinkTaskTile(.tests) { MBTestsView() }
+                      LinkTaskTile(.services) { MBServicesView() }
+                      LinkTaskTile(.settings) { MBSettingsView() }
+                  }
+              }
+          }
+
+          '''
+          new_tools = '''    private var supportingTools: some View {
+              VStack(alignment: .leading, spacing: 14) {
+                  MBSectionHeader(
+                      title: "Tools",
+                      kicker: "Evidence, tests, services and preferences")
+                  LinkDiagnosticGrid {
+                      MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") {
+                          MBEvidenceView()
+                      }
+                      MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") {
+                          MBTestsView()
+                      }
+                      MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") {
+                          MBServicesView()
+                      }
+                      MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") {
+                          MBSettingsView()
+                      }
+                  }
+              }
+          }
+
+          '''
+          replace_once(old_tools, new_tools, 'secondary tools')
+
+          replace_once('''                    MBSectionHeader(
+                          title: "Saved Vehicles & PIDs",
+                          kicker: connection.isActive
+                              ? "Current vehicle + saved profiles"
+                              : "Offline configuration")''', '''                    MBSectionHeader(
+                          title: "Vehicle Profiles & PID Setup",
+                          kicker: connection.isActive
+                              ? "Current vehicle + saved profiles"
+                              : "Offline configuration")''', 'vehicle profile heading')
+          replace_once('.mbDiagnosticScreen("Vehicles & PIDs")', '.mbDiagnosticScreen("Vehicle Profiles")', 'vehicle profile screen title')
+
+          old_add_profile = '''                Button {
+                      connection.connect()
+                  } label: {
+                      HStack(alignment: .center, spacing: 12) {
+                          Image(systemName: "plus.circle.fill")
+                              .font(MBTypography.title3)
+                              .foregroundStyle(MBBrand.silverBright)
+                              .frame(width: 30)
+                          VStack(alignment: .leading, spacing: 3) {
+                              Text("Add / Scan New Vehicle")
+                                  .font(MBTypography.subheadlineBold)
+                                  .foregroundStyle(MBBrand.silverBright)
+                              Text("Connect another Mercedes. MBLINK reads its VIN first, reuses a matching profile if it exists, or creates a new VIN profile.")
+                                  .font(MBTypography.caption)
+                                  .foregroundStyle(MBBrand.silver)
+                                  .fixedSize(horizontal: false, vertical: true)
+                          }
+                          Spacer()
+                          Text("NEW")
+                              .font(MBTypography.caption2Bold)
+                              .foregroundStyle(MBBrand.silverBright)
+                      }
+                      .padding(.vertical, 6)
+                      .contentShape(Rectangle())
+                  }
+                  .buttonStyle(.plain)
+                  .disabled(connection.isActive)
+                  .opacity(connection.isActive ? 0.45 : 1.0)
+
+                  if !connection.savedVehicleProfiles.isEmpty {
+                      Divider().overlay(MBBrand.line)
+                  }
+
+          '''
+          new_add_profile = '''                if !connection.savedVehicleProfiles.isEmpty {
+                      Divider().overlay(MBBrand.line)
+                  }
+
+          '''
+          replace_once(old_add_profile, new_add_profile, 'duplicate add vehicle action')
+          replace_once('No VIN profile has been stored yet. Use Add / Scan New Vehicle and MBLINK will save the VIN, controller map and observed capabilities for later use.', 'No VIN profile has been stored yet. Connect from the MBLINK home screen and the live VIN, controller map and observed capabilities will be saved automatically.', 'empty profile guidance')
+          replace_once('Load a saved VIN profile above, or use Add / Scan New Vehicle to identify a car and learn its controller routes.', 'Load a saved VIN profile above, or connect from the MBLINK home screen to identify a car and learn its controller routes.', 'controller setup guidance')
+
+          old_vehicle_profile = '''                    MBPanel {
+                      VStack(alignment: .leading, spacing: 12) {
+                          MBSectionHeader(title: "Current vehicle", kicker: "Profile selection")
+                          if let selectedVIN = connection.selectedVehicleVIN {
+                              MBInfoRow(label: "Loaded VIN", value: selectedVIN, monospaced: true)
+                          } else {
+                              Text("No saved VIN profile is loaded yet.")
+                                  .font(MBTypography.subheadline)
+                                  .foregroundStyle(MBBrand.muted)
+                          }
+
+                          NavigationLink { MBPIDSetupView() } label: {
+                              HStack {
+                                  Label("Change / Load Vehicle",
+                                        systemImage: "list.bullet.rectangle.portrait.fill")
+                                  Spacer()
+                                  Image(systemName: "chevron.right")
+                              }
+                              .font(MBTypography.subheadlineBold)
+                              .foregroundStyle(MBBrand.silverBright)
+                              .padding(.vertical, 5)
+                          }
+                          .buttonStyle(.plain)
+
+                          Divider().overlay(MBBrand.line)
+
+                          Button {
+                              connection.connect()
+                          } label: {
+                              HStack {
+                                  Label("Add / Scan New Vehicle",
+                                        systemImage: "plus.circle.fill")
+                                  Spacer()
+                                  Image(systemName: "chevron.right")
+                              }
+                              .font(MBTypography.subheadlineBold)
+                              .foregroundStyle(MBBrand.silverBright)
+                              .padding(.vertical, 5)
+                          }
+                          .buttonStyle(.plain)
+                          .disabled(connection.isActive)
+                          .opacity(connection.isActive ? 0.45 : 1.0)
+
+                          Text("A connection always reads the live VIN. If that VIN already has a profile MBLINK loads it; otherwise MBLINK creates a new vehicle profile from the scan.")
+                              .font(MBTypography.caption)
+                              .foregroundStyle(MBBrand.muted)
+                              .fixedSize(horizontal: false, vertical: true)
+                      }
+                  }
+          '''
+          new_vehicle_profile = '''                    MBPanel {
+                      VStack(alignment: .leading, spacing: 12) {
+                          MBSectionHeader(title: "Vehicle profile", kicker: "Saved vehicle")
+                          if let selectedVIN = connection.selectedVehicleVIN {
+                              MBInfoRow(label: "Loaded VIN", value: selectedVIN, monospaced: true)
+                          } else {
+                              Text("No saved VIN profile is loaded yet.")
+                                  .font(MBTypography.subheadline)
+                                  .foregroundStyle(MBBrand.muted)
+                          }
+
+                          NavigationLink { MBPIDSetupView() } label: {
+                              HStack {
+                                  Label("Saved Vehicle Profiles",
+                                        systemImage: "list.bullet.rectangle.portrait.fill")
+                                  Spacer()
+                                  Image(systemName: "chevron.right")
+                              }
+                              .font(MBTypography.subheadlineBold)
+                              .foregroundStyle(MBBrand.silverBright)
+                              .padding(.vertical, 5)
+                          }
+                          .buttonStyle(.plain)
+
+                          Text("The home-screen Connect button is the single path for identifying a live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.")
+                              .font(MBTypography.caption)
+                              .foregroundStyle(MBBrand.muted)
+                              .fixedSize(horizontal: false, vertical: true)
+                      }
+                  }
+          '''
+          replace_once(old_vehicle_profile, new_vehicle_profile, 'vehicle profile panel')
+
+          old_vehicle_modules = '''                    MBPanel {
+                      NavigationLink { MBModulesView() } label: {
+                          HStack(spacing: 12) {
+                              Image(systemName: "square.stack.3d.up.fill")
+                                  .font(MBTypography.title3)
+                                  .foregroundStyle(MBBrand.silverBright)
+                                  .frame(width: 30)
+                              VStack(alignment: .leading, spacing: 3) {
+                                  Text("Control units")
+                                      .font(MBTypography.subheadlineBold)
+                                      .foregroundStyle(MBBrand.silverBright)
+                                  Text(connection.isActive
+                                       ? "\\(connection.diagnosticModules.count) responding · open module inventory and scan details"
+                                       : "\\(connection.pidConfigurationModules.count) saved · available offline")
+                                      .font(MBTypography.caption)
+                                      .foregroundStyle(MBBrand.muted)
+                              }
+                              Spacer()
+                              Image(systemName: "chevron.right")
+                                  .foregroundStyle(MBBrand.muted)
+                          }
+                      }
+                      .buttonStyle(.plain)
+                  }
+          '''
+          replace_once(old_vehicle_modules, '', 'duplicate module link on vehicle screen')
+          replace_once('Use Add / Scan New Vehicle, or load a saved VIN profile.', 'Connect from the home screen, or load a saved VIN profile.', 'vehicle hero guidance')
+
+          replace_once('MBSectionHeader(title: "Errors", kicker: "Mercedes-Benz diagnostic memory")', 'MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")', 'fault heading')
+          replace_once('.mbDiagnosticScreen("Errors")', '.mbDiagnosticScreen("Faults")', 'fault screen title')
+          replace_once('.mbDiagnosticScreen("Log")', '.mbDiagnosticScreen("Evidence")', 'evidence screen title')
+
+          old_live_links = '''                    MBPanel {
+                      HStack(spacing: 18) {
+                          NavigationLink {
+                              MBDataTableView()
+                          } label: {
+                              Label("Table", systemImage: "tablecells")
+                          }
+                          NavigationLink {
+                              MBGraphsView()
+                          } label: {
+                              Label("Graphs", systemImage: "chart.xyaxis.line")
+                          }
+                          NavigationLink {
+                              MBDieselView()
+                          } label: {
+                              Label("Factory", systemImage: "engine.combustion.fill")
+                          }
+                      }
+                      .font(MBTypography.subheadlineBold)
+                      .foregroundStyle(MBBrand.silverBright)
+                      .lineLimit(1)
+                      .minimumScaleFactor(0.78)
+                  }
+          '''
+          new_live_links = '''                    LinkDiagnosticGrid {
+                      MBHomeTile("Dashboard", "Selected values at a glance", "gauge.with.dots.needle.67percent") {
+                          MBDashboardView()
+                      }
+                      MBHomeTile("Table", "Search and inspect live values", "tablecells") {
+                          MBDataTableView()
+                      }
+                      MBHomeTile("Graphs", "Plot selected values over time", "chart.xyaxis.line") {
+                          MBGraphsView()
+                      }
+                      MBHomeTile("Factory Data", "Mercedes manufacturer measurements", "engine.combustion.fill") {
+                          MBDieselView()
+                      }
+                  }
+          '''
+          replace_once(old_live_links, new_live_links, 'live data presentation hub')
+
+          path.write_text(s)
+
+          version = Path('VERSION')
+          if version.read_text().strip() != '0.7.186':
+              raise SystemExit('VERSION is not the expected 0.7.186 baseline')
+          version.write_text('0.7.187\n')
+
+          vh = Path('include/mblink/version.h')
+          vhs = vh.read_text()
+          if vhs.count('0.7.186') != 1:
+              raise SystemExit('version.h baseline mismatch')
+          vh.write_text(vhs.replace('0.7.186', '0.7.187'))
+
+          pbx = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          pbxs = pbx.read_text()
+          count = pbxs.count('MARKETING_VERSION = 0.7.186;')
+          if count != 4:
+              raise SystemExit(f'expected four Xcode marketing versions, found {count}')
+          pbx.write_text(pbxs.replace('MARKETING_VERSION = 0.7.186;', 'MARKETING_VERSION = 0.7.187;'))
+          PY
+
+          git diff --check
+          git diff --stat
+          git diff -- app/ios/MBLINK/MBLINKApp.swift VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ios/MBLINK/MBLINKApp.swift VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m "Release 0.7.187: restore smart diagnostic navigation [ui-patch-applied]"
+          git push origin HEAD:ui-restore-smart-hierarchy
