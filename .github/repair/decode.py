@@ -13,9 +13,6 @@ for part in parts:
         raise SystemExit(f"{part}: invalid Base64 characters: {bad!r}")
     raw_parts.append(clean)
 
-# Parts 0-3 are complete Base64 blocks. The final block is exactly one
-# character short of a valid quartet. Recover that one character by requiring
-# the complete decoded payload to be both UTF-8 and syntactically valid Python.
 prefix_chunks = []
 for index, clean in enumerate(raw_parts[:4]):
     if len(clean) % 4 != 0:
@@ -29,6 +26,14 @@ if len(tail) % 4 != 3:
 first_padding = tail.find("=")
 insert_limit = len(tail) if first_padding < 0 else first_padding
 candidates = []
+
+required_tail = '''for path in [
+    "platform/apple/MBLinkDiagnosticsController.h",
+    "platform/apple/MBLinkDiagnosticsController.m",
+    "app/ios/MBLINK/ConnectionViewModel.swift",
+    "app/ios/MBLINK/MBLINKApp.swift",
+]:
+'''
 
 for position in range(insert_limit + 1):
     for char in alphabet:
@@ -45,11 +50,15 @@ for position in range(insert_limit + 1):
             compile(source, "/tmp/repair.py", "exec")
         except (UnicodeDecodeError, SyntaxError):
             continue
+        if required_tail not in source:
+            continue
+        if 'print("PID architecture repair applied")' not in source:
+            continue
         candidates.append((position, char, source, len(payload)))
 
 if len(candidates) != 1:
     summary = [(position, char, size) for position, char, _source, size in candidates[:20]]
-    raise SystemExit(f"expected one recoverable PID payload, found {len(candidates)} candidates: {summary}")
+    raise SystemExit(f"expected one structurally valid PID payload, found {len(candidates)} candidates: {summary}")
 
 position, char, source, payload_size = candidates[0]
 Path("/tmp/repair.py").write_text(source)
