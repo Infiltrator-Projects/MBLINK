@@ -20,10 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : > /tmp/repair.py
-          for part in .github/repair/pid.part0 .github/repair/pid.part1 .github/repair/pid.part2 .github/repair/pid.part3 .github/repair/pid.part4; do
-            base64 -d "$part" >> /tmp/repair.py
-          done
+          python3 .github/repair/decode.py
           python3 /tmp/repair.py
           python3 .github/repair/finalize.py
           git diff --check
