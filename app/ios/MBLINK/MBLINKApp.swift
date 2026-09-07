@@ -584,62 +584,26 @@ private struct MBCommandCentreView: View {
     }
 
     private var primaryGrid: some View {
-    LinkDiagnosticGrid {
-        MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") {
-            MBVehicleView()
-        }
-        MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") {
-            MBModulesView()
-        }
-        MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") {
-            MBFaultsView()
-        }
-        MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") {
-            MBLiveDataView()
-        }
-        MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") {
-            LinkStandardObdView(snapshot: obdSnapshot)
+        LinkDiagnosticGrid {
+            MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") { MBVehicleView() }
+            MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") { MBModulesView() }
+            MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") { MBFaultsView() }
+            MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") { MBLiveDataView() }
+            MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") { MBStandardOBDView() }
         }
     }
-}
-
-private var obdSnapshot: LinkStandardObdSnapshot {
-    LinkStandardObdSnapshot(
-        capability: connection.diagnosticCapabilityText,
-        capabilityDetail: connection.diagnosticCapabilityDetailText,
-        vin: connection.standardVINText,
-        responderSummary: connection.standardResponderSummary,
-        pidSummary: connection.supportedPIDSummary,
-        readiness: connection.readinessStatusText,
-        readinessMonitors: connection.readinessMonitorStatus,
-        freezeFrame: connection.freezeFrameContext,
-        storedDTCs: connection.storedDTCs,
-        pendingDTCs: connection.pendingDTCs,
-        permanentDTCs: connection.permanentDTCs,
-        liveRows: connection.standardLiveValueRows)
-}
 
     private var supportingTools: some View {
-    VStack(alignment: .leading, spacing: 14) {
-        MBSectionHeader(
-            title: "Tools",
-            kicker: "Evidence, tests, services and preferences")
-        LinkDiagnosticGrid {
-            MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") {
-                MBEvidenceView()
-            }
-            MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") {
-                MBTestsView()
-            }
-            MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") {
-                MBServicesView()
-            }
-            MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") {
-                MBSettingsView()
+        VStack(alignment: .leading, spacing: 14) {
+            MBSectionHeader(title: "Tools", kicker: "Evidence, tests, services and preferences")
+            LinkDiagnosticGrid {
+                MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") { MBEvidenceView() }
+                MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") { MBTestsView() }
+                MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") { MBServicesView() }
+                MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") { MBSettingsView() }
             }
         }
     }
-}
 
     private var connectionProgress: some View {
         MBPanel {
@@ -664,6 +628,69 @@ private var obdSnapshot: LinkStandardObdSnapshot {
 private extension View {
     func mbDiagnosticScreen(_ title: String) -> some View {
         linkDiagnosticScreen(title)
+    }
+}
+
+private struct MBStandardOBDView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBSectionHeader(title: "OBD", kicker: "Standard OBD-II / EOBD")
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(connection.diagnosticCapabilityText)
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.active)
+                            Text(connection.diagnosticCapabilityDetailText)
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.muted)
+                        }
+                    }
+                    MBPanel {
+                        VStack(spacing: 4) {
+                            MBInfoRow(label: "VIN", value: connection.standardVINText, monospaced: true)
+                            MBInfoRow(label: "Responders", value: connection.standardResponderSummary)
+                            MBInfoRow(label: "Live data", value: connection.supportedPIDSummary)
+                            MBInfoRow(label: "Readiness", value: connection.readinessStatusText)
+                        }
+                    }
+                    obdList("Readiness monitors", connection.readinessMonitorStatus)
+                    obdList("Stored faults", connection.storedDTCs)
+                    obdList("Pending faults", connection.pendingDTCs)
+                    obdList("Permanent faults", connection.permanentDTCs)
+                    obdList("Freeze frame", connection.freezeFrameContext)
+                    obdList("Standard live data", connection.standardLiveValueRows)
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("OBD")
+    }
+
+    @ViewBuilder
+    private func obdList(_ title: String, _ values: [String]) -> some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(MBTypography.subheadlineBold)
+                    .foregroundStyle(MBBrand.silverBright)
+                if values.isEmpty {
+                    Text("None reported")
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.muted)
+                } else {
+                    ForEach(values, id: \.self) { value in
+                        Text(value)
+                            .font(MBTypography.subheadline)
+                            .foregroundStyle(MBBrand.silver)
+                    }
+                }
+            }
+        }
     }
 }
 
