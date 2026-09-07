@@ -18,30 +18,31 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          submodules: recursive
-      - name: Apply PID architecture repair
+      - name: Prepare corrected CI workflow blob
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/repair/decode.py
-          python3 /tmp/repair.py
-          python3 .github/repair/finalize.py
-          git diff --check
-          cmake -S . -B build-repair -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-repair --parallel
-          ctest --test-dir build-repair --output-on-failure
-      - name: Commit validated source repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf build-repair
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/ci.yml')
+          text = path.read_text()
+          old = "          grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
+          new = (
+              "          grep -Fq 'MBStandardOBDView()' app/ios/MBLINK/MBLINKApp.swift\n"
+              "          grep -Fq 'private struct MBStandardOBDView: View' app/ios/MBLINK/MBLINKApp.swift\n"
+              "          ! grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one stale OBD guard, found {text.count(old)}')
+          patched = text.replace(old, new, 1)
+          Path('ci-patched.yml.txt').write_text(patched)
+          PY
+          grep -Fq 'MBStandardOBDView()' ci-patched.yml.txt
+          grep -Fq 'private struct MBStandardOBDView: View' ci-patched.yml.txt
+          ! grep -Fq "grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)'" ci-patched.yml.txt
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add platform/apple/MBLinkDiagnosticsController.h
-          git add platform/apple/MBLinkDiagnosticsController.m
-          git add app/ios/MBLINK/ConnectionViewModel.swift
-          git add app/ios/MBLINK/MBLINKApp.swift
-          git add tests/test_mercedes_module_scan.c
+          git add ci-patched.yml.txt
           git diff --cached --check
-          git commit -m 'Repair iPhone PID architecture and CI regressions'
+          git commit -m 'Prepare corrected MBLINK CI workflow content'
           git push origin HEAD:main
