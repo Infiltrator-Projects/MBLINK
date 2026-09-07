@@ -1,0 +1,224 @@
+name: Temporary 0.7.187 iOS Source Repair
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[obd-main-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Repair MBLINK-owned OBD screen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/ios/MBLINK/MBLINKApp.swift')
+          s = p.read_text()
+
+          if 'private struct MBStandardOBDView: View {' in s:
+              raise SystemExit('OBD repair already present')
+
+          start_marker = '    private var primaryGrid: some View {'
+          end_marker = '    private var connectionProgress: some View {'
+          start = s.find(start_marker)
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('home navigation markers not found')
+
+          navigation = '''    private var primaryGrid: some View {
+        LinkDiagnosticGrid {
+            MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") {
+                MBVehicleView()
+            }
+            MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") {
+                MBModulesView()
+            }
+            MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") {
+                MBFaultsView()
+            }
+            MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") {
+                MBLiveDataView()
+            }
+            MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") {
+                MBStandardOBDView()
+            }
+        }
+    }
+
+    private var supportingTools: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            MBSectionHeader(
+                title: "Tools",
+                kicker: "Evidence, tests, services and preferences")
+            LinkDiagnosticGrid {
+                MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") {
+                    MBEvidenceView()
+                }
+                MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") {
+                    MBTestsView()
+                }
+                MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") {
+                    MBServicesView()
+                }
+                MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") {
+                    MBSettingsView()
+                }
+            }
+        }
+    }
+
+'''
+          s = s[:start] + navigation + s[end:]
+
+          marker = 'private struct MBPIDSetupView: View {'
+          at = s.find(marker)
+          if at < 0:
+              raise SystemExit('PID setup marker not found')
+
+          view = '''private struct MBStandardOBDView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    MBSectionHeader(title: "OBD", kicker: "Standard OBD-II / EOBD")
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("Standard diagnostics", systemImage: "cpu")
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text(connection.diagnosticCapabilityText)
+                                .font(MBTypography.subheadlineBold)
+                                .foregroundStyle(MBBrand.active)
+                            Text(connection.diagnosticCapabilityDetailText)
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(spacing: 4) {
+                            MBInfoRow(label: "VIN", value: connection.standardVINText, monospaced: true)
+                            MBInfoRow(label: "Responders", value: connection.standardResponderSummary)
+                            MBInfoRow(label: "Live data", value: connection.supportedPIDSummary)
+                            MBInfoRow(label: "Readiness", value: connection.readinessStatusText)
+                        }
+                    }
+
+                    if !connection.readinessMonitorStatus.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 7) {
+                                MBSectionHeader(title: "Readiness monitors", kicker: "Mode 01")
+                                ForEach(connection.readinessMonitorStatus, id: \.self) { row in
+                                    Text(row)
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 8) {
+                            MBSectionHeader(title: "Fault memory", kicker: "Modes 03 / 07 / 0A")
+                            faultGroup("Stored", connection.storedDTCs)
+                            Divider().overlay(MBBrand.line)
+                            faultGroup("Pending", connection.pendingDTCs)
+                            Divider().overlay(MBBrand.line)
+                            faultGroup("Permanent", connection.permanentDTCs)
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 7) {
+                            MBSectionHeader(title: "Freeze frame", kicker: "Mode 02")
+                            if connection.freezeFrameContext.isEmpty {
+                                Text("No freeze-frame context captured.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.muted)
+                            } else {
+                                ForEach(connection.freezeFrameContext, id: \.self) { row in
+                                    Text(row)
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 7) {
+                            MBSectionHeader(title: "Standard live data", kicker: "Mode 01")
+                            if connection.standardLiveValueRows.isEmpty {
+                                Text("No advertised standard live parameters yet.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.muted)
+                            } else {
+                                ForEach(connection.standardLiveValueRows, id: \.self) { row in
+                                    Text(row)
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("OBD")
+    }
+
+    @ViewBuilder
+    private func faultGroup(_ title: String, _ values: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(MBTypography.captionBold)
+                .foregroundStyle(MBBrand.muted)
+            if values.isEmpty {
+                Text("None reported")
+                    .font(MBTypography.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+            } else {
+                ForEach(values, id: \.self) { value in
+                    Text(value)
+                        .font(MBTypography.subheadline)
+                        .foregroundStyle(MBBrand.silver)
+                }
+            }
+        }
+    }
+}
+
+'''
+          s = s[:at] + view + s[at:]
+
+          if 'LinkStandardObdView(snapshot: obdSnapshot)' in s:
+              raise SystemExit('shared OBD destination still present')
+          if 'private var obdSnapshot: LinkStandardObdSnapshot' in s:
+              raise SystemExit('obsolete snapshot still present')
+
+          p.write_text(s)
+          PY
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ios/MBLINK/MBLINKApp.swift
+          git commit -m "Fix 0.7.187 iOS OBD presentation [obd-main-fixed]"
+          git push origin HEAD:main
