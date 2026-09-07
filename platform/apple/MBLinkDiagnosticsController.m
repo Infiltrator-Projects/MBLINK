@@ -3079,7 +3079,10 @@ return [runtimeSafe copy];
             count, classified, count - classified];
         self.mercedesUDSFaults = [faults copy];
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"%zu module routes · %zu catalogue matches · %zu Mercedes factory fault record%@%@",
+            @"%@ · %zu module routes · %zu catalogue matches · %zu Mercedes factory fault record%@%@",
+            _mercedesModuleScan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE &&
+                mblink_mercedes_module_scan_fresh_response_count(&_mercedesModuleScan) == count
+                ? @"Complete" : @"Partial",
             count, classified, totalFaults,
             totalFaults == 1U ? @"" : @"s",
             _mercedesModuleScan.truncated
