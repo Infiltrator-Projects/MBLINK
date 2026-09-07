@@ -103,20 +103,28 @@ jobs:
           grep -q 'return link_elm327_session_begin' src/elm327/session.c
           grep -q 'link_diagnostic_flow_accept_response' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'LinkDiagnosticsController' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'LinkTaskTile(.vehicle)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.log)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.errors)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.dashboard)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.table)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.graph)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.tests)' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkTaskTile(.services)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Vehicle"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Modules"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Faults"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Live Data"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Dashboard"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Table"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Graphs"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Factory Data"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Evidence"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Tests"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Services"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBHomeTile("Settings"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBSectionHeader(title: "Faults"' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq '.mbDiagnosticScreen("Evidence")' app/ios/MBLINK/MBLINKApp.swift
+          ! grep -Fq 'LinkTaskTile(.errors)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LinkDiagnosticAboutButton' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'LinkDiagnosticAboutView' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'descriptor.about = &about_info;' app/linux/main.c
           test ! -e app/linux/about-dialog.c
           test ! -e app/linux/about-dialog.h
-          ! grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'final class ConnectionViewModel: LinkStandardProductViewModel' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'configuration: LinkStandardProductConfiguration(' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'diagnosticCapabilityText = productController.diagnosticCapabilityText' src/link/platform/apple/LinkDiagnosticUI.swift
