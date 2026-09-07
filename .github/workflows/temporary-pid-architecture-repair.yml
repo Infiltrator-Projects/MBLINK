@@ -21,76 +21,23 @@ jobs:
         run: |
           set -euo pipefail
           : > /tmp/repair.py
-          for part in .github/repair/pid.part0 \
-                      .github/repair/pid.part1 \
-                      .github/repair/pid.part2 \
-                      .github/repair/pid.part3 \
-                      .github/repair/pid.part4; do
+          for part in .github/repair/pid.part0 .github/repair/pid.part1 .github/repair/pid.part2 .github/repair/pid.part3 .github/repair/pid.part4; do
             base64 -d "$part" >> /tmp/repair.py
           done
           python3 /tmp/repair.py
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          ci = Path('.github/workflows/ci.yml')
-          text = ci.read_text()
-          old = "          grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
-          new = (
-              "          grep -Fq 'MBStandardOBDView()' app/ios/MBLINK/MBLINKApp.swift\n"
-              "          grep -Fq 'private struct MBStandardOBDView: View' app/ios/MBLINK/MBLINKApp.swift\n"
-              "          ! grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
-          )
-          if text.count(old) != 1:
-              raise SystemExit(f'ci.yml: expected one stale OBD guard, found {text.count(old)}')
-          ci.write_text(text.replace(old, new, 1))
-
-          test = Path('tests/test_mercedes_module_scan.c')
-          text = test.read_text()
-          old = '''        CHECK(strcmp(command, "1902FF") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
-        CHECK(send_ok(&scan, "ATSP6") == 0);
-        CHECK(send_ok(&scan, "ATSH64A") == 0);
-'''
-          new = '''        CHECK(strcmp(command, "1902FF") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
-        CHECK(send_ok(&scan, "ATSP6") == 0);
-        CHECK(send_ok(&scan, "ATSH64A") == 0);
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'test_mercedes_module_scan.c: expected one UDS teardown transition, found {text.count(old)}')
-          test.write_text(text.replace(old, new, 1))
-          PY
-
+          python3 .github/repair/finalize.py
           git diff --check
           cmake -S . -B build-repair -DCMAKE_BUILD_TYPE=Release
           cmake --build build-repair --parallel
           ctest --test-dir build-repair --output-on-failure
-
       - name: Commit real repair and remove scaffolding
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git rm .github/workflows/temporary-pid-architecture-repair.yml \
-                 .github/repair/pid.part0 \
-                 .github/repair/pid.part1 \
-                 .github/repair/pid.part2 \
-                 .github/repair/pid.part3 \
-                 .github/repair/pid.part4
+          git rm .github/workflows/temporary-pid-architecture-repair.yml
+          git rm -r .github/repair
           git add -A
           git diff --cached --check
           git commit -m 'Repair iPhone PID architecture and CI regressions'
