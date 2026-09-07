@@ -1,4 +1,4 @@
-name: Temporary 0.7.187 iOS Source Repair
+name: Temporary 0.7.187 CI Guard Blob
 
 on:
   push:
@@ -8,54 +8,43 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  prepare:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Repair MBLINK-owned OBD screen
+      - name: Create corrected CI blob
         shell: bash
-        env:
-          NAV_B64: ICAgIHByaXZhdGUgdmFyIHByaW1hcnlHcmlkOiBzb21lIFZpZXcgewogICAgICAgIExpbmtEaWFnbm9zdGljR3JpZCB7CiAgICAgICAgICAgIE1CSG9tZVRpbGUoIlZlaGljbGUiLCAiVklOLCBzYXZlZCBwcm9maWxlIGFuZCBkZWNvZGVkIGlkZW50aXR5IiwgImNhci5zaWRlLmZpbGwiKSB7IE1CVmVoaWNsZVZpZXcoKSB9CiAgICAgICAgICAgIE1CSG9tZVRpbGUoIk1vZHVsZXMiLCAiQ29udHJvbCB1bml0cywgaWRlbnRpdGllcyBhbmQgbW9kdWxlIGRhdGEiLCAic3F1YXJlLnN0YWNrLjNkLnVwLmZpbGwiKSB7IE1CTW9kdWxlc1ZpZXcoKSB9CiAgICAgICAgICAgIE1CSG9tZVRpbGUoIkZhdWx0cyIsICJTdG9yZWQgYW5kIGFjdGl2ZSBkaWFnbm9zdGljIHRyb3VibGUgY29kZXMiLCAiZXhjbGFtYXRpb25tYXJrLnRyaWFuZ2xlLmZpbGwiKSB7IE1CRmF1bHRzVmlldygpIH0KICAgICAgICAgICAgTUJIb21lVGlsZSgiTGl2ZSBEYXRhIiwgIlNlbGVjdCBhbmQgdmlldyBjdXJyZW50IG1lYXN1cmVtZW50cyIsICJ3YXZlZm9ybS5wYXRoLmVjZyIpIHsgTUJMaXZlRGF0YVZpZXcoKSB9CiAgICAgICAgICAgIE1CSG9tZVRpbGUoIk9CRCIsICJTdGFuZGFyZCBPQkQtSUkgLyBFT0JEIGRpYWdub3N0aWNzIiwgImNwdSIpIHsgTUJTdGFuZGFyZE9CRFZpZXcoKSB9CiAgICAgICAgfQogICAgfQoKICAgIHByaXZhdGUgdmFyIHN1cHBvcnRpbmdUb29sczogc29tZSBWaWV3IHsKICAgICAgICBWU3RhY2soYWxpZ25tZW50OiAubGVhZGluZywgc3BhY2luZzogMTQpIHsKICAgICAgICAgICAgTUJTZWN0aW9uSGVhZGVyKHRpdGxlOiAiVG9vbHMiLCBraWNrZXI6ICJFdmlkZW5jZSwgdGVzdHMsIHNlcnZpY2VzIGFuZCBwcmVmZXJlbmNlcyIpCiAgICAgICAgICAgIExpbmtEaWFnbm9zdGljR3JpZCB7CiAgICAgICAgICAgICAgICBNQkhvbWVUaWxlKCJFdmlkZW5jZSIsICJTZXNzaW9uIGhpc3RvcnkgYW5kIENTViBleHBvcnQiLCAiZG9jLnRleHQubWFnbmlmeWluZ2dsYXNzIikgeyBNQkV2aWRlbmNlVmlldygpIH0KICAgICAgICAgICAgICAgIE1CSG9tZVRpbGUoIlRlc3RzIiwgIlJlYWRpbmVzcyBhbmQgc3VwcG9ydGVkIGRpYWdub3N0aWMgY2hlY2tzIiwgImNoZWNrbWFyay5zcXVhcmUuZmlsbCIpIHsgTUJUZXN0c1ZpZXcoKSB9CiAgICAgICAgICAgICAgICBNQkhvbWVUaWxlKCJTZXJ2aWNlcyIsICJWZXJpZmllZCB2ZWhpY2xlIHByb2NlZHVyZXMiLCAid3JlbmNoLmFuZC5zY3Jld2RyaXZlci5maWxsIikgeyBNQlNlcnZpY2VzVmlldygpIH0KICAgICAgICAgICAgICAgIE1CSG9tZVRpbGUoIlNldHRpbmdzIiwgIkFkYXB0ZXIsIHVuaXRzIGFuZCBhcHBsaWNhdGlvbiBwcmVmZXJlbmNlcyIsICJnZWFyc2hhcGUuZmlsbCIpIHsgTUJTZXR0aW5nc1ZpZXcoKSB9CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICB9Cgo=
-          VIEW_B64: cHJpdmF0ZSBzdHJ1Y3QgTUJTdGFuZGFyZE9CRFZpZXc6IFZpZXcgewogICAgQEVudmlyb25tZW50T2JqZWN0IHByaXZhdGUgdmFyIGNvbm5lY3Rpb246IENvbm5lY3Rpb25WaWV3TW9kZWwKCiAgICB2YXIgYm9keTogc29tZSBWaWV3IHsKICAgICAgICBaU3RhY2sgewogICAgICAgICAgICBNQkJhY2tncm91bmQoKQogICAgICAgICAgICBTY3JvbGxWaWV3IHsKICAgICAgICAgICAgICAgIFZTdGFjayhhbGlnbm1lbnQ6IC5sZWFkaW5nLCBzcGFjaW5nOiAxNSkgewogICAgICAgICAgICAgICAgICAgIE1CU2VjdGlvbkhlYWRlcih0aXRsZTogIk9CRCIsIGtpY2tlcjogIlN0YW5kYXJkIE9CRC1JSSAvIEVPQkQiKQogICAgICAgICAgICAgICAgICAgIE1CUGFuZWwgewogICAgICAgICAgICAgICAgICAgICAgICBWU3RhY2soYWxpZ25tZW50OiAubGVhZGluZywgc3BhY2luZzogNykgewogICAgICAgICAgICAgICAgICAgICAgICAgICAgVGV4dChjb25uZWN0aW9uLmRpYWdub3N0aWNDYXBhYmlsaXR5VGV4dCkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAuZm9udChNQlR5cG9ncmFwaHkuaGVhZGxpbmUpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLmZvcmVncm91bmRTdHlsZShNQkJyYW5kLmFjdGl2ZSkKICAgICAgICAgICAgICAgICAgICAgICAgICAgIFRleHQoY29ubmVjdGlvbi5kaWFnbm9zdGljQ2FwYWJpbGl0eURldGFpbFRleHQpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLmZvbnQoTUJUeXBvZ3JhcGh5LmNhcHRpb24pCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLmZvcmVncm91bmRTdHlsZShNQkJyYW5kLm11dGVkKQogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgICAgIE1CUGFuZWwgewogICAgICAgICAgICAgICAgICAgICAgICBWU3RhY2soc3BhY2luZzogNCkgewogICAgICAgICAgICAgICAgICAgICAgICAgICAgTUJJbmZvUm93KGxhYmVsOiAiVklOIiwgdmFsdWU6IGNvbm5lY3Rpb24uc3RhbmRhcmRWSU5UZXh0LCBtb25vc3BhY2VkOiB0cnVlKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgTUJJbmZvUm93KGxhYmVsOiAiUmVzcG9uZGVycyIsIHZhbHVlOiBjb25uZWN0aW9uLnN0YW5kYXJkUmVzcG9uZGVyU3VtbWFyeSkKICAgICAgICAgICAgICAgICAgICAgICAgICAgIE1CSW5mb1JvdyhsYWJlbDogIkxpdmUgZGF0YSIsIHZhbHVlOiBjb25uZWN0aW9uLnN1cHBvcnRlZFBJRFN1bW1hcnkpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBNQkluZm9Sb3cobGFiZWw6ICJSZWFkaW5lc3MiLCB2YWx1ZTogY29ubmVjdGlvbi5yZWFkaW5lc3NTdGF0dXNUZXh0KQogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgICAgIG9iZExpc3QoIlJlYWRpbmVzcyBtb25pdG9ycyIsIGNvbm5lY3Rpb24ucmVhZGluZXNzTW9uaXRvclN0YXR1cykKICAgICAgICAgICAgICAgICAgICBvYmRMaXN0KCJTdG9yZWQgZmF1bHRzIiwgY29ubmVjdGlvbi5zdG9yZWREVENzKQogICAgICAgICAgICAgICAgICAgIG9iZExpc3QoIlBlbmRpbmcgZmF1bHRzIiwgY29ubmVjdGlvbi5wZW5kaW5nRFRDcykKICAgICAgICAgICAgICAgICAgICBvYmRMaXN0KCJQZXJtYW5lbnQgZmF1bHRzIiwgY29ubmVjdGlvbi5wZXJtYW5lbnREVENzKQogICAgICAgICAgICAgICAgICAgIG9iZExpc3QoIkZyZWV6ZSBmcmFtZSIsIGNvbm5lY3Rpb24uZnJlZXplRnJhbWVDb250ZXh0KQogICAgICAgICAgICAgICAgICAgIG9iZExpc3QoIlN0YW5kYXJkIGxpdmUgZGF0YSIsIGNvbm5lY3Rpb24uc3RhbmRhcmRMaXZlVmFsdWVSb3dzKQogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgLnBhZGRpbmcoMTYpCiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgLm1iRGlhZ25vc3RpY1NjcmVlbigiT0JEIikKICAgIH0KCiAgICBAVmlld0J1aWxkZXIKICAgIHByaXZhdGUgZnVuYyBvYmRMaXN0KF8gdGl0bGU6IFN0cmluZywgXyB2YWx1ZXM6IFtTdHJpbmddKSAtPiBzb21lIFZpZXcgewogICAgICAgIE1CUGFuZWwgewogICAgICAgICAgICBWU3RhY2soYWxpZ25tZW50OiAubGVhZGluZywgc3BhY2luZzogNikgewogICAgICAgICAgICAgICAgVGV4dCh0aXRsZSkKICAgICAgICAgICAgICAgICAgICAuZm9udChNQlR5cG9ncmFwaHkuc3ViaGVhZGxpbmVCb2xkKQogICAgICAgICAgICAgICAgICAgIC5mb3JlZ3JvdW5kU3R5bGUoTUJCcmFuZC5zaWx2ZXJCcmlnaHQpCiAgICAgICAgICAgICAgICBpZiB2YWx1ZXMuaXNFbXB0eSB7CiAgICAgICAgICAgICAgICAgICAgVGV4dCgiTm9uZSByZXBvcnRlZCIpCiAgICAgICAgICAgICAgICAgICAgICAgIC5mb250KE1CVHlwb2dyYXBoeS5zdWJoZWFkbGluZSkKICAgICAgICAgICAgICAgICAgICAgICAgLmZvcmVncm91bmRTdHlsZShNQkJyYW5kLm11dGVkKQogICAgICAgICAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgICAgICAgICBGb3JFYWNoKHZhbHVlcywgaWQ6IFwuc2VsZikgeyB2YWx1ZSBpbgogICAgICAgICAgICAgICAgICAgICAgICBUZXh0KHZhbHVlKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgLmZvbnQoTUJUeXBvZ3JhcGh5LnN1YmhlYWRsaW5lKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgLmZvcmVncm91bmRTdHlsZShNQkJyYW5kLnNpbHZlcikKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICB9Cn0KCg==
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64
-          import os
           from pathlib import Path
-
-          p = Path('app/ios/MBLINK/MBLINKApp.swift')
+          p = Path('.github/workflows/ci.yml')
           s = p.read_text()
-          if 'private struct MBStandardOBDView: View {' in s:
-              print('OBD repair already present')
-              raise SystemExit(0)
-
-          start = s.find('    private var primaryGrid: some View {')
-          end = s.find('    private var connectionProgress: some View {', start)
-          marker = 'private struct MBPIDSetupView: View {'
-          at = s.find(marker)
-          if start < 0 or end < 0 or at < 0:
-              raise SystemExit('required source markers not found')
-
-          nav = base64.b64decode(os.environ['NAV_B64']).decode()
-          view = base64.b64decode(os.environ['VIEW_B64']).decode()
-          s = s[:start] + nav + s[end:]
-          at = s.find(marker)
-          s = s[:at] + view + s[at:]
-
-          if 'LinkStandardObdView(snapshot: obdSnapshot)' in s:
-              raise SystemExit('shared OBD destination still present')
-          if 'private var obdSnapshot: LinkStandardObdSnapshot' in s:
-              raise SystemExit('obsolete snapshot still present')
+          old = "          grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
+          new = (
+              "          grep -Fq 'MBStandardOBDView()' app/ios/MBLINK/MBLINKApp.swift\n"
+              "          grep -Fq 'private struct MBStandardOBDView: View' app/ios/MBLINK/MBLINKApp.swift\n"
+              "          ! grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift\n"
+          )
+          if s.count(old) != 1:
+              raise SystemExit(f'stale OBD guard count={s.count(old)}')
+          s = s.replace(old, new, 1)
           p.write_text(s)
           PY
           git diff --check
-          if git diff --quiet; then exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ios/MBLINK/MBLINKApp.swift
-          git commit -m "Fix 0.7.187 iOS OBD presentation [obd-main-fixed]"
-          git push origin HEAD:main
+          payload="$(jq -Rs '{content: ., encoding: "utf-8"}' .github/workflows/ci.yml)"
+          response="$(curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/Infiltrator-Projects/MBLINK/git/blobs \
+            -d "$payload")"
+          echo "$response"
+          sha="$(jq -r '.sha' <<<"$response")"
+          test -n "$sha" && test "$sha" != null
+          echo "CI_BLOB_SHA=$sha"
