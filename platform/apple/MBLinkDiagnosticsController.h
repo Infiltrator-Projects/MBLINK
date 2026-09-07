@@ -46,6 +46,23 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *qualityNote;
 @end
 
+/**
+ * One source-backed Mercedes live-data choice for a discovered controller.
+ *
+ * These definitions come from MBLINK's controller/transmission catalogues or
+ * exact-route evidence. Merely discovering the ECU does not poll this value;
+ * the iPhone UI must explicitly opt it in.
+ */
+@interface MBLinkManufacturerPIDDefinitionSnapshot : NSObject
+@property(nonatomic, copy, readonly) NSString *stableKey;
+@property(nonatomic, readonly) uint16_t identifier;
+@property(nonatomic, readonly) uint8_t service;
+@property(nonatomic, copy, readonly) NSString *shortName;
+@property(nonatomic, copy, readonly) NSString *title;
+@property(nonatomic, copy, readonly) NSString *provenance;
+@property(nonatomic, readonly, getter=isLive) BOOL live;
+@end
+
 @interface MBLinkMercedesModuleSnapshot : NSObject
 
 @property(nonatomic, copy, readonly) NSString *identifier;
@@ -127,6 +144,22 @@ NS_ASSUME_NONNULL_BEGIN
  * Mercedes transmission layer. Swift must not reinterpret raw KWP bytes.
  */
 - (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots;
+
+/**
+ * Return the documentation-backed live-data catalogue for one discovered ECU.
+ * This is a metadata lookup only: it never probes the vehicle.
+ */
+- (NSArray<MBLinkManufacturerPIDDefinitionSnapshot *> *)
+    documentedDataDefinitionsForModuleIdentifier:(NSString *)identifier;
+
+/**
+ * Select exact manufacturer wire identifiers for periodic polling.
+ * Empty is the default and means no manufacturer live polling for this module.
+ */
+- (NSArray<NSNumber *> *)
+    manufacturerLivePollingIdentifiersForModuleIdentifier:(NSString *)identifier;
+- (void)setManufacturerLivePollingIdentifiers:(NSArray<NSNumber *> *)identifiers
+                           forModuleIdentifier:(NSString *)identifier;
 
 - (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
 - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;

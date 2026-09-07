@@ -60,6 +60,18 @@
 @implementation MBLinkTransmissionLiveValueSnapshot
 @end
 
+@interface MBLinkManufacturerPIDDefinitionSnapshot ()
+@property(nonatomic, copy, readwrite) NSString *stableKey;
+@property(nonatomic, readwrite) uint16_t identifier;
+@property(nonatomic, readwrite) uint8_t service;
+@property(nonatomic, copy, readwrite) NSString *shortName;
+@property(nonatomic, copy, readwrite) NSString *title;
+@property(nonatomic, copy, readwrite) NSString *provenance;
+@property(nonatomic, readwrite, getter=isLive) BOOL live;
+@end
+@implementation MBLinkManufacturerPIDDefinitionSnapshot
+@end
+
 @interface MBLinkMercedesModuleSnapshot ()
 @property(nonatomic, copy, readwrite) NSString *identifier;
 @property(nonatomic, copy, readwrite) NSString *name;
@@ -221,6 +233,9 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     BOOL _scheduledManufacturerJobActive;
     MBLinkScheduledRestoreStage _scheduledManufacturerRestoreStage;
     NSMutableSet<NSString *> *_automaticManufacturerCandidateAttempts;
+    NSMutableDictionary<NSString *, NSSet<NSNumber *> *> *
+        _selectedManufacturerLiveIdentifiersByModule;
+    NSUInteger _scheduledManufacturerModuleCursor;
 }
 
 static unsigned int MBLinkBitCount32(uint32_t value)
@@ -865,6 +880,9 @@ static bool MBLinkSimulatorResponder(
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     _automaticManufacturerCandidateAttempts =
         [[NSMutableSet alloc] init];
+    _selectedManufacturerLiveIdentifiersByModule =
+        [[NSMutableDictionary alloc] init];
+    _scheduledManufacturerModuleCursor = 0U;
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -1675,29 +1693,64 @@ for (NSNumber *candidate in candidates) {
 return [runtimeSafe copy];
 }
 
+
+- (nullable NSString *)selectedManufacturerModuleIdentifierAdvancing:
+    (BOOL)advance
+{
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    if (count == 0U) return nil;
+
+    const size_t start = _scheduledManufacturerModuleCursor % count;
+    for (size_t offset = 0U; offset < count; ++offset) {
+        const size_t index = (start + offset) % count;
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(&_mercedesModuleScan, index);
+        if (module == NULL) continue;
+        NSString *identifier = MBLinkMercedesModuleIdentifier(module);
+        NSSet<NSNumber *> *selected =
+            _selectedManufacturerLiveIdentifiersByModule[identifier];
+        if (selected.count == 0U) continue;
+
+        NSArray<NSNumber *> *runtime =
+            [self runtimeManufacturerDataIdentifiersForModule:module
+                                                   identifier:identifier];
+        NSArray<NSNumber *> *candidates =
+            [self runtimeCandidateIdentifiersForModule:module
+                                             identifier:identifier];
+        NSMutableSet<NSNumber *> *available =
+            [NSMutableSet setWithArray:runtime];
+        [available addObjectsFromArray:candidates];
+        [available intersectSet:selected];
+        if (available.count == 0U) continue;
+
+        if (advance)
+            _scheduledManufacturerModuleCursor = (index + 1U) % count;
+        return identifier;
+    }
+    return nil;
+}
+
+static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
+    NSArray<NSNumber *> *identifiers,
+    NSSet<NSNumber *> *selected)
+{
+    if (identifiers.count == 0U || selected.count == 0U) return @[];
+    NSMutableOrderedSet<NSNumber *> *filtered =
+        [[NSMutableOrderedSet alloc] init];
+    for (NSNumber *identifier in identifiers) {
+        if ([selected containsObject:identifier])
+            [filtered addObject:identifier];
+    }
+    return [filtered array];
+}
+
 - (void)updateScheduledManufacturerLiveJob
 {
     if (!_shared.isActive) return;
 
-    NSString *transmissionModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    BOOL shouldEnable = NO;
-    if (transmissionModule.length != 0U) {
-        const MblinkMercedesModuleScanEntry *module =
-            [self moduleEntryForIdentifier:transmissionModule];
-        if (module != NULL) {
-            NSArray<NSNumber *> *runtime =
-                [self runtimeManufacturerDataIdentifiersForModule:module
-                                                       identifier:transmissionModule];
-            NSArray<NSNumber *> *candidates =
-                [self runtimeCandidateIdentifiersForModule:module
-                                                 identifier:transmissionModule];
-            shouldEnable =
-                (runtime.count != 0U || candidates.count != 0U) &&
-                [self manufacturerLivePollingEnabledForModuleIdentifier:
-                    transmissionModule];
-        }
-    }
+    const BOOL shouldEnable =
+        [self selectedManufacturerModuleIdentifierAdvancing:NO].length != 0U;
 
     if (!_scheduledManufacturerJobRegistered) {
         if (!shouldEnable) return;
@@ -1716,18 +1769,12 @@ return [runtimeSafe copy];
         (void)[_shared setLiveManufacturerJobEnabled:shouldEnable
             token:MBLinkScheduledTransmissionLiveJobToken];
     }
-
-    if (shouldEnable)
-        _automaticTransmissionTemperatureProbeAttempted = YES;
 }
 
 - (void)beginScheduledTransmissionLiveJob
 {
     if (!_shared.isActive) return;
 
-    /* LINK already owns/reserved this adapter slot. Never wait or retry
-     * for a second scheduler here. If another explicit operation is
-     * active, release the slot and let the next normal deadline try. */
     if (self.manufacturerDataScanActive || _moduleScanActive ||
         _manufacturerProbeActive || _cachedModuleRefreshActive) {
         _scheduledManufacturerJobActive = NO;
@@ -1735,21 +1782,9 @@ return [runtimeSafe copy];
         return;
     }
 
-    NSString *transmissionModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    if (![self manufacturerLivePollingEnabledForModuleIdentifier:
-            transmissionModule]) {
-        _scheduledManufacturerJobActive = NO;
-        if (_scheduledManufacturerJobRegistered) {
-            (void)[_shared setLiveManufacturerJobEnabled:NO
-                token:MBLinkScheduledTransmissionLiveJobToken];
-        }
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-        return;
-    }
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:transmissionModule];
-    if (module == NULL) {
+    NSString *moduleIdentifier =
+        [self selectedManufacturerModuleIdentifierAdvancing:YES];
+    if (moduleIdentifier.length == 0U) {
         _scheduledManufacturerJobActive = NO;
         if (_scheduledManufacturerJobRegistered) {
             (void)[_shared setLiveManufacturerJobEnabled:NO
@@ -1759,27 +1794,38 @@ return [runtimeSafe copy];
         return;
     }
 
-    NSArray<NSNumber *> *runtime =
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:moduleIdentifier];
+    NSSet<NSNumber *> *selected =
+        _selectedManufacturerLiveIdentifiersByModule[moduleIdentifier];
+    if (module == NULL || selected.count == 0U) {
+        _scheduledManufacturerJobActive = NO;
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        return;
+    }
+
+    NSArray<NSNumber *> *runtime = MBLinkFilterIdentifiersBySelection(
         [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:transmissionModule];
-    NSArray<NSNumber *> *candidates =
+                                               identifier:moduleIdentifier],
+        selected);
+    NSArray<NSNumber *> *candidates = MBLinkFilterIdentifiersBySelection(
         [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:transmissionModule];
+                                         identifier:moduleIdentifier],
+        selected);
     if (runtime.count == 0U && candidates.count == 0U) {
         _scheduledManufacturerJobActive = NO;
-        (void)[_shared setLiveManufacturerJobEnabled:NO
-            token:MBLinkScheduledTransmissionLiveJobToken];
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        [self updateScheduledManufacturerLiveJob];
         return;
     }
 
     _scheduledManufacturerJobActive = YES;
     [self beginManufacturerDataOperationForModuleIdentifier:
-        transmissionModule
+        moduleIdentifier
                                           forceFullScan:NO
                                                liveOnly:YES
                                    candidateIdentifiers:
-        runtime.count != 0U ? nil : candidates];
+        runtime.count != 0U ? runtime : candidates];
 }
 
 - (void)beginScheduledManufacturerChannelRestore
@@ -1837,6 +1883,210 @@ return [runtimeSafe copy];
     return values != nil ? [values copy] : @[];
 }
 
+
+
+static NSString *MBLinkManufacturerStableKey(
+    NSString *moduleIdentifier,
+    uint8_t service,
+    uint16_t identifier)
+{
+    return [NSString stringWithFormat:@"mercedes.%@.%02X.%04X",
+        moduleIdentifier, (unsigned int)service, (unsigned int)identifier];
+}
+
+static void MBLinkAppendManufacturerDefinition(
+    NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values,
+    NSMutableSet<NSString *> *seenWireKeys,
+    NSString *stableKey,
+    uint8_t service,
+    uint16_t identifier,
+    NSString *shortName,
+    NSString *title,
+    NSString *provenance,
+    BOOL live,
+    BOOL allowDuplicateWire)
+{
+    if (values == nil || stableKey.length == 0U || title.length == 0U) return;
+    NSString *wireKey = [NSString stringWithFormat:@"%02X:%04X",
+        (unsigned int)service, (unsigned int)identifier];
+    if (!allowDuplicateWire && [seenWireKeys containsObject:wireKey]) return;
+
+    MBLinkManufacturerPIDDefinitionSnapshot *snapshot =
+        [[MBLinkManufacturerPIDDefinitionSnapshot alloc] init];
+    snapshot.stableKey = stableKey;
+    snapshot.identifier = identifier;
+    snapshot.service = service;
+    snapshot.shortName = shortName.length != 0U ? shortName :
+        [NSString stringWithFormat:@"%02X %04X",
+            (unsigned int)service, (unsigned int)identifier];
+    snapshot.title = title;
+    snapshot.provenance = provenance.length != 0U
+        ? provenance : @"MBLINK source-backed catalogue";
+    snapshot.live = live;
+    [values addObject:snapshot];
+    [seenWireKeys addObject:wireKey];
+}
+
+- (NSArray<MBLinkManufacturerPIDDefinitionSnapshot *> *)
+    documentedDataDefinitionsForModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return @[];
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    if (module == NULL) return @[];
+
+    NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values =
+        [[NSMutableArray alloc] init];
+    NSMutableSet<NSString *> *seenWireKeys = [[NSMutableSet alloc] init];
+    const MblinkMercedesDiagnosticProtocol protocol =
+        mblink_mercedes_module_scan_entry_protocol(module);
+    const uint8_t service =
+        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+            ? UINT8_C(0x21) : UINT8_C(0x22);
+
+    if (service == UINT8_C(0x21) &&
+        MBLinkTransmissionModuleSupportsCanonical2130(module)) {
+        NSArray<NSArray<NSString *> *> *signals = @[
+            @[@"mercedes.transmission.oil_temperature", @"ATF",
+              @"Transmission oil temperature"],
+            @[@"mercdes.transmission.actual_gear", @"GEAR",
+              @"Current gear"],
+            @[@"mercedes.transmission.target_gear", @"TARGET",
+              @"Target gear"],
+            @[@"mercdes.transmission.selector_position", @"SELECT",
+              @"Selector position"],
+            @[@"mercdes.transmission.drive_program", @"PROGRAM",
+              @"Transmission drive program"]
+        ];
+        BOOL first = YES;
+        for (NSArray<NSString *> *signal in signals) {
+            MBLinkAppendManufacturerDefinition(
+                values, seenWireKeys, signal[0], UINT8_C(0x21),
+                UINT16_C(0x30), signal[1], signal[2],
+                @"Mercedes GS KWP 21 30 · portable MBLINK decoder",
+                YES, !first);
+            first = NO;
+        }
+    }
+
+    if (MBLinkMercedesModuleIsTransmissionController(module) &&
+        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
+        const MblinkMercedesTransmissionFamily family =
+            MBLinkTransmissionFamilyForModule(module);
+        const size_t count =
+            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
+                family);
+        for (size_t index = 0U; index < count; ++index) {
+            const uint8_t localID =
+                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+                    family, index);
+            if (!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+                    family, localID)) {
+                continue;
+            }
+            const char *name =
+                mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+                    family, localID);
+            NSString *title = name != NULL
+                ? MBLinkStringFromCString(name)
+                : [NSString stringWithFormat:@"Transmission actual values 0x%02X",
+                    (unsigned int)localID];
+            MBLinkAppendManufacturerDefinition(
+                values, seenWireKeys,
+                MBLinkManufacturerStableKey(
+                    identifier, UINT8_C(0x21), (uint16_t)localID),
+                UINT8_C(0x21), (uint16_t)localID,
+                [NSString stringWithFormat:@"RLI %02X",
+                    (unsigned int)localID],
+                title,
+                [NSString stringWithFormat:
+                    @"Mercedes transmission %@ family catalogue",
+                    MBLinkStringFromCString(
+                        mblink_mercedes_transmission_family_name(family))],
+                YES, NO);
+        }
+    }
+
+    const char *profileKey = MBLinkMercedesDataProfileKeyForModule(module);
+    const size_t profileCount =
+        mblink_mercedes_controller_data_profile_identifier_count(
+            profileKey, protocol);
+    for (size_t index = 0U; index < profileCount; ++index) {
+        const MblinkMercedesControllerDataProfileEntry *entry =
+            mblink_mercedes_controller_data_profile_identifier_at(
+                profileKey, protocol, index);
+        if (entry == NULL || !entry->live) continue;
+        MBLinkAppendManufacturerDefinition(
+            values, seenWireKeys,
+            MBLinkManufacturerStableKey(identifier, service, entry->identifier),
+            service, entry->identifier,
+            [NSString stringWithFormat:@"%02X %04X",
+                (unsigned int)service, (unsigned int)entry->identifier],
+            MBLinkStringFromCString(entry->name),
+            MBLinkStringFromCString(entry->provenance),
+            YES, NO);
+    }
+
+    const size_t evidenceCount =
+        mblink_mercedes_route_evidence_identifier_count(
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            protocol, module->kind);
+    for (size_t index = 0U; index < evidenceCount; ++index) {
+        const MblinkMercedesRouteEvidenceEntry *entry =
+            mblink_mercedes_route_evidence_identifier_at(
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                protocol, module->kind, index);
+        if (entry == NULL || !entry->live) continue;
+        MBLinkAppendManufacturerDefinition(
+            values, seenWireKeys,
+            MBLinkManufacturerStableKey(identifier, service, entry->identifier),
+            service, entry->identifier,
+            [NSString stringWithFormat:@"%02X %04X",
+                (unsigned int)service, (unsigned int)entry->identifier],
+            [NSString stringWithFormat:@"Documented module data 0x%04X",
+                (unsigned int)entry->identifier],
+            MBLinkStringFromCString(entry->provenance),
+            YES, NO);
+    }
+
+    [values sortUsingComparator:^NSComparisonResult(
+        MBLinkManufacturerPIDDefinitionSnapshot *left,
+        MBLinkManufacturerPIDDefinitionSnapshot *right) {
+        if (left.identifier < right.identifier) return NSOrderedAscending;
+        if (left.identifier > right.identifier) return NSOrderedDescending;
+        return [left.title compare:right.title];
+    }];
+    return [values copy];
+}
+
+- (NSArray<NSNumber *> *)
+    manufacturerLivePollingIdentifiersForModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return @[];
+    NSSet<NSNumber *> *selected =
+        _selectedManufacturerLiveIdentifiersByModule[identifier];
+    if (selected.count == 0U) return @[];
+    return [[selected allObjects] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (void)setManufacturerLivePollingIdentifiers:(NSArray<NSNumber *> *)identifiers
+                           forModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return;
+    NSMutableSet<NSNumber *> *valid = [[NSMutableSet alloc] init];
+    for (NSNumber *number in identifiers ?: @[]) {
+        if (![number isKindOfClass:[NSNumber class]]) continue;
+        const NSUInteger candidate = number.unsignedIntegerValue;
+        if (candidate <= UINT16_MAX) [valid addObject:@(candidate)];
+    }
+    if (valid.count == 0U) {
+        [_selectedManufacturerLiveIdentifiersByModule removeObjectForKey:identifier];
+    } else {
+        _selectedManufacturerLiveIdentifiersByModule[identifier] = [valid copy];
+    }
+    [self updateScheduledManufacturerLiveJob];
+    [self notifyDelegate];
+}
 
 - (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots
 {
@@ -1995,10 +2245,6 @@ return [runtimeSafe copy];
     (NSString *)identifier
 {
     if (identifier.length == 0U) return NO;
-    NSString *scheduledModule =
-        [self automaticTransmissionTemperatureModuleIdentifier];
-    if (scheduledModule.length == 0U ||
-        ![scheduledModule isEqualToString:identifier]) return NO;
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:identifier];
     if (module == NULL) return NO;
@@ -2014,30 +2260,32 @@ return [runtimeSafe copy];
 - (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
     (NSString *)identifier
 {
-    if (identifier.length == 0U) return NO;
-    NSArray<NSString *> *disabled =
-        [[NSUserDefaults standardUserDefaults]
-            stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-    return disabled == nil || ![disabled containsObject:identifier];
+    return [self manufacturerLivePollingIdentifiersForModuleIdentifier:
+        identifier].count != 0U;
 }
 
 - (void)setManufacturerLivePollingEnabled:(BOOL)enabled
                        forModuleIdentifier:(NSString *)identifier
 {
-    if (identifier.length == 0U ||
-        ![self manufacturerLivePollingSupportedForModuleIdentifier:identifier]) return;
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSArray<NSString *> *stored =
-        [defaults stringArrayForKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-    NSMutableSet<NSString *> *disabled =
-        [NSMutableSet setWithArray:stored != nil ? stored : @[]];
-    if (enabled) [disabled removeObject:identifier];
-    else [disabled addObject:identifier];
-    [defaults setObject:[[disabled allObjects]
-        sortedArrayUsingSelector:@selector(compare:)]
-             forKey:MBLinkDisabledManufacturerPollingDefaultsKey];
-    [self updateScheduledManufacturerLiveJob];
-    [self notifyDelegate];
+    if (identifier.length == 0U) return;
+    if (!enabled) {
+        [self setManufacturerLivePollingIdentifiers:@[]
+                               forModuleIdentifier:identifier];
+        return;
+    }
+
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    if (module == NULL) return;
+    NSMutableOrderedSet<NSNumber *> *all = [[NSMutableOrderedSet alloc] init];
+    [all addObjectsFromArray:
+        [self runtimeManufacturerDataIdentifiersForModule:module
+                                               identifier:identifier]];
+    [all addObjectsFromArray:
+        [self runtimeCandidateIdentifiersForModule:module
+                                         identifier:identifier]];
+    [self setManufacturerLivePollingIdentifiers:[all array]
+                           forModuleIdentifier:identifier];
 }
 
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier

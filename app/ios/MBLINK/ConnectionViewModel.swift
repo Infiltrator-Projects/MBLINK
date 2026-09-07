@@ -11,6 +11,30 @@ typealias PIDConfigurationItem = LinkPIDConfigurationItem
 
 typealias SavedVehicleProfileSummary = LinkSavedVehicleProfileSummary
 
+struct MBPIDCatalogueItem: Identifiable {
+    enum Source {
+        case standard
+        case manufacturer
+    }
+
+    let id: String
+    let source: Source
+    let service: UInt8
+    let identifier: UInt16
+    let shortName: String
+    let title: String
+    let provenance: String
+    let pollingEnabled: Bool
+    let advertised: Bool
+
+    var codeText: String {
+        if source == .standard {
+            return String(format: "01 %02X", identifier)
+        }
+        return String(format: "%02X %02X", service, identifier)
+    }
+}
+
 struct MercedesModuleDataValue: Identifiable {
     let id: String
     let moduleID: String
@@ -117,6 +141,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
      * automatic default is recognised and migrated to an empty selection.
      */
     private static let legacyPollingDefaultsKey = "mblink.polling.enabledStableKeys.v1"
+    private static let manufacturerSelectionDefaultsKey =
+        "mblink.manufacturer.pidSelectionsByVehicle.v1"
+    private static let manufacturerCatalogueDefaultsKey =
+        "mblink.manufacturer.pidCatalogueByVehicle.v1"
     private var pidSupportByModule = [String: Set<UInt8>]()
     private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
@@ -293,24 +321,21 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
     }
 
-    func pidConfigurationItems(moduleID: String) -> [PIDConfigurationItem] {
-        let advertised = pidSupportByModule[moduleID] ?? []
-        let selected = modulePIDSelectionSet(moduleID: moduleID)
+    func standardPIDCatalogueItems() -> [MBPIDCatalogueItem] {
+        let selected = storedPollingKeys()
+        let advertised = Set(pidSupportByModule.values.flatMap { $0 })
         let count = mblink_obd2_pid_definition_count()
-        guard count > 0, !advertised.isEmpty else { return [] }
+        guard count > 0 else { return [] }
 
-        var result = [PIDConfigurationItem]()
+        var result = [MBPIDCatalogueItem]()
         for index in 0..<count {
-            guard let definition = mblink_obd2_pid_definition_at(index) else { continue }
+            guard let definition = mblink_obd2_pid_definition_at(index) else {
+                continue
+            }
             let metadata = definition.pointee
             guard metadata.mode == 0x01 else { continue }
             let pid = metadata.pid
-            // 00/20/40/... are bitmap capability queries, not user data values.
             guard (pid & 0x1F) != 0 else { continue }
-            // Controller pages are responder-scoped, not copies of the global
-            // SAE catalogue. Only values positively advertised/observed on this
-            // exact CAN responder belong in this module.
-            guard advertised.contains(pid) else { continue }
 
             let scalar = mblink_parameter_obd2_definition(pid)
             let title = scalar != nil
@@ -320,55 +345,122 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 ? string(from: scalar!.pointee.short_name)
                 : String(format: "PID %02X", pid)
             let stableKey = standardStableKey(for: pid)
-            result.append(PIDConfigurationItem(
+            result.append(MBPIDCatalogueItem(
                 id: stableKey,
-                pid: pid,
+                source: .standard,
+                service: 0x01,
+                identifier: UInt16(pid),
                 shortName: shortName,
                 title: title,
+                provenance: "SAE J1979 / ISO 15031-5",
                 pollingEnabled: selected.contains(stableKey),
-                favourite: controller.favourite(forPID: pid),
-                advertised: true))
+                advertised: advertised.contains(pid)))
         }
         return result.sorted {
-            if $0.pid != $1.pid { return $0.pid < $1.pid }
+            if $0.identifier != $1.identifier {
+                return $0.identifier < $1.identifier
+            }
             return $0.title < $1.title
         }
     }
 
-    func setPIDSelection(
+    func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
+        let liveDefinitions = controller.documentedDataDefinitions(
+            forModuleIdentifier: moduleID)
+        if !liveDefinitions.isEmpty {
+            let cached = liveDefinitions.map { definition in
+                [
+                    "id": definition.stableKey,
+                    "service": Int(definition.service),
+                    "identifier": Int(definition.identifier),
+                    "shortName": definition.shortName,
+                    "title": definition.title,
+                    "provenance": definition.provenance
+                ] as [String: Any]
+            }
+            cacheManufacturerCatalogue(cached, moduleID: moduleID)
+        }
+
+        let definitions: [[String: Any]]
+        if !liveDefinitions.isEmpty {
+            definitions = liveDefinitions.map { definition in
+                [
+                    "id": definition.stableKey,
+                    "service": Int(definition.service),
+                    "identifier": Int(definition.identifier),
+                    "shortName": definition.shortName,
+                    "title": definition.title,
+                    "provenance": definition.provenance
+                ]
+            }
+        } else {
+            definitions = cachedManufacturerCatalogue(moduleID: moduleID)
+        }
+
+        let selected = manufacturerSelectionSet(moduleID: moduleID)
+        return definitions.compactMap { value in
+            guard let stableKey = value["id"] as? String,
+                  let serviceNumber = value["service"] as? NSNumber,
+                  let identifierNumber = value["identifier"] as? NSNumber,
+                  let shortName = value["shortName"] as? String,
+                  let title = value["title"] as? String
+            else { return nil }
+            let provenance =
+                value["provenance"] as? String ?? "MBLINK documented catalogue"
+            return MBPIDCatalogueItem(
+                id: stableKey,
+                source: .manufacturer,
+                service: serviceNumber.uint8Value,
+                identifier: identifierNumber.uint16Value,
+                shortName: shortName,
+                title: title,
+                provenance: provenance,
+                pollingEnabled: selected.contains(stableKey),
+                advertised: true)
+        }.sorted {
+            if $0.identifier != $1.identifier {
+                return $0.identifier < $1.identifier
+            }
+            return $0.title < $1.title
+        }
+    }
+
+    func setStandardPIDSelection(_ enabled: Bool, stableKey: String) {
+        setPolling(enabled, stableKey: stableKey)
+    }
+
+    func setManufacturerPIDSelection(
         _ enabled: Bool,
         moduleID: String,
         stableKey: String
     ) {
-        guard let pid = pidForStableKey(stableKey),
-              (pidSupportByModule[moduleID] ?? []).contains(pid)
-        else { return }
-        var selection = modulePIDSelectionSet(moduleID: moduleID)
-        if enabled { selection.insert(stableKey) }
-        else { selection.remove(stableKey) }
-        storeModulePIDSelection(selection, moduleID: moduleID)
-        applyConfiguredPollingForSelectedVehicle()
+        let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
+        guard catalogue.contains(where: { $0.id == stableKey }) else { return }
+        var selected = manufacturerSelectionSet(moduleID: moduleID)
+        if enabled { selected.insert(stableKey) }
+        else { selected.remove(stableKey) }
+        storeManufacturerSelection(selected, moduleID: moduleID)
+        applyManufacturerPollingSelection(moduleID: moduleID)
         refreshPresentation()
-        refreshPIDConfiguration()
     }
 
     func setPolling(_ enabled: Bool, moduleID: String) {
-        let items = pidConfigurationItems(moduleID: moduleID)
-        guard !items.isEmpty else { return }
-        let selection = enabled ? Set(items.map(\.id)) : Set<String>()
-        storeModulePIDSelection(selection, moduleID: moduleID)
-        applyConfiguredPollingForSelectedVehicle()
+        let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
+        guard !catalogue.isEmpty else { return }
+        let selected = enabled
+            ? Set(catalogue.map(\.id))
+            : Set<String>()
+        storeManufacturerSelection(selected, moduleID: moduleID)
+        applyManufacturerPollingSelection(moduleID: moduleID)
         refreshPresentation()
-        refreshPIDConfiguration()
     }
 
     var configuredPollingCount: Int {
-        guard effectivePIDConfigurationVIN != nil else {
-            return storedPollingKeys().count
+        let standard = storedPollingKeys().count
+        let manufacturer = pidConfigurationModules.reduce(0) {
+            $0 + manufacturerSelectionSet(moduleID: $1.id).count
         }
-        return Set(pidConfigurationModules.flatMap {
-            modulePIDSelectionSet(moduleID: $0.id)
-        }).count
+        return standard + manufacturer
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -464,77 +556,88 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return selectedVehicleVIN
     }
 
-    private func supportedStableKeys(moduleID: String) -> Set<String> {
-        let advertised = pidSupportByModule[moduleID] ?? []
-        return Set(advertised.compactMap { pid in
-            guard (pid & 0x1F) != 0,
-                  mblink_obd2_pid_definition(0x01, pid) != nil
-            else { return nil }
-            return standardStableKey(for: pid)
-        })
+    private func manufacturerSelectionSet(moduleID: String) -> Set<String> {
+        guard let vin = effectivePIDConfigurationVIN else { return [] }
+        let defaults = UserDefaults.standard
+        guard let vehicles = defaults.dictionary(
+                forKey: Self.manufacturerSelectionDefaultsKey),
+              let modules = vehicles[vin] as? [String: Any],
+              let values = modules[moduleID] as? [String]
+        else { return [] }
+        return Set(values)
     }
 
-    private func modulePIDSelectionSet(moduleID: String) -> Set<String> {
-        let supported = supportedStableKeys(moduleID: moduleID)
-        guard !supported.isEmpty else { return [] }
-
-        guard let vin = effectivePIDConfigurationVIN else {
-            return Set(pidSelectionStore.globalStableKeys).intersection(supported)
-        }
-        if pidSelectionStore.hasSelection(
-            forVIN: vin, controllerIdentifier: moduleID) {
-            return Set(pidSelectionStore.stableKeys(
-                forVIN: vin, controllerIdentifier: moduleID)).intersection(supported)
-        }
-        // A global legacy choice may seed only the exact responder that
-        // advertised it; LINK owns persistence after that migration.
-        return Set(pidSelectionStore.globalStableKeys).intersection(supported)
-    }
-
-    private func storeModulePIDSelection(
+    private func storeManufacturerSelection(
         _ selection: Set<String>,
         moduleID: String
     ) {
-        let boundedSelection =
-            selection.intersection(supportedStableKeys(moduleID: moduleID))
+        guard let vin = effectivePIDConfigurationVIN else { return }
+        let defaults = UserDefaults.standard
+        var vehicles = defaults.dictionary(
+            forKey: Self.manufacturerSelectionDefaultsKey) ?? [:]
+        var modules = vehicles[vin] as? [String: Any] ?? [:]
+        modules[moduleID] = Array(selection).sorted()
+        vehicles[vin] = modules
+        defaults.set(vehicles, forKey: Self.manufacturerSelectionDefaultsKey)
+    }
 
-        guard let vin = effectivePIDConfigurationVIN else {
-            pidSelectionStore.setGlobalStableKeys(Array(boundedSelection).sorted())
-            return
-        }
+    private func cachedManufacturerCatalogue(
+        moduleID: String
+    ) -> [[String: Any]] {
+        guard let vin = effectivePIDConfigurationVIN else { return [] }
+        let defaults = UserDefaults.standard
+        guard let vehicles = defaults.dictionary(
+                forKey: Self.manufacturerCatalogueDefaultsKey),
+              let modules = vehicles[vin] as? [String: Any],
+              let values = modules[moduleID] as? [[String: Any]]
+        else { return [] }
+        return values
+    }
 
-        pidSelectionStore.setStableKeys(
-            Array(boundedSelection).sorted(),
-            forVIN: vin,
-            controllerIdentifier: moduleID)
+    private func cacheManufacturerCatalogue(
+        _ catalogue: [[String: Any]],
+        moduleID: String
+    ) {
+        guard let vin = effectivePIDConfigurationVIN else { return }
+        let defaults = UserDefaults.standard
+        var vehicles = defaults.dictionary(
+            forKey: Self.manufacturerCatalogueDefaultsKey) ?? [:]
+        var modules = vehicles[vin] as? [String: Any] ?? [:]
+        modules[moduleID] = catalogue
+        vehicles[vin] = modules
+        defaults.set(vehicles, forKey: Self.manufacturerCatalogueDefaultsKey)
+    }
+
+    private func applyManufacturerPollingSelection(moduleID: String) {
+        let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
+        let selected = manufacturerSelectionSet(moduleID: moduleID)
+        let wireIdentifiers = Set(
+            catalogue
+                .filter { selected.contains($0.id) }
+                .map { NSNumber(value: $0.identifier) })
+        controller.setManufacturerLivePollingIdentifiers(
+            Array(wireIdentifiers),
+            forModuleIdentifier: moduleID)
     }
 
     private func applyConfiguredPollingForSelectedVehicle() {
-        let selectedKeys: Set<String>
-        if effectivePIDConfigurationVIN != nil {
-            selectedKeys = Set(pidConfigurationModules.flatMap {
-                modulePIDSelectionSet(moduleID: $0.id)
-            })
-        } else {
-            selectedKeys = storedPollingKeys()
-        }
-
-        // Keep the legacy/global polling key in sync with the responder-bounded
-        // union so the existing live-data engine polls each requested Mode 01
-        // PID once without leaking unsupported selections between modules.
-        pidSelectionStore.setGlobalStableKeys(Array(selectedKeys).sorted())
-
+        let selectedKeys = storedPollingKeys()
         let count = mblink_obd2_pid_definition_count()
-        guard count > 0 else { return }
-        for index in 0..<count {
-            guard let definition = mblink_obd2_pid_definition_at(index) else { continue }
-            let metadata = definition.pointee
-            guard metadata.mode == 0x01 else { continue }
-            let pid = metadata.pid
-            guard (pid & 0x1F) != 0 else { continue }
-            controller.setPollingEnabled(
-                selectedKeys.contains(standardStableKey(for: pid)),
-                forPID: pid)
+        if count > 0 {
+            for index in 0..<count {
+                guard let definition = mblink_obd2_pid_definition_at(index)
+                else { continue }
+                let metadata = definition.pointee
+                guard metadata.mode == 0x01 else { continue }
+                let pid = metadata.pid
+                guard (pid & 0x1F) != 0 else { continue }
+                controller.setPollingEnabled(
+                    selectedKeys.contains(standardStableKey(for: pid)),
+                    forPID: pid)
+            }
+        }
+        for module in pidConfigurationModules {
+            applyManufacturerPollingSelection(moduleID: module.id)
         }
     }
 

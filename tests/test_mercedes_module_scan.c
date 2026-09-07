@@ -544,6 +544,14 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1001") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         CHECK(send_ok(&scan, "ATSP6") == 0);
         CHECK(send_ok(&scan, "ATSH64A") == 0);
@@ -853,6 +861,15 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   "ESP / ABS / BAS controller") == 0);
         CHECK(accept_identity_metadata(
                   &scan, &no_data, &no_data, &no_data) == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION);
+        CHECK(scan.full_target_index == 0U);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1001") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.full_target_index == 1U);
         CHECK(scan.candidate_tx == UINT32_C(0x632));
         CHECK(scan.candidate_rx == UINT32_C(0x486));
