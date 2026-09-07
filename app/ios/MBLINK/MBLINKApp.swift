@@ -584,68 +584,62 @@ private struct MBCommandCentreView: View {
     }
 
     private var primaryGrid: some View {
-        LinkDiagnosticGrid {
-            LinkTaskTile(.vehicle) { MBVehicleView() }
-            LinkTaskTile(.errors) { MBFaultsView() }
-            LinkTaskTile(.dashboard) { MBDashboardView() }
-            LinkTaskTile(.table) { MBDataTableView() }
-            LinkTaskTile(.graph) { MBGraphsView() }
+    LinkDiagnosticGrid {
+        MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") {
+            MBVehicleView()
+        }
+        MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") {
+            MBModulesView()
+        }
+        MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") {
+            MBFaultsView()
+        }
+        MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") {
+            MBLiveDataView()
+        }
+        MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") {
+            LinkStandardObdView(snapshot: obdSnapshot)
         }
     }
+}
+
+private var obdSnapshot: LinkStandardObdSnapshot {
+    LinkStandardObdSnapshot(
+        capability: connection.diagnosticCapabilityText,
+        capabilityDetail: connection.diagnosticCapabilityDetailText,
+        vin: connection.standardVINText,
+        responderSummary: connection.standardResponderSummary,
+        pidSummary: connection.supportedPIDSummary,
+        readiness: connection.readinessStatusText,
+        readinessMonitors: connection.readinessMonitorStatus,
+        freezeFrame: connection.freezeFrameContext,
+        storedDTCs: connection.storedDTCs,
+        pendingDTCs: connection.pendingDTCs,
+        permanentDTCs: connection.permanentDTCs,
+        liveRows: connection.standardLiveValueRows)
+}
 
     private var supportingTools: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            MBPanel {
-                VStack(alignment: .leading, spacing: 9) {
-                    MBSectionHeader(title: "Vehicle setup", kicker: "Current / saved / new")
-                    MBCompactLink(
-                        "Saved Vehicles & PIDs",
-                        "Load a saved VIN and configure each controller's advertised PIDs offline",
-                        "list.bullet.rectangle.portrait.fill"
-                    ) { MBPIDSetupView() }
-
-                    Divider().overlay(MBBrand.line)
-
-                    Button {
-                        connection.connect()
-                    } label: {
-                        HStack(alignment: .center, spacing: 12) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(MBTypography.title3)
-                                .foregroundStyle(MBBrand.silverBright)
-                                .frame(width: 30)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Add / Scan New Vehicle")
-                                    .font(MBTypography.subheadlineBold)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                Text("Read the connected car's VIN; load its saved profile if known, otherwise create a new one")
-                                    .font(MBTypography.caption)
-                                    .foregroundStyle(MBBrand.muted)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(MBBrand.muted)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(connection.isActive)
-                    .opacity(connection.isActive ? 0.45 : 1.0)
-                }
+    VStack(alignment: .leading, spacing: 14) {
+        MBSectionHeader(
+            title: "Tools",
+            kicker: "Evidence, tests, services and preferences")
+        LinkDiagnosticGrid {
+            MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") {
+                MBEvidenceView()
             }
-
-            MBSectionHeader(
-                title: "More diagnostics",
-                kicker: "Evidence, tests, services and preferences")
-            LinkDiagnosticGrid {
-                LinkTaskTile(.log) { MBEvidenceView() }
-                LinkTaskTile(.tests) { MBTestsView() }
-                LinkTaskTile(.services) { MBServicesView() }
-                LinkTaskTile(.settings) { MBSettingsView() }
+            MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") {
+                MBTestsView()
+            }
+            MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") {
+                MBServicesView()
+            }
+            MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") {
+                MBSettingsView()
             }
         }
     }
+}
 
     private var connectionProgress: some View {
         MBPanel {
@@ -682,7 +676,7 @@ private struct MBPIDSetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     MBSectionHeader(
-                        title: "Saved Vehicles & PIDs",
+                        title: "Vehicle Profiles & PID Setup",
                         kicker: connection.isActive
                             ? "Current vehicle + saved profiles"
                             : "Offline configuration")
@@ -693,7 +687,7 @@ private struct MBPIDSetupView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Vehicles & PIDs")
+        .mbDiagnosticScreen("Vehicle Profiles")
     }
 
     @ViewBuilder
@@ -704,41 +698,12 @@ private struct MBPIDSetupView: View {
                     title: "Vehicle profiles",
                     kicker: "\(connection.savedVehicleProfiles.count) saved")
 
-                Button {
-                    connection.connect()
-                } label: {
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(MBTypography.title3)
-                            .foregroundStyle(MBBrand.silverBright)
-                            .frame(width: 30)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Add / Scan New Vehicle")
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                            Text("Connect another Mercedes. MBLINK reads its VIN first, reuses a matching profile if it exists, or creates a new VIN profile.")
-                                .font(MBTypography.caption)
-                                .foregroundStyle(MBBrand.silver)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        Text("NEW")
-                            .font(MBTypography.caption2Bold)
-                            .foregroundStyle(MBBrand.silverBright)
-                    }
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(connection.isActive)
-                .opacity(connection.isActive ? 0.45 : 1.0)
-
                 if !connection.savedVehicleProfiles.isEmpty {
                     Divider().overlay(MBBrand.line)
                 }
 
                 if connection.savedVehicleProfiles.isEmpty {
-                    Text("No VIN profile has been stored yet. Use Add / Scan New Vehicle and MBLINK will save the VIN, controller map and observed capabilities for later use.")
+                    Text("No VIN profile has been stored yet. Connect from the MBLINK home screen and the live VIN, controller map and observed capabilities will be saved automatically.")
                         .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.silver)
                 } else {
@@ -805,7 +770,7 @@ private struct MBPIDSetupView: View {
                     .foregroundStyle(MBBrand.muted)
 
                 if connection.pidConfigurationModules.isEmpty {
-                    Text("Load a saved VIN profile above, or use Add / Scan New Vehicle to identify a car and learn its controller routes.")
+                    Text("Load a saved VIN profile above, or connect from the MBLINK home screen to identify a car and learn its controller routes.")
                         .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.silver)
                 } else {
@@ -1031,7 +996,7 @@ private struct MBVehicleView: View {
                     vehicleHero
                     MBPanel {
                         VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Current vehicle", kicker: "Profile selection")
+                            MBSectionHeader(title: "Vehicle profile", kicker: "Saved vehicle")
                             if let selectedVIN = connection.selectedVehicleVIN {
                                 MBInfoRow(label: "Loaded VIN", value: selectedVIN, monospaced: true)
                             } else {
@@ -1042,7 +1007,7 @@ private struct MBVehicleView: View {
 
                             NavigationLink { MBPIDSetupView() } label: {
                                 HStack {
-                                    Label("Change / Load Vehicle",
+                                    Label("Saved Vehicle Profiles",
                                           systemImage: "list.bullet.rectangle.portrait.fill")
                                     Spacer()
                                     Image(systemName: "chevron.right")
@@ -1053,26 +1018,7 @@ private struct MBVehicleView: View {
                             }
                             .buttonStyle(.plain)
 
-                            Divider().overlay(MBBrand.line)
-
-                            Button {
-                                connection.connect()
-                            } label: {
-                                HStack {
-                                    Label("Add / Scan New Vehicle",
-                                          systemImage: "plus.circle.fill")
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                                .padding(.vertical, 5)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(connection.isActive)
-                            .opacity(connection.isActive ? 0.45 : 1.0)
-
-                            Text("A connection always reads the live VIN. If that VIN already has a profile MBLINK loads it; otherwise MBLINK creates a new vehicle profile from the scan.")
+                            Text("Use the home-screen Connect button to identify the live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1202,7 +1148,7 @@ private struct MBVehicleView: View {
                     Text("No vehicle profile loaded")
                         .font(MBTypography.headline)
                         .foregroundStyle(MBBrand.silverBright)
-                    Text("Use Add / Scan New Vehicle, or load a saved VIN profile.")
+                    Text("Connect from the home screen, or load a saved VIN profile.")
                         .font(MBTypography.subheadline)
                         .foregroundStyle(MBBrand.muted)
                 }
@@ -1881,7 +1827,7 @@ private struct MBFaultsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     HStack {
-                        MBSectionHeader(title: "Errors", kicker: "Mercedes-Benz diagnostic memory")
+                        MBSectionHeader(title: "Faults", kicker: "Mercedes-Benz diagnostic memory")
                         Spacer()
                         Text("\(total)")
                             .font(MBTypography.bold(30, relativeTo: .title))
@@ -1909,7 +1855,7 @@ private struct MBFaultsView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Errors")
+        .mbDiagnosticScreen("Faults")
     }
 
     private var scanSummaryPanel: some View {
@@ -2148,29 +2094,20 @@ private struct MBLiveDataView: View {
                         title: "Live data",
                         kicker: "Choose a control unit")
 
-                    MBPanel {
-                        HStack(spacing: 18) {
-                            NavigationLink {
-                                MBDataTableView()
-                            } label: {
-                                Label("Table", systemImage: "tablecells")
-                            }
-                            NavigationLink {
-                                MBGraphsView()
-                            } label: {
-                                Label("Graphs", systemImage: "chart.xyaxis.line")
-                            }
-                            NavigationLink {
-                                MBDieselView()
-                            } label: {
-                                Label("Factory", systemImage: "engine.combustion.fill")
-                            }
-                        }
-                        .font(MBTypography.subheadlineBold)
-                        .foregroundStyle(MBBrand.silverBright)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                    }
+                    LinkDiagnosticGrid {
+                MBHomeTile("Dashboard", "Selected values at a glance", "gauge.with.dots.needle.67percent") {
+                    MBDashboardView()
+                }
+                MBHomeTile("Table", "Search and inspect live values", "tablecells") {
+                    MBDataTableView()
+                }
+                MBHomeTile("Graphs", "Plot selected values over time", "chart.xyaxis.line") {
+                    MBGraphsView()
+                }
+                MBHomeTile("Factory Data", "Mercedes manufacturer measurements", "engine.combustion.fill") {
+                    MBDieselView()
+                }
+            }
 
                     if modules.isEmpty {
                         MBPanel {
@@ -2749,7 +2686,7 @@ private struct MBEvidenceView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Log")
+        .mbDiagnosticScreen("Evidence")
     }
 }
 
