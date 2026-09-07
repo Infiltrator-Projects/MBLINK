@@ -17,11 +17,14 @@ jobs:
           fetch-depth: 0
       - name: Apply PID architecture repair
         shell: bash
-        env:
-          PATCH_B64: PLACEHOLDER
         run: |
           set -euo pipefail
-          printf '%s' "$PATCH_B64" | base64 -d > /tmp/repair.py
+          cat .github/repair/pid.part0 \
+              .github/repair/pid.part1 \
+              .github/repair/pid.part2 \
+              .github/repair/pid.part3 \
+              .github/repair/pid.part4 \
+            | base64 -d > /tmp/repair.py
           python3 /tmp/repair.py
           git diff --check
           git status --short
