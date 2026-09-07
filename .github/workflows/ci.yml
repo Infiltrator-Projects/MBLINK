@@ -108,7 +108,9 @@ jobs:
           grep -Fq 'MBHomeTile("Faults"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBHomeTile("Live Data"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBHomeTile("OBD"' app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'MBStandardOBDView()' app/ios/MBLINK/MBLINKApp.swift
+          grep -Fq 'private struct MBStandardOBDView: View' app/ios/MBLINK/MBLINKApp.swift
+          ! grep -Fq 'LinkStandardObdView(snapshot: obdSnapshot)' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBHomeTile("Dashboard"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBHomeTile("Table"' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'MBHomeTile("Graphs"' app/ios/MBLINK/MBLINKApp.swift
