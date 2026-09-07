@@ -175,6 +175,14 @@ typedef struct MblinkMercedesModuleScan {
     bool vin_timeout_long;
     bool kwp_identity_captured;
     size_t dtc_index;
+    /* Resume only after the transport owner has resynchronised the wire. */
+    bool resume_pending;
+    MblinkMercedesModuleScanStage resume_stage;
+    unsigned recovery_count;
+    uint32_t recovery_tx;
+    uint32_t recovery_rx;
+    bool recovery_extended;
+    bool single_module_refresh;
 } MblinkMercedesModuleScan;
 
 static inline const char *mblink_mercedes_module_scan_result_name(MblinkMercedesModuleScanResult result)
@@ -1379,7 +1387,10 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_TIMEOUT:
         if (!mblink_mercedes_module_scan_at_ok(response)) goto adapter_failure;
-        if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED) {
+        if (scan->resume_pending) {
+            scan->stage = scan->resume_stage;
+            scan->resume_pending = false;
+        } else if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED) {
             scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
         } else {
             scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
@@ -1718,7 +1729,8 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
         mblink_mercedes_module_scan_capture_dtc(
             &scan->modules[scan->dtc_index], response);
         ++scan->dtc_index;
-        scan->stage = scan->dtc_index >= scan->module_count
+        scan->stage = scan->single_module_refresh ||
+                      scan->dtc_index >= scan->module_count
             ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
             : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
         break;

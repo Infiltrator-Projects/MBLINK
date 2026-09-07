@@ -326,6 +326,127 @@ static int test_identity_first_n93_mixed_protocol(void)
     return 0;
 }
 
+static int idscan_resume_setup(MblinkMercedesModuleScan *scan)
+{
+    CHECK(idscan_send_ok(scan, "ATSP6") == 0);
+    CHECK(idscan_send_ok(scan, "ATH0") == 0);
+    CHECK(idscan_send_ok(scan, "ATCAF1") == 0);
+    CHECK(idscan_send_ok(scan, "ATCFC1") == 0);
+    CHECK(idscan_send_ok(scan, "ATST20") == 0);
+    return 0;
+}
+
+static int test_interrupted_cached_scan_continues(void)
+{
+    MblinkMercedesModuleScan scan = {0};
+    MblinkMercedesModuleScanEntry captured;
+    /* Captured sequence: faults obtained from earlier ECUs, ATSH6C2 OK,
+     * transport watchdog before the receive-filter command completed. */
+    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_CACHED;
+    scan.module_count = 3U;
+    scan.modules[0].tx_can_id = 0x64aU;
+    scan.modules[0].rx_can_id = 0x489U;
+    scan.modules[0].identity_available = true;
+    strcpy(scan.modules[0].identity, "KWP ECU S03 V9E D02");
+    scan.modules[0].tester_present_response = true;
+    scan.modules[0].dtc_result = MBLINK_MERCEDES_MODULE_DTC_AVAILABLE;
+    scan.modules[0].dtcs.count = 1U;
+    captured = scan.modules[0];
+    scan.modules[1].tx_can_id = 0x6c2U;
+    scan.modules[1].rx_can_id = 0x498U;
+    scan.modules[2].tx_can_id = 0x7e1U;
+    scan.modules[2].rx_can_id = 0x7e9U;
+    scan.modules[2].protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    scan.modules[2].definition =
+        mblink_mercedes_module_definition_for_key("transmission-vgs");
+    scan.dtc_index = 1U;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE;
+    CHECK(mblink_mercedes_module_scan_resume_after_interruption(&scan));
+    CHECK(idscan_resume_setup(&scan) == 0);
+    CHECK(idscan_send_ok(&scan, "ATSP6") == 0);
+    CHECK(idscan_send_ok(&scan, "ATSH6C2") == 0);
+    CHECK(scan.dtc_index == 1U);
+    CHECK(memcmp(&captured, &scan.modules[0], sizeof(captured)) == 0);
+    /* A second watchdog on that route must let the remaining TCU run. */
+    CHECK(mblink_mercedes_module_scan_resume_after_interruption(&scan));
+    CHECK(scan.dtc_index == 2U);
+    CHECK(idscan_resume_setup(&scan) == 0);
+    CHECK(idscan_send_ok(&scan, "ATSP6") == 0);
+    CHECK(idscan_send_ok(&scan, "ATSH7E1") == 0);
+    CHECK(idscan_send_ok(&scan, "ATCRA7E9") == 0);
+    CHECK(idscan_send_ok(&scan, "ATST64") == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY);
+    CHECK(mblink_mercedes_module_scan_resume_after_interruption(&scan));
+    CHECK(scan.recovery_count == 3U);
+    CHECK(!mblink_mercedes_module_scan_resume_after_interruption(&scan));
+    CHECK(memcmp(&captured, &scan.modules[0], sizeof(captured)) == 0);
+    return 0;
+}
+
+static int test_interrupted_extended_discovery_replays_protocol(void)
+{
+    MblinkMercedesModuleScan scan;
+    CHECK(mblink_mercedes_module_scan_begin_gateway(&scan) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    scan.candidate_extended = true;
+    scan.candidate_tx = 0x18da10f1U;
+    scan.candidate_rx = 0x18daf110U;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
+    scan.vin_timeout_long = true;
+    CHECK(mblink_mercedes_module_scan_resume_after_interruption(&scan));
+    CHECK(!scan.vin_timeout_long);
+    CHECK(idscan_resume_setup(&scan) == 0);
+    CHECK(idscan_send_ok(&scan, "ATSP7") == 0);
+    CHECK(idscan_send_ok(&scan, "ATH0") == 0);
+    CHECK(idscan_send_ok(&scan, "ATSH18DA10F1") == 0);
+    CHECK(scan.dtc_index == MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL);
+    return 0;
+}
+
+static int test_late_transmission_preserves_module_map(void)
+{
+    MblinkMercedesModuleScan scan = {0};
+    MblinkMercedesModuleScanEntry captured;
+    MblinkElm327Response no_data =
+        idscan_response(MBLINK_ELM327_RESULT_NO_DATA, "NO DATA", false);
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE;
+    scan.module_count = 1U;
+    scan.modules[0].tx_can_id = 0x602U;
+    scan.modules[0].rx_can_id = 0x480U;
+    scan.modules[0].dtcs.count = 1U;
+    scan.modules[0].tester_present_response = true;
+    captured = scan.modules[0];
+    CHECK(mblink_mercedes_module_scan_begin_late_transmission(&scan));
+    CHECK(scan.module_count == 2U && scan.dtc_index == 1U);
+    CHECK(idscan_resume_setup(&scan) == 0);
+    CHECK(idscan_send_ok(&scan, "ATSP6") == 0);
+    CHECK(idscan_send_ok(&scan, "ATSH7E1") == 0);
+    CHECK(idscan_send_ok(&scan, "ATCRA7E9") == 0);
+    CHECK(idscan_send_ok(&scan, "ATST64") == 0);
+    CHECK(idscan_send_response(&scan, "1A87", &no_data) == 0);
+    CHECK(idscan_send_response(&scan, "1A86", &no_data) == 0);
+    CHECK(idscan_send_response(&scan, "1A89", &no_data) == 0);
+    CHECK(idscan_send_ok(&scan, "ATST20") == 0);
+    CHECK(idscan_send_response(&scan, "3E01", &no_data) == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    CHECK(!scan.modules[1].identity_available);
+    CHECK(scan.modules[1].controller_family == NULL);
+    CHECK(memcmp(&captured, &scan.modules[0], sizeof(captured)) == 0);
+    /* Existing TCU entry is refreshed in place; no duplicate or full scan. */
+    scan.modules[2] = captured;
+    scan.modules[2].tx_can_id = 0x612U;
+    scan.modules[2].rx_can_id = 0x482U;
+    scan.module_count = 3U;
+    CHECK(mblink_mercedes_module_scan_begin_late_transmission(&scan));
+    CHECK(scan.module_count == 3U && scan.dtc_index == 1U);
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ;
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    CHECK(scan.modules[2].dtcs.count == 1U);
+    return 0;
+}
+
 int main(void)
 {
     CHECK(mblink_transmission_core_main() == 0);
@@ -333,5 +454,8 @@ int main(void)
     CHECK(test_identity_first_kwp_transmission() == 0);
     CHECK(test_saved_transmission_identity_capture() == 0);
     CHECK(test_identity_first_n93_mixed_protocol() == 0);
+    CHECK(test_interrupted_cached_scan_continues() == 0);
+    CHECK(test_interrupted_extended_discovery_replays_protocol() == 0);
+    CHECK(test_late_transmission_preserves_module_map() == 0);
     return 0;
 }

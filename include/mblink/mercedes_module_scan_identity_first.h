@@ -740,6 +740,100 @@ mblink_mercedes_module_scan_accept(
     return result;
 }
 
+/* A watchdog cancels the outstanding command; it is not an ECU NO DATA reply.
+ * Keep every captured entry, replay adapter setup, and restart the route. A
+ * second interruption on the same route skips it, with at most three resumes
+ * for the scan. The owner must defer this until LINK owns a fresh wire slot. */
+static inline bool mblink_mercedes_module_scan_resume_after_interruption(
+    MblinkMercedesModuleScan *scan)
+{
+    bool dtc_pass;
+    uint32_t tx, rx;
+    bool extended;
+    bool repeated;
+    if (scan == NULL || scan->recovery_count >= 3U ||
+        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE ||
+        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED)
+        return false;
+    dtc_pass = scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED ||
+        (scan->resume_pending && scan->resume_stage ==
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL) ||
+        (scan->stage >= MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL);
+    if (dtc_pass && scan->dtc_index >= scan->module_count) return false;
+    tx = dtc_pass ? scan->modules[scan->dtc_index].tx_can_id : scan->candidate_tx;
+    rx = dtc_pass ? scan->modules[scan->dtc_index].rx_can_id : scan->candidate_rx;
+    extended = dtc_pass ? scan->modules[scan->dtc_index].extended_id
+                        : scan->candidate_extended;
+    repeated = scan->recovery_count != 0U && scan->recovery_tx == tx &&
+        scan->recovery_rx == rx && scan->recovery_extended == extended;
+    ++scan->recovery_count;
+    scan->recovery_tx = tx;
+    scan->recovery_rx = rx;
+    scan->recovery_extended = extended;
+    scan->vin_timeout_long = false;
+    scan->vin_probe_index = 0U;
+    if (repeated) {
+        if (dtc_pass) {
+            ++scan->dtc_index;
+            if (scan->single_module_refresh || scan->dtc_index >= scan->module_count) {
+                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE;
+                return false;
+            }
+        } else {
+            mblink_mercedes_module_scan_advance_candidate(scan);
+            if (scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE)
+                return false;
+            dtc_pass = scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
+        }
+    }
+    scan->resume_stage = dtc_pass
+        ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL
+        : (scan->candidate_extended
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
+    scan->resume_pending = true;
+    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
+    return true;
+}
+
+/* A late legislated-OBD response proves this route is alive, not its family.
+ * Probe the source-backed GS route once without replacing the other modules
+ * or their captured faults. The Apple owner supplies current-session evidence
+ * and enforces one follow-up per connection. */
+static inline bool mblink_mercedes_module_scan_begin_late_transmission(
+    MblinkMercedesModuleScan *scan)
+{
+    size_t index;
+    MblinkMercedesModuleScanEntry *entry;
+    if (scan == NULL) return false;
+    for (index = 0U; index < scan->module_count; ++index) {
+        entry = &scan->modules[index];
+        if (!entry->extended_id && entry->tx_can_id == UINT32_C(0x7e1) &&
+            entry->rx_can_id == UINT32_C(0x7e9)) break;
+    }
+    if (index == scan->module_count) {
+        if (index >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) return false;
+        entry = &scan->modules[scan->module_count++];
+        memset(entry, 0, sizeof(*entry));
+        entry->tx_can_id = UINT32_C(0x7e1);
+        entry->rx_can_id = UINT32_C(0x7e9);
+        entry->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+        entry->definition = mblink_mercedes_module_definition_for_key("transmission-vgs");
+        if (entry->definition != NULL) {
+            entry->kind = entry->definition->kind;
+            entry->identification_status = entry->definition->status;
+        }
+    }
+    scan->scope = MBLINK_MERCEDES_MODULE_SCAN_CACHED;
+    scan->dtc_index = index;
+    scan->single_module_refresh = true;
+    scan->resume_pending = false;
+    scan->vin_timeout_long = false;
+    scan->vin_probe_index = 0U;
+    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
+    return true;
+}
+
 #ifdef __cplusplus
 }
 #endif

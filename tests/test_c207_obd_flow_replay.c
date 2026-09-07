@@ -76,6 +76,69 @@ static int complete_captured_initialization(LinkDiagnosticFlow *flow)
     return 0;
 }
 
+static int test_deferred_module_followup_survives_adapter_restore(void)
+{
+    LinkDiagnosticFlow flow;
+    LinkDiagnosticFlowConfig config = LINK_DIAGNOSTIC_FLOW_CONFIG_INIT;
+    unsigned jobs = 0U, live_samples = 0U, restores = 0U;
+    config.manufacturer_extension_after_standard_vin = true;
+    config.restore_adapter_after_manufacturer_extension = true;
+    config.preserve_pid_discovery_response_headers = true;
+    CHECK(link_diagnostic_flow_init(&flow, &config) == LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    /* At the observed watchdog the VIN is known, but the first standard
+     * capability/live schedule has not been built. LINK recovers that first. */
+    flow.stage = LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION;
+    flow.standard_vin_attempted = true;
+    CHECK(link_diagnostic_flow_resume_after_manufacturer(&flow) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    CHECK(link_diagnostic_flow_register_live_manufacturer_job(
+              &flow, UINT32_C(0x4d420002), 250U,
+              LINK_SCHEDULER_PRIORITY_HIGH, 250U) ==
+          LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    for (uint64_t tick = 1U; tick <= 100U; ++tick) {
+        LinkDiagnosticFlowAction action;
+        LinkDiagnosticFlowEvent event;
+        LinkElm327Response response = no_data_response();
+        CHECK(link_diagnostic_flow_next_action(&flow, tick * 500U, &action) ==
+              LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+        if (action.kind == LINK_DIAGNOSTIC_FLOW_ACTION_SCHEDULED_MANUFACTURER_JOB) {
+            ++jobs;
+            CHECK(jobs == 1U);
+            CHECK(action.manufacturer_job_token == UINT32_C(0x4d420002));
+            CHECK(flow.standard_diagnostic_context_complete);
+            CHECK(link_diagnostic_flow_set_live_manufacturer_job_enabled(
+                      &flow, UINT32_C(0x4d420002), false) ==
+                  LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+            CHECK(link_diagnostic_flow_resume_after_manufacturer(&flow) ==
+                  LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+            continue;
+        }
+        if (action.kind != LINK_DIAGNOSTIC_FLOW_ACTION_SEND_COMMAND) continue;
+        if (strcmp(action.command, "ATZ") == 0) ++restores;
+        if (strncmp(action.command, "AT", 2U) == 0)
+            response = ok_response("ELM327 v2.3", true);
+        else if (strcmp(action.command, "0100") == 0)
+            response = ok_response("7E806410000100000\n7E906410000100000", false);
+        else if (strcmp(action.command, "03") == 0)
+            response = ok_response("4300", false);
+        else if (strcmp(action.command, "07") == 0)
+            response = ok_response("4700", false);
+        else if (strcmp(action.command, "0A") == 0)
+            response = ok_response("4A00", false);
+        else if (strcmp(action.command, "0101") == 0)
+            response = ok_response("410100070000", false);
+        else if (strcmp(action.command, "010C") == 0) {
+            response = ok_response("7E804410C0000\n7E904410C0000", false);
+            if (jobs != 0U) ++live_samples;
+        }
+        CHECK(link_diagnostic_flow_accept_response(
+                  &flow, &response, tick * 500U, &event) ==
+              LINK_DIAGNOSTIC_FLOW_RESULT_OK);
+    }
+    CHECK(jobs == 1U && restores == 2U && live_samples > 1U);
+    return 0;
+}
+
 int main(void)
 {
     LinkDiagnosticFlow flow;
@@ -442,6 +505,7 @@ int main(void)
               responders.samples[0].sample.value < 5.89);
     }
 
+    CHECK(test_deferred_module_followup_survives_adapter_restore() == 0);
     puts("Captured C207 OBD-flow replay tests passed");
     return 0;
 }
