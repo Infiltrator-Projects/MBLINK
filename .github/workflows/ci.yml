@@ -17,10 +17,12 @@ concurrency:
   group: mblink-ci-${{ github.ref }}-${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ') && 'release' || 'ordinary' }}
   cancel-in-progress: ${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ')) }}
 
+# Required build and release checks use hosted Linux so offline local runners
+# cannot block publication. These jobs do not require attached vehicle hardware.
 jobs:
   portable-core:
-    name: linux-native / C11
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    name: Linux / C11
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -140,8 +142,8 @@ jobs:
       - run: python3 tests/test_whisper_recover.py
 
   sanitizers:
-    name: Local Linux / ASan + UBSan
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    name: Linux / ASan + UBSan
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,7 +158,7 @@ jobs:
 
   linux-app:
     name: Linux / GTK4 app
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -700,7 +702,7 @@ jobs:
     name: Publish complete atomic release
     needs: [portable-core, sanitizers, linux-app, windows-discover, windows-release-launch, apple-ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
