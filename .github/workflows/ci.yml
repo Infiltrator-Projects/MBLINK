@@ -492,7 +492,7 @@ jobs:
           grep -Fq 'registerLiveManufacturerJobWithToken' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'manufacturerLivePollingEnabledForModuleIdentifier' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'setLiveManufacturerJobEnabled:NO' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'Poll live factory data' app/ios/MBLINK/MBLINKApp.swift
+          ! grep -Fq 'Poll live factory data' app/ios/MBLINK/MBLINKApp.swift
           grep -Fq 'identifier == UINT16_C(0x0030)' src/mercedes/data_scan.c
           ! grep -Eq '^[[:space:]]*-[[:space:]]*\(void\)runAutomaticManufacturerDataRefreshWithGeneration' platform/apple/MBLinkDiagnosticsController.m
           ! grep -Eq '^static const uint64_t MBLinkAutomaticManufacturerRefreshDelayMs' platform/apple/MBLinkDiagnosticsController.m
