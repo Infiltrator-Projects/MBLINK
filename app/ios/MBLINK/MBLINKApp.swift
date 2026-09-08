@@ -664,7 +664,7 @@ private struct MBStandardOBDView: View {
                     obdList("Pending faults", connection.pendingDTCs)
                     obdList("Permanent faults", connection.permanentDTCs)
                     obdList("Freeze frame", connection.freezeFrameContext)
-                    obdList("Standard live data", connection.standardLiveValueRows)
+                    obdList("Standard live data", connection.standardLiveRows)
                 }
                 .padding(16)
             }

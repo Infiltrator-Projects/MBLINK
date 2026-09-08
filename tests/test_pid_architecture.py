@@ -85,6 +85,11 @@ require(
     "standard and manufacturer toggles must remain separate",
 )
 require(
+    "connection.standardLiveRows" in APP
+    and "connection.standardLiveValueRows" not in APP,
+    "the iOS OBD screen must consume the view model's published live rows",
+)
+require(
     "discoverManufacturerData" not in setup and "rescanManufacturerData" not in setup,
     "opening PID Setup must not launch manufacturer discovery",
 )
