@@ -50,8 +50,9 @@ It should remain fast and predictable:
 - load and validate a saved vehicle/module profile;
 - perform normal standards-defined OBD-II diagnostics;
 - read faults, readiness and freeze-frame data;
-- display known Mercedes factory values;
-- refresh already-known manufacturer identifiers;
+- display known Mercedes factory values selected by the user;
+- refresh already-known manufacturer identifiers only through an explicit
+  diagnostic action or live-channel selection;
 - show gauges, tables and graphs;
 - export diagnostic evidence.
 

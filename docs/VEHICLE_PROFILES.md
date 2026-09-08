@@ -10,6 +10,96 @@ This document owns MBLINK's normal iPhone vehicle-selection, saved-profile and a
 
 An adapter identifier is only a connection convenience. It is never vehicle identity. Simulation is test data and must never replace or rewrite the current real vehicle profile.
 
+## Canonical start-to-finish iPhone flow
+
+This is the required normal workflow. It begins with the user's first action;
+later diagnostic and screen-layout documents must not silently reorder it.
+
+1. The user taps **Connect**.
+2. MBLINK opens the connection chooser. It does not initialise an adapter
+   before the user has selected a connection source.
+3. The user chooses one exact nearby/saved adapter, explicit automatic
+   discovery, or the clearly separated test adapter.
+4. For a physical selection, LINK connects to and initialises only that
+   selected adapter. For the test adapter, LINK starts the deterministic test
+   data source instead of opening a physical radio connection.
+5. MBLINK requests the live Mode 09 VIN. This is the only standard OBD
+   inventory work performed at this point: supported-PID discovery, standard
+   fault inventory and live PID reads have not started yet.
+6. The valid live VIN becomes authoritative. MBLINK loads its existing profile
+   or creates a new profile if that VIN has never been seen.
+7. For an existing valid profile, MBLINK validates and refreshes only its saved
+   Mercedes module routes. For a new or invalidated profile, MBLINK runs the
+   bounded identity-first mobile module census once. This produces the module
+   map before standard OBD PID capability discovery begins.
+8. MBLINK restores the adapter to the standard OBD channel.
+9. LINK completes the standards-defined OBD inventory: responder-attributed
+   supported-PID bitmaps, stored/pending/permanent faults, readiness and
+   supported freeze-frame context. Reading a supported-PID bitmap identifies
+   capability; it does not read or begin polling every live PID.
+10. MBLINK is now ready with one authoritative VIN and one identified module
+    map. No manufacturer live-data record or arbitrary data identifier has
+    been swept as part of reaching this state.
+11. PID Setup presents one complete vehicle-wide Standard OBD/EOBD catalogue
+    first, followed by one Mercedes catalogue section for each module discovered
+    or restored from the VIN profile.
+12. Normal live polling begins only for channels the user explicitly selected
+    for this VIN. No live channel is silently enabled on a clean installation.
+
+The simulated source must exercise the same application-level VIN, profile,
+fault, module and presentation rules using deterministic test responses. It
+must not change the remembered real vehicle or create a real adapter-to-VIN
+association.
+
+In short, the diagnostic order is **VIN -> module identification -> standard
+OBD PID capability/fault inventory -> selected live polling**. The fact that
+Mode 09 carries the VIN must never be used to move Mode 01 PID discovery ahead
+of module identification.
+
+### Required gates
+
+| Gate | Work permitted after the gate | Work still forbidden |
+| --- | --- | --- |
+| User selected a source | Initialise that physical adapter, or start deterministic test data | Initialising an unselected adapter |
+| Valid live VIN captured | Select or create the authoritative vehicle profile | Applying another VIN's module or PID choices |
+| Module identification complete | Restore standard OBD and discover supported-PID bitmaps/fault context | Manufacturer actual-value sweeps or live polling |
+| User selected live channels | Poll only the records needed by those selections | Automatically enabling a discovered module or PID |
+
+### What automatic module identification is
+
+The product action is **identify modules**. Its implementation is a bounded,
+precompiled mobile census that asks plausible Mercedes physical routes whether
+a controller is present. The current plan contains 57 targets: the compact
+47-slot Mercedes gateway lattice, source-backed exceptions and the eight
+legislated OBD physical slots. A dead route receives only the minimum read-only
+presence probe. Identity metadata and fault memory are read only after a
+responder has been proven.
+
+The census answers **which modules are fitted and what they can be identified
+as**. Standard OBD responders and bounded Mercedes route responses are evidence
+for that one module map. The census is not a factory-data scan, a live-PID scan
+or continuous polling.
+
+The normal Connect flow must never automatically:
+
+- run the workstation FULL forensic address sweep;
+- scan every possible CAN address;
+- sweep every possible UDS DID or KWP local identifier within each module;
+- issue a manufacturer live-data request merely because a module was found;
+- treat module discovery responses as the module's selectable data catalogue;
+- invent names, units or scaling for unknown positive data;
+- enable all standard or Mercedes live channels; or
+- send coding, programming, reset, security-access, write or clear commands.
+
+Broad manufacturer-data discovery is a separate, explicit operation. Heavy
+unknown-vehicle research belongs to MBLINK Discover on Linux/Windows, not the
+normal iPhone connection path.
+
+In product requirements and user-facing text, call this step **module
+identification**. Reserve **FULL sweep**, **factory-data discovery** and **PID
+polling** for their distinct operations; none is a synonym for identifying the
+fitted modules.
+
 ## Offline startup
 
 1. Read the remembered current vehicle VIN from local storage.
@@ -65,11 +155,16 @@ route/session setup
 
 UDS identity uses the relevant F18x/F19x identifiers, including F197/F187/F188/F191. KWP2000 identity tries Daimler `1A 87` first, followed by bounded read-only `1A 86` and `1A 89` fallbacks. Identity evidence may classify a controller only when the returned data supports that classification; a CAN address alone must not manufacture an ECU family.
 
-SAE Mode 01 capability and live-data presentation remain responder-scoped. A PID advertised or returned by one ECU must not appear as though it belongs to every module.
+SAE Mode 01 capability evidence and live replies retain their physical responder
+attribution. That evidence may be shown inside an individual control-unit detail
+screen, but it must not create duplicated responder-specific PID Setup
+catalogues. PID Setup owns one complete vehicle-wide Standard OBD/EOBD catalogue;
+Mercedes module sections use only the separately documented manufacturer
+catalogue appropriate to that module.
 
-## Current implementation status
+## Required implementation contract
 
-The released 0.7.167 implementation satisfies the profile/adapter state rules above:
+The implementation must satisfy all of these profile/adapter state rules:
 
 - no remembered vehicle means no vehicle is auto-selected;
 - a remembered valid profile loads offline, including VIN-derived identity and saved controller/PID configuration;
@@ -83,23 +178,11 @@ The released 0.7.167 implementation satisfies the profile/adapter state rules ab
 - simulation does not change the saved real-vehicle selection; and
 - fresh Mercedes module discovery is identity-first per controller.
 
-### Vehicle-first startup order
-
-The normal iPhone startup sequence now follows the vehicle-first contract:
-
-```text
-adapter / ELM initialisation
-  -> live Mode 09 VIN
-  -> select / create the authoritative vehicle profile
-  -> cached Mercedes controller validation or identity-first first-VIN census
-  -> adapter restore
-  -> responder-scoped SAE PID capability discovery
-  -> stored / pending / permanent DTC inventory
-  -> readiness / freeze-frame context
-  -> normal live polling
-```
-
-This keeps the live VIN authoritative before expensive diagnostic work while retaining the complete generic OBD path. The later PID capability pass is written back to the already-selected VIN profile so reordering startup does not lose responder-specific capability data.
+The authoritative startup order is the complete sequence at the beginning of
+this document. Its vehicle-first diagnostic portion keeps the live VIN
+authoritative before profile-specific work while retaining the complete generic
+OBD path. The later PID capability pass is written back to the already-selected
+VIN profile so startup ordering does not lose responder attribution.
 
 ## Validation cases
 
@@ -112,5 +195,14 @@ The state machine should remain covered by regression tests for at least these c
 5. connect to a new VIN with no saved profile;
 6. disconnect and retain the current vehicle offline;
 7. choose a specific adapter and reject substitution by another peripheral;
-8. associate the adapter only after real VIN confirmation; and
-9. run simulation without altering the real saved vehicle or adapter mapping.
+8. associate the adapter only after real VIN confirmation;
+9. run simulation without altering the real saved vehicle or adapter mapping;
+10. initialise no adapter before the user chooses a connection source;
+11. use saved-route validation for an existing VIN and the bounded mobile census
+    only for a new/invalidated VIN;
+12. never turn the normal Connect path into a factory-data or forensic sweep;
+13. show the vehicle-wide Standard OBD catalogue before Mercedes module
+    catalogues; and
+14. begin polling only the selections belonging to the authoritative VIN; and
+15. distinguish the initial Mode 09 VIN read, later supported-PID bitmap
+    discovery and still-later live PID reads as three separate stages.

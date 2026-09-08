@@ -70,7 +70,7 @@ Several problems seen during physical C207/Vgate testing are now represented by 
 - CSV preparation snapshots recorder bytes and performs file I/O away from the Bluetooth/diagnostic execution path, so evidence export must not intentionally stop polling;
 - one controller lifetime retains distinct closed connection attempts in the evidence stream rather than erasing the first failed attempt when a later attempt succeeds;
 - live polling is explicit opt-in and persisted by stable parameter key, preventing the ELM/BLE link from being saturated by every supported PID by default.
-- recurring Mercedes GS `21 30` acquisition is serialized through LINK's single scheduler; known transmission families must match their own `0x30` semantics, while an unresolved family may use exact-route vehicle-positive evidence plus payload-shape validation without being falsely identified.
+- user-selected Mercedes GS `21 30` acquisition is serialized through LINK's single scheduler; finding a transmission route does not enable it automatically, known transmission families must match their own `0x30` semantics, and an unresolved family may use exact-route vehicle-positive evidence plus payload-shape validation without being falsely identified.
 
 These fixes have regression/CI coverage where they can be simulated. Physical adapter behaviour remains field validation rather than something CI can manufacture.
 
@@ -109,8 +109,8 @@ Implemented baseline:
 - structured evidence export and operator annotations;
 - MBLINK branding and Mercedes product identity;
 - C207/OM651 conventional engine route represented at `0x7E0 -> 0x7E8` and vehicle-verified on the development car;
-- portable Mercedes engine fingerprint scan followed by a bounded module scan;
-- mobile first-VIN census capable of learning responding routes, including wider 11/29-bit read-only discovery;
+- portable Mercedes engine fingerprint tooling kept separate from the bounded normal-Connect module identification path;
+- mobile first-VIN identification capable of learning responding routes from the bounded 57-target exact-route plan without invoking the wider 11/29-bit forensic sweep;
 - VIN-keyed module profiles persisted on iPhone and validated on later connections instead of repeating full discovery every time;
 - invalid or changed saved profiles are discarded and rebuilt rather than silently trusted;
 - Linux normal census plus explicit `DEEP RESCAN` path;
@@ -144,11 +144,11 @@ The native iPhone target must compile the same LINK implementation as CMake. Pro
 Current manufacturer-specific state:
 
 - the C207/OM651 profile carries one source-corroborated conventional 11-bit physical engine endpoint at `0x7E0 -> 0x7E8`; a 2026-08-26 capture verified that route on one development C207 without generalising it to every family member;
-- the iPhone performs complete standard OBD capability discovery, read-only UDS TesterPresent, standard VIN/identity evidence collection, a bounded CRD3 fingerprint pass and read-only Mercedes fault/module work before restoring normal OBD-II;
+- the iPhone Connect flow obtains the authoritative VIN, runs only bounded module presence/identity and fault work, restores normal OBD-II, and only then performs standard OBD capability discovery; family-specific fingerprints and manufacturer actual-value reads are explicit diagnostic operations, not prerequisites for identifying the fitted modules;
 - the CRD3 pass requests `F100`, `F154`, `F196`, `1001` and `1002`, decodes only corroborated identity fields and records every raw response without assigning unsupported physical meanings;
 - captured VIN, CRD3 identity, per-DID outcomes, responding module routes and Mercedes fault records are visible and preserved in the evidence transcript;
-- a new VIN can perform the wider read-only mobile census once, save the learned module topology against that VIN and use a bounded cached validation path on future connections;
-- VIN profiles retain responder-specific Mode 01 capabilities, so the Modules workspace can keep separate engine (`0x7E8`) and transmission-candidate (`0x7E9`) live-data pages even when a later manufacturer probe is quiet;
+- a new VIN can perform the bounded 57-target mobile identification once, save the learned module topology against that VIN and use a bounded cached validation path on future connections;
+- VIN profiles retain responder-specific Mode 01 capability evidence, while PID Setup presents one vehicle-wide Standard OBD catalogue instead of separate engine (`0x7E8`) and transmission-candidate (`0x7E9`) configuration copies;
 - the 2026-08-30 C207 capture verifies the KWP routes `0x64A -> 0x489` (ORC, one raw DTC record) and `0x652 -> 0x48A` (head unit, valid clean inventory); the module-scoped Mercedes fault table resolves ORC `9B51` to the source-corroborated driver seat-belt buckle circuit description while retaining raw status `E0`; both exact response shapes are regression fixtures, while the truncated ESP DTC response remains explicitly incomplete;
 - standard diesel/DPF values remain available where the vehicle advertises them;
 - physical C207/Vgate captures have verified standard VIN, selected Mercedes UDS response shapes and the conventional engine route, while unobserved definitions remain explicitly unverified;

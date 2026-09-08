@@ -60,6 +60,7 @@ typedef struct MblinkMercedesDataScanConfig {
     MblinkMercedesModuleKind module_kind;
     uint16_t first_identifier;
     uint16_t last_identifier;
+    /* Exact-route evidence gate; never inferred from UDS alone. */
     bool request_extended_session;
 } MblinkMercedesDataScanConfig;
 
@@ -116,7 +117,9 @@ bool mblink_mercedes_data_scan_config_is_valid(
  * Transmission controller profiles must use the family-scoped helpers in
  * mercedes_transmission.h instead of deriving local identifiers from a CAN
  * address. These are discovery ranges, not semantic claims: every positive
- * response remains raw/unmapped until a definition is proven.
+ * response remains raw/unmapped until a definition is proven. The returned
+ * configuration requests 10 03 only when the exact TX/RX route has a captured
+ * positive session response in the known-route ledger.
  */
 MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     uint32_t tx_can_id,

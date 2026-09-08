@@ -1302,7 +1302,13 @@ static bool MBLinkSimulatorResponder(
 {
     (void)controller;
     if ([self beginCachedVehicleProfileRefresh]) return;
-    [self beginMercedesProbe];
+    /*
+     * The normal Connect path establishes the fitted-module map first.  The
+     * older engine/CRD3 evidence probe is not a prerequisite for module
+     * identification and must not insert a module-specific fingerprint sweep
+     * ahead of the bounded vehicle census.
+     */
+    [self beginMercedesModuleScan];
 }
 
 - (void)linkDiagnosticsController:(LinkDiagnosticsController *)controller
@@ -1825,7 +1831,7 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
                                           forceFullScan:NO
                                                liveOnly:YES
                                    candidateIdentifiers:
-        runtime.count != 0U ? runtime : candidates];
+        candidates.count != 0U ? candidates : runtime];
 }
 
 - (void)beginScheduledManufacturerChannelRestore
@@ -1949,13 +1955,13 @@ static void MBLinkAppendManufacturerDefinition(
         NSArray<NSArray<NSString *> *> *signals = @[
             @[@"mercedes.transmission.oil_temperature", @"ATF",
               @"Transmission oil temperature"],
-            @[@"mercdes.transmission.actual_gear", @"GEAR",
+            @[@"mercedes.transmission.actual_gear", @"GEAR",
               @"Current gear"],
             @[@"mercedes.transmission.target_gear", @"TARGET",
               @"Target gear"],
-            @[@"mercdes.transmission.selector_position", @"SELECT",
+            @[@"mercedes.transmission.selector_position", @"SELECT",
               @"Selector position"],
-            @[@"mercdes.transmission.drive_program", @"PROGRAM",
+            @[@"mercedes.transmission.drive_program", @"PROGRAM",
               @"Transmission drive program"]
         ];
         BOOL first = YES;
@@ -3126,7 +3132,7 @@ static void MBLinkAppendManufacturerDefinition(
      * deliberately left to the workstation forensic tool.
      */
     self.mercedesProbeStatusText =
-        @"Mercedes first-VIN mobile census · 47-slot gateway discovery";
+        @"Mercedes first-VIN module identification · 57 exact routes";
     self.mercedesUDSFaultStatusText =
         @"Learning complete Mercedes module topology for this VIN";
     [self notifyDelegate];

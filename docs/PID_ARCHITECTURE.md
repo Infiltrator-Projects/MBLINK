@@ -2,6 +2,12 @@
 
 This document is the canonical product contract for how MBLINK discovers modules, presents live-data choices, and schedules polling. It exists to prevent the UI and diagnostic implementation from drifting away from the intended design.
 
+The complete user and connection sequence is owned by
+[`VEHICLE_PROFILES.md`](VEHICLE_PROFILES.md). This document begins after the
+authoritative VIN/profile and module map exist. In particular, standard PID
+capability discovery occurs after module identification, and PID Setup screen
+order must never be mistaken for adapter-connection order.
+
 ## Product intent
 
 MBLINK must separate three different jobs that were previously conflated:
@@ -13,6 +19,12 @@ MBLINK must separate three different jobs that were previously conflated:
 Discovery decides which module sections exist. The compiled diagnostic catalogue decides which documented channels belong in those sections. Polling is driven only by the user's explicit selections.
 
 A discovery scan must not be used as the catalogue itself.
+
+The automatic first-VIN mobile module census is a bounded presence,
+identification and fault-inventory pass. Standard supported-PID bitmap reads
+record capability without polling every live value. Neither operation sweeps
+manufacturer data identifiers, and opening PID Setup does not start either
+operation.
 
 ## PID Setup screen
 
@@ -81,9 +93,19 @@ The user may explicitly enable or disable individual channels. A manual "Select 
 
 Selections are stored per VIN and, where relevant, per controller/module. Reconnecting to the same VIN restores the user's own choices. Loading a saved VIN profile offline must expose the same configuration without pretending a live vehicle is attached.
 
+Standard OBD choices use one VIN-scoped selection because the scheduler issues
+one functional Mode 01 request and retains responder-specific replies. Mercedes
+choices remain VIN-and-module scoped. Correctly spelled stable identifiers are
+persistent API: a migration may recognise an older misspelling, but newly
+written catalogue and selection records must use the canonical identifier.
+
 ## Polling and scheduler behaviour
 
 Only explicitly selected channels are polled.
+
+Finding or identifying a module is not an implicit selection. It must not issue
+a manufacturer live-data request, including a one-off `21 xx` or `22 xxxx`
+actual-value read, merely because that route responded during the census.
 
 The diagnostic scheduler must remain single-owner/serialized through LINK so generic OBD and manufacturer-specific work never compete for the adapter wire.
 
@@ -120,8 +142,10 @@ A release satisfies this design only when all of the following are true:
 - A module's Mercedes choices come from documented controller/family knowledge, not merely its advertised SAE PIDs.
 - The known transmission module exposes the supported transmission live channels described above.
 - All live-data toggles are OFF on a clean first run.
+- Completing module discovery causes no manufacturer live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
-- Selections persist by VIN/module and can be edited from a saved offline vehicle profile.
+- Standard selections persist by VIN, Mercedes selections persist by
+  VIN/module, and both can be edited from a saved offline vehicle profile.
 - Unknown modules are not assigned invented PID meanings.
 - Opening PID Setup does not launch a brute-force scan.
 - LINK remains the sole scheduler/transport owner for shared generic and manufacturer jobs.

@@ -1406,24 +1406,6 @@ private struct MBModuleDetailView: View {
             title: "Factory data",
             kicker: factoryDataKicker(module))
 
-        if connection.manufacturerLivePollingSupported(moduleID: module.id) {
-            MBPanel {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle(
-                        "Poll live factory data",
-                        isOn: Binding(
-                            get: { connection.manufacturerLivePollingEnabled(moduleID: module.id) },
-                            set: { connection.setManufacturerLivePolling($0, moduleID: module.id) }))
-                        .font(MBTypography.subheadlineBold)
-                        .tint(MBBrand.active)
-                    Text("Only runtime-safe values are queued. Turning this off removes this module's recurring Mercedes job from LINK's adapter schedule, so it consumes no recurring polling bandwidth.")
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-
         if scanningThisModule {
             MBPanel {
                 VStack(alignment: .leading, spacing: 9) {
@@ -1666,38 +1648,18 @@ private struct MBModuleDetailView: View {
 
                 Spacer(minLength: 10)
 
-                HStack(spacing: 7) {
-                    Text("Poll")
-                        .font(MBTypography.caption2Bold)
-                        .foregroundStyle(MBBrand.muted)
-
-                    Toggle("", isOn: Binding(
-                        get: { parameter.pollingEnabled },
-                        set: {
-                            connection.setPIDSelection(
-                                $0,
-                                moduleID: moduleID,
-                                stableKey: parameter.id)
-                        }
-                    ))
-                    .labelsHidden()
-                    .tint(MBBrand.active)
-                    .controlSize(.small)
-
-                    Button {
-                        connection.toggleFavourite(stableKey: parameter.id)
-                    } label: {
-                        Image(systemName: parameter.favourite
-                              ? "star.fill" : "star")
-                            .font(MBTypography.title3)
-                            .foregroundStyle(parameter.favourite
-                                             ? MBBrand.silverBright
-                                             : MBBrand.muted)
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    connection.toggleFavourite(stableKey: parameter.id)
+                } label: {
+                    Image(systemName: parameter.favourite
+                          ? "star.fill" : "star")
+                        .font(MBTypography.title3)
+                        .foregroundStyle(parameter.favourite
+                                         ? MBBrand.silverBright
+                                         : MBBrand.muted)
+                        .frame(width: 30, height: 30)
                 }
-                .fixedSize(horizontal: true, vertical: false)
+                .buttonStyle(.plain)
             }
 
             Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)")

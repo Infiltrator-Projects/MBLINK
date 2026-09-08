@@ -4,7 +4,7 @@
 
 The DID Lab is MBLINK's offline Mercedes-wide discovery layer for turning public Mercedes/Delphi definitions, Mercedes-Benz open-source material and real vehicle captures into defensible factory parameters. The C207 is one evidence source, not the scope of the catalogue.
 
-Three states are deliberately separate: `corroborated-unmapped` means the value exists but its protocol mapping is unknown; `source-backed-candidate` means an independent source gives a DID/encoding but the development car has not verified it; `vehicle-verified` means the exact request, response shape, scale and meaning are captured in a reproducible fixture. Only vehicle-verified definitions may be automatically polled.
+Three states are deliberately separate: `corroborated-unmapped` means the value exists but its protocol mapping is unknown; `source-backed-candidate` means an independent source gives a DID/encoding but the development car has not verified it; `vehicle-verified` means the exact request, response shape, scale and meaning are captured in a reproducible fixture. A definition can be offered for live polling only when it has a defensible read-only request mapping and decoder for that module/route; its evidence status must remain visible, and it is transmitted only after explicit user selection. `corroborated-unmapped` entries are research targets, not selectable live channels.
 
 ## First exact CRD3 candidate
 

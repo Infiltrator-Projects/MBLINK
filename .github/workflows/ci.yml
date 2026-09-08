@@ -150,6 +150,7 @@ jobs:
       - run: cmake --build build --config Release --parallel
       - run: ctest --test-dir build --build-config Release --output-on-failure
       - run: python3 tests/test_whisper_recover.py
+      - run: python3 tests/test_pid_architecture.py
 
   sanitizers:
     name: Linux / ASan + UBSan
@@ -251,14 +252,17 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/c207-replay.log"
-          timeout 20s xvfb-run -a ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
+          # Hosted software-rendered GTK currently spends about 12 seconds in
+          # EGL/display startup. Keep a bounded deadline while leaving the
+          # deterministic replay enough time to execute after the window opens.
+          GTK_A11Y=none timeout 60s xvfb-run -a ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
           grep -Fq 'MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible' "$log"
       - name: Stress disconnected sidebar navigation
         shell: bash
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/navigation-stress.log"
-          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 20s xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
+          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 60s xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
           grep -Fq 'sidebar selections while disconnected with main-loop interleaving' "$log"
       - name: Sanitized GTK navigation soak
@@ -268,7 +272,7 @@ jobs:
           cmake -S . -B build-linux-sanitized             -DCMAKE_BUILD_TYPE=Debug             -DCMAKE_INSTALL_PREFIX=/usr             -DMBLINK_BUILD_LINUX_APP=ON             -DMBLINK_ENABLE_SANITIZERS=ON             -DMBLINK_BUILD_PROFILE=generic             -DBUILD_TESTING=OFF
           cmake --build build-linux-sanitized --parallel --target mblink-linux
           log="$RUNNER_TEMP/navigation-sanitized.log"
-          GTK_A11Y=none           ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1           timeout 25s xvfb-run -a ./build-linux-sanitized/mblink-linux --ui-navigation-stress | tee "$log"
+          GTK_A11Y=none           ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1           timeout 90s xvfb-run -a ./build-linux-sanitized/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
       - name: Verify canonical MB Corpo typography roles
         shell: bash
@@ -662,7 +666,10 @@ jobs:
                  grep -Fq 'fault_status=Complete ·' "$marker" &&
                  grep -Fq 'stored_codes=P0401,P0101' "$marker" &&
                  grep -Fq 'stored_states=Stored,Stored' "$marker" &&
-                 grep -Fq 'stored_faults=P0401 — Exhaust Gas Recirculation Flow Insufficient Detected | P0101 — Mass or Volume Air Flow Circuit Range/Performance' "$marker"; then
+                 grep -Fq 'stored_faults=P0401 — Exhaust Gas Recirculation Flow Insufficient Detected | P0101 — Mass or Volume Air Flow Circuit Range/Performance' "$marker" &&
+                 grep -Fq 'standard_selection_vin=WDD2073022F123456' "$marker" &&
+                 grep -Fq 'standard_selection_count=0' "$marker" &&
+                 grep -Fq 'standard_selection_scoped=true' "$marker"; then
                 flow_ready=true
                 break
               fi

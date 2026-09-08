@@ -12,7 +12,7 @@ typealias PIDConfigurationItem = LinkPIDConfigurationItem
 typealias SavedVehicleProfileSummary = LinkSavedVehicleProfileSummary
 
 struct MBPIDCatalogueItem: Identifiable {
-    enum Source {
+    enum Source: Equatable {
         case standard
         case manufacturer
     }
@@ -134,6 +134,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var manufacturerLastRawByParameter = [String: String]()
     private var manufacturerHistoryVIN: String?
     private var manufacturerHistorySessionActive = false
+    private var appliedPollingConfigurationKey: String?
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -145,6 +146,17 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         "mblink.manufacturer.pidSelectionsByVehicle.v1"
     private static let manufacturerCatalogueDefaultsKey =
         "mblink.manufacturer.pidCatalogueByVehicle.v1"
+    private static let standardSelectionControllerIdentifier = "standard-obd"
+    private static let standardSelectionMigrationDefaultsKey =
+        "mblink.standard.pidSelectionsGlobalMigrated.v1"
+    private static let manufacturerStableKeyAliases = [
+        "mercdes.transmission.actual_gear":
+            "mercedes.transmission.actual_gear",
+        "mercdes.transmission.selector_position":
+            "mercedes.transmission.selector_position",
+        "mercdes.transmission.drive_program":
+            "mercedes.transmission.drive_program"
+    ]
     private var pidSupportByModule = [String: Set<UInt8>]()
     private static let legacyAutomaticPollingStableKeys: Set<String> = [
         "obd2.engine.rpm", "obd2.vehicle.speed", "obd2.engine.coolant",
@@ -259,6 +271,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         diagnosticParameters.first { $0.id == stableKey }
     }
 
+    var standardVINText: String {
+        controller.standardVINText
+    }
+
     func mercedesSignals(category: String) -> [MercedesTargetSignal] {
         mercedesTargetSignals.filter { $0.category == category }
     }
@@ -272,7 +288,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             diagnosticModule(id: moduleID) ?? pidConfigurationModule(id: moduleID)
         else { return [] }
 
-        let selected = modulePIDSelectionSet(moduleID: moduleID)
+        let selected = storedPollingKeys()
         return loadDiagnosticParameters(
             responderCANIdentifier: module.responseCANIdentifier,
             extendedID: module.extendedID,
@@ -317,7 +333,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         mercedesIdentitySummaryText = "Saved vehicle profile · offline"
         mercedesProbeStatusText = "Disconnected · saved vehicle profile"
         refreshPIDConfiguration()
-        applyConfiguredPollingForSelectedVehicle()
+        applyConfiguredPollingIfNeeded(force: true)
         refreshStandardState()
     }
 
@@ -399,7 +415,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
         let selected = manufacturerSelectionSet(moduleID: moduleID)
         return definitions.compactMap { value in
-            guard let stableKey = value["id"] as? String,
+            guard let storedStableKey = value["id"] as? String,
                   let serviceNumber = value["service"] as? NSNumber,
                   let identifierNumber = value["identifier"] as? NSNumber,
                   let shortName = value["shortName"] as? String,
@@ -407,6 +423,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             else { return nil }
             let provenance =
                 value["provenance"] as? String ?? "MBLINK documented catalogue"
+            let stableKey = canonicalManufacturerStableKey(storedStableKey)
             return MBPIDCatalogueItem(
                 id: stableKey,
                 source: .manufacturer,
@@ -439,17 +456,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         var selected = manufacturerSelectionSet(moduleID: moduleID)
         if enabled { selected.insert(stableKey) }
         else { selected.remove(stableKey) }
-        storeManufacturerSelection(selected, moduleID: moduleID)
-        applyManufacturerPollingSelection(moduleID: moduleID)
-        refreshPresentation()
-    }
-
-    func setPolling(_ enabled: Bool, moduleID: String) {
-        let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
-        guard !catalogue.isEmpty else { return }
-        let selected = enabled
-            ? Set(catalogue.map(\.id))
-            : Set<String>()
         storeManufacturerSelection(selected, moduleID: moduleID)
         applyManufacturerPollingSelection(moduleID: moduleID)
         refreshPresentation()
@@ -498,27 +504,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
     }
 
-    func manufacturerLivePollingSupported(moduleID: String) -> Bool {
-        controller.manufacturerLivePollingSupported(
-            forModuleIdentifier: moduleID)
-    }
-
-    func manufacturerLivePollingEnabled(moduleID: String) -> Bool {
-        controller.manufacturerLivePollingEnabled(
-            forModuleIdentifier: moduleID)
-    }
-
-    func setManufacturerLivePolling(_ enabled: Bool, moduleID: String) {
-        controller.setManufacturerLivePollingEnabled(
-            enabled, forModuleIdentifier: moduleID)
-        refreshStandardState()
-    }
-
     func setPolling(_ enabled: Bool, stableKey: String) {
+        guard !controller.isActive || effectivePIDConfigurationVIN != nil
+        else { return }
         guard let pid = pidForStableKey(stableKey) else { return }
         var enabledKeys = storedPollingKeys()
         if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
-        pidSelectionStore.setGlobalStableKeys(Array(enabledKeys).sorted())
+        storeStandardPollingKeys(enabledKeys)
         controller.setPollingEnabled(enabled, forPID: pid)
         refreshStandardState()
     }
@@ -545,15 +537,20 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         Task { @MainActor [weak self] in self?.refreshStandardState() }
     }
 
-    private var effectivePIDConfigurationVIN: String? {
-        // The controller deliberately retains its last VIN after disconnect.
-        // It is authoritative only while a live diagnostic session is active.
-        if controller.isActive,
-           let liveVIN = controller.mercedesVINText,
-           liveVIN.count == 17 {
-            return liveVIN
+    private var activeVehicleVIN: String? {
+        guard controller.isActive else { return nil }
+        if let mercedesVIN = controller.mercedesVINText,
+           mercedesVIN.count == 17 {
+            return mercedesVIN
         }
-        return selectedVehicleVIN
+        let standardVIN = controller.standardVINText
+        return standardVIN.count == 17 ? standardVIN : nil
+    }
+
+    private var effectivePIDConfigurationVIN: String? {
+        // Never apply a previously selected offline vehicle's polling choices
+        // while a different live vehicle is still waiting for its VIN.
+        controller.isActive ? activeVehicleVIN : selectedVehicleVIN
     }
 
     private func manufacturerSelectionSet(moduleID: String) -> Set<String> {
@@ -564,7 +561,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
               let modules = vehicles[vin] as? [String: Any],
               let values = modules[moduleID] as? [String]
         else { return [] }
-        return Set(values)
+        let stored = Set(values)
+        let canonical = Set(values.map(canonicalManufacturerStableKey))
+        if canonical != stored {
+            storeManufacturerSelection(canonical, moduleID: moduleID)
+        }
+        return canonical
     }
 
     private func storeManufacturerSelection(
@@ -641,7 +643,113 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
     }
 
+    private func applyConfiguredPollingIfNeeded(force: Bool = false) {
+        let moduleKey = pidConfigurationModules.map(\.id).sorted()
+            .joined(separator: ",")
+        let vehicleKey: String
+        if controller.isActive {
+            vehicleKey = activeVehicleVIN.map { "live:\($0)" }
+                ?? "live:unknown"
+        } else {
+            vehicleKey = selectedVehicleVIN.map { "offline:\($0)" }
+                ?? "offline:global"
+        }
+        let configurationKey = "\(vehicleKey)|\(moduleKey)"
+        guard force || configurationKey != appliedPollingConfigurationKey
+        else { return }
+
+        /* Mark first because setPollingEnabled notifies the view model. Any
+         * queued refresh caused by this application must observe the same key
+         * and must not recursively apply the selection again. */
+        appliedPollingConfigurationKey = configurationKey
+        applyConfiguredPollingForSelectedVehicle()
+    }
+
     private func storedPollingKeys() -> Set<String> {
+        if controller.isActive && activeVehicleVIN == nil {
+            return []
+        }
+        if let vin = effectivePIDConfigurationVIN {
+            let controllerID = Self.standardSelectionControllerIdentifier
+            if pidSelectionStore.hasSelection(
+                forVIN: vin,
+                controllerIdentifier: controllerID
+            ) {
+                return Set(pidSelectionStore.stableKeys(
+                    forVIN: vin,
+                    controllerIdentifier: controllerID))
+            }
+
+            /* v0.7.186 stored standard choices under each responder module.
+             * Preserve the union when moving to the one functional Mode 01
+             * request used by the new Standard OBD section. An explicitly
+             * empty old selection is still a real selection. */
+            var foundModuleSelection = false
+            var moduleSelection = Set<String>()
+            for module in pidConfigurationModules {
+                if pidSelectionStore.hasSelection(
+                    forVIN: vin,
+                    controllerIdentifier: module.id
+                ) {
+                    foundModuleSelection = true
+                    moduleSelection.formUnion(pidSelectionStore.stableKeys(
+                        forVIN: vin,
+                        controllerIdentifier: module.id))
+                }
+            }
+            if foundModuleSelection {
+                pidSelectionStore.setStableKeys(
+                    Array(moduleSelection).sorted(),
+                    forVIN: vin,
+                    controllerIdentifier: controllerID)
+                return moduleSelection
+            }
+
+            /* During startup the saved/live module list may not have arrived
+             * yet. Do not consume the one global fallback until it has, or a
+             * per-module v0.7.186 selection could be lost. */
+            if pidConfigurationModules.isEmpty {
+                return legacyGlobalPollingKeys()
+            }
+
+            /* Preserve one existing explicit global choice for the first VIN
+             * encountered after this migration. Every later new VIN starts
+             * empty, as the product contract requires. */
+            let defaults = UserDefaults.standard
+            let initial: Set<String>
+            if !defaults.bool(
+                forKey: Self.standardSelectionMigrationDefaultsKey
+            ) {
+                initial = legacyGlobalPollingKeys()
+                defaults.set(
+                    true,
+                    forKey: Self.standardSelectionMigrationDefaultsKey)
+            } else {
+                initial = []
+            }
+            pidSelectionStore.setStableKeys(
+                Array(initial).sorted(),
+                forVIN: vin,
+                controllerIdentifier: controllerID)
+            return initial
+        }
+        return legacyGlobalPollingKeys()
+    }
+
+    private func storeStandardPollingKeys(_ selection: Set<String>) {
+        let sorted = Array(selection).sorted()
+        if let vin = effectivePIDConfigurationVIN {
+            pidSelectionStore.setStableKeys(
+                sorted,
+                forVIN: vin,
+                controllerIdentifier:
+                    Self.standardSelectionControllerIdentifier)
+        } else if !controller.isActive {
+            pidSelectionStore.setGlobalStableKeys(sorted)
+        }
+    }
+
+    private func legacyGlobalPollingKeys() -> Set<String> {
         if pidSelectionStore.hasGlobalSelection {
             return Set(pidSelectionStore.globalStableKeys)
         }
@@ -660,6 +768,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
         pidSelectionStore.setGlobalStableKeys(Array(initial).sorted())
         return initial
+    }
+
+    private func canonicalManufacturerStableKey(_ stableKey: String) -> String {
+        Self.manufacturerStableKeyAliases[stableKey] ?? stableKey
     }
 
     private func standardStableKey(for pid: UInt8) -> String {
@@ -977,34 +1089,38 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }) else { return [] }
 
         let source = "\(module.name) · \(module.addressText)"
-        return controller.transmissionLiveValueSnapshots().map { snapshot in
-            let numeric = snapshot.isNumericValueAvailable
-                ? snapshot.numericValue : nil
-            return DiagnosticParameter(
-                id: snapshot.identifier,
-                protocolName: "kwp2000",
-                moduleIdentifier: 0x7E1,
-                parameterIdentifier: UInt32(0x2100) |
-                    UInt32(snapshot.localIdentifier),
-                shortName: snapshot.shortName,
-                title: snapshot.title,
-                suffix: snapshot.suffix,
-                formattedValue: snapshot.formattedValue,
-                value: numeric,
-                structuredValue: numeric == nil ? snapshot.formattedValue : nil,
-                rawHex: snapshot.rawHex,
-                vehicleSupported: true,
-                favourite: false,
-                pollingEnabled: snapshot.isPollingEnabled,
-                history: numeric.map {
-                    manufacturerHistory(
-                        id: snapshot.identifier,
-                        value: $0,
-                        rawHex: snapshot.rawHex)
-                } ?? [],
-                sourceLabel: source,
-                qualityNote: snapshot.qualityNote)
-        }
+        let selected = manufacturerSelectionSet(moduleID: module.id)
+        return controller.transmissionLiveValueSnapshots()
+            .filter { selected.contains($0.identifier) }
+            .map { snapshot in
+                let numeric = snapshot.isNumericValueAvailable
+                    ? snapshot.numericValue : nil
+                return DiagnosticParameter(
+                    id: snapshot.identifier,
+                    protocolName: "kwp2000",
+                    moduleIdentifier: 0x7E1,
+                    parameterIdentifier: UInt32(0x2100) |
+                        UInt32(snapshot.localIdentifier),
+                    shortName: snapshot.shortName,
+                    title: snapshot.title,
+                    suffix: snapshot.suffix,
+                    formattedValue: snapshot.formattedValue,
+                    value: numeric,
+                    structuredValue: numeric == nil
+                        ? snapshot.formattedValue : nil,
+                    rawHex: snapshot.rawHex,
+                    vehicleSupported: true,
+                    favourite: false,
+                    pollingEnabled: true,
+                    history: numeric.map {
+                        manufacturerHistory(
+                            id: snapshot.identifier,
+                            value: $0,
+                            rawHex: snapshot.rawHex)
+                    } ?? [],
+                    sourceLabel: source,
+                    qualityNote: snapshot.qualityNote)
+            }
     }
 
     /*
@@ -1077,9 +1193,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     "Connect once to learn which PIDs each controller supports")
         }
 
-        let liveVIN = controller.isActive ? controller.mercedesVINText : nil
-        let selectedVIN: String? =
-            (liveVIN?.count == 17 ? liveVIN : selectedVehicleVIN)
+        let liveVIN = activeVehicleVIN
+        let selectedVIN: String? = controller.isActive
+            ? liveVIN : selectedVehicleVIN
 
         // While connected, only the physical car's VIN may select a profile.
         // While offline, only the remembered/explicitly selected VIN may do so.
@@ -1380,7 +1496,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     override func productDidRefreshStandardState() {
         // Never join samples from separate sessions or vehicles in one graph.
-        let liveHistoryVIN = controller.mercedesVINText
+        let liveHistoryVIN = activeVehicleVIN
         if !isActive || !manufacturerHistorySessionActive ||
             manufacturerHistoryVIN != liveHistoryVIN {
             manufacturerNumericHistory.removeAll()
@@ -1397,9 +1513,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             connectionAlertText = updatedStatus
         }
 
-        let capturedVIN = isActive ? controller.mercedesVINText : nil
-        let currentVIN = capturedVIN?.count == 17
-            ? capturedVIN : selectedVehicleVIN
+        let capturedVIN = activeVehicleVIN
+        let currentVIN = isActive ? capturedVIN : selectedVehicleVIN
         mercedesVINText = currentVIN ?? "Not captured"
         vehicleIdentity = decodeVehicleIdentity(vin: currentVIN)
 
@@ -1439,10 +1554,20 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         storedFaults = resolveFaults(storedDTCs, state: "Stored")
         pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
         permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
+        diagnosticModules = isActive ? loadDiagnosticModules() : []
+        refreshPIDConfiguration()
+        applyConfiguredPollingIfNeeded()
 #if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
            isSimulationActive {
             let liveVIN = controller.mercedesVINText ?? ""
+            let selectionVIN = effectivePIDConfigurationVIN ?? ""
+            let standardSelectionCount = storedPollingKeys().count
+            let standardSelectionScoped = selectionVIN.count == 17 &&
+                pidSelectionStore.hasSelection(
+                    forVIN: selectionVIN,
+                    controllerIdentifier:
+                        Self.standardSelectionControllerIdentifier)
             let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
             let state = isReady && liveVIN.count == 17
                 ? "ready" : (failed ? "failed" : "pending")
@@ -1456,7 +1581,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "stored_states=\(storedFaults.map(\.state).joined(separator: ","))\n" +
                 "stored_faults=\(storedFaults.map(\.displayText).joined(separator: " | "))\n" +
                 "probe=\(controller.mercedesProbeStatusText)\n" +
-                "profile=\(controller.vehicleProfileStatusText)\n"
+                "profile=\(controller.vehicleProfileStatusText)\n" +
+                "standard_selection_vin=\(selectionVIN)\n" +
+                "standard_selection_count=\(standardSelectionCount)\n" +
+                "standard_selection_scoped=\(standardSelectionScoped)\n"
             if let directory = FileManager.default.urls(
                     for: .documentDirectory, in: .userDomainMask).first {
                 try? FileManager.default.createDirectory(
@@ -1468,8 +1596,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             }
         }
 #endif
-        diagnosticModules = isActive ? loadDiagnosticModules() : []
-        refreshPIDConfiguration()
         manufacturerDataScanActive = controller.isManufacturerDataScanActive
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
         manufacturerDataScanModuleID = controller.manufacturerDataScanModuleIdentifier

@@ -29,7 +29,7 @@ The first populated Baumuster catalogue covers the C207 coupe family across dies
 
 MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
 
-The normal Mercedes engine probe therefore starts from a generic read-only physical engine-ECU candidate, reads VIN and standardized identity first, and selects the narrowest supported vehicle/engine profile from evidence. CRD3-only fingerprint DIDs are gated behind that selection. Known petrol or unknown engine families proceed directly from standardized identity to read-only UDS fault inventory unless their returned ECU identity independently indicates CRD3.
+When an explicit engine-evidence probe is requested, it starts from a generic read-only physical engine-ECU candidate, reads standardized identity first, and selects the narrowest supported vehicle/engine profile from evidence. CRD3-only fingerprint DIDs are gated behind that selection. This targeted probe is not part of normal Connect and is not a prerequisite for establishing the fitted-module map.
 
 C207 identification now comes from the shared offline Baumuster catalogue rather than a short hard-coded list. The catalogue carries exact model, engine code, engine family, fuel, body style, displacement and source provenance. Diagnostic selection consumes only the resulting family evidence: OM651 permits the CRD3 extension; petrol M271/M274 and other non-CRD3 families do not. Unknown Baumuster values remain structurally decoded but engine-unidentified until catalogue evidence is added.
 
@@ -147,14 +147,18 @@ That capture also disproved a second assumption: a Mercedes 11-bit diagnostic re
 
 The normal 47-slot census never opens a promiscuous receive window: each lattice
 slot already has an exact request/response pair. Unknown-response learning is
-reserved for the explicit FULL forensic scan. For a source-corroborated UDS
-route, MBLINK keeps the published receive ID and first performs the same
-transient extended-session handshake (`10 03`) shown by the public
-EIS_212/EIS_204 CAESAR and DTS traces. That session change is non-persistent and
-is used only to make diagnostic read services available; it does not alter
-coding or stored vehicle data. The primary recovered VIN probes are route
-specific: `22 F1 A0` for `0x602`, `0x607` and `0x612`, and KWP `21 05` for
-`0x4E0`. Other UDS targets retain the bounded `22 F190` fallback. A positive
+reserved for the explicit FULL forensic scan. Three exact C207 routes—
+`0x602 -> 0x480`, `0x612 -> 0x482` and `0x632 -> 0x486`—also have captured
+positive `50 03` responses, so only those routes receive the corresponding
+transient extended-session request (`10 03`). MBLINK does not infer session
+control from UDS or from a route listing: `0x607 -> 0x587`,
+`0x6B2 -> 0x496` and generic UDS targets stay in their existing session unless
+independent evidence is added. The scanner does not send `10 01` afterwards;
+it stops TesterPresent traffic and lets the ECU's own diagnostic-session timer
+expire, avoiding an unjustified control request or OEM-specific reset
+side-effect. The primary recovered VIN probes are route specific: `22 F1 A0`
+for `0x602`, `0x607` and `0x612`, and KWP `21 05` for `0x4E0`. Other UDS
+targets retain the bounded `22 F190` fallback. A positive
 **or valid negative** protocol response proves a responder exists. No reset,
 security access, routine control, communication/DTC-setting change, DTC clear,
 coding, data write or programming request is introduced by this route-aware
@@ -166,11 +170,15 @@ A catalogue entry is not evidence that a module is fitted to a particular car. O
 
 The iPhone keeps a small local vehicle profile keyed by the exact 17-character VIN. The first successful connection performs the bounded module discovery and stores only stable topology and identity facts: module request/response routes, addressing mode, classified family, system name, and returned part/software/hardware identifiers. Dynamic DTCs and live measurements are never treated as persistent profile facts.
 
-On a later connection to the same VIN, MBLINK loads the known topology immediately instead of rediscovering the address space. It reinitialises the ELM channel, recreates the transient `10 03` diagnostic-session context for any source-backed nonstandard route that required it, validates each saved module with TesterPresent, rereads each module's DTC memory, and then restores the standard OBD channel for live data. If any expected saved route no longer responds, the cached topology is discarded and one fresh bounded discovery is performed during that connection before the replacement VIN profile is saved.
+On a later connection to the same VIN, MBLINK loads the known topology immediately instead of rediscovering the address space. It reinitialises the ELM channel, recreates the transient `10 03` diagnostic-session context only for an exact route whose ledger records a captured positive response, validates each saved module with TesterPresent, rereads each module's DTC memory, and then restores the standard OBD channel for live data. If any expected saved route no longer responds, the cached topology is discarded and one fresh bounded discovery is performed during that connection before the replacement VIN profile is saved.
 
 Profiles use a schema version so an incompatible future format is ignored rather than misread. They are local application state; they are not source evidence and do not promote a module definition's provenance status.
 
-## Read-only ECU evidence probe
+## Targeted read-only ECU evidence probe
+
+This is a separate evidence/research operation. The normal iPhone Connect path
+does not run it before or during module identification, and PID Setup does not
+depend on its results.
 
 `MblinkMercedesEcuProbe` owns the complete bounded engine-evidence sequence:
 
@@ -234,7 +242,7 @@ Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31
 
 `uds_dtc.h` provides the portable read-only ISO 14229 `ReadDTCInformation` codec. The request is `19 02 FF`: report DTCs by status mask with every status bit requested. Positive `59 02` responses are decoded into 24-bit UDS DTC values plus their ISO 14229 status byte; negative responses retain their NRC.
 
-This request is part of the same `MblinkMercedesEcuProbe` used by the native iPhone connection path. It executes after the CRD3 fingerprint and before MBLINK resets the ELM adapter back to generic OBD-II. The iPhone Faults screen therefore has a distinct Mercedes UDS section in addition to the standard stored/pending/permanent OBD-II sections.
+This request is part of the same `MblinkMercedesEcuProbe` targeted evidence operation. Normal module identification has its own protocol-appropriate, bounded fault read for each proven responder. The iPhone Faults screen can therefore present Mercedes module faults in addition to the standard stored/pending/permanent OBD-II sections without making the CRD3 fingerprint sweep a connection prerequisite.
 
 No-response, negative-response and malformed Mercedes fault replies are classified explicitly. MBLINK must not turn any of those states into a misleading empty-fault result. It does not clear faults, alter DTC settings, enter an extended session, perform security access, write data or invoke routines.
 
@@ -336,14 +344,13 @@ Mercedes transmission or every ECU local identifier `0x30` shares the same
 layout.
 
 On iPhone, once the module census proves a live `0x7E1 -> 0x7E9` responder,
-MBLINK performs one bounded read-only `21 30` probe automatically. A positive
-response is decoded and displayed as **Transmission oil temperature** in the
-module's Factory Data and on the Dashboard. A negative/no-response result is
-retained as evidence and no temperature is invented. The read is deliberately non-destructive. Because the request is
-read-only, MBLINK does not suppress the source-backed value merely because the
-development C207 has not yet supplied its first confirming capture; instead the
-UI carries provenance and preserves the full raw response for immediate
-verification.
+MBLINK may offer the route-scoped `21 30` signals in that module's documented
+manufacturer catalogue. The census does not transmit `21 30`. The request is
+scheduled only after the user selects a signal backed by that record, or starts
+the separate explicit Factory Data action. A positive response may then be
+decoded and displayed as **Transmission oil temperature**; a negative or
+no-response result produces no invented temperature. The UI carries provenance
+and preserves the full raw response for verification.
 
 Sources retained for this candidate include:
 - MBWorld W204/C63 transmission-temperature discussion;
@@ -379,12 +386,13 @@ Those broadcast decoders are pure receive-side code: they never transmit
 anything to the vehicle. Engineering scaling that is not present in the source
 definition remains raw rather than being fabricated.
 
-For the active-but-read-only diagnostic route, `21 30` is automatically read
-once after the module census. The positive `61 30 ...` response is retained
-whole. Source-backed decoding exposes transmission oil temperature, and
-community evidence also exposes the current-gear nibble. Forward gears 1-7 and
-N are displayed directly; the two disputed P/R diagnostic codes remain labelled
-with their raw code until the C207 capture resolves that disagreement.
+For the active-but-read-only diagnostic route, one selected signal backed by
+`21 30` schedules one request for the whole record. The positive `61 30 ...`
+response is retained whole and fanned out to every selected, documented signal
+from that record. Source-backed decoding exposes transmission oil temperature,
+and community evidence also exposes the current-gear nibble. Forward gears 1-7
+and N are displayed directly; the two disputed P/R diagnostic codes remain
+labelled with their raw code until the C207 capture resolves that disagreement.
 
 Live Apple OBD polling keeps simultaneous `0x7E8` and `0x7E9` replies
 attributable in the raw evidence stream rather than collapsing them into
@@ -563,7 +571,15 @@ included when extracting the remaining APK assets.
 
 ## iPhone evidence path
 
-The native iPhone workflow performs the full portable Mercedes sequence automatically after the standard OBD-II capability exchange: VIN, standard identity, CRD3 fingerprint, decoded CRD3 family evidence and Mercedes UDS fault memory. Vehicle and Modules expose the CRD3 result; Faults exposes the separate UDS records; Log exports the complete transcript. The adapter is then reset and ordinary OBD-II polling/fault services resume.
+The native iPhone Connect workflow is vehicle-first: after adapter
+initialisation it reads the Mode 09 VIN, selects or creates the authoritative
+VIN profile, and identifies the fitted modules. Only after that module map is
+available does it restore the standard channel and perform Mode 01 supported-PID
+discovery and the remaining standard OBD inventory. CRD3 fingerprints and
+manufacturer actual-value reads are separate targeted capabilities; they are
+not prerequisites for discovering the module map and must not be inserted into
+normal Connect as an automatic data sweep. Vehicle and Modules expose module
+identity evidence, Faults exposes fault records, and Log exports the transcript.
 
 The Modules workspace now presents that census as structured, tappable control
 units rather than a flat transcript. Each detail view owns the module's CAN
@@ -584,11 +600,16 @@ even when it exposes no standard OBD-II PIDs at all.
 MBLINK therefore keeps three layers distinct:
 
 1. the control-unit census identifies the physical Mercedes ECU route;
-2. a read-only manufacturer-data scan is run against that exact TX/RX route;
-3. standard OBD-II Mode 01 values, when a module also returns them, are shown
-   only as a secondary standards-based layer.
+2. the compiled, evidence-backed catalogue determines which manufacturer
+   channels can be offered for the identified module; and
+3. an explicit user selection or separate Factory Data action may read an
+   appropriate channel on that exact TX/RX route.
 
-The manufacturer-data scanner currently performs a bounded discovery pass over
+Standard OBD/EOBD remains one vehicle-wide PID Setup catalogue. Responder
+attribution is retained as evidence and may appear in module detail, but it does
+not create a separate copy of the standard catalogue for each module.
+
+The explicit Factory Data scanner can perform a bounded discovery pass over
 the source-backed Daimler actual-value neighbourhood `0x2000..0x20FF` for UDS
 ECUs. Generic KWP modules retain the existing bounded local-ID discovery path,
 but a recognised Mercedes transmission module uses a narrower source-backed
@@ -597,25 +618,27 @@ and Daimler KWP records `E0..EB`. Only positive responses are retained.
 Unknown positives remain attached to the originating module as raw identifiers
 and raw response bytes; MBLINK does not invent a name, unit or scaling formula.
 
-Positive manufacturer identifiers are persisted against the VIN-keyed module profile. After one successful full discovery pass, later sessions can refresh only the exact UDS DIDs / KWP local identifiers that previously responded, avoiding a repeated full-range sweep. Historical Mercedes-me runtime/app-data is therefore useful optional evidence, not a dependency of manufacturer-data discovery.
+Positive manufacturer identifiers are persisted against the VIN-keyed module
+profile. After one explicit successful discovery pass, a later explicit refresh
+can target only identifiers that previously responded, avoiding a repeated
+full-range sweep. Historical Mercedes-me runtime/app-data is therefore useful
+optional evidence, not a dependency of manufacturer-data discovery.
 
-The iPhone runtime now continues that rule after discovery instead of treating
-manufacturer actual values as one-shot scan results. It briefly pauses the SAE
-Mode 01 scheduler, re-reads only proven runtime identifiers, restores the
-standard channel and repeats in a bounded round-robin. The transmission route
-`0x7E1 -> 0x7E9` receives priority so responding KWP actual-value groups
-`30..33` continue to update; the static Daimler identification/configuration
-records `E0..EB` are explicitly excluded from the live loop.
+When the user selects documented manufacturer channels, the iPhone runtime
+briefly pauses the SAE Mode 01 scheduler, reads only the underlying records
+needed by those selections, restores the standard channel and repeats in a
+bounded round-robin. Multiple selected signals in one record share one wire
+request. Static Daimler identification/configuration records such as `E0..EB`
+are excluded from the live loop.
 
 The 2026-09-03 C207 evidence also supplies exact positive raw candidates that
 are safe to observe again without claiming semantics: UDS `0x632 -> 0x486 /
 DID 0x2001`, KWP `0x64A -> 0x489 / local ID 0x58`, and KWP
-`0x652 -> 0x48A / local ID 0x01`. MBLINK tries each exact route/identifier
-candidate once per session when no persisted positive exists. A positive result
-then joins the runtime refresh set and every changing payload remains visible
-as `RAW` and is retained in the diagnostic CSV until independent evidence
-proves its meaning. A failed or negative candidate is not expanded into a
-broader automatic sweep.
+`0x652 -> 0x48A / local ID 0x01`. These raw candidates may be retried only by
+the separate explicit Factory Data or research workflow. A positive result is
+retained as `RAW` in diagnostic evidence until independent evidence proves its
+meaning; it does not automatically join live polling. A failed or negative
+candidate is not expanded into a broader sweep.
 
 The first exact numeric mapping remains CRD3 UDS DID `0x2007`, battery voltage,
 decoded as a two-byte big-endian value multiplied by `0.0078125 V`. Other
@@ -650,7 +673,11 @@ The OM651/CDID3 target catalogue now also records factory-observed ambient tempe
 
 ## Fuel evidence on the C207 / OM651
 
-The captured C207 supported-PID map advertises SAE PID `0x2F` Fuel Level Input, so MBLINK can read a real standard fuel-gauge percentage immediately. The same captured `0x40` capability block does not advertise SAE PID `0x5E` Engine Fuel Rate, so MBLINK must not pretend that an SAE fuel-flow value exists on this vehicle.
+The captured C207 supported-PID map advertises SAE PID `0x2F` Fuel Level Input,
+so MBLINK can offer a real standard fuel-gauge percentage and read it when the
+user selects it. The same captured `0x40` capability block does not advertise
+SAE PID `0x5E` Engine Fuel Rate, so MBLINK must not pretend that an SAE
+fuel-flow value exists on this vehicle.
 
 Public OM651 CDID3/Delphi diagnostic data confirms that the factory ECU exposes fuel tank level in litres and injection quantity in mg/stroke. Those are retained as Mercedes/Delphi targets until their exact request, payload and scaling are mapped. This is also the likely path to the vehicle's own instantaneous consumption display: factory fuel accounting/injection data combined with vehicle speed rather than SAE PID `0x5E`.
 
@@ -819,8 +846,8 @@ Implemented passive CAN decoders now include:
   recommendation, shift-by-wire beep/message requests, selector-lock display
   states, target-gear display and AMG Race Start display state.
 
-For KWP2000 transmission ECUs, MBLINK now automatically tries the exact
-source-backed read-only set rather than only `21 30`:
+For KWP2000 transmission ECUs, the explicit Factory Data action can try the
+exact source-backed read-only set rather than only `21 30`:
 
 `21 30` — transmission actual values / DAS-compatible RLI 30  
 `21 31` — transmission speed sensors / RLI 31  
@@ -840,7 +867,7 @@ pressure fields, target/actual SPC/MPC current fields and TCC PWM. Where the
 public source proves field identity but not engineering scaling, MBLINK labels
 the value `raw` instead of inventing pressure/current units.
 
-The same automatic KWP transmission pass also asks the standard
+The same explicit KWP transmission action may also ask the standard
 DaimlerChrysler read-only local identifiers from the 2002 KWP2000 requirements:
 `E0` development data, `E1` ECU serial number, `E2` DBCom data, `E3` operating-system version,
 `E4` reprogramming identification, `E5` vehicle information, `E6/E7`

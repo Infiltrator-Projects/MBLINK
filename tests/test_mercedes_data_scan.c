@@ -64,7 +64,6 @@ static int configure_to_data(MblinkMercedesDataScan *scan)
     CHECK(accept_command(scan, "ATST64", ok) == 0);
     CHECK(accept_command(scan, "ATSH7E0", ok) == 0);
     CHECK(accept_command(scan, "ATCRA7E8", ok) == 0);
-    CHECK(accept_command(scan, "1003", response_ok("5003001400C8")) == 0);
     CHECK(accept_command(scan, "3E00", response_ok("7E00")) == 0);
     return 0;
 }
@@ -85,6 +84,7 @@ static int test_uds_data_scan(void)
 
     config.first_identifier = UINT16_C(0x2007);
     config.last_identifier = UINT16_C(0x2008);
+    CHECK(!config.request_extended_session);
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
     CHECK(configure_to_data(&scan) == 0);
@@ -260,6 +260,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
         MBLINK_MERCEDES_MODULE_ABS_ESP);
     config.first_identifier = UINT16_C(0x2001);
     config.last_identifier = UINT16_C(0x2001);
+    CHECK(config.request_extended_session);
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
     CHECK(accept_command(&scan, "ATSP6", ok) == 0);

@@ -4,6 +4,10 @@
 
 The Apple application is a native presentation/platform edge over the shared LINK diagnostic engine plus MBLINK's Mercedes-specific extension.
 
+The authoritative user-visible connection and vehicle-profile sequence is
+defined in [VEHICLE_PROFILES.md](VEHICLE_PROFILES.md). The implementation notes
+here must not reorder that product contract.
+
 
 ## Product role: diagnostic instrument, not research laboratory
 
@@ -21,9 +25,9 @@ LINK owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard
 
 The shared LINK query timeout includes the longer first cold `ATSP0` protocol-acquisition allowance, so MBLINK no longer carries a product-private timeout override.
 
-## Current live behaviour
+## Required live behaviour
 
-The live iPhone controller now performs the sequence used by the C207 work:
+The live iPhone controller must perform this sequence:
 
 ```text
 ELM initialization
@@ -37,9 +41,29 @@ ELM initialization
   → normal live-data polling
 ```
 
-The VIN/profile decision is deliberately ahead of the broader diagnostic inventory. A saved profile is still only cached evidence: known controller routes are validated, and a changed or invalid map is rebuilt. Standard OBD support is not skipped; it runs immediately after the vehicle-specific profile work and its responder-specific PID capability map is persisted back into the same VIN profile.
+The VIN/profile decision and module identification are deliberately ahead of
+the broader standard OBD inventory. Immediately after adapter initialisation,
+LINK reads Mode 09 VIN only. MBLINK then selects the authoritative VIN profile
+and validates or learns its module map. Mode 01 supported-PID discovery and the
+remaining standard OBD fault/readiness work begin only after that module stage
+and adapter restoration. Their responder-specific capability evidence is then
+persisted back into the same VIN profile.
 
-On a new VIN, iPhone now walks the complete Mercedes-owned 0x600–0x7F7 plus 29-bit logical target plan once, but uses only a single read-only TesterPresent probe on dead addresses. Deeper DTC and identity reads run only after a responder is proven. Later connections validate and refresh only the saved module routes. Linux/desktop FULL keeps the slower fallback probes for unusually quiet ECUs. MBLINK preserves Mercedes evidence captured before a manufacturer-scan interruption. LINK 0.14.25 attempts a bounded prompt-safe ELM resynchronisation after an interrupted manufacturer request and resumes the standard diagnostic flow when resynchronisation succeeds; only a failed resynchronisation still requires reconnect. It also treats the captured C207 `7F 0A 22` response as an unavailable optional permanent-DTC inventory instead of aborting before Mercedes discovery, and reuses the last ATI-validated iOS peripheral before falling back to a longer bounded cold scan.
+On a new VIN, iPhone walks the bounded 57-target mobile plan once: the compact
+47-slot Mercedes gateway lattice, source-backed exceptions and the eight
+legislated OBD physical slots. Dead addresses receive only a minimal read-only
+presence probe; deeper DTC and identity reads run only after a responder is
+proven. It does not run the wider workstation FULL address sweep and does not
+sweep manufacturer data identifiers during Connect. Later connections validate
+and refresh only the saved module routes. Linux/desktop FULL keeps the broader
+forensic workflow. MBLINK preserves Mercedes evidence captured before a
+manufacturer-scan interruption. LINK attempts a bounded prompt-safe ELM
+resynchronisation after an interrupted manufacturer request and resumes the
+standard diagnostic flow when resynchronisation succeeds; only a failed
+resynchronisation still requires reconnect. It also treats the captured C207
+`7F 0A 22` response as an unavailable optional permanent-DTC inventory instead
+of aborting before Mercedes discovery, and reuses the last ATI-validated iOS
+peripheral before falling back to a longer bounded cold scan.
 
 The current implementation has been exercised against real Vgate/C207 traffic, including the C207 VIN/CRD3 response shapes, UDS negative responses and response-pending followed by a positive DTC response. Deterministic fixtures preserve those shapes without publishing the vehicle's real VIN.
 
@@ -58,7 +82,11 @@ CI builds Debug and Release simulator configurations and an unsigned physical-de
 
 ## Polling and units
 
-Live-data rows expose a real per-PID Poll switch. The preference is persisted by stable parameter key and applied to LINK's scheduler before the first live request after reconnect. The first-run core set is intentionally small so capability discovery can remain comprehensive without continuously loading the BLE/ELM channel with every available measurement.
+Live-data rows expose a real per-channel Poll switch. Standard choices are
+persisted by stable parameter key and VIN; Mercedes choices are persisted by
+VIN, module and stable parameter key. A clean installation starts with every
+selectable channel OFF. Capability discovery remains comprehensive without
+silently converting discovered capability into continuous BLE/ELM traffic.
 
 Interface language and unit profile are separate settings. Metric remains the default regardless of selected English variant. US customary converts temperatures, speed, pressure and volumetric fuel rate only for presentation; diagnostic evidence remains canonical.
 
@@ -75,10 +103,15 @@ The screen order is intentionally consistent:
 2. **Factory data** — Mercedes UDS/KWP manufacturer values with a read-only
    `Scan factory data` action before discovery and a targeted
    `Refresh N factory values` action after positive identifiers are known;
-3. standard SAE Mode 01 live data from that exact responder, including Poll and
-   favourite controls;
+3. responder-attributed standard SAE Mode 01 evidence or samples, when useful,
+   without creating another standard PID configuration list;
 4. fault memory;
 5. captured ECU evidence/technical details.
+
+PID choices are not configured here. PID Setup owns one complete vehicle-wide
+Standard OBD/EOBD catalogue first, then the documented Mercedes catalogue for
+each identified module. All of those choices begin OFF and become wire requests
+only after explicit user selection.
 
 A responding ECU with no live values no longer presents a dead-end explanation:
 the same screen offers factory-data discovery directly. Unknown positive
@@ -92,7 +125,11 @@ Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple c
 
 ## Fuel level
 
-LINK 0.14.25 adds SAE PID `0x2F` Fuel Level Input. MBLINK enables it in the bounded first-run polling set and includes it on the dashboard when the vehicle advertises the PID. The standard value is a percentage of nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred when its factory mapping is available.
+SAE PID `0x2F` Fuel Level Input is available in the complete Standard OBD
+catalogue. MBLINK polls it only when the user selects it for the current VIN and
+may then include it on the dashboard. The standard value is a percentage of
+nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred
+when its factory mapping is available.
 
 
 ## Recoverable live-request timeouts
@@ -112,6 +149,12 @@ The 0.7.80 automatic nine-PID starter set is migrated carefully: an untouched le
 
 Earlier iPhone builds intentionally stopped Mercedes module discovery at the eight legislated EOBD physical endpoints. That made the engine and secondary powertrain responder visible but structurally prevented gateway-routed body, restraint, interior and multimedia modules from being learned on the phone.
 
-Vehicle-profile schema 2 fixes that design limitation. A VIN without a schema-2 profile runs the read-only mobile census once across the same complete 11-bit/29-bit target plan used by forensic discovery. Dead addresses receive only TesterPresent; proven responders then receive DTC and identity reads. Responding routes, identities, part/software/hardware identifiers and fault evidence are persisted in the VIN profile. Existing schema-1 quick-scan profiles are deliberately invalidated so they are rebuilt with the wider topology rather than preserving an incomplete two-module map.
+A VIN without a current compatible profile runs the bounded 57-target mobile
+census once. That plan is deliberately different from the 760-target forensic
+plan. Dead routes receive only the minimum read-only presence probe; proven
+responders may then receive bounded identity and fault-memory reads. Responding
+routes and stable identity facts are persisted in the VIN profile. An
+incompatible older profile is invalidated and rebuilt instead of preserving an
+incomplete topology.
 
 The catalogue includes source-corroborated C207/W212 families for the instrument cluster, Audio 20/COMAND head unit and controller/display, ORC/SRS, left/right PRE-SAFE reversible belt tensioners, driver/passenger seat controllers, SAMs, EIS/EZS, steering-column module, climate control and other established module families. The catalogue classifies returned identities; it does not invent diagnostic addresses.

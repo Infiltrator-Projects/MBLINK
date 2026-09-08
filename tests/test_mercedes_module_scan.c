@@ -544,14 +544,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_DEFAULT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         CHECK(send_ok(&scan, "ATSP6") == 0);
         CHECK(send_ok(&scan, "ATSH64A") == 0);
@@ -733,6 +725,27 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "2105") == 0);
         scan.vin_timeout_long = false;
 
+        /* Session control follows exact captured behaviour, not UDS as a
+         * whole: 0x602 returned 50 03 on the C207, while 0x607 has no such
+         * trace evidence and proceeds directly to TesterPresent. */
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, mobile_target_index_for_tx(UINT32_C(0x602))));
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        CHECK(send_ok(&scan, "ATSH602") == 0);
+        CHECK(send_ok(&scan, "ATCRA480") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION);
+
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, mobile_target_index_for_tx(UINT32_C(0x607))));
+        scan.stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER;
+        CHECK(send_ok(&scan, "ATSH607") == 0);
+        CHECK(send_ok(&scan, "ATCRA587") == 0);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+
         /*
          * An ordinary lattice slot uses the exact receive ID. The iPhone
          * never clears ATCRA / opens a zero mask just to discover that slot.
@@ -861,15 +874,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   "ESP / ABS / BAS controller") == 0);
         CHECK(accept_identity_metadata(
                   &scan, &no_data, &no_data, &no_data) == 0);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DEFAULT_SESSION);
-        CHECK(scan.full_target_index == 0U);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.full_target_index == 1U);
         CHECK(scan.candidate_tx == UINT32_C(0x632));
         CHECK(scan.candidate_rx == UINT32_C(0x486));

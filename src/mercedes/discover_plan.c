@@ -62,6 +62,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x612), UINT32_C(0x482),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+        true,
         "eis-ezs", "EIS_212 / EIS_204",
         "Daimler production VIN cascade and CaesarSuite EIS trace: 0x612 -> 0x482, UDS 22 F1 A0; independently observed on a 2026-09-03 C207 field capture"
     },
@@ -69,6 +70,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x632), UINT32_C(0x486),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
+        true,
         "esp", "ABR2XT",
         "CaesarSuite discussion #5: ABR2XT CP_REQUEST 0x632, CP_RESPONSE 0x486; independently observed on a 2026-09-03 C207 field capture"
     },
@@ -76,6 +78,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x64a), UINT32_C(0x489),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_NONE,
+        false,
         "restraints-orc", "ORC_212",
         "Public Monaco trace: ORC_212 HSCAN_KW2C3PE_500, tester 0x64A, response 0x489; independently observed on a 2026-09-03 C207 field capture"
     },
@@ -83,6 +86,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x652), UINT32_C(0x48a),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_NONE,
+        false,
         "audio-headunit", "HU_204",
         "Public HU_204 Monaco trace: HSCAN_KW2C3PE_500, tester 0x652, response 0x48A; independently observed on a 2026-09-03 C207 field capture"
     },
@@ -90,6 +94,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x6b2), UINT32_C(0x496),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F190,
+        false,
         "steering-column", "EPS212",
         "CaesarSuite discussion #5: EPS212 CP_REQUEST 0x6B2, CP_RESPONSE 0x496"
     },
@@ -97,6 +102,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x602), UINT32_C(0x480),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+        true,
         NULL, "Daimler VIN-cascade ECU 602",
         "Daimler/T-Systems production MSA_VIN_cascade: Ecu602 0x602 -> 0x480, UDS 22 F1 A0; independently observed on a 2026-09-03 C207 field capture"
     },
@@ -104,6 +110,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x607), UINT32_C(0x587),
         MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0,
+        false,
         NULL, "Daimler VIN-cascade ECU 607",
         "Daimler/T-Systems production MSA_VIN_cascade: Ecu607 0x607 -> 0x587, UDS 22 F1 A0"
     },
@@ -111,6 +118,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x4e0), UINT32_C(0x5ff),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_KWP_2105,
+        false,
         NULL, "Daimler VIN-cascade ECU 4E0",
         "Daimler/T-Systems production MSA_VIN_cascade: Ecu4e0 0x4E0 -> 0x5FF, KWP2000 21 05"
     },
@@ -118,6 +126,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         UINT32_C(0x7e1), UINT32_C(0x7e9),
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         MBLINK_MERCEDES_VIN_PROBE_NONE,
+        false,
         "transmission-vgs", "GS / VGS / EGS transmission control",
         "Mercedes CAN definition names D_RQ_GS 0x7E1 as KWP2000 diagnostic request to gearbox control and D_RS_GS 0x7E9 as its response; 0x7E9 independently observed on the 2026-09-03 C207 field capture"
     }

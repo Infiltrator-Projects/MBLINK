@@ -125,6 +125,17 @@ int main(void)
     CHECK(link_discover_sweep_plan_is_valid(plan));
     CHECK(plan->target_count == 760U);
     CHECK(mblink_mercedes_known_route_count() == 9U);
+    for (index = 0U; index < mblink_mercedes_known_route_count(); ++index) {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_known_route_at(index);
+        const bool session_evidenced =
+            route != NULL &&
+            (route->tx_can_id == UINT32_C(0x602) ||
+             route->tx_can_id == UINT32_C(0x612) ||
+             route->tx_can_id == UINT32_C(0x632));
+        CHECK(route != NULL);
+        CHECK(route->extended_session_evidenced == session_evidenced);
+    }
 
     /* Source-backed physical routes are deliberately first. */
     CHECK(link_discover_sweep_plan_target_at(plan, 0U, &target));

@@ -48,3 +48,8 @@ explicitly sourced from the `0x7E8` engine responder when it is available;
 module pages use their own response address and never substitute another ECU's
 sample. State-dependent values such as the captured `0x2F` fuel-level report
 are displayed raw with a quality note rather than silently corrected.
+
+This responder-specific view is evidence/presentation, not a second
+configuration architecture. PID Setup contains one vehicle-wide Standard OBD
+catalogue; physical responder attribution remains attached to capability and
+sample records underneath it.

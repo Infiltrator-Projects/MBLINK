@@ -203,14 +203,18 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     MblinkMercedesModuleKind module_kind)
 {
     MblinkMercedesDataScanConfig config;
+    const MblinkMercedesKnownRoute *route;
     memset(&config, 0, sizeof(config));
     config.tx_can_id = tx_can_id;
     config.rx_can_id = rx_can_id;
     config.extended_id = extended_id;
     config.protocol = protocol;
     config.module_kind = module_kind;
+    route = !extended_id
+        ? mblink_mercedes_known_route_for_tx(tx_can_id) : NULL;
     config.request_extended_session =
-        protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+        route != NULL && route->rx_can_id == rx_can_id &&
+        route->protocol == protocol && route->extended_session_evidenced;
 
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         config.first_identifier = UINT16_C(0x0001);

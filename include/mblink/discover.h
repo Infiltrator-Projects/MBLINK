@@ -60,6 +60,9 @@ typedef struct MblinkMercedesKnownRoute {
     uint32_t rx_can_id;
     MblinkMercedesDiagnosticProtocol protocol;
     MblinkMercedesVinProbe vin_probe;
+    /* True only when a reproducible trace on this exact route includes a
+     * positive 10 03 response. Protocol family alone is not evidence. */
+    bool extended_session_evidenced;
     const char *module_key;
     const char *qualifier;
     const char *provenance;
