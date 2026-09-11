@@ -697,6 +697,7 @@ private struct MBStandardOBDView: View {
 
 private struct MBPIDSetupView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @State private var showingResetConfirmation = false
 
     var body: some View {
         ZStack {
@@ -723,6 +724,49 @@ private struct MBPIDSetupView: View {
                                     .font(MBTypography.caption2.monospaced())
                                     .foregroundStyle(MBBrand.muted)
                             }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Polling selections")
+                                        .font(MBTypography.subheadlineBold)
+                                        .foregroundStyle(MBBrand.silverBright)
+                                    Text("\(connection.configuredPollingCount) enabled choice\(connection.configuredPollingCount == 1 ? "" : "s") for this VIN")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.silver)
+                                }
+                                Spacer(minLength: 8)
+                                Text("\(connection.configuredPollingCount) ON")
+                                    .font(MBTypography.caption2Bold)
+                                    .foregroundStyle(connection.configuredPollingCount == 0
+                                                     ? MBBrand.muted : MBBrand.success)
+                            }
+
+                            if let vin = connection.pidConfigurationVehicleVIN {
+                                Text(vin)
+                                    .font(MBTypography.caption2.monospaced())
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+
+                            Button(role: .destructive) {
+                                showingResetConfirmation = true
+                            } label: {
+                                Label("Reset PID selections for this VIN",
+                                      systemImage: "arrow.counterclockwise.circle")
+                                    .font(MBTypography.subheadlineBold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(connection.pidConfigurationVehicleVIN == nil)
+
+                            Text("This keeps the saved VIN, control-unit map and diagnostic evidence. It only turns every Standard OBD and Mercedes live-polling choice OFF so you can select a clean set again.")
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
 
@@ -759,6 +803,18 @@ private struct MBPIDSetupView: View {
             }
         }
         .mbDiagnosticScreen("PID Setup")
+        .confirmationDialog(
+            "Reset PID selections for this VIN?",
+            isPresented: $showingResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset all PID selections", role: .destructive) {
+                connection.resetPIDSelectionsForCurrentVehicle()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The saved vehicle and module discovery are retained. All live-polling selections for this VIN are switched OFF.")
+        }
     }
 }
 

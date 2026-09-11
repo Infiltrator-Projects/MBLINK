@@ -156,5 +156,29 @@ require(
     and "only for measurements enabled in PID Setup" in APP,
     "dashboard empty-state copy must not imply polling starts automatically",
 )
+require(
+    "standardSelectionExplicitlyEdited(vin:" in MODEL
+    and "recoverLegacyStandardPollingKeys(vin:" in MODEL
+    and "if !existing.isEmpty || standardSelectionExplicitlyEdited(vin: vin)" in MODEL,
+    "an automatically materialised empty standard selection must not mask older explicit choices",
+)
+require(
+    '"recorded_samples=\\(recordedSampleCount)\\n"' in MODEL
+    and "MBLINK_CI_SIMULATED_POLLING" in MODEL,
+    "Apple simulated readiness must expose completed live-polling samples",
+)
+
+require(
+    "func resetPIDSelectionsForCurrentVehicle()" in MODEL
+    and "vehicles.removeValue(forKey: vin)" in MODEL
+    and "markStandardSelectionExplicitlyEdited(vin: vin)" in MODEL
+    and "applyConfiguredPollingIfNeeded(force: true)" in MODEL,
+    "VIN-scoped PID reset must clear standard/manufacturer selections without deleting the vehicle profile",
+)
+require(
+    "Reset PID selections for this VIN" in APP
+    and "The saved vehicle and module discovery are retained" in APP,
+    "PID Setup must expose a safe polling-selection reset without deleting vehicle evidence",
+)
 
 print("MBLINK PID/module architecture verified")

@@ -149,6 +149,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let standardSelectionControllerIdentifier = "standard-obd"
     private static let standardSelectionMigrationDefaultsKey =
         "mblink.standard.pidSelectionsGlobalMigrated.v1"
+    private static let standardSelectionExplicitDefaultsKey =
+        "mblink.standard.pidSelectionsExplicitByVehicle.v1"
     private static let manufacturerStableKeyAliases = [
         "mercdes.transmission.actual_gear":
             "mercedes.transmission.actual_gear",
@@ -252,6 +254,15 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
 #if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1" {
+            if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_POLLING"] == "1" {
+                let simulatedVIN = "WDD2073022F123456"
+                pidSelectionStore.setStableKeys(
+                    ["obd2.engine.rpm", "obd2.vehicle.speed"],
+                    forVIN: simulatedVIN,
+                    controllerIdentifier: Self.standardSelectionControllerIdentifier)
+                markStandardSelectionExplicitlyEdited(vin: simulatedVIN)
+                appliedPollingConfigurationKey = nil
+            }
             startSimulatedDiagnostics()
         }
 #endif
@@ -469,6 +480,36 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return standard + manufacturer
     }
 
+    var pidConfigurationVehicleVIN: String? {
+        effectivePIDConfigurationVIN
+    }
+
+    func resetPIDSelectionsForCurrentVehicle() {
+        guard let vin = effectivePIDConfigurationVIN else { return }
+
+        // Reset only live-polling choices. Keep the VIN, module map, fault
+        // evidence and discovered capabilities intact so the vehicle does not
+        // have to be rediscovered merely to repair bad selection state.
+        pidSelectionStore.setStableKeys(
+            [],
+            forVIN: vin,
+            controllerIdentifier: Self.standardSelectionControllerIdentifier)
+        markStandardSelectionExplicitlyEdited(vin: vin)
+
+        // Remove the entire per-VIN Mercedes selection subtree, including
+        // selections for modules that are no longer present in the current map.
+        let defaults = UserDefaults.standard
+        var vehicles = defaults.dictionary(
+            forKey: Self.manufacturerSelectionDefaultsKey) ?? [:]
+        vehicles.removeValue(forKey: vin)
+        defaults.set(vehicles, forKey: Self.manufacturerSelectionDefaultsKey)
+
+        appliedPollingConfigurationKey = nil
+        applyConfiguredPollingIfNeeded(force: true)
+        refreshPresentation()
+        refreshStandardState()
+    }
+
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
         controller.manufacturerDataSnapshots(forModuleIdentifier: moduleID)
             .map { snapshot in
@@ -511,6 +552,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         var enabledKeys = storedPollingKeys()
         if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
         storeStandardPollingKeys(enabledKeys)
+        if let vin = effectivePIDConfigurationVIN {
+            markStandardSelectionExplicitlyEdited(vin: vin)
+        }
         controller.setPollingEnabled(enabled, forPID: pid)
         refreshStandardState()
     }
@@ -665,6 +709,43 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         applyConfiguredPollingForSelectedVehicle()
     }
 
+    private func standardSelectionExplicitlyEdited(vin: String) -> Bool {
+        let values = UserDefaults.standard.dictionary(
+            forKey: Self.standardSelectionExplicitDefaultsKey) ?? [:]
+        return (values[vin] as? NSNumber)?.boolValue ?? false
+    }
+
+    private func markStandardSelectionExplicitlyEdited(vin: String) {
+        guard vin.count == 17 else { return }
+        let defaults = UserDefaults.standard
+        var values = defaults.dictionary(
+            forKey: Self.standardSelectionExplicitDefaultsKey) ?? [:]
+        values[vin] = true
+        defaults.set(values, forKey: Self.standardSelectionExplicitDefaultsKey)
+    }
+
+    private func recoverLegacyStandardPollingKeys(vin: String) -> Set<String> {
+        var recovered = Set<String>()
+        for module in pidConfigurationModules {
+            if pidSelectionStore.hasSelection(
+                forVIN: vin,
+                controllerIdentifier: module.id
+            ) {
+                recovered.formUnion(pidSelectionStore.stableKeys(
+                    forVIN: vin,
+                    controllerIdentifier: module.id))
+            }
+        }
+
+        /* The pre-vehicle-wide selector was global. It is safe to recover a
+         * non-empty explicit legacy choice only when this installation has at
+         * most one saved vehicle; otherwise ownership is genuinely ambiguous. */
+        if recovered.isEmpty && vehicleProfileStore.savedProfiles.count <= 1 {
+            recovered.formUnion(legacyGlobalPollingKeys())
+        }
+        return recovered
+    }
+
     private func storedPollingKeys() -> Set<String> {
         if controller.isActive && activeVehicleVIN == nil {
             return []
@@ -675,9 +756,26 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 forVIN: vin,
                 controllerIdentifier: controllerID
             ) {
-                return Set(pidSelectionStore.stableKeys(
+                let existing = Set(pidSelectionStore.stableKeys(
                     forVIN: vin,
                     controllerIdentifier: controllerID))
+                if !existing.isEmpty || standardSelectionExplicitlyEdited(vin: vin) {
+                    return existing
+                }
+
+                /* v0.7.191 could materialise an empty vehicle-wide selection
+                 * before it had recovered the older explicit per-module/global
+                 * choices. Heal that empty migration once, but never override
+                 * a deliberate all-off choice made in the current model. */
+                let recovered = recoverLegacyStandardPollingKeys(vin: vin)
+                if !recovered.isEmpty {
+                    pidSelectionStore.setStableKeys(
+                        Array(recovered).sorted(),
+                        forVIN: vin,
+                        controllerIdentifier: controllerID)
+                    return recovered
+                }
+                return existing
             }
 
             /* v0.7.186 stored standard choices under each responder module.
@@ -1562,7 +1660,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
            isSimulationActive {
             let liveVIN = controller.mercedesVINText ?? ""
             let selectionVIN = effectivePIDConfigurationVIN ?? ""
-            let standardSelectionCount = storedPollingKeys().count
+            let standardSelectionKeys = storedPollingKeys().sorted()
+            let standardSelectionCount = standardSelectionKeys.count
             let standardSelectionScoped = selectionVIN.count == 17 &&
                 pidSelectionStore.hasSelection(
                     forVIN: selectionVIN,
@@ -1584,7 +1683,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "profile=\(controller.vehicleProfileStatusText)\n" +
                 "standard_selection_vin=\(selectionVIN)\n" +
                 "standard_selection_count=\(standardSelectionCount)\n" +
-                "standard_selection_scoped=\(standardSelectionScoped)\n"
+                "standard_selection_keys=\(standardSelectionKeys.joined(separator: ","))\n" +
+                "standard_selection_scoped=\(standardSelectionScoped)\n" +
+                "recorded_samples=\(recordedSampleCount)\n"
             if let directory = FileManager.default.urls(
                     for: .documentDirectory, in: .userDomainMask).first {
                 try? FileManager.default.createDirectory(
