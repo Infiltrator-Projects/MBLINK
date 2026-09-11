@@ -29,6 +29,12 @@ jobs:
               'NEW_LINK = "50af397d8c4da5695635d38278af2e87f8ea0114"',
               'NEW_LINK = "63ab72b8a2dad1f901c8b9a598dcf731344554c0"')
           text = text.replace('if x.count(OLD_LINK) != 4:', 'if x.count(OLD_LINK) != 2:')
+          # The GitHub Actions token cannot update workflow files. Keep the
+          # product patch free of ci.yml changes; the stronger runtime gate is
+          # installed immediately afterwards through the repository connector.
+          start = text.index('w = Path(".github/workflows/ci.yml")')
+          end = text.index('project = Path("app/ios/MBLINK.xcodeproj/project.pbxproj")', start)
+          text = text[:start] + text[end:]
           path.write_text(text)
           PY
           python3 .github/patches/fix_selected_live_polling.py
@@ -40,12 +46,12 @@ jobs:
           git diff --check
           grep -Fq 'recoverLegacyStandardPollingKeys' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'resetPIDSelectionsForCurrentVehicle' app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK/MBLINKApp.swift
-          grep -Fq 'MBLINK_CI_SIMULATED_POLLING' app/ios/MBLINK/ConnectionViewModel.swift .github/workflows/ci.yml
+          grep -Fq 'MBLINK_CI_SIMULATED_POLLING' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'recorded_samples=' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq '0.7.192' VERSION include/mblink/version.h
           git rm -f .github/workflows/fix-selected-live-polling.yml .github/patches/fix_selected_live_polling.py .github/patches/add_pid_reset.py
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
-          git add app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK/MBLINKApp.swift tests/test_pid_architecture.py .github/workflows/ci.yml app/ios/MBLINK.xcodeproj/project.pbxproj VERSION include/mblink/version.h src/link
-          git commit -m 'Release 0.7.192: repair live polling and adapter selection' -m 'Recover explicit Standard OBD selections masked by v0.7.191 empty vehicle-wide state, preserve deliberate all-off choices, add a VIN-scoped PID reset that retains vehicle/module evidence, pin LINK 0.15.15 with stable Bluetooth picker rows, and require the iOS simulator to produce completed samples from selected RPM and speed PIDs.'
+          git add app/ios/MBLINK/ConnectionViewModel.swift app/ios/MBLINK/MBLINKApp.swift tests/test_pid_architecture.py app/ios/MBLINK.xcodeproj/project.pbxproj VERSION include/mblink/version.h src/link
+          git commit -m 'Release 0.7.192: repair live polling and adapter selection' -m 'Recover explicit Standard OBD selections masked by v0.7.191 empty vehicle-wide state, preserve deliberate all-off choices, add a VIN-scoped PID reset that retains vehicle/module evidence, pin LINK 0.15.15 with stable Bluetooth picker rows, and expose completed sample counts for the iOS runtime gate.'
           git push origin HEAD:main
