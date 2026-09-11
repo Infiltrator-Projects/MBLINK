@@ -1,0 +1,57 @@
+name: Prepare MBLINK 0.7.194 publication verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-prepare-0.7.194.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Prepare clean 0.7.194 release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = "0.7.193"
+          grep -Fq '#define MBLINK_VERSION_STRING "0.7.193"' include/mblink/version.h
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/ios/MBLINK.xcodeproj/project.pbxproj')
+          text = p.read_text()
+          old = 'MARKETING_VERSION = 0.7.193;'
+          new = 'MARKETING_VERSION = 0.7.194;'
+          count = text.count(old)
+          if count != 4:
+              raise SystemExit(f'expected exactly 4 iOS MARKETING_VERSION entries, found {count}')
+          p.write_text(text.replace(old, new))
+
+          h = Path('include/mblink/version.h')
+          text = h.read_text()
+          old = '#define MBLINK_VERSION_STRING "0.7.193"'
+          new = '#define MBLINK_VERSION_STRING "0.7.194"'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly 1 version.h entry, found {count}')
+          h.write_text(text.replace(old, new))
+
+          Path('VERSION').write_text('0.7.194\n')
+          PY
+          test "$(cat VERSION)" = "0.7.194"
+          grep -Fq '#define MBLINK_VERSION_STRING "0.7.194"' include/mblink/version.h
+          test "$(grep -Fc 'MARKETING_VERSION = 0.7.194;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 4
+          git diff --check
+          git rm .github/workflows/one-shot-prepare-0.7.194.yml
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj
+          git commit -m 'Prepare 0.7.194 publication verification'
+          git push origin HEAD:main
