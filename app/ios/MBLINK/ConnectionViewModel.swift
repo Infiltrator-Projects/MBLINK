@@ -117,7 +117,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     @Published private(set) var diagnosticModules = [DiagnosticModule]()
     @Published private(set) var pidConfigurationModules = [DiagnosticModule]()
     @Published private(set) var pidConfigurationSourceText =
-        "Connect once to learn which PIDs each controller supports"
+        "Connect once to learn vehicle and module PID support"
     @Published private(set) var manufacturerDataScanActive = false
     @Published private(set) var manufacturerDataScanStatusText = "Not scanned"
     @Published private(set) var manufacturerDataScanModuleID: String?
@@ -1190,7 +1190,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     ) {
         guard !vehicleProfileStore.savedProfiles.isEmpty else {
             return ([], [:],
-                    "Connect once to learn which PIDs each controller supports")
+                    "Connect once to learn vehicle and module PID support")
         }
 
         let liveVIN = activeVehicleVIN
