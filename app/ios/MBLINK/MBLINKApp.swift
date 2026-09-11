@@ -1191,7 +1191,7 @@ private struct MBModulesView: View {
                                 kicker: connection.isActive
                                     ? "Current + saved"
                                     : "Saved VIN profile")
-                            Text("Open the controller/PID manager to choose the SAE PIDs actually advertised by each controller, including from a saved VIN profile while disconnected.")
+                            Text("Open PID Setup to choose vehicle-wide SAE PIDs and documented Mercedes data for each discovered controller, including from a saved VIN profile while disconnected.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                             NavigationLink { MBPIDSetupView() } label: {
@@ -2230,7 +2230,7 @@ private struct MBDashboardView: View {
                     if displayed.isEmpty {
                         MBPanel {
                             Text(connection.isActive
-                                 ? "Live polling will begin when the read-only module and fault census finishes."
+                                 ? "Dashboard values appear after the read-only module and fault census, and only for measurements enabled in PID Setup and selected for the dashboard."
                                  : "Connect to the vehicle to populate dashboard measurements.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)

@@ -15,6 +15,9 @@ APP = (ROOT / "app/ios/MBLINK/MBLINKApp.swift").read_text(encoding="utf-8")
 MODEL = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
     encoding="utf-8"
 )
+CONTROLLER = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
+    encoding="utf-8"
+)
 CONTRACT = (ROOT / "docs/PID_ARCHITECTURE.md").read_text(encoding="utf-8")
 CONTRACT_WORDS = " ".join(CONTRACT.split())
 
@@ -111,6 +114,47 @@ require(
 require(
     "Mercedes choices remain VIN-and-module scoped" in CONTRACT_WORDS,
     "the canonical architecture contract must state Mercedes selection scope",
+)
+
+require(
+    "controller.mercedesModuleSnapshots.map" in MODEL,
+    "every retained Mercedes/OBD module snapshot must remain visible to the Swift model",
+)
+require(
+    "for (responderKey, pids) in responderPIDs" in MODEL
+    and "where !seenResponderKeys.contains(responderKey)" in MODEL,
+    "saved VIN profiles must retain standards responders even before Mercedes identity exists",
+)
+require(
+    "for (uint32_t responseID = UINT32_C(0x7e8);" in CONTROLLER
+    and "responseID <= UINT32_C(0x7ef);" in CONTROLLER
+    and "Live responder observed · module fault state not established" in CONTROLLER,
+    "live 0x7E8-0x7EF OBD responders must remain in the module map when manufacturer probing is quiet",
+)
+require(
+    "controller.isActive ? activeVehicleVIN : selectedVehicleVIN" in MODEL,
+    "live VIN must remain authoritative over a previously selected offline profile",
+)
+require(
+    "let modules = vehicles[vin] as? [String: Any]" in MODEL
+    and "modules[moduleID] = Array(selection).sorted()" in MODEL
+    and "vehicles[vin] = modules" in MODEL,
+    "Mercedes polling selections must remain scoped by VIN and module",
+)
+require(
+    "Unknown or unresolved modules may still appear in the module list." in CONTRACT_WORDS
+    and "They must not be assigned invented semantics." in CONTRACT_WORDS,
+    "unknown modules must remain visible without invented PID meanings",
+)
+require(
+    "SAE PIDs actually advertised by each controller" not in APP
+    and "vehicle-wide SAE PIDs and documented Mercedes data" in APP,
+    "module-screen PID Setup wording must match the vehicle-wide SAE architecture",
+)
+require(
+    "Live polling will begin when the read-only module and fault census finishes." not in APP
+    and "only for measurements enabled in PID Setup" in APP,
+    "dashboard empty-state copy must not imply polling starts automatically",
 )
 
 print("MBLINK PID/module architecture verified")
