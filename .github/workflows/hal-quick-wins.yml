@@ -27,7 +27,7 @@ jobs:
               text = file.read_text(encoding="utf-8")
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"{path}: expected one guarded match, found {count}")
+                  raise SystemExit(f"{path}: expected one guarded match, found {count}: {old[:80]}")
               file.write_text(text.replace(old, new, 1), encoding="utf-8")
 
           replace_once(
@@ -38,44 +38,23 @@ jobs:
 
           replace_once(
               "app/ios/MBLINK/MBLINKApp.swift",
-              '''Text(connection.isActive
-                                 ? "Live polling will begin when the read-only module and fault census finishes."
-                                 : "Connect to the vehicle to populate dashboard measurements.")''',
-              '''Text(connection.isActive
-                                 ? (connection.isReady
-                                    ? "No selected dashboard values are available yet. Enable polling in PID Setup and choose supported dashboard measurements in Settings."
-                                    : "Dashboard values will appear after the read-only module and fault census finishes and for measurements you have enabled.")
-                                 : "Connect to the vehicle to populate dashboard measurements.")''',
+              '"Live polling will begin when the read-only module and fault census finishes."',
+              '"Dashboard values appear after the read-only module and fault census, and only for measurements enabled in PID Setup and selected for the dashboard."',
           )
 
           replace_once(
               "tests/test_pid_architecture.py",
-              '''MODEL = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
+              'CONTRACT = (ROOT / "docs/PID_ARCHITECTURE.md").read_text(encoding="utf-8")',
+              '''CONTROLLER = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
               encoding="utf-8"
           )
-          CONTRACT =''',
-              '''MODEL = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
-              encoding="utf-8"
-          )
-          CONTROLLER = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
-              encoding="utf-8"
-          )
-          CONTRACT =''',
+          CONTRACT = (ROOT / "docs/PID_ARCHITECTURE.md").read_text(encoding="utf-8")''',
           )
 
           replace_once(
               "tests/test_pid_architecture.py",
+              'print("MBLINK PID/module architecture verified")',
               '''require(
-              "Mercedes choices remain VIN-and-module scoped" in CONTRACT_WORDS,
-              "the canonical architecture contract must state Mercedes selection scope",
-          )
-
-          print("MBLINK PID/module architecture verified")''',
-              '''require(
-              "Mercedes choices remain VIN-and-module scoped" in CONTRACT_WORDS,
-              "the canonical architecture contract must state Mercedes selection scope",
-          )
-          require(
               "controller.mercedesModuleSnapshots.map" in MODEL,
               "every retained Mercedes/OBD module snapshot must remain visible to the Swift model",
           )
@@ -112,7 +91,7 @@ jobs:
           )
           require(
               "Live polling will begin when the read-only module and fault census finishes." not in APP
-              and "No selected dashboard values are available yet." in APP,
+              and "only for measurements enabled in PID Setup" in APP,
               "dashboard empty-state copy must not imply polling starts automatically",
           )
 
