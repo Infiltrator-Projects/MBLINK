@@ -1196,6 +1196,9 @@ static bool MBLinkSimulatorResponder(
 {
     (void)controller;
     if (event == NULL) return;
+    if (event->became_ready) {
+        [self updateScheduledManufacturerLiveJob];
+    }
     if (event->kind == LINK_DIAGNOSTIC_FLOW_EVENT_PID_DISCOVERY_COMPLETE) {
         [self persistDiscoveredCapabilities];
         [self notifyDelegate];
@@ -1753,7 +1756,13 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
 
 - (void)updateScheduledManufacturerLiveJob
 {
-    if (!_shared.isActive) return;
+    /*
+     * Do not reserve a recurring Mercedes slot during startup discovery.
+     * Standard OBD must reach its real live scheduler first; otherwise an
+     * already-overdue manufacturer job can become the first LIVE action and
+     * hide a broken standard-polling handoff.
+     */
+    if (!_shared.isActive || !_shared.isReady) return;
 
     const BOOL shouldEnable =
         [self selectedManufacturerModuleIdentifierAdvancing:NO].length != 0U;

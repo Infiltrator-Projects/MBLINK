@@ -135,6 +135,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var manufacturerHistoryVIN: String?
     private var manufacturerHistorySessionActive = false
     private var appliedPollingConfigurationKey: String?
+    private var livePollingReadyRearmSignature: String?
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -685,6 +686,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         for module in pidConfigurationModules {
             applyManufacturerPollingSelection(moduleID: module.id)
         }
+    }
+
+    private func livePollingSelectionSignature(vin: String) -> String {
+        let standard = storedPollingKeys().sorted().joined(separator: ",")
+        let manufacturer = pidConfigurationModules.map { module in
+            let keys = manufacturerSelectionSet(moduleID: module.id)
+                .sorted().joined(separator: ",")
+            return "\(module.id)=\(keys)"
+        }.sorted().joined(separator: "|")
+        return "\(vin)|standard=\(standard)|manufacturer=\(manufacturer)"
     }
 
     private func applyConfiguredPollingIfNeeded(force: Bool = false) {
@@ -1654,6 +1665,25 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
         diagnosticModules = isActive ? loadDiagnosticModules() : []
         refreshPIDConfiguration()
+
+        /*
+         * A live connection deliberately suppresses offline selections until
+         * its VIN is known. Re-apply that VIN's complete saved selection once
+         * LINK has finished building the real live scheduler. This is a
+         * one-shot per selection fingerprint, so delegate refreshes cannot
+         * recurse, but changing an 84-PID setup to an 85-PID setup re-arms the
+         * scheduler immediately as well.
+         */
+        if isActive, isReady, let vin = activeVehicleVIN {
+            let signature = livePollingSelectionSignature(vin: vin)
+            if signature != livePollingReadyRearmSignature {
+                livePollingReadyRearmSignature = signature
+                appliedPollingConfigurationKey = nil
+                applyConfiguredPollingIfNeeded(force: true)
+            }
+        } else {
+            livePollingReadyRearmSignature = nil
+        }
         applyConfiguredPollingIfNeeded()
 #if MBLINK_CI_SIMULATED_FLOW
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",

@@ -180,5 +180,17 @@ require(
     and "The saved vehicle and module discovery are retained" in APP,
     "PID Setup must expose a safe polling-selection reset without deleting vehicle evidence",
 )
+require(
+    "livePollingReadyRearmSignature" in MODEL
+    and "if isActive, isReady, let vin = activeVehicleVIN" in MODEL
+    and "applyConfiguredPollingIfNeeded(force: true)" in MODEL,
+    "a live VIN selection must be re-applied after LINK builds the real scheduler",
+)
+require(
+    "if (!_shared.isActive || !_shared.isReady) return;" in CONTROLLER
+    and "if (event->became_ready)" in CONTROLLER
+    and "[self updateScheduledManufacturerLiveJob];" in CONTROLLER,
+    "Mercedes recurring jobs must not reserve the first live slot before standard readiness",
+)
 
 print("MBLINK PID/module architecture verified")
