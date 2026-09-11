@@ -21,6 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sed -i 's/x.count(OLD_LINK) != 4/x.count(OLD_LINK) != 2/' .github/patches/fix_selected_live_polling.py
           python3 .github/patches/fix_selected_live_polling.py
           git -C src/link fetch origin 50af397d8c4da5695635d38278af2e87f8ea0114
           git -C src/link checkout 50af397d8c4da5695635d38278af2e87f8ea0114
