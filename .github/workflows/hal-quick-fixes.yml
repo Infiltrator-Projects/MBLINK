@@ -55,9 +55,9 @@ jobs:
           vs = vm.read_text()
           old = 'Connect once to learn which PIDs each controller supports'
           new = 'Connect once to learn vehicle and module PID support'
-          if vs.count(old) != 1:
+          if vs.count(old) != 2:
               raise SystemExit(f'PID wording count={vs.count(old)}')
-          vm.write_text(vs.replace(old, new, 1))
+          vm.write_text(vs.replace(old, new))
           PY
 
           rm .github/workflows/hal-quick-fixes.yml
