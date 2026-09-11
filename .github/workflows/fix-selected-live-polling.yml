@@ -1,0 +1,39 @@
+name: Fix selected live polling
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-selected-live-polling.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply guarded MBLINK 0.7.192 polling fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/patches/fix_selected_live_polling.py
+          git -C src/link fetch origin 50af397d8c4da5695635d38278af2e87f8ea0114
+          git -C src/link checkout 50af397d8c4da5695635d38278af2e87f8ea0114
+          test "$(git -C src/link rev-parse HEAD)" = 50af397d8c4da5695635d38278af2e87f8ea0114
+          git add src/link
+          git diff --check
+          grep -Fq 'recoverLegacyStandardPollingKeys' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq 'MBLINK_CI_SIMULATED_POLLING' app/ios/MBLINK/ConnectionViewModel.swift .github/workflows/ci.yml
+          grep -Fq 'recorded_samples=' app/ios/MBLINK/ConnectionViewModel.swift
+          grep -Fq '0.7.192' VERSION include/mblink/version.h
+          git rm .github/workflows/fix-selected-live-polling.yml .github/patches/fix_selected_live_polling.py
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add app/ios/MBLINK/ConnectionViewModel.swift tests/test_pid_architecture.py .github/workflows/ci.yml app/ios/MBLINK.xcodeproj/project.pbxproj VERSION include/mblink/version.h src/link
+          git commit -m 'Release 0.7.192: restore selected live polling' -m 'Recover explicit legacy Standard OBD selections that v0.7.191 could mask with an empty vehicle-wide record, preserve deliberate all-off choices, pin LINK 0.15.14 truthful scheduler state, and require the iOS simulator smoke to produce completed live samples from selected RPM and speed PIDs.'
+          git push origin HEAD:main
