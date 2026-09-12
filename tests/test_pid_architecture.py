@@ -76,6 +76,15 @@ require(
     "Mercedes module sections must use documented manufacturer definitions",
 )
 require(
+    "controller.loadSavedVehicleProfileForPIDConfiguration(vin: vin)" in MODEL,
+    "offline PID setup must load the selected VIN's saved Mercedes module evidence",
+)
+require(
+    "populateCachedModuleEntry:" in CONTROLLER
+    and "forIdentifier:identifier" in CONTROLLER,
+    "documented Mercedes PID lookup must fall back to saved module evidence",
+)
+require(
     "modulePIDSelectionSet" not in MODEL and "pidConfigurationItems(moduleID" not in MODEL,
     "the superseded responder-scoped SAE configuration model must not return",
 )

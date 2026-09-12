@@ -153,6 +153,14 @@ NS_ASSUME_NONNULL_BEGIN
     documentedDataDefinitionsForModuleIdentifier:(NSString *)identifier;
 
 /**
+ * Load one saved VIN's Mercedes module evidence for offline PID setup.
+ * This changes only the metadata source used by the chooser; it never starts
+ * a transport session or sends a diagnostic request.
+ */
+- (void)loadSavedVehicleProfileForPIDConfiguration:(NSString *)vin
+    NS_SWIFT_NAME(loadSavedVehicleProfileForPIDConfiguration(vin:));
+
+/**
  * Select exact manufacturer wire identifiers for periodic polling.
  * Empty is the default and means no manufacturer live polling for this module.
  */

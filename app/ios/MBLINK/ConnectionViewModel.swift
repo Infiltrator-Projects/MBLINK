@@ -339,6 +339,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         guard !isActive else { return }
         super.selectSavedVehicle(vin: vin)
         guard selectedVehicleVIN == vin else { return }
+        controller.loadSavedVehicleProfileForPIDConfiguration(vin: vin)
         mercedesVINText = vin
         vehicleIdentity = decodeVehicleIdentity(vin: vin)
         vehicleProfileStatusText = "Saved vehicle profile loaded · offline"

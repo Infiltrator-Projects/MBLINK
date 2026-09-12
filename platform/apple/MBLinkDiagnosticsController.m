@@ -1497,6 +1497,31 @@ static bool MBLinkSimulatorResponder(
     return NULL;
 }
 
+- (BOOL)populateCachedModuleEntry:(MblinkMercedesModuleScanEntry *)entry
+                    forIdentifier:(NSString *)identifier
+{
+    if (entry == NULL || identifier.length == 0U ||
+        ![_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]) {
+        return NO;
+    }
+
+    for (id value in _cachedVehicleProfile[@"modules"]) {
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        MblinkMercedesModuleScanEntry candidate;
+        if (!MBLinkPopulateModuleEntryFromProfile(
+                (NSDictionary *)value, &candidate)) {
+            continue;
+        }
+        if (![MBLinkMercedesModuleIdentifier(&candidate)
+                isEqualToString:identifier]) {
+            continue;
+        }
+        *entry = candidate;
+        return YES;
+    }
+    return NO;
+}
+
 - (nullable NSString *)automaticTransmissionTemperatureModuleIdentifier
 {
     const size_t count =
@@ -1946,8 +1971,14 @@ static void MBLinkAppendManufacturerDefinition(
     documentedDataDefinitionsForModuleIdentifier:(NSString *)identifier
 {
     if (identifier.length == 0U) return @[];
+    MblinkMercedesModuleScanEntry cachedModule;
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:identifier];
+    if (module == NULL &&
+        [self populateCachedModuleEntry:&cachedModule
+                          forIdentifier:identifier]) {
+        module = &cachedModule;
+    }
     if (module == NULL) return @[];
 
     NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values =
@@ -2072,6 +2103,12 @@ static void MBLinkAppendManufacturerDefinition(
         return [left.title compare:right.title];
     }];
     return [values copy];
+}
+
+- (void)loadSavedVehicleProfileForPIDConfiguration:(NSString *)vin
+{
+    if (vin.length != 17U || _shared.isActive) return;
+    [self loadSavedVehicleProfileForVIN:vin];
 }
 
 - (NSArray<NSNumber *> *)
