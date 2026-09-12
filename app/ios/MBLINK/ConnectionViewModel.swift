@@ -290,6 +290,21 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         diagnosticParameters.first { $0.id == stableKey }
     }
 
+    // PID Setup owns display membership as well as polling. Consult the saved
+    // selection directly so cached samples can never keep an OFF channel visible.
+    var enabledDisplayParameters: [DiagnosticParameter] {
+        let standard = storedPollingKeys()
+        let manufacturer = Set(pidConfigurationModules.flatMap {
+            manufacturerSelectionSet(moduleID: $0.id)
+        })
+        return diagnosticParameters.filter {
+            $0.protocolName == "obd2"
+                ? standard.contains($0.id) : manufacturer.contains($0.id)
+        }.sorted {
+            $0.title == $1.title ? $0.id < $1.id : $0.title < $1.title
+        }
+    }
+
     var standardVINText: String {
         controller.standardVINText
     }
@@ -1275,6 +1290,46 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             transmissionDiagnosticParameters().filter {
                 !existing.contains($0.id)
             })
+
+        // Keep selected manufacturer channels visible before their first reply,
+        // and expose non-transmission factory values on the same three displays.
+        // Canonical transmission signals must use their individual decoder;
+        // never substitute the shared 21 30 record's value for gear or selector.
+        var included = Set(parameters.map(\.id))
+        for module in pidConfigurationModules {
+            let records = manufacturerData(moduleID: module.id)
+            for item in manufacturerPIDCatalogueItems(moduleID: module.id)
+                where item.pollingEnabled && !included.contains(item.id) {
+                let record = item.id.hasPrefix("mercedes.transmission.")
+                    ? nil : records.first {
+                        $0.service == item.service && $0.identifier == item.identifier
+                    }
+                let numeric = record?.numericValue
+                let history = numeric.map {
+                    manufacturerHistory(id: item.id, value: $0,
+                                        rawHex: record?.rawHex ?? "")
+                } ?? []
+                parameters.append(DiagnosticParameter(
+                    id: item.id,
+                    protocolName: item.service == 0x21 ? "kwp2000" : "uds",
+                    moduleIdentifier: module.requestCANIdentifier,
+                    parameterIdentifier: UInt32(item.service) << 16 | UInt32(item.identifier),
+                    shortName: item.shortName,
+                    title: item.title,
+                    suffix: record?.unit ?? "",
+                    formattedValue: record?.formattedValue ?? "Waiting for sample",
+                    value: numeric,
+                    structuredValue: numeric == nil ? record?.formattedValue : nil,
+                    rawHex: record?.rawHex,
+                    vehicleSupported: true,
+                    favourite: false,
+                    pollingEnabled: true,
+                    history: history,
+                    sourceLabel: "\(module.name) · \(module.addressText)",
+                    qualityNote: item.provenance))
+                included.insert(item.id)
+            }
+        }
         return parameters
     }
 
@@ -1762,6 +1817,54 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let ciESPModuleID = "11:00000632:00000486"
     private static let ciORCModuleID = "11:0000064A:00000489"
 
+    private func verifySingleDisplaySelection() -> Bool {
+        guard !isActive, effectivePIDConfigurationVIN != nil else { return false }
+        let oldStandard = storedPollingKeys()
+        let oldDashboard = dashboardSelectionStore.globalStableKeys
+        let oldManufacturer = pidConfigurationModules.map {
+            ($0.id, manufacturerSelectionSet(moduleID: $0.id))
+        }
+        defer {
+            storeStandardPollingKeys(oldStandard)
+            dashboardSelectionStore.setGlobalStableKeys(oldDashboard)
+            for (moduleID, keys) in oldManufacturer {
+                storeManufacturerSelection(keys, moduleID: moduleID)
+            }
+            applyConfiguredPollingIfNeeded(force: true)
+            refreshStandardState()
+        }
+
+        resetPIDSelectionsForCurrentVehicle()
+        dashboardSelectionStore.setGlobalStableKeys([])
+        guard enabledDisplayParameters.isEmpty else { return false }
+        let standard = Array(standardPIDCatalogueItems().prefix(6).map(\.id))
+        let transmission = ["mercedes.transmission.oil_temperature",
+                            "mercedes.transmission.actual_gear"]
+        guard standard.count == 6,
+              let factory = manufacturerPIDCatalogueItems(
+                moduleID: Self.ciORCModuleID).first else { return false }
+        for key in standard { setStandardPIDSelection(true, stableKey: key) }
+        for key in transmission {
+            setManufacturerPIDSelection(true,
+                moduleID: Self.ciTransmissionModuleID, stableKey: key)
+        }
+        setManufacturerPIDSelection(true,
+            moduleID: Self.ciORCModuleID, stableKey: factory.id)
+        let expected = Set(standard + transmission + [factory.id])
+        guard Set(enabledDisplayParameters.map(\.id)) == expected else { return false }
+        // Old dashboard preferences must neither exclude ON channels nor retain
+        // OFF channels, including when the parameter catalogue still has rows.
+        dashboardSelectionStore.setGlobalStableKeys(Array(expected))
+        for key in standard { setStandardPIDSelection(false, stableKey: key) }
+        for key in transmission {
+            setManufacturerPIDSelection(false,
+                moduleID: Self.ciTransmissionModuleID, stableKey: key)
+        }
+        setManufacturerPIDSelection(false,
+            moduleID: Self.ciORCModuleID, stableKey: factory.id)
+        return enabledDisplayParameters.isEmpty
+    }
+
     private func writeSavedPIDCatalogueRegressionMarker() {
         let transmissionCount = controller.documentedDataDefinitions(
             forModuleIdentifier: Self.ciTransmissionModuleID).count
@@ -1769,9 +1872,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             forModuleIdentifier: Self.ciESPModuleID).count
         let orcCount = controller.documentedDataDefinitions(
             forModuleIdentifier: Self.ciORCModuleID).count
+        let displaySelectionVerified = verifySingleDisplaySelection()
         let ready = !isActive && selectedVehicleVIN?.count == 17 &&
             pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
-            espCount > 0 && orcCount > 0
+            espCount > 0 && orcCount > 0 && displaySelectionVerified
         let marker = "state=\(ready ? "ready" : "failed")\n" +
             "active=\(isActive)\n" +
             "selected_vin=\(selectedVehicleVIN ?? "")\n" +
@@ -1779,7 +1883,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             "profile_source=\(pidConfigurationSourceText)\n" +
             "transmission_catalogue_count=\(transmissionCount)\n" +
             "esp_catalogue_count=\(espCount)\n" +
-            "orc_catalogue_count=\(orcCount)\n"
+            "orc_catalogue_count=\(orcCount)\n" +
+            "display_selection_verified=\(displaySelectionVerified)\n"
         if let directory = FileManager.default.urls(
                 for: .documentDirectory, in: .userDomainMask).first {
             try? FileManager.default.createDirectory(

@@ -714,6 +714,7 @@ jobs:
                  grep -Fq 'active=false' "$saved_marker" &&
                  grep -Fq 'selected_vin=WDD2073022F123456' "$saved_marker" &&
                  grep -Fq 'profile_module_count=4' "$saved_marker" &&
+                 grep -Fq 'display_selection_verified=true' "$saved_marker" &&
                  grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$saved_marker" &&
                  grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$saved_marker" &&
                  grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$saved_marker"; then

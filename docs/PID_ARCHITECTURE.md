@@ -101,6 +101,14 @@ written catalogue and selection records must use the canonical identifier.
 
 ## Polling and scheduler behaviour
 
+PID Setup is the single control for both polling and display membership.
+An enabled measurement appears in Dashboard, Graphs and Table; disabling it
+removes it from all three even when old samples remain. There is no separate
+dashboard selection or favourite requirement. All enabled channels appear,
+without a four-graph limit. Channels awaiting data remain visible with their
+status. Text/raw channels show their value and an explanation when no numeric
+graph can be drawn. This applies equally to SAE and Mercedes channels.
+
 Only explicitly selected channels are polled.
 
 Finding or identifying a module is not an implicit selection. It must not issue

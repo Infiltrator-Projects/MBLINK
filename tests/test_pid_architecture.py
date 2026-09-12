@@ -166,8 +166,27 @@ require(
 )
 require(
     "Live polling will begin when the read-only module and fault census finishes." not in APP
-    and "only for measurements enabled in PID Setup" in APP,
+    and "Enable measurements in PID Setup to show them in Dashboard, Graphs and Table." in APP,
     "dashboard empty-state copy must not imply polling starts automatically",
+)
+for start, end in [
+    ("private struct MBDataTableView", "private struct MBDashboardView"),
+    ("private struct MBDashboardView", "private struct MBDieselView"),
+    ("private struct MBGraphsView", "private struct MBEvidenceView"),
+]:
+    display = section(APP, start, end)
+    require(
+        "connection.enabledDisplayParameters" in display
+        and "connection.diagnosticParameters" not in display
+        and "connection.dashboardParameters" not in display
+        and ".prefix(4)" not in display,
+        "Dashboard, Graphs and Table must all use the complete PID Setup selection",
+    )
+require(
+    "MBDashboardSelectionView" not in APP
+    and "connection.toggleDashboard" not in APP
+    and "display_selection_verified=" in MODEL,
+    "the second dashboard enable surface must be removed and selection tested on Apple",
 )
 require(
     "standardSelectionExplicitlyEdited(vin:" in MODEL

@@ -711,11 +711,11 @@ private struct MBPIDSetupView: View {
                     MBPanel {
                         VStack(alignment: .leading, spacing: 8) {
                             Label(
-                                "Nothing is polled until you switch it on.",
+                                "Switch it on here to poll and display it.",
                                 systemImage: "switch.2")
                                 .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
-                            Text("Module discovery decides which controller sections exist. MBLINK's documented catalogue decides which manufacturer data choices appear; it does not hammer every ECU with every possible PID.")
+                            Text("Enabled measurements appear in Dashboard, Graphs and Table. Switch a measurement off here to stop polling and hide it from those displays.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.silver)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2198,9 +2198,7 @@ private struct MBDataTableView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     private var sorted: [DiagnosticParameter] {
-        connection.diagnosticParameters
-            .filter { $0.isSupported || $0.isAvailable }
-            .sorted { $0.title < $1.title }
+        connection.enabledDisplayParameters
     }
 
     var body: some View {
@@ -2210,6 +2208,11 @@ private struct MBDataTableView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     MBPanel {
                         VStack(spacing: 0) {
+                        if sorted.isEmpty {
+                            Text("Enable measurements in PID Setup to show them in Dashboard, Graphs and Table.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                        }
                         ForEach(sorted) { parameter in
                             HStack(spacing: 10) {
                                 Text(parameter.brandPidText)
@@ -2253,9 +2256,7 @@ private struct MBDashboardView: View {
     }
 
     private var displayed: [DiagnosticParameter] {
-        connection.dashboardParameters.filter {
-            $0.pollingEnabled && $0.isAvailable
-        }
+        connection.enabledDisplayParameters
     }
 
     var body: some View {
@@ -2289,7 +2290,7 @@ private struct MBDashboardView: View {
                     if displayed.isEmpty {
                         MBPanel {
                             Text(connection.isActive
-                                 ? "Dashboard values appear after the read-only module and fault census, and only for measurements enabled in PID Setup and selected for the dashboard."
+                                 ? "Enable measurements in PID Setup to show them in Dashboard, Graphs and Table."
                                  : "Connect to the vehicle to populate dashboard measurements.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
@@ -2522,20 +2523,17 @@ private struct MBGraphsView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
 
     private var graphed: [DiagnosticParameter] {
-        let withHistory = connection.diagnosticParameters.filter {
-            $0.pollingEnabled && !$0.history.isEmpty
-        }
-        return Array(withHistory.prefix(4))
+        connection.enabledDisplayParameters
     }
 
     var body: some View {
         ZStack {
             MBBackground()
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     if graphed.isEmpty {
                         MBPanel {
-                            Text("Connect to the vehicle and collect samples to populate graphs.")
+                            Text("Enable measurements in PID Setup to show them in Dashboard, Graphs and Table.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
@@ -2548,7 +2546,7 @@ private struct MBGraphsView: View {
                                             .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                         Spacer()
-                                        Text(parameter.formattedValue)
+                                        Text(parameter.presentationValue)
                                             .font(MBTypography.headline)
                                             .foregroundStyle(MBBrand.silverBright)
                                     }
@@ -2572,6 +2570,14 @@ private struct MBGraphsView: View {
                                             .foregroundStyle(MBBrand.silverBright)
                                         }
                                         .frame(height: 180)
+                                    } else {
+                                        Text(parameter.value != nil
+                                             ? "Waiting for more samples to draw a graph."
+                                             : (parameter.isAvailable
+                                                ? "Text or raw value — no numeric graph available."
+                                                : parameter.presentationValue))
+                                            .font(MBTypography.caption)
+                                            .foregroundStyle(MBBrand.muted)
                                     }
                                 }
                             }
@@ -2858,33 +2864,6 @@ private struct MBSettingsView: View {
                             .tint(MBBrand.silverBright)
                         }
                     }
-
-                    MBPanel {
-                        NavigationLink {
-                            MBDashboardSelectionView()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName:
-                                    "gauge.with.dots.needle.67percent")
-                                    .font(MBTypography.title3)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Dashboard measurements")
-                                        .font(MBTypography.headline)
-                                        .foregroundStyle(MBBrand.silverBright)
-                                    Text("Choose supported live values")
-                                        .font(MBTypography.caption)
-                                        .foregroundStyle(MBBrand.silver)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(MBTypography.captionBold)
-                                    .foregroundStyle(MBBrand.muted)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
                 .padding(16)
             }
@@ -2900,62 +2879,6 @@ private struct MBSettingsView: View {
                 for: connection.selectedLanguageID)
         }
         return connection.languageNames[index]
-    }
-}
-
-private struct MBDashboardSelectionView: View {
-    @EnvironmentObject private var connection: ConnectionViewModel
-
-    private var parameters: [DiagnosticParameter] {
-        connection.diagnosticParameters.filter(\.vehicleSupported)
-    }
-
-    var body: some View {
-        ZStack {
-            MBBackground()
-            ScrollView {
-                MBPanel {
-                    if parameters.isEmpty {
-                        Text(
-                            "Connect once to choose measurements supported by this vehicle.")
-                            .font(MBTypography.subheadline)
-                            .foregroundStyle(MBBrand.silver)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(parameters) { parameter in
-                                Button {
-                                    connection.toggleDashboard(parameter)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(parameter.title)
-                                                .font(MBTypography.subheadline)
-                                                .foregroundStyle(MBBrand.silverBright)
-                                            Text(parameter.shortName)
-                                                .font(MBTypography.caption)
-                                                .foregroundStyle(MBBrand.muted)
-                                        }
-                                        Spacer()
-                                        Image(systemName:
-                                            connection.dashboardSelected(parameter)
-                                                ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(MBBrand.silverBright)
-                                    }
-                                    .padding(.vertical, 10)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                if parameter.id != parameters.last?.id {
-                                    Divider().overlay(MBBrand.muted.opacity(0.35))
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(16)
-            }
-        }
-        .mbDiagnosticScreen("Dashboard measurements")
     }
 }
 
