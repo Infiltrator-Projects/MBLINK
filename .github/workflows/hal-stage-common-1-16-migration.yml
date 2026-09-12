@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   stage:
-    if: github.event.head_commit.message == 'Bootstrap MBLINK Common 1.16.0 migration staging'
+    if: github.event.head_commit.message == 'Retry MBLINK Common 1.16.0 migration staging'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,7 +72,7 @@ jobs:
           done
           grep -Fq '5e15038035b370d40aba6db792bda192926fb4a0' .github/hal/project-common-1-16.pbxproj
           ! grep -Fq 'c25568552d75cb6833812cab354ff849ed3cc817' .github/hal/project-common-1-16.pbxproj
-          test "$(git status --short | awk '{print $2}' | sort)" = $'.github/hal/ci-common-1-16.yml\n.github/hal/project-common-1-16.pbxproj'
+          test "$(git status --short --untracked-files=all | awk '{print $2}' | sort)" = $'.github/hal/ci-common-1-16.yml\n.github/hal/project-common-1-16.pbxproj'
           git config user.name 'Shannon Smith'
           git config user.email 'infiltratr@yandex.com'
           git add .github/hal/ci-common-1-16.yml .github/hal/project-common-1-16.pbxproj
