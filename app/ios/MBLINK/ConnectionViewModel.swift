@@ -1772,9 +1772,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let ready = !isActive && selectedVehicleVIN?.count == 17 &&
             pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
             espCount > 0 && orcCount > 0
-        let marker = "state=\(ready ? \"ready\" : \"failed\")\n" +
+        let marker = "state=\(ready ? "ready" : "failed")\n" +
             "active=\(isActive)\n" +
-            "selected_vin=\(selectedVehicleVIN ?? \"\")\n" +
+            "selected_vin=\(selectedVehicleVIN ?? "")\n" +
             "profile_module_count=\(pidConfigurationModules.count)\n" +
             "profile_source=\(pidConfigurationSourceText)\n" +
             "transmission_catalogue_count=\(transmissionCount)\n" +
