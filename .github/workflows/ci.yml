@@ -136,7 +136,7 @@ jobs:
           grep -Fq 'return _shared.standardLiveValueRows;' src/link/platform/apple/LinkDiagnosticsController.m
           grep -q 'mblink_mercedes_kwp_dtc_find' platform/apple/MBLinkDiagnosticsController.m
           grep -q 'link_diagnostic_flow_resume_after_manufacturer' src/link/platform/apple/LinkDiagnosticsController.m
-          grep -q 'link_telemetry_recorder_continue' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -q 'link_telemetry_recorder_continue' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
           grep -Fq 'LinkProbeTimeoutSeconds = 5.0' src/link/platform/apple/LinkBLETransport.m
           ! grep -Fq '#include "../link/src/' src/core/mblink.c
           grep -Fq '../../src/link/src/core/diagnostic_flow.c' app/ios/MBLINK.xcodeproj/project.pbxproj
@@ -506,11 +506,11 @@ jobs:
           grep -Fq 'flowConfig.preserve_live_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'flowConfig.preserve_pid_discovery_response_headers = true;' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'link_obd2_decode_live_pid_responders' src/link/src/obd2/obd2.c
-          grep -Fq 'LinkResponderTelemetryStore' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'LinkResponderTelemetryStore' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
           grep -Fq 'mercedesModuleSnapshots' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'observedPIDsForResponderCANIdentifier' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'liveResponders' platform/apple/MBLinkDiagnosticsController.m
-          grep -Fq 'record_responder_sample_named' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'record_responder_sample_named' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
           grep -Fq '@Published private(set) var dashboardParameters' src/link/platform/apple/LinkDiagnosticUI.swift
           grep -Fq 'mblink_obd2_pid_definition_count()' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'standardDataSnapshot' app/ios/MBLINK/ConnectionViewModel.swift
@@ -518,8 +518,8 @@ jobs:
           grep -Fq 'mblink_obd2_pid_definition_count()' app/linux/main.c
           grep -Fq 'decoded_sample_valid[256]' app/linux/main.c
           grep -Fq 'LINK_DIAGNOSTIC_FLOW_EVENT_LIVE_STRUCTURED' app/linux/main.c
-          grep -Fq 'link_structured_telemetry_store_record' src/link/platform/apple/LinkDiagnosticsController.m
-          grep -Fq 'link_telemetry_recorder_record_structured_pid_named' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'link_structured_telemetry_store_record' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
+          grep -Fq 'link_telemetry_recorder_record_structured_pid_named' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
           grep -Fq 'event->responder_decoded.count' platform/apple/MBLinkDiagnosticsController.m
           grep -Fq 'LINK_UDS_DTC_REPORT_SUBFUNCTION_COUNT 27U' src/link/include/link/uds_dtc.h
           grep -Fq 'mblink_uds_dtc_report_definition_count' include/mblink/uds_dtc.h
@@ -587,7 +587,7 @@ jobs:
           grep -Fq 'Bluetooth Classic Mercedes adapter' src/link/platform/apple/LinkBLETransport.m
           grep -Fq 'ExternalAccessory.framework in Frameworks' app/ios/MBLINK.xcodeproj/project.pbxproj
           grep -Fq 'transport.isNativeAdapter' src/link/platform/apple/LinkDiagnosticsController.m
-          grep -Fq 'NATIVE_RX' src/link/platform/apple/LinkDiagnosticsController.m
+          grep -Fq 'NATIVE_RX' src/link/platform/apple/LinkAppleTelemetryRecorder.inc
           grep -Fq 'MERCEDES ME ADAPTER · NATIVE' app/linux/main.c
           grep -Fq 'Transmission ECU / GS (7E1/7E9)' include/mblink/mercedes_module_scan.h
           grep -Fq '"audio-headunit", "Audio 20 / COMAND head unit"' include/mblink/mercedes_module_catalog.h
