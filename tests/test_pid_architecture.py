@@ -80,6 +80,10 @@ require(
     "offline PID setup must load the selected VIN's saved Mercedes module evidence",
 )
 require(
+    "override func productDidRestoreVehicleProfile(" in MODEL,
+    "cold-start profile restoration must restore Mercedes PID catalogue evidence",
+)
+require(
     "populateCachedModuleEntry:" in CONTROLLER
     and "forIdentifier:identifier" in CONTROLLER,
     "documented Mercedes PID lookup must fall back to saved module evidence",
@@ -175,6 +179,17 @@ require(
     '"recorded_samples=\\(recordedSampleCount)\\n"' in MODEL
     and "MBLINK_CI_SIMULATED_POLLING" in MODEL,
     "Apple simulated readiness must expose completed live-polling samples",
+)
+require(
+    'Text("\\(items.count) AVAILABLE")' in APP,
+    "every collapsed PID section must distinguish available choices from enabled choices",
+)
+require(
+    "mblink-ci-saved-pid-profile.ok" in MODEL
+    and "transmission_catalogue_count=" in MODEL
+    and "esp_catalogue_count=" in MODEL
+    and "orc_catalogue_count=" in MODEL,
+    "Apple regression evidence must cover live and cold-start saved Mercedes catalogues",
 )
 
 require(

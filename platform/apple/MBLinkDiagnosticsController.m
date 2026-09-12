@@ -3140,10 +3140,13 @@ static void MBLinkAppendManufacturerDefinition(
     if (_shared.isSimulated) {
         memset(&_mercedesModuleScan, 0, sizeof(_mercedesModuleScan));
         _mercedesModuleScan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE;
-        _mercedesModuleScan.module_count = 1U;
+        _mercedesModuleScan.scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
+        _mercedesModuleScan.module_count = 4U;
+
         MblinkMercedesModuleScanEntry *module = &_mercedesModuleScan.modules[0];
         module->tx_can_id = UINT32_C(0x7e0);
         module->rx_can_id = UINT32_C(0x7e8);
+        module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
         module->kind = MBLINK_MERCEDES_MODULE_ENGINE;
         module->tester_present_response = true;
         (void)snprintf(
@@ -3153,7 +3156,53 @@ static void MBLinkAppendManufacturerDefinition(
         module->dtcs = _mercedesProbe.dtcs;
         module->dtc_result = _mercedesProbe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE
   ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE : MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
+
+        module = &_mercedesModuleScan.modules[1];
+        module->tx_can_id = UINT32_C(0x7e1);
+        module->rx_can_id = UINT32_C(0x7e9);
+        module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+        module->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
+        module->tester_present_response = true;
+        module->definition =
+            mblink_mercedes_module_definition_for_key("transmission-vgs");
+        module->identification_status =
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+        (void)snprintf(
+            module->identity, sizeof(module->identity), "%s", "VGS3_0402-SIM");
+        module->identity_available = true;
+        mblink_mercedes_module_scan_classify_identity(module);
+
+        module = &_mercedesModuleScan.modules[2];
+        module->tx_can_id = UINT32_C(0x632);
+        module->rx_can_id = UINT32_C(0x486);
+        module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+        module->kind = MBLINK_MERCEDES_MODULE_ABS_ESP;
+        module->tester_present_response = true;
+        module->definition = mblink_mercedes_module_definition_for_key("esp");
+        module->identification_status =
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+        (void)snprintf(
+            module->identity, sizeof(module->identity), "%s", "ESP212-SIM");
+        module->identity_available = true;
+        mblink_mercedes_module_scan_classify_identity(module);
+
+        module = &_mercedesModuleScan.modules[3];
+        module->tx_can_id = UINT32_C(0x64a);
+        module->rx_can_id = UINT32_C(0x489);
+        module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+        module->kind = MBLINK_MERCEDES_MODULE_RESTRAINTS;
+        module->tester_present_response = true;
+        module->definition =
+            mblink_mercedes_module_definition_for_key("restraints-orc");
+        module->identification_status =
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+        (void)snprintf(
+            module->identity, sizeof(module->identity), "%s", "ORC_212-SIM");
+        module->identity_available = true;
+        mblink_mercedes_module_scan_classify_identity(module);
+
         [self updateMercedesModuleScanSummary];
+        [self saveCurrentVehicleProfile];
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
     }
@@ -3529,7 +3578,13 @@ static void MBLinkAppendManufacturerDefinition(
 - (void)saveCurrentVehicleProfile
 {
     /* LINK owns liveResponders; MBLINK deliberately does not copy or rewrite it. */
-    if (_shared.isSimulated || self.mercedesVINText.length == 0U)
+    const BOOL persistCISimulatedProfile =
+        _shared.isSimulated &&
+        [[NSProcessInfo.processInfo.environment
+            objectForKey:@"MBLINK_CI_PERSIST_SIMULATED_PROFILE"]
+            isEqualToString:@"1"];
+    if ((_shared.isSimulated && !persistCISimulatedProfile) ||
+        self.mercedesVINText.length == 0U)
         return;
 
     const size_t count =

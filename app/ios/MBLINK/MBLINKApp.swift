@@ -864,6 +864,9 @@ private struct MBPIDCatalogueSection: View {
                                     selectedCount == 0
                                         ? MBBrand.muted
                                         : MBBrand.success)
+                            Text("\(items.count) AVAILABLE")
+                                .font(MBTypography.caption2)
+                                .foregroundStyle(MBBrand.muted)
                             Image(systemName:
                                 expanded ? "chevron.up" : "chevron.down")
                                 .foregroundStyle(MBBrand.muted)

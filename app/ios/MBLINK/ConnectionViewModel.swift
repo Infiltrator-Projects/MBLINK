@@ -254,6 +254,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         mercedesNativeDataIdentities = loadMercedesNativeDataIdentities()
         refreshStandardState()
 #if MBLINK_CI_SIMULATED_FLOW
+        if ProcessInfo.processInfo.environment["MBLINK_CI_SAVED_PID_RESTORE"] == "1" {
+            writeSavedPIDCatalogueRegressionMarker()
+        }
         if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1" {
             if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_POLLING"] == "1" {
                 let simulatedVIN = "WDD2073022F123456"
@@ -262,6 +265,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     forVIN: simulatedVIN,
                     controllerIdentifier: Self.standardSelectionControllerIdentifier)
                 markStandardSelectionExplicitlyEdited(vin: simulatedVIN)
+                if ProcessInfo.processInfo.environment[
+                    "MBLINK_CI_PERSIST_SIMULATED_PROFILE"] == "1" {
+                    vehicleProfileStore.recordLiveVIN(simulatedVIN)
+                }
                 appliedPollingConfigurationKey = nil
             }
             startSimulatedDiagnostics()
@@ -348,6 +355,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshPIDConfiguration()
         applyConfiguredPollingIfNeeded(force: true)
         refreshStandardState()
+    }
+
+    override func productDidRestoreVehicleProfile(
+        _ profile: [AnyHashable: Any],
+        vin: String
+    ) {
+        controller.loadSavedVehicleProfileForPIDConfiguration(vin: vin)
     }
 
     func standardPIDCatalogueItems() -> [MBPIDCatalogueItem] {
@@ -1698,6 +1712,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     forVIN: selectionVIN,
                     controllerIdentifier:
                         Self.standardSelectionControllerIdentifier)
+            let transmissionCatalogueCount = manufacturerPIDCatalogueItems(
+                moduleID: Self.ciTransmissionModuleID).count
+            let espCatalogueCount = manufacturerPIDCatalogueItems(
+                moduleID: Self.ciESPModuleID).count
+            let orcCatalogueCount = manufacturerPIDCatalogueItems(
+                moduleID: Self.ciORCModuleID).count
             let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
             let state = isReady && liveVIN.count == 17
                 ? "ready" : (failed ? "failed" : "pending")
@@ -1716,6 +1736,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "standard_selection_count=\(standardSelectionCount)\n" +
                 "standard_selection_keys=\(standardSelectionKeys.joined(separator: ","))\n" +
                 "standard_selection_scoped=\(standardSelectionScoped)\n" +
+                "module_count=\(diagnosticModules.count)\n" +
+                "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
+                "esp_catalogue_count=\(espCatalogueCount)\n" +
+                "orc_catalogue_count=\(orcCatalogueCount)\n" +
                 "recorded_samples=\(recordedSampleCount)\n"
             if let directory = FileManager.default.urls(
                     for: .documentDirectory, in: .userDomainMask).first {
@@ -1732,4 +1756,39 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
         manufacturerDataScanModuleID = controller.manufacturerDataScanModuleIdentifier
     }
+
+#if MBLINK_CI_SIMULATED_FLOW
+    private static let ciTransmissionModuleID = "11:000007E1:000007E9"
+    private static let ciESPModuleID = "11:00000632:00000486"
+    private static let ciORCModuleID = "11:0000064A:00000489"
+
+    private func writeSavedPIDCatalogueRegressionMarker() {
+        let transmissionCount = controller.documentedDataDefinitions(
+            forModuleIdentifier: Self.ciTransmissionModuleID).count
+        let espCount = controller.documentedDataDefinitions(
+            forModuleIdentifier: Self.ciESPModuleID).count
+        let orcCount = controller.documentedDataDefinitions(
+            forModuleIdentifier: Self.ciORCModuleID).count
+        let ready = !isActive && selectedVehicleVIN?.count == 17 &&
+            pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
+            espCount > 0 && orcCount > 0
+        let marker = "state=\(ready ? \"ready\" : \"failed\")\n" +
+            "active=\(isActive)\n" +
+            "selected_vin=\(selectedVehicleVIN ?? \"\")\n" +
+            "profile_module_count=\(pidConfigurationModules.count)\n" +
+            "profile_source=\(pidConfigurationSourceText)\n" +
+            "transmission_catalogue_count=\(transmissionCount)\n" +
+            "esp_catalogue_count=\(espCount)\n" +
+            "orc_catalogue_count=\(orcCount)\n"
+        if let directory = FileManager.default.urls(
+                for: .documentDirectory, in: .userDomainMask).first {
+            try? FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+            try? marker.write(
+                to: directory.appendingPathComponent(
+                    "mblink-ci-saved-pid-profile.ok"),
+                atomically: true, encoding: .utf8)
+        }
+    }
+#endif
 }
