@@ -595,7 +595,7 @@ jobs:
           grep -Fq '"seat-driver"' include/mblink/mercedes_module_catalog.h
           grep -Fq 'vehicleProfileStatusText' app/ios/MBLINK/ConnectionViewModel.swift
           grep -Fq 'MercedesVehicleIdentity' app/ios/MBLINK/ConnectionViewModel.swift
-          test "$(grep -Fc '#if MBLINK_CI_SIMULATED_FLOW' app/ios/MBLINK/ConnectionViewModel.swift)" -eq 2
+          test "$(grep -Fc '#if MBLINK_CI_SIMULATED_FLOW' app/ios/MBLINK/ConnectionViewModel.swift)" -eq 3
           grep -Fq 'SWIFT_ACTIVE_COMPILATION_CONDITIONS="$swift_conditions"' .github/workflows/ci.yml
           grep -Fq 'MBVehicleFactGrid' app/ios/MBLINK/MBLINKApp.swift
           # Text(detail) is legitimate in ECU evidence rows; only the removed
