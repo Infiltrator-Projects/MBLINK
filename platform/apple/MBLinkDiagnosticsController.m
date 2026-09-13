@@ -1010,19 +1010,23 @@ static bool MBLinkSimulatorResponder(
     return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
 }
 
+- (NSArray<NSString *> *)currentEngineProbeEvidence
+{
+    NSArray<NSString *> *evidence = MBLinkEngineProbeEvidence(&_mercedesProbe);
+    if (evidence.count == 0U &&
+        [_cachedVehicleProfile[@"engineEvidence"] isKindOfClass:[NSArray class]]) {
+        evidence = _cachedVehicleProfile[@"engineEvidence"];
+    }
+    return evidence ?: @[];
+}
+
 - (NSArray<MBLinkMercedesModuleSnapshot *> *)mercedesModuleSnapshots
 {
     const size_t count =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     NSMutableArray<MBLinkMercedesModuleSnapshot *> *snapshots =
         [[NSMutableArray alloc] initWithCapacity:count];
-    NSArray<NSString *> *engineEvidence =
-        MBLinkEngineProbeEvidence(&_mercedesProbe);
-    if (engineEvidence.count == 0U &&
-        [_cachedVehicleProfile[@"engineEvidence"]
-            isKindOfClass:[NSArray class]]) {
-        engineEvidence = _cachedVehicleProfile[@"engineEvidence"];
-    }
+    NSArray<NSString *> *engineEvidence = [self currentEngineProbeEvidence];
 
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesModuleScanEntry *module =
@@ -3679,13 +3683,7 @@ static void MBLinkAppendManufacturerDefinition(
         ![self.mercedesCrd3SummaryText isEqualToString:@"Not attempted"]) {
         profile[@"crd3Summary"] = self.mercedesCrd3SummaryText;
     }
-    NSArray<NSString *> *engineEvidence =
-        MBLinkEngineProbeEvidence(&_mercedesProbe);
-    if (engineEvidence.count == 0U &&
-        [_cachedVehicleProfile[@"engineEvidence"]
-            isKindOfClass:[NSArray class]]) {
-        engineEvidence = _cachedVehicleProfile[@"engineEvidence"];
-    }
+    NSArray<NSString *> *engineEvidence = [self currentEngineProbeEvidence];
     if (engineEvidence.count != 0U)
         profile[@"engineEvidence"] = engineEvidence;
 
