@@ -425,20 +425,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let liveDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
-        if !liveDefinitions.isEmpty {
-            let cached = liveDefinitions.map { definition in
-                [
-                    "id": definition.stableKey,
-                    "service": Int(definition.service),
-                    "identifier": Int(definition.identifier),
-                    "shortName": definition.shortName,
-                    "title": definition.title,
-                    "provenance": definition.provenance
-                ] as [String: Any]
-            }
-            cacheManufacturerCatalogue(cached, moduleID: moduleID)
-        }
-
         let definitions: [[String: Any]]
         if !liveDefinitions.isEmpty {
             definitions = liveDefinitions.map { definition in
@@ -451,6 +437,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     "provenance": definition.provenance
                 ]
             }
+            cacheManufacturerCatalogue(definitions, moduleID: moduleID)
         } else {
             definitions = cachedManufacturerCatalogue(moduleID: moduleID)
         }
@@ -680,6 +667,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         var vehicles = defaults.dictionary(
             forKey: Self.manufacturerCatalogueDefaultsKey) ?? [:]
         var modules = vehicles[vin] as? [String: Any] ?? [:]
+        // Refreshes read this catalogue frequently. Preserve the persisted
+        // snapshot without rewriting the whole VIN dictionary when unchanged.
+        if let existing = modules[moduleID] as? [[String: Any]],
+           NSArray(array: existing).isEqual(to: catalogue) { return }
         modules[moduleID] = catalogue
         vehicles[vin] = modules
         defaults.set(vehicles, forKey: Self.manufacturerCatalogueDefaultsKey)
@@ -698,21 +689,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func applyConfiguredPollingForSelectedVehicle() {
-        let selectedKeys = storedPollingKeys()
-        let count = mblink_obd2_pid_definition_count()
-        if count > 0 {
-            for index in 0..<count {
-                guard let definition = mblink_obd2_pid_definition_at(index)
-                else { continue }
-                let metadata = definition.pointee
-                guard metadata.mode == 0x01 else { continue }
-                let pid = metadata.pid
-                guard (pid & 0x1F) != 0 else { continue }
-                controller.setPollingEnabled(
-                    selectedKeys.contains(standardStableKey(for: pid)),
-                    forPID: pid)
-            }
-        }
+        applyStoredPollingPolicy()
         for module in pidConfigurationModules {
             applyManufacturerPollingSelection(moduleID: module.id)
         }
