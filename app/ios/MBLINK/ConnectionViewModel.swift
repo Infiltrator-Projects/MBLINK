@@ -309,10 +309,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         controller.standardVINText
     }
 
-    func mercedesSignals(category: String) -> [MercedesTargetSignal] {
-        mercedesTargetSignals.filter { $0.category == category }
-    }
-
     func diagnosticModule(id: String) -> DiagnosticModule? {
         diagnosticModules.first { $0.id == id }
     }
@@ -579,20 +575,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     func refreshPresentation() {
         refreshStandardState()
-    }
-
-    func udsStatusText(_ status: UInt8) -> String {
-        var buffer = [CChar](repeating: 0, count: Int(LINK_DTC_STATUS_TEXT_LENGTH))
-        let success = buffer.withUnsafeMutableBufferPointer { storage in
-            link_dtc_format_uds_status(status, storage.baseAddress, storage.count)
-        }
-        guard success else { return String(format: "Status 0x%02X", status) }
-        return buffer.withUnsafeBufferPointer { storage in
-            guard let baseAddress = storage.baseAddress else {
-                return String(format: "Status 0x%02X", status)
-            }
-            return String(cString: baseAddress)
-        }
     }
 
     nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
