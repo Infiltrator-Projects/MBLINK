@@ -151,6 +151,7 @@ jobs:
       - run: ctest --test-dir build --build-config Release --output-on-failure
       - run: python3 tests/test_whisper_recover.py
       - run: python3 tests/test_pid_architecture.py
+      - run: python3 scripts/check-version-consistency.py
 
   sanitizers:
     name: Linux / ASan + UBSan
