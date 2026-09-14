@@ -4,6 +4,7 @@
  * This file is included by MBLinkDiagnosticsController.m so the Xcode target
  * keeps one translation unit and no project-file wiring is required.
  */
+NS_ASSUME_NONNULL_BEGIN
 @interface MBLinkStandardDataSnapshot ()
 @property(nonatomic, readwrite) uint8_t pid;
 @property(nonatomic, readwrite) uint32_t responderCANIdentifier;
@@ -85,3 +86,5 @@
 @implementation MBLinkMercedesModuleSnapshot
 @end
 
+
+NS_ASSUME_NONNULL_END
