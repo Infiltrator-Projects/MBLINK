@@ -4,43 +4,31 @@ name: MBLINK Release Policy
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/preflight.py'
+      - 'tests/test_pid_architecture.py'
+      - 'VERSION'
+      - 'include/mblink/version.h'
+      - 'app/ios/MBLINK.xcodeproj/project.pbxproj'
 
 permissions:
   contents: read
 
 jobs:
   release-policy:
-    runs-on: ubuntu-latest
+    name: Release policy / stable invariants
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Enforce main-only automatic immutable publishing
+        with:
+          fetch-depth: 2
+          submodules: recursive
+      - name: Reject obsolete parallel release workflow
         shell: bash
-        run: |
-          set -euo pipefail
-          test ! -e .github/workflows/auto-release.yml
-          ci=.github/workflows/ci.yml
-          grep -Fq "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')" "$ci"
-          grep -Fq 'git fetch origin main --tags' "$ci"
-          grep -Fq 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' "$ci"
-          grep -Fq 'Release commit $GITHUB_SHA is no longer on main; refusing to publish.' "$ci"
-          if grep -Fq 'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"' "$ci"; then
-            echo 'Release publishing must survive newer commits landing on main.' >&2
-            exit 1
-          fi
-          grep -Fq 'Release tag $TAG already exists; published releases are immutable.' "$ci"
-          grep -Fq 'Release $TAG already exists; published releases are immutable.' "$ci"
-          grep -Fq 'gh release create "$TAG" --target "$GITHUB_SHA" --draft' "$ci"
-          grep -Fq 'gh release upload "$TAG" release-assets/* --clobber' "$ci"
-          grep -Fq 'gh release edit "$TAG" --draft=false' "$ci"
-          if grep -Fq 'git push origin "$TAG"' "$ci"; then
-            echo 'MBLINK must not expose an immutable tag before every asset is verified.' >&2
-            exit 1
-          fi
-          if grep -Eq '^  pull_request:|^  merge_group:' "$ci"; then
-            echo 'MBLINK CI must use main only; PR/merge branches are forbidden.' >&2
-            exit 1
-          fi
-          if grep -Fq "if: github.event_name == 'workflow_dispatch'" "$ci"; then
-            echo 'MBLINK publication must never require manual approval.' >&2
-            exit 1
-          fi
+        run: test ! -e .github/workflows/auto-release.yml
+      - name: Run canonical preflight
+        run: python3 scripts/preflight.py
+      - name: Verify stable PID architecture contract
+        run: python3 tests/test_pid_architecture.py
