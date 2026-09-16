@@ -88,6 +88,12 @@ def check_gitlinks() -> None:
     actual_sha = run("git", "-C", "src/link", "rev-parse", "HEAD").stdout.strip()
     if actual_sha != expected_sha:
         fail(f"LINK checkout mismatch: expected {expected_sha}, found {actual_sha}")
+    project = (ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj").read_text()
+    revisions = [re.search(r"[0-9a-f]{40}", line) for line in project.splitlines()
+                 if "LINK_SOURCE_REVISION=" in line]
+    if len(revisions) != 2 or any(match is None or match.group() != expected_sha
+                                  for match in revisions):
+        fail("every iOS configuration must record the exact LINK gitlink")
 
 
 def check_release_subject(version: str) -> bool:

@@ -24,6 +24,7 @@
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_module_catalog.h"
 #include "mblink/kwp2000.h"
+#include "mblink/obd2.h"
 #include "mblink/uds.h"
 #include "mblink/uds_dtc.h"
 
@@ -174,6 +175,11 @@ typedef struct MblinkMercedesModuleScan {
     bool candidate_extended;
     bool candidate_route_locked;
     size_t vin_probe_index;
+    /* First positive VIN from a physically filtered, matching VIN request. */
+    char vin[LINK_OBD2_VIN_LENGTH + 1U];
+    uint32_t vin_tx_can_id;
+    uint32_t vin_rx_can_id;
+    MblinkMercedesVinProbe vin_source;
     bool vin_timeout_long;
     bool kwp_identity_captured;
     size_t dtc_index;
@@ -885,6 +891,51 @@ static inline bool mblink_mercedes_module_scan_decode_candidate(
     }
 }
 
+static inline void mblink_mercedes_module_scan_capture_vin(
+    MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+    size_t length = 0U;
+    size_t offset = 0U;
+    char vin[LINK_OBD2_VIN_LENGTH + 1U] = {0};
+    MblinkMercedesVinProbe probe;
+    if (scan == NULL || response == NULL || scan->vin[0] != '\0' ||
+        !scan->candidate_route_locked ||
+        response->result != MBLINK_ELM327_RESULT_OK) return;
+    probe = mblink_mercedes_module_scan_vin_probe_at(scan, scan->vin_probe_index);
+    if (probe == MBLINK_MERCEDES_VIN_PROBE_OBD_0902) {
+        if (mblink_obd2_decode_vin(response, vin) != LINK_OBD2_RESULT_OK) return;
+    } else {
+        if (mblink_elm327_can_decode_pdu(response, pdu, sizeof(pdu), &length) !=
+            MBLINK_ELM327_CAN_RESULT_OK) return;
+        if ((probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F190 ||
+             probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0) &&
+            length == 3U + LINK_OBD2_VIN_LENGTH &&
+            pdu[0] == 0x62U && pdu[1] == 0xf1U &&
+            pdu[2] == (probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F190 ? 0x90U : 0xa0U)) {
+            offset = 3U;
+        } else if (length == 2U + LINK_OBD2_VIN_LENGTH &&
+                   ((probe == MBLINK_MERCEDES_VIN_PROBE_KWP_1A90 &&
+                     pdu[0] == 0x5aU && pdu[1] == 0x90U) ||
+                    (probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105 &&
+                     pdu[0] == 0x61U && pdu[1] == 0x05U))) {
+            offset = 2U;
+        } else return;
+        for (size_t index = 0U; index < LINK_OBD2_VIN_LENGTH; ++index) {
+            const uint8_t value = pdu[offset + index];
+            if (!((value >= '0' && value <= '9') ||
+                  (value >= 'A' && value <= 'Z' &&
+                   value != 'I' && value != 'O' && value != 'Q'))) return;
+            vin[index] = (char)value;
+        }
+    }
+    memcpy(scan->vin, vin, sizeof(scan->vin));
+    scan->vin_tx_can_id = scan->candidate_tx;
+    scan->vin_rx_can_id = scan->candidate_rx;
+    scan->vin_source = probe;
+}
+
 static inline bool mblink_mercedes_module_scan_decode_vin_probe(
     const MblinkMercedesModuleScan *scan,
     const MblinkElm327Response *response)
@@ -1570,6 +1621,7 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept(
             }
             break;
         }
+        mblink_mercedes_module_scan_capture_vin(scan, response);
         present = mblink_mercedes_module_scan_decode_vin_probe(scan, response);
         if (present) {
             (void)mblink_mercedes_module_scan_record_module(scan, false);

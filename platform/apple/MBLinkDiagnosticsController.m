@@ -1219,8 +1219,8 @@ static bool MBLinkSimulatorResponder(
 
     self.mercedesIdentityResults = [identity copy];
     self.mercedesIdentitySummaryText = identity.count != 0U
-        ? @"Standard OBD VIN captured and decoded; Mercedes ECU identity pending"
-        : @"Standard OBD VIN captured; Mercedes ECU identity pending";
+        ? @"VIN captured and decoded; Mercedes ECU identity pending"
+        : @"VIN captured; Mercedes ECU identity pending";
     [self loadSavedVehicleProfileForVIN:self.mercedesVINText];
     [self notifyDelegate];
 }
@@ -3183,6 +3183,11 @@ static void MBLinkAppendManufacturerDefinition(
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response
 {
     MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(&_mercedesModuleScan, response);
+    if (self.mercedesVINText.length == 0U && _mercedesModuleScan.vin[0] != '\0') {
+        /* Publish through LINK's normal VIN event before profile persistence.
+         * This loads VIN-scoped choices while the current census continues. */
+        (void)[_shared adoptManufacturerVIN:_mercedesModuleScan.vin];
+    }
     if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
         _moduleScanActive = NO;
         [self updateMercedesModuleScanSummary];

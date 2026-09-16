@@ -433,6 +433,18 @@ jobs:
         with:
           name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
           path: release-assets
+      - name: Package complete recursive source archive
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
+          mkdir -p "$staging" release-assets
+          rsync -a --exclude='.git' --exclude='/release-assets/' ./ "$staging/"
+          test -s "$staging/src/link/src/infiltratr-common/CMakeLists.txt"
+          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
+          unzip -tq "release-assets/MBLINK-${VERSION}-source.zip"
       - name: Verify release artifacts and build checksums
         shell: bash
         env:
@@ -443,7 +455,8 @@ jobs:
             "MBLINK-${VERSION}-unsigned.ipa" \
             "MBLINK-${VERSION}-linux-amd64.deb" \
             "MBLINK-${VERSION}-linux-native.run" \
-            "MBLINK-${VERSION}-windows-discover.exe"; do
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip"; do
             test -s "release-assets/$file"
           done
           (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
@@ -487,6 +500,7 @@ jobs:
             "MBLINK-${VERSION}-linux-amd64.deb" \
             "MBLINK-${VERSION}-linux-native.run" \
             "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip" \
             "SHA256SUMS.txt"; do
             grep -Fxq "$expected" <<<"$assets"
           done
