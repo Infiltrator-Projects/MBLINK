@@ -6,6 +6,15 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.207 — 2026-09-19
+
+- Upgraded the exact shared engine dependency to LINK 0.15.28 and Infiltratr Common 1.19.8.
+- Replaced Linux product-local OBD-II value, decoded-PID and fuel-economy formatting with LINK's shared preference-aware presentation contracts.
+- Reused Common's strict ranged integer parser, checked dynamic-array growth helper and canonical array-length primitive in MBLINK-owned code.
+- Moved the Mercedes identity-first module scanner out of multi-thousand-line public inline headers into a normal MBLINK translation unit while retaining the existing API and state-machine behaviour.
+- Kept the portable diagnostic core C11-first; no C++ runtime or duplicate OO layer was introduced.
+
+
 ## 0.7.206 — 2026-09-19
 
 - Replaced the Linux Dashboard navigation artwork with a high-contrast four-panel glyph that remains legible at sidebar size.

@@ -4,6 +4,7 @@
  * @brief Mercedes evidence/profile adapter over LINK's generic ECU probe.
  */
 #include "mblink/mercedes_probe.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
@@ -280,7 +281,7 @@ static void mercedes_probe_sync_evidence(MblinkMercedesEcuProbe *probe)
         }
     }
 
-    for (index = 1U; index < sizeof(mercedes_probe_requests) / sizeof(mercedes_probe_requests[0]); ++index) {
+    for (index = 1U; index < INFILTRATR_ARRAY_LENGTH(mercedes_probe_requests); ++index) {
         const LinkEcuProbeDidResult *result = link_ecu_probe_did_result_at(&probe->shared, index);
         const uint32_t evidence_bit = UINT32_C(1) << (index - 1U);
         if (result == NULL) continue;
@@ -491,7 +492,7 @@ MblinkMercedesEcuProbeResult mblink_mercedes_ecu_probe_begin(
     probe->endpoint = endpoint;
     profile.channel = channel;
     profile.dids = mercedes_probe_requests;
-    profile.did_count = sizeof(mercedes_probe_requests) / sizeof(mercedes_probe_requests[0]);
+    profile.did_count = INFILTRATR_ARRAY_LENGTH(mercedes_probe_requests);
     profile.tester_present = true;
     profile.read_dtcs = true;
     result = link_ecu_probe_begin(&probe->shared, &profile);

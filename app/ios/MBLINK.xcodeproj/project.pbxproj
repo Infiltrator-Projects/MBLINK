@@ -18,6 +18,7 @@
 		E0A1B2C3D4E5F60718293B04 /* isotp.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A04 /* isotp.c */; };
 		E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A05 /* uds.c */; };
 		E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A06 /* mercedes.c */; };
+		E0A1B2C3D4E5F60718293B14 /* module_scan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A14 /* module_scan.c */; };
 		E0A1B2C3D4E5F60718293B07 /* parameter.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A07 /* parameter.c */; };
 		E0A1B2C3D4E5F60718293B09 /* elm327_can.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A09 /* elm327_can.c */; };
 		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
@@ -110,6 +111,7 @@
 		F0A1B2C3D4E5F60718293A04 /* isotp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "isotp.c"; path = "../../src/link/src/core/isotp.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A05 /* uds.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "uds.c"; path = "../../src/uds/uds.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A06 /* mercedes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes.c"; path = "../../src/mercedes/mercedes.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A14 /* module_scan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "module_scan.c"; path = "../../src/mercedes/module_scan.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A07 /* parameter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parameter.c"; path = "../../src/core/parameter.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A09 /* elm327_can.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "elm327_can.c"; path = "../../src/elm327/can.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
@@ -272,6 +274,7 @@
 				F0A1B2C3D4E5F60718293A11 /* kwp2000.c */,
 				F0A1B2C3D4E5F60718293A05 /* uds.c */,
 				F0A1B2C3D4E5F60718293A06 /* mercedes.c */,
+				F0A1B2C3D4E5F60718293A14 /* module_scan.c */,
 				F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */,
 				F0A1B2C3D4E5F60718293A0C /* discover_plan.c */,
 				F0A1B2C3D4E5F60718293A12 /* data_scan.c */,
@@ -543,6 +546,7 @@
 				E0A1B2C3D4E5F60718293B11 /* kwp2000.c in Sources */,
 				E0A1B2C3D4E5F60718293B05 /* uds.c in Sources */,
 				E0A1B2C3D4E5F60718293B06 /* mercedes.c in Sources */,
+				E0A1B2C3D4E5F60718293B14 /* module_scan.c in Sources */,
 				E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */,
 				E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */,
 				E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */,
@@ -626,7 +630,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.206;
+				MARKETING_VERSION = 0.7.207;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -665,7 +669,7 @@
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.206;
+				MARKETING_VERSION = 0.7.207;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -714,7 +718,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.206;
+				MARKETING_VERSION = 0.7.207;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -756,7 +760,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.206;
+				MARKETING_VERSION = 0.7.207;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";

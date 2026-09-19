@@ -52,84 +52,26 @@ extern "C" {
 #define MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL SIZE_MAX
 #define MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER ((size_t)0x80U)
 
-static inline bool mblink_mercedes_module_scan_identity_first_active(
-    const MblinkMercedesModuleScan *scan)
-{
-    return scan != NULL &&
-           scan->scope != MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
-           scan->dtc_index == MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
-}
+bool mblink_mercedes_module_scan_identity_first_active(
+    const MblinkMercedesModuleScan *scan);
 
-static inline void mblink_mercedes_module_scan_mark_identity_first(
-    MblinkMercedesModuleScan *scan)
-{
-    if (scan == NULL) return;
-    scan->dtc_index = MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
-    scan->vin_probe_index = 0U;
-}
+void mblink_mercedes_module_scan_mark_identity_first(
+    MblinkMercedesModuleScan *scan);
 
-static inline bool mblink_mercedes_module_scan_kwp_identity_mode(
-    const MblinkMercedesModuleScan *scan)
-{
-    if (scan == NULL) return false;
-    return mblink_mercedes_module_scan_candidate_protocol(scan) ==
-               MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 ||
-           scan->vin_probe_index >=
-               MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
-}
+bool mblink_mercedes_module_scan_kwp_identity_mode(
+    const MblinkMercedesModuleScan *scan);
 
-static inline size_t mblink_mercedes_module_scan_kwp_identity_index(
-    const MblinkMercedesModuleScan *scan)
-{
-    if (scan == NULL) return 0U;
-    if (scan->vin_probe_index >=
-        MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER) {
-        return scan->vin_probe_index -
-            MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
-    }
-    return scan->vin_probe_index;
-}
+size_t mblink_mercedes_module_scan_kwp_identity_index(
+    const MblinkMercedesModuleScan *scan);
 
-static inline uint8_t mblink_mercedes_module_scan_kwp_identity_option(
-    const MblinkMercedesModuleScan *scan)
-{
-    /*
-     * 0x87 is mandatory DCX/MMC ECU identification in Daimler KWP2000 and
-     * carries origin, supplier, ECU-identification/diagnostic-version bytes,
-     * hardware version, software version and part number.  0x86 (DCS ECU
-     * identification) and 0x89 (diagnostic variant code) are safe read-only
-     * fallbacks for older/variant implementations.
-     */
-    static const uint8_t options[] = {
-        UINT8_C(0x87), UINT8_C(0x86), UINT8_C(0x89)
-    };
-    const size_t index =
-        mblink_mercedes_module_scan_kwp_identity_index(scan);
-    return index < sizeof(options) / sizeof(options[0])
-        ? options[index] : 0U;
-}
+uint8_t mblink_mercedes_module_scan_kwp_identity_option(
+    const MblinkMercedesModuleScan *scan);
 
-static inline bool mblink_mercedes_module_scan_format_kwp_identity_command(
+bool mblink_mercedes_module_scan_format_kwp_identity_command(
     uint8_t option,
     char *buffer,
     size_t buffer_size,
-    size_t *written)
-{
-    int count;
-    if (buffer == NULL || buffer_size == 0U || written == NULL ||
-        option == 0U) {
-        if (written != NULL) *written = 0U;
-        return false;
-    }
-    count = snprintf(buffer, buffer_size, "1A%02X", (unsigned int)option);
-    if (count < 0 || (size_t)count >= buffer_size) {
-        buffer[0] = '\0';
-        *written = 0U;
-        return false;
-    }
-    *written = (size_t)count;
-    return true;
-}
+    size_t *written);
 
 typedef enum MblinkMercedesIdentityResponseState {
     MBLINK_MERCEDES_IDENTITY_RESPONSE_NONE = 0,
@@ -138,701 +80,99 @@ typedef enum MblinkMercedesIdentityResponseState {
     MBLINK_MERCEDES_IDENTITY_RESPONSE_GATEWAY_MISS
 } MblinkMercedesIdentityResponseState;
 
-static inline MblinkMercedesIdentityResponseState
+MblinkMercedesIdentityResponseState
 mblink_mercedes_module_scan_identity_response_state(
     const MblinkElm327Response *response,
     uint8_t request_service,
     uint8_t positive_service,
     uint8_t expected_option,
-    uint8_t *negative_response_code)
-{
-    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
-    size_t pdu_length = 0U;
+    uint8_t *negative_response_code);
 
-    if (negative_response_code != NULL) *negative_response_code = 0U;
-    if (response == NULL || response->result != MBLINK_ELM327_RESULT_OK ||
-        mblink_elm327_can_decode_pdu(
-            response, pdu, sizeof(pdu), &pdu_length) !=
-            MBLINK_ELM327_CAN_RESULT_OK ||
-        pdu_length == 0U) {
-        return MBLINK_MERCEDES_IDENTITY_RESPONSE_NONE;
-    }
-
-    if (pdu[0] == positive_service) {
-        if (expected_option != 0U &&
-            (pdu_length < 2U || pdu[1] != expected_option)) {
-            return MBLINK_MERCEDES_IDENTITY_RESPONSE_NONE;
-        }
-        return MBLINK_MERCEDES_IDENTITY_RESPONSE_POSITIVE;
-    }
-
-    if (pdu_length >= 3U && pdu[0] == UINT8_C(0x7f) &&
-        pdu[1] == request_service) {
-        const uint8_t nrc = pdu[2];
-        if (negative_response_code != NULL)
-            *negative_response_code = nrc;
-        /*
-         * Daimler KWP gateway NRC A0 means the gateway forwarded the request
-         * but the destination did not respond; A1 means the destination
-         * address is unknown.  Neither proves a module exists at the target.
-         */
-        if (nrc == UINT8_C(0xa0) || nrc == UINT8_C(0xa1))
-            return MBLINK_MERCEDES_IDENTITY_RESPONSE_GATEWAY_MISS;
-        return MBLINK_MERCEDES_IDENTITY_RESPONSE_NEGATIVE;
-    }
-    return MBLINK_MERCEDES_IDENTITY_RESPONSE_NONE;
-}
-
-static inline bool mblink_mercedes_module_scan_copy_printable(
+bool mblink_mercedes_module_scan_copy_printable(
     const uint8_t *data,
     size_t data_length,
     char *destination,
-    size_t destination_capacity)
-{
-    size_t length;
-    size_t index;
+    size_t destination_capacity);
 
-    if (destination == NULL || destination_capacity == 0U) return false;
-    destination[0] = '\0';
-    if (data == NULL || data_length == 0U) return false;
-
-    length = data_length;
-    while (length != 0U &&
-           (data[length - 1U] == 0U ||
-            data[length - 1U] == UINT8_C(0xff) ||
-            data[length - 1U] == (uint8_t)' ')) {
-        --length;
-    }
-    if (length == 0U) return false;
-    if (length >= destination_capacity) length = destination_capacity - 1U;
-    for (index = 0U; index < length; ++index) {
-        if (data[index] < UINT8_C(0x20) || data[index] > UINT8_C(0x7e)) {
-            destination[0] = '\0';
-            return false;
-        }
-        destination[index] = (char)data[index];
-    }
-    destination[length] = '\0';
-    return true;
-}
-
-static inline bool mblink_mercedes_module_scan_decode_kwp_identity_record(
+bool mblink_mercedes_module_scan_decode_kwp_identity_record(
     const MblinkElm327Response *response,
     uint8_t option,
-    MblinkKwp2000EcuIdentificationRecord *record)
-{
-    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
-    size_t pdu_length = 0U;
+    MblinkKwp2000EcuIdentificationRecord *record);
 
-    if (record == NULL || response == NULL ||
-        response->result != MBLINK_ELM327_RESULT_OK ||
-        mblink_elm327_can_decode_pdu(
-            response, pdu, sizeof(pdu), &pdu_length) !=
-            MBLINK_ELM327_CAN_RESULT_OK) {
-        return false;
-    }
-    return mblink_kwp2000_decode_read_ecu_identification_response(
-               pdu, pdu_length, option, record) ==
-           MBLINK_KWP2000_RESULT_OK;
-}
-
-static inline bool mblink_mercedes_module_scan_capture_kwp_87(
+bool mblink_mercedes_module_scan_capture_kwp_87(
     MblinkMercedesModuleScanEntry *module,
-    const MblinkElm327Response *response)
-{
-    MblinkKwp2000EcuIdentificationRecord record;
-    char part[sizeof(module->spare_part_number)];
+    const MblinkElm327Response *response);
 
-    if (module == NULL ||
-        !mblink_mercedes_module_scan_decode_kwp_identity_record(
-            response, UINT8_C(0x87), &record) ||
-        record.data_length < 10U) {
-        return false;
-    }
-
-    /*
-     * Daimler DCX/MMC $87 payload (after 5A 87):
-     *   [0] origin, [1] supplier,
-     *   [2] ECU identification / variant byte,
-     *   [3] diagnostic version,
-     *   [4] reserved,
-     *   [5..6] hardware version,
-     *   [7..9] software version,
-     *   [10..19] corporate part number.
-     * Keep the numeric identity tuple verbatim.  Its interpretation is
-     * ECU-family/DDT specific, so do not manufacture an EGS generation from a
-     * number alone.
-     */
-    (void)snprintf(
-        module->identity, sizeof(module->identity),
-        "KWP ECU S%02X V%02X D%02X HW%02X.%02X SW%02X.%02X.%02X",
-        (unsigned int)record.data[1],
-        (unsigned int)record.data[2],
-        (unsigned int)record.data[3],
-        (unsigned int)record.data[5],
-        (unsigned int)record.data[6],
-        (unsigned int)record.data[7],
-        (unsigned int)record.data[8],
-        (unsigned int)record.data[9]);
-    module->identity_available = true;
-
-    (void)snprintf(
-        module->hardware_number, sizeof(module->hardware_number),
-        "%02X.%02X",
-        (unsigned int)record.data[5],
-        (unsigned int)record.data[6]);
-    module->hardware_number_available = true;
-    (void)snprintf(
-        module->software_number, sizeof(module->software_number),
-        "%02X.%02X.%02X",
-        (unsigned int)record.data[7],
-        (unsigned int)record.data[8],
-        (unsigned int)record.data[9]);
-    module->software_number_available = true;
-
-    if (record.data_length > 10U &&
-        mblink_mercedes_module_scan_copy_printable(
-            record.data + 10U, record.data_length - 10U,
-            part, sizeof(part))) {
-        (void)snprintf(
-            module->spare_part_number,
-            sizeof(module->spare_part_number), "%s", part);
-        module->spare_part_number_available = true;
-    }
-    mblink_mercedes_module_scan_classify_identity(module);
-    return true;
-}
-
-static inline bool mblink_mercedes_module_scan_bcd_part_number(
+bool mblink_mercedes_module_scan_bcd_part_number(
     const uint8_t data[5],
     char *destination,
-    size_t destination_capacity)
-{
-    size_t index;
-    if (data == NULL || destination == NULL || destination_capacity < 11U)
-        return false;
-    for (index = 0U; index < 5U; ++index) {
-        if ((data[index] & UINT8_C(0x0f)) > UINT8_C(9) ||
-            ((data[index] >> 4U) & UINT8_C(0x0f)) > UINT8_C(9)) {
-            destination[0] = '\0';
-            return false;
-        }
-    }
-    (void)snprintf(
-        destination, destination_capacity,
-        "%02X%02X%02X%02X%02X",
-        (unsigned int)data[0], (unsigned int)data[1],
-        (unsigned int)data[2], (unsigned int)data[3],
-        (unsigned int)data[4]);
-    return true;
-}
+    size_t destination_capacity);
 
-static inline bool mblink_mercedes_module_scan_capture_kwp_86(
+bool mblink_mercedes_module_scan_capture_kwp_86(
     MblinkMercedesModuleScanEntry *module,
-    const MblinkElm327Response *response)
-{
-    MblinkKwp2000EcuIdentificationRecord record;
-    char part[sizeof(module->spare_part_number)];
+    const MblinkElm327Response *response);
 
-    if (module == NULL ||
-        !mblink_mercedes_module_scan_decode_kwp_identity_record(
-            response, UINT8_C(0x86), &record) ||
-        record.data_length < 12U) {
-        return false;
-    }
-
-    (void)snprintf(
-        module->identity, sizeof(module->identity),
-        "KWP DCS S%02X V%02X D%02X HW-W%02X/%02X SW-W%02X/%02X",
-        (unsigned int)record.data[9],
-        (unsigned int)record.data[10],
-        (unsigned int)record.data[11],
-        (unsigned int)record.data[5],
-        (unsigned int)record.data[6],
-        (unsigned int)record.data[7],
-        (unsigned int)record.data[8]);
-    module->identity_available = true;
-
-    (void)snprintf(
-        module->hardware_number, sizeof(module->hardware_number),
-        "build-W%02X/%02X",
-        (unsigned int)record.data[5],
-        (unsigned int)record.data[6]);
-    module->hardware_number_available = true;
-    (void)snprintf(
-        module->software_number, sizeof(module->software_number),
-        "build-W%02X/%02X",
-        (unsigned int)record.data[7],
-        (unsigned int)record.data[8]);
-    module->software_number_available = true;
-
-    if (mblink_mercedes_module_scan_bcd_part_number(
-            record.data, part, sizeof(part))) {
-        (void)snprintf(
-            module->spare_part_number,
-            sizeof(module->spare_part_number), "%s", part);
-        module->spare_part_number_available = true;
-    }
-    mblink_mercedes_module_scan_classify_identity(module);
-    return true;
-}
-
-static inline bool mblink_mercedes_module_scan_capture_kwp_89(
+bool mblink_mercedes_module_scan_capture_kwp_89(
     MblinkMercedesModuleScanEntry *module,
-    const MblinkElm327Response *response)
-{
-    MblinkKwp2000EcuIdentificationRecord record;
-    size_t index;
-    size_t offset = 0U;
+    const MblinkElm327Response *response);
 
-    if (module == NULL ||
-        !mblink_mercedes_module_scan_decode_kwp_identity_record(
-            response, UINT8_C(0x89), &record) ||
-        record.data_length == 0U) {
-        return false;
-    }
-
-    offset = (size_t)snprintf(
-        module->identity, sizeof(module->identity), "KWP variant ");
-    if (offset >= sizeof(module->identity)) offset = sizeof(module->identity) - 1U;
-    for (index = 0U;
-         index < record.data_length && index < 8U &&
-         offset + 2U < sizeof(module->identity);
-         ++index) {
-        const int count = snprintf(
-            module->identity + offset,
-            sizeof(module->identity) - offset,
-            "%02X", (unsigned int)record.data[index]);
-        if (count < 0 || (size_t)count >= sizeof(module->identity) - offset)
-            break;
-        offset += (size_t)count;
-    }
-    module->identity_available = true;
-    mblink_mercedes_module_scan_classify_identity(module);
-    return true;
-}
-
-static inline bool mblink_mercedes_module_scan_capture_kwp_identity(
+bool mblink_mercedes_module_scan_capture_kwp_identity(
     MblinkMercedesModuleScanEntry *module,
     const MblinkElm327Response *response,
-    uint8_t option)
-{
-    switch (option) {
-    case UINT8_C(0x87):
-        return mblink_mercedes_module_scan_capture_kwp_87(module, response);
-    case UINT8_C(0x86):
-        return mblink_mercedes_module_scan_capture_kwp_86(module, response);
-    case UINT8_C(0x89):
-        return mblink_mercedes_module_scan_capture_kwp_89(module, response);
-    default:
-        return false;
-    }
-}
+    uint8_t option);
 
-static inline bool mblink_mercedes_module_scan_is_kwp_transmission(
-    const MblinkMercedesModuleScanEntry *module)
-{
-    return module != NULL && module->definition != NULL &&
-           strcmp(module->definition->key, "transmission-vgs") == 0 &&
-           mblink_mercedes_module_scan_entry_protocol(module) ==
-               MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-}
+bool mblink_mercedes_module_scan_is_kwp_transmission(
+    const MblinkMercedesModuleScanEntry *module);
 
-static inline void mblink_mercedes_module_scan_start_kwp_identity_fallback(
-    MblinkMercedesModuleScan *scan)
-{
-    if (scan == NULL) return;
-    scan->vin_probe_index =
-        MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
-    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
-}
+void mblink_mercedes_module_scan_start_kwp_identity_fallback(
+    MblinkMercedesModuleScan *scan);
 
-static inline bool mblink_mercedes_module_scan_advance_kwp_identity(
-    MblinkMercedesModuleScan *scan)
-{
-    const bool fallback = scan != NULL &&
-        scan->vin_probe_index >=
-            MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
-    const size_t next =
-        mblink_mercedes_module_scan_kwp_identity_index(scan) + 1U;
+bool mblink_mercedes_module_scan_advance_kwp_identity(
+    MblinkMercedesModuleScan *scan);
 
-    if (scan == NULL || next >= 3U) return false;
-    scan->vin_probe_index = fallback
-        ? MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER + next
-        : next;
-    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
-    return true;
-}
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin(MblinkMercedesModuleScan *scan);
 
-static inline MblinkMercedesModuleScanResult
-mblink_mercedes_module_scan_begin(MblinkMercedesModuleScan *scan)
-{
-    MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_core(scan);
-    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK)
-        mblink_mercedes_module_scan_mark_identity_first(scan);
-    return result;
-}
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_gateway(MblinkMercedesModuleScan *scan);
 
-static inline MblinkMercedesModuleScanResult
-mblink_mercedes_module_scan_begin_gateway(MblinkMercedesModuleScan *scan)
-{
-    MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_gateway_core(scan);
-    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK)
-        mblink_mercedes_module_scan_mark_identity_first(scan);
-    return result;
-}
-
-static inline MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_begin_mobile_census(
-    MblinkMercedesModuleScan *scan)
-{
-    MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_mobile_census_core(scan);
-    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK)
-        mblink_mercedes_module_scan_mark_identity_first(scan);
-    return result;
-}
+    MblinkMercedesModuleScan *scan);
 
-static inline MblinkMercedesModuleScanResult
-mblink_mercedes_module_scan_begin_full(MblinkMercedesModuleScan *scan)
-{
-    MblinkMercedesModuleScanResult result =
-        mblink_mercedes_module_scan_begin_full_core(scan);
-    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK)
-        mblink_mercedes_module_scan_mark_identity_first(scan);
-    return result;
-}
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_full(MblinkMercedesModuleScan *scan);
 
-static inline MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_command(
     const MblinkMercedesModuleScan *scan,
     char *buffer,
     size_t buffer_size,
-    size_t *written)
-{
-    if ((scan != NULL && scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
-         scan->dtc_index < scan->module_count &&
-         scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY) ||
-        (mblink_mercedes_module_scan_identity_first_active(scan) &&
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY &&
-        mblink_mercedes_module_scan_kwp_identity_mode(scan))) {
-        return mblink_mercedes_module_scan_format_kwp_identity_command(
-                   mblink_mercedes_module_scan_kwp_identity_option(scan),
-                   buffer, buffer_size, written)
-            ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK
-            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
-    }
-    return mblink_mercedes_module_scan_command_core(
-        scan, buffer, buffer_size, written);
-}
+    size_t *written);
 
-static inline MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_accept_identity(
     MblinkMercedesModuleScan *scan,
-    const MblinkElm327Response *response)
-{
-    MblinkMercedesModuleScanEntry *module;
-    MblinkMercedesIdentityResponseState state;
-    uint8_t nrc = 0U;
+    const MblinkElm327Response *response);
 
-    if (mblink_mercedes_module_scan_kwp_identity_mode(scan)) {
-        const uint8_t option =
-            mblink_mercedes_module_scan_kwp_identity_option(scan);
-        if (option == UINT8_C(0x87)) scan->kwp_identity_captured = false;
-        state = mblink_mercedes_module_scan_identity_response_state(
-            response, MBLINK_KWP2000_SERVICE_READ_ECU_IDENTIFICATION,
-            UINT8_C(0x5a), option, &nrc);
-
-        if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_GATEWAY_MISS) {
-            mblink_mercedes_module_scan_advance_candidate(scan);
-        } else if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_POSITIVE) {
-            module = mblink_mercedes_module_scan_record_module(scan, false);
-            if (module != NULL) {
-                module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-                if (!scan->kwp_identity_captured)
-                    scan->kwp_identity_captured =
-                        mblink_mercedes_module_scan_capture_kwp_identity(
-                            module, response, option);
-            }
-            /* Collect the variant too, and never stop on a truncated 5A. */
-            if ((mblink_mercedes_module_scan_is_kwp_transmission(module) ||
-                 !scan->kwp_identity_captured) &&
-                mblink_mercedes_module_scan_advance_kwp_identity(scan))
-                return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-            mblink_mercedes_module_scan_advance_candidate(scan);
-        } else {
-            if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_NEGATIVE) {
-                /* A real non-gateway negative reply still proves an ECU is there. */
-                module = mblink_mercedes_module_scan_record_module(scan, false);
-                if (module != NULL)
-                    module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-            }
-            if (!mblink_mercedes_module_scan_advance_kwp_identity(scan)) {
-                module = mblink_mercedes_module_scan_find_candidate(scan);
-                if (module != NULL)
-                    mblink_mercedes_module_scan_advance_candidate(scan);
-                else {
-                    scan->vin_probe_index = 0U;
-                    scan->stage =
-                        MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
-                }
-            }
-        }
-        return scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
-            ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE
-            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-    }
-
-    /* UDS identity is F197 system name, the strongest normal family label. */
-    if (mblink_mercedes_module_scan_uses_target_plan(scan->scope) &&
-        !scan->candidate_extended && !scan->candidate_route_locked) {
-        uint32_t learned_rx = 0U;
-        if (mblink_mercedes_module_scan_headered_11_route(
-                response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
-                &learned_rx)) {
-            scan->candidate_rx = learned_rx;
-            scan->candidate_route_locked = true;
-            (void)mblink_mercedes_module_scan_record_module(scan, false);
-            scan->stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF;
-            return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-        }
-    }
-
-    state = mblink_mercedes_module_scan_identity_response_state(
-        response, MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
-        UINT8_C(0x62), 0U, &nrc);
-    if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_GATEWAY_MISS) {
-        mblink_mercedes_module_scan_advance_candidate(scan);
-    } else if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_POSITIVE) {
-        module = mblink_mercedes_module_scan_record_module(scan, false);
-        if (module != NULL) {
-            module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
-            mblink_mercedes_module_scan_capture_identity(module, response);
-        }
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART;
-    } else if (state == MBLINK_MERCEDES_IDENTITY_RESPONSE_NEGATIVE) {
-        /*
-         * A non-A0/A1 response proves a destination replied.  On a route whose
-         * protocol is already known to be UDS, keep that ECU and continue with
-         * the remaining metadata.  On an unresolved gateway route, try the
-         * Daimler KWP identity service before deciding the protocol.
-         */
-        module = mblink_mercedes_module_scan_record_module(scan, false);
-        if (mblink_mercedes_module_scan_known_route(scan) != NULL &&
-            mblink_mercedes_module_scan_candidate_protocol(scan) ==
-                MBLINK_MERCEDES_DIAGNOSTIC_UDS) {
-            if (module != NULL)
-                module->protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
-            scan->stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART;
-        } else {
-            mblink_mercedes_module_scan_start_kwp_identity_fallback(scan);
-        }
-    } else if (mblink_mercedes_module_scan_known_route(scan) == NULL) {
-        /* Mixed-protocol ECU behind the N93/CGW path: try KWP identity too. */
-        mblink_mercedes_module_scan_start_kwp_identity_fallback(scan);
-    } else {
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
-    }
-
-    return scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
-        ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE
-        : MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-}
-
-static inline MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_accept(
     MblinkMercedesModuleScan *scan,
-    const MblinkElm327Response *response)
-{
-    const MblinkMercedesModuleScanStage before =
-        scan != NULL ? scan->stage : MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED;
-    const bool identity_first =
-        mblink_mercedes_module_scan_identity_first_active(scan);
-    MblinkMercedesModuleScanResult result;
-
-    if (scan == NULL || response == NULL)
-        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
-
-    if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY &&
-        scan->dtc_index < scan->module_count) {
-        if (!scan->kwp_identity_captured)
-            scan->kwp_identity_captured =
-                mblink_mercedes_module_scan_capture_kwp_identity(
-                    &scan->modules[scan->dtc_index], response,
-                    mblink_mercedes_module_scan_kwp_identity_option(scan));
-        /* No retries: unsupported, malformed and ELM NO DATA replies advance. */
-        if (++scan->vin_probe_index >= 3U)
-            scan->stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT;
-        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-    }
-
-    if (identity_first &&
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY) {
-        return mblink_mercedes_module_scan_accept_identity(scan, response);
-    }
-
-    result = mblink_mercedes_module_scan_accept_core(scan, response);
-    if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK &&
-        scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
-        before == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE &&
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE &&
-        scan->dtc_index < scan->module_count &&
-        mblink_mercedes_module_scan_is_kwp_transmission(
-            &scan->modules[scan->dtc_index])) {
-        scan->vin_probe_index = 0U;
-        /* These extra reads fill missing metadata without replacing a saved
-         * family label with an unresolved numeric KWP tuple. All raw replies
-         * still reach the shared recorder before this parser runs. */
-        scan->kwp_identity_captured =
-            scan->modules[scan->dtc_index].identity_available;
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT;
-    }
-    if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK || !identity_first)
-        return result;
-
-    /*
-     * Adapter route setup and an optional UDS session transition are allowed
-     * before identification.  The first ECU-content request after that setup
-     * is identity, not TesterPresent/DTC.
-     */
-    if ((before ==
-             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK ||
-         before ==
-             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE ||
-         before ==
-             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION ||
-         before ==
-             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF) &&
-        scan->stage ==
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT) {
-        scan->vin_probe_index = 0U;
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
-        return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-    }
-
-    /*
-     * If identity was unavailable and TesterPresent later proves the ECU is
-     * alive, still defer its DTC read until the post-discovery DTC pass.  This
-     * keeps the scan globally identity-first instead of interleaving fault
-     * reads with module census.
-     */
-    if (before ==
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT &&
-        scan->stage ==
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK &&
-        mblink_mercedes_module_scan_find_candidate(scan) != NULL) {
-        mblink_mercedes_module_scan_advance_candidate(scan);
-        return scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
-            ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE
-            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
-    }
-
-    return result;
-}
+    const MblinkElm327Response *response);
 
 /* A watchdog cancels the outstanding command; it is not an ECU NO DATA reply.
  * Keep every captured entry, replay adapter setup, and restart the route. A
  * second interruption on the same route skips it, with at most three resumes
  * for the scan. The owner must defer this until LINK owns a fresh wire slot. */
-static inline bool mblink_mercedes_module_scan_resume_after_interruption(
-    MblinkMercedesModuleScan *scan)
-{
-    bool dtc_pass;
-    uint32_t tx, rx;
-    bool extended;
-    bool repeated;
-    if (scan == NULL || scan->recovery_count >= 3U ||
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE ||
-        scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED)
-        return false;
-    dtc_pass = scan->scope == MBLINK_MERCEDES_MODULE_SCAN_CACHED ||
-        (scan->resume_pending && scan->resume_stage ==
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL) ||
-        (scan->stage >= MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL);
-    if (dtc_pass && scan->dtc_index >= scan->module_count) return false;
-    tx = dtc_pass ? scan->modules[scan->dtc_index].tx_can_id : scan->candidate_tx;
-    rx = dtc_pass ? scan->modules[scan->dtc_index].rx_can_id : scan->candidate_rx;
-    extended = dtc_pass ? scan->modules[scan->dtc_index].extended_id
-                        : scan->candidate_extended;
-    repeated = scan->recovery_count != 0U && scan->recovery_tx == tx &&
-        scan->recovery_rx == rx && scan->recovery_extended == extended;
-    ++scan->recovery_count;
-    scan->recovery_tx = tx;
-    scan->recovery_rx = rx;
-    scan->recovery_extended = extended;
-    scan->vin_timeout_long = false;
-    scan->vin_probe_index = 0U;
-    if (repeated) {
-        if (dtc_pass) {
-            ++scan->dtc_index;
-            if (scan->single_module_refresh || scan->dtc_index >= scan->module_count) {
-                scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE;
-                return false;
-            }
-        } else {
-            mblink_mercedes_module_scan_advance_candidate(scan);
-            if (scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE)
-                return false;
-            dtc_pass = scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
-        }
-    }
-    scan->resume_stage = dtc_pass
-        ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL
-        : (scan->candidate_extended
-            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29
-            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
-    scan->resume_pending = true;
-    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
-    return true;
-}
+bool mblink_mercedes_module_scan_resume_after_interruption(
+    MblinkMercedesModuleScan *scan);
 
 /* A late legislated-OBD response proves this route is alive, not its family.
  * Probe the source-backed GS route once without replacing the other modules
  * or their captured faults. The Apple owner supplies current-session evidence
  * and enforces one follow-up per connection. */
-static inline bool mblink_mercedes_module_scan_begin_late_transmission(
-    MblinkMercedesModuleScan *scan)
-{
-    size_t index;
-    MblinkMercedesModuleScanEntry *entry;
-    if (scan == NULL) return false;
-    for (index = 0U; index < scan->module_count; ++index) {
-        entry = &scan->modules[index];
-        if (!entry->extended_id && entry->tx_can_id == UINT32_C(0x7e1) &&
-            entry->rx_can_id == UINT32_C(0x7e9)) break;
-    }
-    if (index == scan->module_count) {
-        if (index >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) return false;
-        entry = &scan->modules[scan->module_count++];
-        memset(entry, 0, sizeof(*entry));
-        entry->tx_can_id = UINT32_C(0x7e1);
-        entry->rx_can_id = UINT32_C(0x7e9);
-        entry->protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-        entry->definition = mblink_mercedes_module_definition_for_key("transmission-vgs");
-        if (entry->definition != NULL) {
-            entry->kind = entry->definition->kind;
-            entry->identification_status = entry->definition->status;
-        }
-    }
-    scan->scope = MBLINK_MERCEDES_MODULE_SCAN_CACHED;
-    scan->dtc_index = index;
-    scan->single_module_refresh = true;
-    scan->resume_pending = false;
-    scan->vin_timeout_long = false;
-    scan->vin_probe_index = 0U;
-    scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
-    return true;
-}
+bool mblink_mercedes_module_scan_begin_late_transmission(
+    MblinkMercedesModuleScan *scan);
 
 #ifdef __cplusplus
 }

@@ -653,10 +653,7 @@ static void format_sample(const LinkObd2Sample *sample,
                           size_t capacity)
 {
     MblinkParameterSample parameter;
-    const char *unit;
     LinkUnitPreferences preferences;
-    double display;
-    const char *display_unit = NULL;
 
     if (buffer == NULL || capacity == 0U) return;
     if (sample == NULL) {
@@ -664,46 +661,10 @@ static void format_sample(const LinkObd2Sample *sample,
         return;
     }
 
-    if (context != NULL) {
-        mblink_link_unit_preferences(context, &preferences);
-        if (link_units_convert_obd2_with_preferences(
-                sample->unit, sample->value, &preferences,
-                &display, &display_unit)) {
-            switch (sample->unit) {
-            case LINK_OBD2_UNIT_CELSIUS:
-                (void)snprintf(
-                    buffer, capacity, "%.1f %s", display,
-                    preferences.temperature == LINK_TEMPERATURE_FAHRENHEIT
-                        ? "°F" : "°C");
-                return;
-            case LINK_OBD2_UNIT_KPA:
-                if (preferences.pressure == LINK_PRESSURE_BAR)
-                    (void)snprintf(buffer, capacity, "%.2f bar", display);
-                else if (preferences.pressure == LINK_PRESSURE_PSI)
-                    (void)snprintf(
-                        buffer, capacity,
-                        sample->value < 70.0 && sample->value > -70.0
-                            ? "%.2f psi" : "%.1f psi", display);
-                else
-                    (void)snprintf(
-                        buffer, capacity,
-                        sample->value < 100.0 && sample->value > -100.0
-                            ? "%.2f kPa" : "%.1f kPa", display);
-                return;
-            case LINK_OBD2_UNIT_KMH:
-                (void)snprintf(buffer, capacity, "%.1f %s", display, display_unit);
-                return;
-            case LINK_OBD2_UNIT_KILOMETRES:
-                (void)snprintf(buffer, capacity, "%.1f %s", display, display_unit);
-                return;
-            case LINK_OBD2_UNIT_GRAMS_PER_SECOND:
-            case LINK_OBD2_UNIT_LITRES_PER_HOUR:
-                (void)snprintf(buffer, capacity, "%.2f %s", display, display_unit);
-                return;
-            default:
-                break;
-            }
-        }
+    mblink_link_unit_preferences(context, &preferences);
+    if (link_units_format_obd2_with_preferences(
+            sample, &preferences, buffer, capacity)) {
+        return;
     }
 
     if (mblink_parameter_from_obd2(sample, 0U, &parameter) &&
@@ -711,11 +672,7 @@ static void format_sample(const LinkObd2Sample *sample,
         return;
     }
 
-    unit = link_obd2_unit_name(sample->unit);
-    if (unit == NULL || unit[0] == '\0' || sample->unit == LINK_OBD2_UNIT_NONE)
-        (void)snprintf(buffer, capacity, "%.2f", sample->value);
-    else
-        (void)snprintf(buffer, capacity, "%.2f %s", sample->value, unit);
+    (void)snprintf(buffer, capacity, "—");
 }
 
 static void format_decoded_pid(
@@ -723,69 +680,15 @@ static void format_decoded_pid(
     char *buffer,
     size_t capacity)
 {
-    size_t index;
-    size_t used = 0U;
-
     if (buffer == NULL || capacity == 0U) return;
-    buffer[0] = '\0';
     if (decoded == NULL) {
         (void)snprintf(buffer, capacity, "Waiting");
         return;
     }
-
-    if (decoded->signal_count != 0U) {
-        const size_t shown =
-            decoded->signal_count < 2U ? decoded->signal_count : 2U;
-        for (index = 0U; index < shown; ++index) {
-            const MblinkObd2DecodedSignal *signal = &decoded->signals[index];
-            const int written = snprintf(
-                buffer + used, capacity - used,
-                "%s%s %.2f%s%s",
-                index == 0U ? "" : " · ",
-                signal->label != NULL ? signal->label : "value",
-                signal->value,
-                signal->unit != NULL && signal->unit[0] != '\0' ? " " : "",
-                signal->unit != NULL ? signal->unit : "");
-            if (written < 0) break;
-            if ((size_t)written >= capacity - used) {
-                used = capacity - 1U;
-                break;
-            }
-            used += (size_t)written;
-        }
-        if (decoded->signal_count > shown && used + 8U < capacity) {
-            (void)snprintf(
-                buffer + used, capacity - used,
-                " · +%zu", decoded->signal_count - shown);
-        }
-        return;
+    if (!link_obd2_format_decoded_summary(
+            decoded, 2U, 8U, buffer, capacity)) {
+        (void)snprintf(buffer, capacity, "Decoded");
     }
-
-    if (decoded->text_available && decoded->text[0] != '\0') {
-        (void)snprintf(buffer, capacity, "%s", decoded->text);
-        return;
-    }
-
-    if (decoded->raw_length != 0U) {
-        const int first = snprintf(buffer, capacity, "RAW");
-        if (first < 0 || (size_t)first >= capacity) return;
-        used = (size_t)first;
-        for (index = 0U;
-             index < decoded->raw_length && index < 8U &&
-             used + 4U < capacity;
-             ++index) {
-            const int written = snprintf(
-                buffer + used, capacity - used, " %02X",
-                (unsigned int)decoded->raw[index]);
-            if (written < 0 || (size_t)written >= capacity - used) break;
-            used += (size_t)written;
-        }
-        if (decoded->raw_length > 8U && used + 5U < capacity)
-            (void)snprintf(buffer + used, capacity - used, " …");
-        return;
-    }
-
-    (void)snprintf(buffer, capacity, "Decoded");
 }
 
 static void append_dtc_list(GtkWidget *card,
@@ -1657,130 +1560,25 @@ static void append_parameters(GtkWidget *body,
     gtk_box_append(GTK_BOX(body), card);
 }
 
-static void format_fuel_economy(
-    double litres_per_100km,
-    const MblinkLinuxContext *context,
-    char *buffer,
-    size_t capacity)
-{
-    double display = litres_per_100km;
-    const char *unit = "L/100 km";
-    const LinkFuelEconomyUnit preference = context != NULL
-        ? (LinkFuelEconomyUnit)context->fuel_economy_unit
-        : LINK_FUEL_ECONOMY_L_PER_100KM;
-    if (!link_units_convert_fuel_economy(
-            litres_per_100km, preference, &display, &unit)) {
-        (void)snprintf(buffer, capacity, "—");
-        return;
-    }
-    (void)snprintf(buffer, capacity, "%.1f %s", display, unit);
-}
-
-static void format_distance(
-    double kilometres,
-    const MblinkLinuxContext *context,
-    char *buffer,
-    size_t capacity)
-{
-    double display = kilometres;
-    const char *unit = "km";
-    const LinkDistanceUnit preference = context != NULL
-        ? (LinkDistanceUnit)context->distance_unit : LINK_DISTANCE_KM;
-    if (!link_units_convert_distance(kilometres, preference, &display, &unit)) {
-        display = kilometres;
-        unit = "km";
-    }
-    (void)snprintf(buffer, capacity, "%.1f %s", display, unit);
-}
-
-static void format_fuel_volume(
-    double litres,
-    const MblinkLinuxContext *context,
-    char *buffer,
-    size_t capacity)
-{
-    double display = litres;
-    const char *unit = "L";
-    const LinkFuelVolumeUnit preference = context != NULL
-        ? (LinkFuelVolumeUnit)context->fuel_volume_unit
-        : LINK_FUEL_VOLUME_LITRES;
-    if (!link_units_convert_fuel_volume(litres, preference, &display, &unit)) {
-        display = litres;
-        unit = "L";
-    }
-    (void)snprintf(buffer, capacity, "%.2f %s", display, unit);
-}
-
-static void format_fuel_rate(
-    double litres_per_hour,
-    const MblinkLinuxContext *context,
-    char *buffer,
-    size_t capacity)
-{
-    double display = litres_per_hour;
-    const char *unit = "L/h";
-    const LinkFuelRateUnit preference = context != NULL
-        ? (LinkFuelRateUnit)context->fuel_rate_unit
-        : LINK_FUEL_RATE_L_PER_HOUR;
-    if (!link_units_convert_fuel_rate(
-            litres_per_hour, preference, &display, &unit)) {
-        display = litres_per_hour;
-        unit = "L/h";
-    }
-    (void)snprintf(buffer, capacity, "%.2f %s", display, unit);
-}
-
 static void append_fuel_economy(GtkWidget *body,
                                 const MblinkLinuxContext *context)
 {
     LinkFuelEconomySnapshot snapshot =
         link_fuel_economy_snapshot(&context->fuel_economy, monotonic_ms());
     GtkWidget *card = link_gtk_card_new("FUEL ECONOMY", "Fuel use and trip consumption");
-    char instantaneous[64];
-    char average[64];
-    char rate[64];
-    char trip[128];
+    LinkUnitPreferences preferences;
+    LinkFuelEconomyDisplay display;
     LinkFuelEconomySource display_source = snapshot.instantaneous_available
         ? snapshot.instantaneous_source
         : (snapshot.fuel_rate_available ? snapshot.fuel_rate_source : snapshot.average_source);
 
-    if (snapshot.instantaneous_available) {
-        format_fuel_economy(
-            snapshot.instantaneous_l_per_100km,
-            context, instantaneous, sizeof(instantaneous));
-    } else if (context->connected && !snapshot.moving) {
-        (void)snprintf(
-            instantaneous, sizeof(instantaneous),
-            "— · stationary / awaiting speed");
-    } else {
-        (void)snprintf(
-            instantaneous, sizeof(instantaneous),
-            "Waiting for measured fuel data");
-    }
-    if (snapshot.average_available)
-        format_fuel_economy(
-            snapshot.average_l_per_100km,
-            context, average, sizeof(average));
-    else
-        (void)snprintf(
-            average, sizeof(average), "Waiting for trip distance");
-    if (snapshot.fuel_rate_available)
-        format_fuel_rate(
-            snapshot.fuel_rate_l_per_hour,
-            context, rate, sizeof(rate));
-    else
-        (void)snprintf(rate, sizeof(rate), "Not available");
-    {
-        char volume[48];
-        char distance[48];
-        format_fuel_volume(
-            snapshot.trip_fuel_litres, context,
-            volume, sizeof(volume));
-        format_distance(
-            snapshot.trip_distance_km, context,
-            distance, sizeof(distance));
-        (void)snprintf(
-            trip, sizeof(trip), "%s over %s", volume, distance);
+    mblink_link_unit_preferences(context, &preferences);
+    if (!link_fuel_economy_format_display(
+            &snapshot, &preferences, context->connected, &display)) {
+        (void)snprintf(display.instantaneous, sizeof(display.instantaneous), "Not available");
+        (void)snprintf(display.average, sizeof(display.average), "Not available");
+        (void)snprintf(display.fuel_rate, sizeof(display.fuel_rate), "Not available");
+        (void)snprintf(display.trip, sizeof(display.trip), "Not available");
     }
 
     link_gtk_card_append_status(card,
@@ -1788,10 +1586,10 @@ static void append_fuel_economy(GtkWidget *body,
             ? "MEASURED FUEL DATA ACTIVE" : "WAITING FOR FUEL DATA",
         snapshot.instantaneous_available || snapshot.fuel_rate_available
             ? "state-success" : "state-warning");
-    link_gtk_card_append_detail(card, "Instantaneous", instantaneous);
-    link_gtk_card_append_detail(card, "Trip average", average);
-    link_gtk_card_append_detail(card, "Fuel rate", rate);
-    link_gtk_card_append_detail(card, "Trip", trip);
+    link_gtk_card_append_detail(card, "Instantaneous", display.instantaneous);
+    link_gtk_card_append_detail(card, "Trip average", display.average);
+    link_gtk_card_append_detail(card, "Fuel rate", display.fuel_rate);
+    link_gtk_card_append_detail(card, "Trip", display.trip);
     link_gtk_card_append_detail(card, "Current source", fuel_source_text(display_source));
     link_gtk_card_append_detail(card, "Mercedes factory source",
         "No fuel-consumption DID is enabled until its address and scaling are evidence-backed");

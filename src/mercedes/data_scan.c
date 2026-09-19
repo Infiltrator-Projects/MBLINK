@@ -7,6 +7,7 @@
 #include "mblink/mercedes_module_catalog.h"
 #include "mblink/uds.h"
 
+#include "infiltratr/core.h"
 #include "infiltratr/endian.h"
 
 #include <ctype.h>
@@ -758,8 +759,7 @@ size_t mblink_mercedes_controller_data_profile_identifier_count(
 
     if (profile_key == NULL || profile_key[0] == '\0') return 0U;
     for (index = 0U;
-         index < sizeof(controller_data_profile) /
-             sizeof(controller_data_profile[0]);
+         index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
          ++index) {
         if (controller_data_profile[index].protocol == protocol &&
             strcmp(controller_data_profile[index].profile_key,
@@ -781,8 +781,7 @@ mblink_mercedes_controller_data_profile_identifier_at(
 
     if (profile_key == NULL || profile_key[0] == '\0') return NULL;
     for (index = 0U;
-         index < sizeof(controller_data_profile) /
-             sizeof(controller_data_profile[0]);
+         index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
          ++index) {
         const MblinkMercedesControllerDataProfileEntry *entry =
             &controller_data_profile[index];
@@ -841,7 +840,7 @@ size_t mblink_mercedes_route_evidence_identifier_count(
     size_t count = 0U;
     size_t index;
     for (index = 0U;
-         index < sizeof(route_evidence) / sizeof(route_evidence[0]);
+         index < INFILTRATR_ARRAY_LENGTH(route_evidence);
          ++index) {
         if (route_evidence_matches(
                 &route_evidence[index], tx_can_id, rx_can_id,
@@ -864,7 +863,7 @@ mblink_mercedes_route_evidence_identifier_at(
     size_t match_index = 0U;
     size_t index;
     for (index = 0U;
-         index < sizeof(route_evidence) / sizeof(route_evidence[0]);
+         index < INFILTRATR_ARRAY_LENGTH(route_evidence);
          ++index) {
         if (!route_evidence_matches(
                 &route_evidence[index], tx_can_id, rx_can_id,

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_vin.h"
+#include "infiltratr/core.h"
 
 #include <ctype.h>
 #include <string.h>
 
-#define ARRAY_LENGTH(values) (sizeof(values) / sizeof((values)[0]))
 
 static const MblinkMercedesWmiDefinition mercedes_wmis[] = {
     {"WDB", "Mercedes-Benz / Daimler-Benz", "Germany", "Mercedes-Benz vehicles"},
@@ -123,19 +123,19 @@ const char *mblink_mercedes_steering_name(MblinkMercedesSteering steering)
 
 size_t mblink_mercedes_wmi_count(void)
 {
-    return ARRAY_LENGTH(mercedes_wmis);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_wmis);
 }
 
 const MblinkMercedesWmiDefinition *mblink_mercedes_wmi_at(size_t index)
 {
-    return index < ARRAY_LENGTH(mercedes_wmis) ? &mercedes_wmis[index] : NULL;
+    return index < INFILTRATR_ARRAY_LENGTH(mercedes_wmis) ? &mercedes_wmis[index] : NULL;
 }
 
 const MblinkMercedesWmiDefinition *mblink_mercedes_find_wmi(const char *wmi)
 {
     size_t index;
     if (wmi == NULL || strlen(wmi) != 3U) return NULL;
-    for (index = 0U; index < ARRAY_LENGTH(mercedes_wmis); ++index) {
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(mercedes_wmis); ++index) {
         if (strncmp(wmi, mercedes_wmis[index].code, 3U) == 0)
             return &mercedes_wmis[index];
     }
@@ -144,19 +144,19 @@ const MblinkMercedesWmiDefinition *mblink_mercedes_find_wmi(const char *wmi)
 
 size_t mblink_mercedes_plant_count(void)
 {
-    return ARRAY_LENGTH(mercedes_plants);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_plants);
 }
 
 const MblinkMercedesPlantDefinition *mblink_mercedes_plant_at(size_t index)
 {
-    return index < ARRAY_LENGTH(mercedes_plants) ? &mercedes_plants[index] : NULL;
+    return index < INFILTRATR_ARRAY_LENGTH(mercedes_plants) ? &mercedes_plants[index] : NULL;
 }
 
 const MblinkMercedesPlantDefinition *mblink_mercedes_find_plant(char code)
 {
     size_t index;
     code = (char)toupper((unsigned char)code);
-    for (index = 0U; index < ARRAY_LENGTH(mercedes_plants); ++index) {
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(mercedes_plants); ++index) {
         if (mercedes_plants[index].code == code) return &mercedes_plants[index];
     }
     return NULL;
@@ -164,13 +164,13 @@ const MblinkMercedesPlantDefinition *mblink_mercedes_find_plant(char code)
 
 size_t mblink_mercedes_baumuster_count(void)
 {
-    return ARRAY_LENGTH(mercedes_baumuster);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_baumuster);
 }
 
 const MblinkMercedesBaumusterDefinition *
 mblink_mercedes_baumuster_at(size_t index)
 {
-    return index < ARRAY_LENGTH(mercedes_baumuster)
+    return index < INFILTRATR_ARRAY_LENGTH(mercedes_baumuster)
         ? &mercedes_baumuster[index] : NULL;
 }
 
@@ -179,7 +179,7 @@ mblink_mercedes_find_baumuster(const char *baumuster)
 {
     size_t index;
     if (baumuster == NULL || strlen(baumuster) != 6U) return NULL;
-    for (index = 0U; index < ARRAY_LENGTH(mercedes_baumuster); ++index) {
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(mercedes_baumuster); ++index) {
         if (strncmp(baumuster, mercedes_baumuster[index].baumuster, 6U) == 0)
             return &mercedes_baumuster[index];
     }

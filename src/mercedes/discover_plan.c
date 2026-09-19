@@ -8,6 +8,7 @@
  * probe policy to LINK's generic discovery engine.
  */
 #include "mblink/discover.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
@@ -134,7 +135,7 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
 
 size_t mblink_mercedes_known_route_count(void)
 {
-    return sizeof(mercedes_known_routes) / sizeof(mercedes_known_routes[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_known_routes);
 }
 
 const MblinkMercedesKnownRoute *mblink_mercedes_known_route_at(size_t index)
@@ -493,8 +494,7 @@ static int mercedes_target_probes(
     if (target->tx_can_id == UINT32_C(0x7e0) &&
         target->rx_can_id == UINT32_C(0x7e8)) {
         *presence_probes = motor_vin_cascade_probes;
-        *presence_probe_count = sizeof(motor_vin_cascade_probes) /
-            sizeof(motor_vin_cascade_probes[0]);
+        *presence_probe_count = INFILTRATR_ARRAY_LENGTH(motor_vin_cascade_probes);
         return 1;
     }
 
@@ -504,8 +504,7 @@ static int mercedes_target_probes(
     if (target->tx_can_id == UINT32_C(0x4e0) &&
         target->rx_can_id == UINT32_C(0x5ff)) {
         *presence_probes = ecu4e0_vin_cascade_probes;
-        *presence_probe_count = sizeof(ecu4e0_vin_cascade_probes) /
-            sizeof(ecu4e0_vin_cascade_probes[0]);
+        *presence_probe_count = INFILTRATR_ARRAY_LENGTH(ecu4e0_vin_cascade_probes);
         *identity_probe = NULL;
         *decode_identity = NULL;
         return 1;
@@ -513,15 +512,13 @@ static int mercedes_target_probes(
     if (target->tx_can_id == UINT32_C(0x612) &&
         target->rx_can_id == UINT32_C(0x482)) {
         *presence_probes = ecu612_vin_cascade_probes;
-        *presence_probe_count = sizeof(ecu612_vin_cascade_probes) /
-            sizeof(ecu612_vin_cascade_probes[0]);
+        *presence_probe_count = INFILTRATR_ARRAY_LENGTH(ecu612_vin_cascade_probes);
         return 1;
     }
 
     if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_UDS_F1A0) {
         *presence_probes = uds_f1a0_presence_probes;
-        *presence_probe_count = sizeof(uds_f1a0_presence_probes) /
-            sizeof(uds_f1a0_presence_probes[0]);
+        *presence_probe_count = INFILTRATR_ARRAY_LENGTH(uds_f1a0_presence_probes);
         return 1;
     }
 
@@ -529,12 +526,11 @@ static int mercedes_target_probes(
 
     if (route->vin_probe == MBLINK_MERCEDES_VIN_PROBE_KWP_2105) {
         *presence_probes = kwp_2105_presence_probes;
-        *presence_probe_count = sizeof(kwp_2105_presence_probes) /
-            sizeof(kwp_2105_presence_probes[0]);
+        *presence_probe_count = INFILTRATR_ARRAY_LENGTH(kwp_2105_presence_probes);
     } else {
         *presence_probes = kwp_presence_probes;
         *presence_probe_count =
-            sizeof(kwp_presence_probes) / sizeof(kwp_presence_probes[0]);
+            INFILTRATR_ARRAY_LENGTH(kwp_presence_probes);
     }
     /*
      * Do not apply UDS F197 identity semantics to a KWP endpoint. Exact
@@ -574,7 +570,7 @@ const link_discover_sweep_plan *mblink_discover_mobile_census_plan(void)
         MBLINK_MOBILE_TARGET_COUNT,
         mercedes_mobile_target_at,
         presence_probes,
-        sizeof(presence_probes) / sizeof(presence_probes[0]),
+        INFILTRATR_ARRAY_LENGTH(presence_probes),
         &identity_probe,
         mercedes_decode_f197,
         mercedes_fallback_label,
@@ -612,7 +608,7 @@ const link_discover_sweep_plan *mblink_discover_full_sweep_plan(void)
         MBLINK_SWEEP_TARGET_COUNT,
         mercedes_target_at,
         presence_probes,
-        sizeof(presence_probes) / sizeof(presence_probes[0]),
+        INFILTRATR_ARRAY_LENGTH(presence_probes),
         &identity_probe,
         mercedes_decode_f197,
         mercedes_fallback_label,

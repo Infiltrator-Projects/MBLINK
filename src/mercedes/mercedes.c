@@ -85,8 +85,7 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
             "Not engine-dependent"
         },
         .sources = orc_9b51_sources,
-        .source_count = sizeof(orc_9b51_sources) /
-                        sizeof(orc_9b51_sources[0])
+        .source_count = INFILTRATR_ARRAY_LENGTH(orc_9b51_sources)
     }
 };
 
@@ -149,8 +148,7 @@ static bool mercedes_reference_subcode_equal(
 
 size_t mblink_mercedes_reference_dtc_count(void)
 {
-    return sizeof(mercedes_reference_dtcs) /
-           sizeof(mercedes_reference_dtcs[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_reference_dtcs);
 }
 
 const MblinkMercedesReferenceDtcDefinition *
@@ -308,8 +306,7 @@ const char *mblink_mercedes_dtc_evidence_tier_name(
 
 size_t mblink_mercedes_dtc_lookup_reference_count(void)
 {
-    return sizeof(mercedes_dtc_lookup_references) /
-           sizeof(mercedes_dtc_lookup_references[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_dtc_lookup_references);
 }
 
 const MblinkMercedesDtcLookupReference *
@@ -352,7 +349,7 @@ bool mblink_mercedes_kwp_dtc_definition_is_valid(
 
 size_t mblink_mercedes_kwp_dtc_count(void)
 {
-    return sizeof(mercedes_kwp_dtcs) / sizeof(mercedes_kwp_dtcs[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_kwp_dtcs);
 }
 
 const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_at(
@@ -1356,7 +1353,7 @@ const char *mblink_mercedes_did_lab_decode_result_name(
 
 size_t mblink_mercedes_did_lab_count(void)
 {
-    return sizeof(mercedes_did_lab) / sizeof(mercedes_did_lab[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_did_lab);
 }
 
 const MblinkMercedesDidLabDefinition *mblink_mercedes_did_lab_at(size_t index)

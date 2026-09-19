@@ -2,6 +2,7 @@
 #include "mblink/mercedes_transmission.h"
 #include "mblink/mercedes_module_catalog.h"
 
+#include "infiltratr/core.h"
 #include "infiltratr/endian.h"
 
 #include <ctype.h>
@@ -996,24 +997,21 @@ static const uint8_t *kwp_ids_for_family(
     switch (family) {
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52:
         if (count != NULL)
-            *count = sizeof(k_kwp_egs52_ids) / sizeof(k_kwp_egs52_ids[0]);
+            *count = INFILTRATR_ARRAY_LENGTH(k_kwp_egs52_ids);
         return k_kwp_egs52_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
         if (count != NULL)
-            *count = sizeof(k_kwp_vgs_nag2_ids) /
-                sizeof(k_kwp_vgs_nag2_ids[0]);
+            *count = INFILTRATR_ARRAY_LENGTH(k_kwp_vgs_nag2_ids);
         return k_kwp_vgs_nag2_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
         if (count != NULL)
-            *count = sizeof(k_kwp_ultimate_nag52_ids) /
-                sizeof(k_kwp_ultimate_nag52_ids[0]);
+            *count = INFILTRATR_ARRAY_LENGTH(k_kwp_ultimate_nag52_ids);
         return k_kwp_ultimate_nag52_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
         if (count != NULL)
-            *count = sizeof(k_kwp_oem_metadata_ids) /
-                sizeof(k_kwp_oem_metadata_ids[0]);
+            *count = INFILTRATR_ARRAY_LENGTH(k_kwp_oem_metadata_ids);
         return k_kwp_oem_metadata_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:

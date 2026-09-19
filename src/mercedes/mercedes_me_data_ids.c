@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_me_data_ids.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
@@ -209,7 +210,7 @@ static const MblinkMercedesMeDataIdDefinition mercedes_me_data_ids[] = {
 
 size_t mblink_mercedes_me_data_id_count(void)
 {
-    return sizeof(mercedes_me_data_ids) / sizeof(mercedes_me_data_ids[0]);
+    return INFILTRATR_ARRAY_LENGTH(mercedes_me_data_ids);
 }
 
 const MblinkMercedesMeDataIdDefinition *mblink_mercedes_me_data_id_at(size_t index)

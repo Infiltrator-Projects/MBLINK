@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_me_whisper.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
@@ -57,7 +58,7 @@ const char *mblink_mercedes_me_whisper_response_selection_name(
 {
     const unsigned int index = (unsigned int)selection;
     if (index >=
-        sizeof(response_selection_names) / sizeof(response_selection_names[0]))
+        INFILTRATR_ARRAY_LENGTH(response_selection_names))
         return "UNKNOWN";
     return response_selection_names[index];
 }
@@ -70,8 +71,7 @@ mblink_mercedes_me_whisper_response_selection_from_name(const char *name)
         return MBLINK_MERCEDES_ME_WHISPER_RESPONSE_SELECTION_UNKNOWN;
     for (index = 0U;
          index <
-             sizeof(response_selection_names) /
-                 sizeof(response_selection_names[0]);
+             INFILTRATR_ARRAY_LENGTH(response_selection_names);
          ++index) {
         if (strcmp(name, response_selection_names[index]) == 0)
             return (MblinkMercedesMeWhisperResponseSelection)index;
@@ -108,7 +108,7 @@ const char *mblink_mercedes_me_whisper_dtc_presentation_name(
 {
     const unsigned int index = (unsigned int)presentation;
     if (index >=
-        sizeof(dtc_presentation_names) / sizeof(dtc_presentation_names[0]))
+        INFILTRATR_ARRAY_LENGTH(dtc_presentation_names))
         return "UNKNOWN";
     return dtc_presentation_names[index];
 }
@@ -121,8 +121,7 @@ mblink_mercedes_me_whisper_dtc_presentation_from_name(const char *name)
         return MBLINK_MERCEDES_ME_WHISPER_DTC_PRESENTATION_UNKNOWN;
     for (index = 0U;
          index <
-             sizeof(dtc_presentation_names) /
-                 sizeof(dtc_presentation_names[0]);
+             INFILTRATR_ARRAY_LENGTH(dtc_presentation_names);
          ++index) {
         if (strcmp(name, dtc_presentation_names[index]) == 0)
             return (MblinkMercedesMeWhisperDtcPresentation)index;
@@ -132,7 +131,7 @@ mblink_mercedes_me_whisper_dtc_presentation_from_name(const char *name)
 
 size_t mblink_mercedes_me_whisper_vocabulary_count(void)
 {
-    return sizeof(whisper_vocabulary) / sizeof(whisper_vocabulary[0]);
+    return INFILTRATR_ARRAY_LENGTH(whisper_vocabulary);
 }
 
 const MblinkMercedesMeWhisperVocabularyEntry *

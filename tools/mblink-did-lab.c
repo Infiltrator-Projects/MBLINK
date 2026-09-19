@@ -3,9 +3,9 @@
 #include "mblink/mercedes_signal_catalog.h"
 
 #include "infiltratr/core.h"
+#include "infiltratr/arithmetic.h"
 
 #include <ctype.h>
-#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,15 +85,10 @@ static bool load_series(const char *path, MblinkSignalPoint **points,
             continue;
         }
 
-        if (used == capacity) {
-            size_t next = capacity == 0U ? 256U : capacity * 2U;
-            MblinkSignalPoint *grown;
-            if (next < capacity || next > SIZE_MAX / sizeof(*items)) {
-                free(items); fclose(file); return false;
-            }
-            grown = realloc(items, next * sizeof(*items));
-            if (grown == NULL) { free(items); fclose(file); return false; }
-            items = grown; capacity = next;
+        if (!infiltratr_array_reserve(
+                (void **)&items, &capacity, sizeof(*items),
+                used + 1U, 256U)) {
+            free(items); fclose(file); return false;
         }
         items[used].timestamp_ms = timestamp;
         items[used].value = value;
@@ -152,18 +147,17 @@ static int command_catalog(void)
 
 static int command_decode(const char *did_text, const char *response_text)
 {
-    unsigned long did_value;
-    char *end = NULL;
+    uint64_t did_value;
     uint8_t pdu[128];
     size_t pdu_length = 0U;
     const MblinkMercedesDidLabDefinition *d;
     MblinkMercedesDidLabDecodeResult r;
     double value = 0.0;
 
-    errno = 0;
-    did_value = strtoul(did_text, &end, 16);
-    if (errno != 0 || end == did_text || *end != '\0' ||
-        did_value > UINT16_MAX) return 2;
+    if (!infiltratr_parse_u64_range(
+            did_text, 16U, 0U, UINT16_MAX, &did_value)) {
+        return 2;
+    }
     d = mblink_mercedes_did_lab_find_identifier((uint16_t)did_value);
     if (d == NULL) return 3;
     if (!parse_hex_bytes(response_text, pdu, sizeof(pdu), &pdu_length))

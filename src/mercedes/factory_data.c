@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_factory_data.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
-#define ARRAY_LENGTH(values) (sizeof(values) / sizeof((values)[0]))
 
 /*
  * These option meanings were observed in an official Mercedes-Benz Vehicle
@@ -75,13 +75,13 @@ bool mblink_mercedes_evidence_should_replace(
 
 size_t mblink_mercedes_factory_option_count(void)
 {
-    return ARRAY_LENGTH(factory_options);
+    return INFILTRATR_ARRAY_LENGTH(factory_options);
 }
 
 const MblinkMercedesFactoryOptionDefinition *
 mblink_mercedes_factory_option_at(size_t index)
 {
-    return index < ARRAY_LENGTH(factory_options)
+    return index < INFILTRATR_ARRAY_LENGTH(factory_options)
         ? &factory_options[index] : NULL;
 }
 
@@ -90,7 +90,7 @@ mblink_mercedes_factory_option_for_code(const char *code)
 {
     size_t index;
     if (code == NULL || code[0] == '\0') return NULL;
-    for (index = 0U; index < ARRAY_LENGTH(factory_options); ++index) {
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(factory_options); ++index) {
         if (strcmp(factory_options[index].code, code) == 0)
             return &factory_options[index];
     }

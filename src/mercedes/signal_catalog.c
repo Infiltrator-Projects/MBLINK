@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_signal_catalog.h"
+#include "infiltratr/core.h"
 
 #include <string.h>
 
@@ -309,7 +310,7 @@ const char *mblink_mercedes_signal_value_type_name(
 
 size_t mblink_mercedes_backend_signal_count(void)
 {
-    return sizeof(backend_signals) / sizeof(backend_signals[0]);
+    return INFILTRATR_ARRAY_LENGTH(backend_signals);
 }
 
 const MblinkMercedesBackendSignalDefinition *
