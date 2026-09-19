@@ -24,26 +24,8 @@
 #ifndef MBLINK_MERCEDES_MODULE_SCAN_PUBLIC_H
 #define MBLINK_MERCEDES_MODULE_SCAN_PUBLIC_H
 
-/* Keep the well-tested transport/census machinery available as the core. */
-#define mblink_mercedes_module_scan_begin \
-    mblink_mercedes_module_scan_begin_core
-#define mblink_mercedes_module_scan_begin_gateway \
-    mblink_mercedes_module_scan_begin_gateway_core
-#define mblink_mercedes_module_scan_begin_mobile_census \
-    mblink_mercedes_module_scan_begin_mobile_census_core
-#define mblink_mercedes_module_scan_begin_full \
-    mblink_mercedes_module_scan_begin_full_core
-#define mblink_mercedes_module_scan_command \
-    mblink_mercedes_module_scan_command_core
-#define mblink_mercedes_module_scan_accept \
-    mblink_mercedes_module_scan_accept_core
+/* The core scanner has explicit *_core entry points in compiled code. */
 #include "mblink/mercedes_module_scan_core.h"
-#undef mblink_mercedes_module_scan_begin
-#undef mblink_mercedes_module_scan_begin_gateway
-#undef mblink_mercedes_module_scan_begin_mobile_census
-#undef mblink_mercedes_module_scan_begin_full
-#undef mblink_mercedes_module_scan_command
-#undef mblink_mercedes_module_scan_accept
 
 #ifdef __cplusplus
 extern "C" {
