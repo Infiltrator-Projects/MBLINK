@@ -1,21 +1,43 @@
-# Contributing
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
-## Ownership first
+# Contributing to MBLINK
 
-Before changing MBLINK, decide whether the behaviour belongs in Common, LINK or this manufacturer/product repository. Do not solve a shared problem by creating another private copy.
+MBLINK is the Mercedes-Benz product layer over LINK. Contributions must preserve the dependency hierarchy **Common → LINK → MBLINK** and keep genuinely Mercedes-specific behaviour here.
 
-## Evidence first
+## Ownership rules
 
-Manufacturer-specific additions need traceable evidence. Preserve raw captures and uncertainty where interpretation is not justified. Do not infer one brand's behaviour from another brand.
+- Product-neutral automotive transports, OBD, ISO-TP, UDS, diagnostic sequencing, evidence and shared application behaviour belong in LINK.
+- Broadly reusable non-automotive primitives belong in Common through LINK's pinned dependency.
+- Mercedes identity, network/module knowledge, profiles, manufacturer definitions and verified Mercedes-specific behaviour belong in MBLINK.
+- Do not duplicate LINK protocol/application logic in C, Objective-C, Swift or platform-specific shells.
+- Treat undocumented Mercedes identifiers and requests as experimental until supported by traceable evidence.
+- Preserve deny-by-default transmit policy: adding a decoder or definition does not grant request permission.
 
-## Safety first
+## Languages and boundaries
 
-New decoders do not automatically gain transmit authority. Preserve deny-by-default policy and add tests for permission boundaries when request capability changes.
+Use C/C++ for first-party portable/native implementation where suitable; neither is preferred over the other by language policy. Swift/Objective-C remain legitimate Apple platform boundaries. Platform code owns transport/toolkit mechanics, not duplicate diagnostic semantics.
 
-## Verification
+## Build and test
 
-Run the repository's native tests and relevant CI. Keep exact dependency gitlinks intact. Physical-adapter or vehicle claims require corresponding physical evidence, not just simulator/replay success.
+```sh
+git submodule update --init --recursive
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+Use the sanitizer-enabled configuration for protocol/parser changes. Real captures may be retained when useful, sanitised appropriately and legally distributable.
+
+## Evidence discipline
+
+Vehicle-specific claims should identify whether they come from a public standard/source, captured traffic, physical-vehicle observation or bounded inference. Unknown remains unknown. Replay evidence proves the captured path; it does not automatically prove every ECU/software/vehicle variant.
+
+## Documentation
+
+Use `docs/README.md` as the documentation map. Update `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md` and `docs/VALIDATION.md` when their contracts change. Specialist Mercedes research remains in the domain-specific documents.
 
 ## Repository policy
 
-main is the working branch. Published tags/releases are immutable. Update architecture, roadmap and validation documentation when ownership, support or evidence boundaries change.
+Development and release authority are on `main`. Published tags/releases are immutable exact-source identities. Keep commits focused and dependency pins explicit.
+
+Participation standards remain in [.github/CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md).
