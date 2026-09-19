@@ -6,6 +6,13 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.208 — 2026-09-19
+
+- Advanced the exact shared engine to LINK 0.15.29 while retaining Infiltratr Common 1.19.8.
+- Completed the MBLINK-side forensic reuse pass: Linux replay parsing, canonical array sizing, bounded string copies, checked timestamp arithmetic, Mercedes UDS endian access and embedded array sizing now use the corresponding Common contracts where those contracts exactly match the existing behaviour.
+- Switched the Apple standard OBD-II scalar text path to LINK's shared deterministic formatter so iPhone and Linux no longer reconstruct the same unit/precision policy independently.
+- Left Mercedes-specific variable-width decoding, CAN identifier composition, protocol state and evidence logic in MBLINK where Common/LINK do not provide a semantically equivalent contract.
+
 ## 0.7.207 — 2026-09-19
 
 - Upgraded the exact shared engine dependency to LINK 0.15.28 and Infiltratr Common 1.19.8.
