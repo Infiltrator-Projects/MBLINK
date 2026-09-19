@@ -7,6 +7,8 @@
 #include "mblink/mercedes_module_catalog.h"
 #include "mblink/uds.h"
 
+#include "infiltratr/endian.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -1380,9 +1382,7 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
         record->service == MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER &&
         record->identifier == UINT16_C(0x2007) &&
         record->data_length == 2U) {
-        const uint16_t raw =
-            (uint16_t)(((uint16_t)record->data[0] << 8U) |
-                       record->data[1]);
+        const uint16_t raw = infiltratr_load_be16(record->data);
         *value = (double)raw * 0.0078125;
         *name = "Battery voltage";
         *unit = "V";
@@ -1803,8 +1803,7 @@ bool mblink_mercedes_data_record_format_known_for_route(
         *name = "System-diagnostic global parameters";
         if (record->data_length >= 4U) {
             const uint16_t first_can_position =
-                (uint16_t)(((uint16_t)record->data[2] << 8U) |
-                           (uint16_t)record->data[3]);
+                infiltratr_load_be16(&record->data[2]);
             count = snprintf(
                 buffer, buffer_size,
                 "global analog values %u · global states %u · "
