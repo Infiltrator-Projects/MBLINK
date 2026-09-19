@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_did_lab.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -92,6 +93,25 @@ static int test_best_linear_correlation(void)
     return 0;
 }
 
+static int test_extreme_lag_bounds(void)
+{
+    const MblinkSignalPoint series[] = {
+        { 0U, 1.0 }, { 100U, 2.0 }, { 200U, 4.0 }
+    };
+    MblinkSignalCorrelationResult result;
+
+    CHECK(mblink_signal_correlation_best_linear(
+        series, 3U, series, 3U,
+        (uint64_t)INT64_MAX, (uint64_t)INT64_MAX, 0U, &result));
+    CHECK(result.lag_ms == 0);
+    CHECK(result.pair_count == 3U);
+
+    CHECK(!mblink_signal_correlation_best_linear(
+        series, 3U, series, 3U,
+        (uint64_t)INT64_MAX, 100U, 0U, &result));
+    return 0;
+}
+
 static int test_bad_series_rejected(void)
 {
     const MblinkSignalPoint reference[] = {
@@ -111,6 +131,7 @@ int main(void)
 {
     if (test_catalogue_and_decode() != 0) return 1;
     if (test_best_linear_correlation() != 0) return 1;
+    if (test_extreme_lag_bounds() != 0) return 1;
     if (test_bad_series_rejected() != 0) return 1;
     puts("Mercedes DID lab tests passed");
     return 0;
