@@ -17,6 +17,15 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
+set(MBLINK_COMMON_TYPOGRAPHY_METADATA
+    "${MBLINK_LINK_DIR}/src/infiltratr-common/cmake/InfiltratrTypographyAssets.cmake")
+if(NOT EXISTS "${MBLINK_COMMON_TYPOGRAPHY_METADATA}")
+    message(FATAL_ERROR
+        "Infiltratr Common typography metadata is required. Initialise recursive submodules.")
+endif()
+include("${MBLINK_COMMON_TYPOGRAPHY_METADATA}")
+
 # Canonical MBLINK typography. The exact font archive is a required source asset.
 # It contains all three original MB Corpo TTF files supplied for the project.
 set(MBLINK_FONT_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz")
@@ -28,24 +37,27 @@ set(MBLINK_FONT_DIR "")
 set(MBLINK_FONT_FILES "")
 file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
     if(NOT MBLINK_FONT_ARCHIVE_SHA256 STREQUAL
-       "bdb6063f838a7fab22b4d6b412170640c69511df53aa3dfa9a4ea8431c9d8274")
+       "${INFILTRATR_MB_CORPO_ARCHIVE_SHA256}")
         message(FATAL_ERROR "MBLINK font archive hash mismatch.")
     endif()
     set(MBLINK_FONT_DIR "${CMAKE_CURRENT_BINARY_DIR}/mblink-fonts")
     file(REMOVE_RECURSE "${MBLINK_FONT_DIR}")
     file(MAKE_DIRECTORY "${MBLINK_FONT_DIR}")
     file(ARCHIVE_EXTRACT INPUT "${MBLINK_FONT_ARCHIVE}" DESTINATION "${MBLINK_FONT_DIR}")
-    set(MBLINK_FONT_A_COND_REGULAR "${MBLINK_FONT_DIR}/mb_corpo_a_cond_regular.ttf")
-    set(MBLINK_FONT_S_BOLD "${MBLINK_FONT_DIR}/mb_corpo_s_bold.ttf")
-    set(MBLINK_FONT_S_REGULAR "${MBLINK_FONT_DIR}/mb_corpo_s_regular.ttf")
+    set(MBLINK_FONT_A_COND_REGULAR
+        "${MBLINK_FONT_DIR}/${INFILTRATR_MB_CORPO_BRAND_REGULAR_FILE}")
+    set(MBLINK_FONT_S_BOLD
+        "${MBLINK_FONT_DIR}/${INFILTRATR_MB_CORPO_UI_BOLD_FILE}")
+    set(MBLINK_FONT_S_REGULAR
+        "${MBLINK_FONT_DIR}/${INFILTRATR_MB_CORPO_UI_REGULAR_FILE}")
     set(MBLINK_FONT_FILES
         "${MBLINK_FONT_A_COND_REGULAR}"
         "${MBLINK_FONT_S_BOLD}"
         "${MBLINK_FONT_S_REGULAR}")
     set(MBLINK_FONT_EXPECTED_SHA256
-        "c8bcd7e1a7d71169b38491d9b7c1ffe7ba7b46e888f0c1219931343a47bc0e05"
-        "d37ea986e2344d83390f94f170e6272b56efd00bfec808afe8314c4ca45d43b4"
-        "94ede6629443c03d4362dcef425fb3ff520be5d654370021a34e81286804465c")
+        "${INFILTRATR_MB_CORPO_BRAND_REGULAR_SHA256}"
+        "${INFILTRATR_MB_CORPO_UI_BOLD_SHA256}"
+        "${INFILTRATR_MB_CORPO_UI_REGULAR_SHA256}")
     list(LENGTH MBLINK_FONT_FILES MBLINK_FONT_COUNT)
     math(EXPR MBLINK_FONT_LAST "${MBLINK_FONT_COUNT} - 1")
     foreach(MBLINK_FONT_INDEX RANGE 0 ${MBLINK_FONT_LAST})
@@ -83,7 +95,6 @@ if(MBLINK_ENABLE_SANITIZERS)
 endif()
 include(CTest)
 include(GNUInstallDirs)
-set(MBLINK_LINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/link")
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
     message(FATAL_ERROR "LINK is required. Clone with --recurse-submodules or initialise submodules recursively.")
 endif()

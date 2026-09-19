@@ -6,6 +6,14 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.209 — 2026-09-20
+
+- Advanced the exact shared automotive engine to LINK 0.15.30 and therefore Infiltratr Common 1.19.10.
+- Replaced the duplicated Linux Night palette, shared typography names/weights and matching design metrics in MBLINK's GTK face with Common 1.19.10's canonical native design contract while preserving the exact visible Night appearance.
+- Kept only genuinely MBLINK-specific cockpit/trace gradients and Mercedes presentation details local; Common now supplies the product-neutral titlebar, connection, heading, summary, kicker, detail, note, status, accent and state-border roles.
+- Reused Common's canonical MB Corpo CMake provenance for archive/file names and hashes instead of maintaining a second CMake copy of that metadata.
+- Preserved the distinct iPhone and Windows product presentation contracts rather than mechanically replacing non-equivalent styling.
+
 ## 0.7.208 — 2026-09-19
 
 - Advanced the exact shared engine to LINK 0.15.29 while retaining Infiltratr Common 1.19.8.
