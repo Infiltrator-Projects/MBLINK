@@ -1488,6 +1488,37 @@ static bool signal_target_time(uint64_t candidate_time, int64_t lag_ms,
     }
 }
 
+#define MBLINK_SIGNAL_CORRELATION_MAX_LAG_EVALUATIONS UINT64_C(1000000)
+
+static uint64_t signal_lag_distance_to_max(int64_t lag_ms, int64_t max_lag_ms)
+{
+    if (lag_ms >= 0)
+        return (uint64_t)(max_lag_ms - lag_ms);
+    return (uint64_t)max_lag_ms +
+           (uint64_t)(-(lag_ms + 1)) + UINT64_C(1);
+}
+
+static bool signal_lag_work_is_bounded(
+    uint64_t max_lag_ms, uint64_t lag_step_ms)
+{
+    uint64_t span;
+    uint64_t full_steps;
+    uint64_t evaluations;
+
+    if (lag_step_ms == 0U || max_lag_ms > (uint64_t)INT64_MAX)
+        return false;
+
+    span = max_lag_ms * UINT64_C(2);
+    full_steps = span / lag_step_ms;
+    if (full_steps >= MBLINK_SIGNAL_CORRELATION_MAX_LAG_EVALUATIONS)
+        return false;
+
+    evaluations = full_steps + UINT64_C(1);
+    if (span % lag_step_ms != 0U)
+        ++evaluations;
+    return evaluations <= MBLINK_SIGNAL_CORRELATION_MAX_LAG_EVALUATIONS;
+}
+
 static bool signal_correlation_for_lag(
     const MblinkSignalPoint *reference, size_t reference_count,
     const MblinkSignalPoint *candidate, size_t candidate_count,
@@ -1576,8 +1607,8 @@ bool mblink_signal_correlation_best_linear(
     if (result == NULL ||
         !signal_series_valid(reference, reference_count) ||
         !signal_series_valid(candidate, candidate_count) ||
-        lag_step_ms == 0U || max_lag_ms > (uint64_t)INT64_MAX ||
-        lag_step_ms > (uint64_t)INT64_MAX) return false;
+        lag_step_ms > (uint64_t)INT64_MAX ||
+        !signal_lag_work_is_bounded(max_lag_ms, lag_step_ms)) return false;
 
     max_lag = (int64_t)max_lag_ms;
     lag = -max_lag;
@@ -1601,8 +1632,10 @@ bool mblink_signal_correlation_best_linear(
             }
         }
         if (lag >= max_lag) break;
-        if ((uint64_t)(max_lag - lag) <= lag_step_ms) lag = max_lag;
-        else lag += (int64_t)lag_step_ms;
+        if (signal_lag_distance_to_max(lag, max_lag) <= lag_step_ms)
+            lag = max_lag;
+        else
+            lag += (int64_t)lag_step_ms;
     }
     if (!found) return false;
     *result = best;
