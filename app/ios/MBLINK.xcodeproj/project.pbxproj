@@ -45,6 +45,7 @@
 		D1A900000000000000000010 /* link_language_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = D1A900000000000000000011 /* link_language_pack.c */; };
 		A22100000000000000000001 /* link_workspace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000001 /* link_workspace.c */; };
 		A22100000000000000000018 /* link_dashboard.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000018 /* link_dashboard.c */; };
+		A22100000000000000000019 /* link_selection.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000019 /* link_selection.c */; };
 		A22100000000000000000002 /* link_fuel_economy.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000002 /* link_fuel_economy.c */; };
 		A22100000000000000000016 /* link_units.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000016 /* link_units.c */; };
 		A22100000000000000000017 /* link_session_trace.c in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000017 /* link_session_trace.c */; };
@@ -151,6 +152,7 @@
 		D1A900000000000000000034 /* id-ID */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id-ID"; path = "MBLINK/id-ID.lproj/Localizable.strings"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000001 /* link_workspace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_workspace.c"; path = "../../src/link/src/core/workspace.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000018 /* link_dashboard.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_dashboard.c"; path = "../../src/link/src/core/dashboard.c"; sourceTree = SOURCE_ROOT; };
+		A22000000000000000000019 /* link_selection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_selection.c"; path = "../../src/link/src/core/selection.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000002 /* link_fuel_economy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_fuel_economy.c"; path = "../../src/link/src/core/fuel_economy.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000016 /* link_units.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_units.c"; path = "../../src/link/src/core/units.c"; sourceTree = SOURCE_ROOT; };
 		A22000000000000000000017 /* link_session_trace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "link_session_trace.c"; path = "../../src/link/src/core/session_trace.c"; sourceTree = SOURCE_ROOT; };
@@ -238,6 +240,7 @@
 			children = (
 				A22000000000000000000001 /* link_workspace.c */,
 				A22000000000000000000018 /* link_dashboard.c */,
+				A22000000000000000000019 /* link_selection.c */,
 				A22000000000000000000002 /* link_fuel_economy.c */,
 				A22000000000000000000016 /* link_units.c */,
 				A22000000000000000000017 /* link_session_trace.c */,
@@ -508,6 +511,7 @@
 			files = (
 				A22100000000000000000001 /* link_workspace.c in Sources */,
 				A22100000000000000000018 /* link_dashboard.c in Sources */,
+				A22100000000000000000019 /* link_selection.c in Sources */,
 				A22100000000000000000002 /* link_fuel_economy.c in Sources */,
 				A22100000000000000000016 /* link_units.c in Sources */,
 				A22100000000000000000017 /* link_session_trace.c in Sources */,
