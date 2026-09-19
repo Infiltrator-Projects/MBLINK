@@ -9,12 +9,21 @@
 int main(void)
 {
     MblinkLinuxSessionTrace trace = {0};
+    const uint8_t graph_pids[] = {
+        UINT8_C(0x0c), UINT8_C(0x0d), UINT8_C(0x05),
+        UINT8_C(0x23), UINT8_C(0x11), UINT8_C(0x49),
+        UINT8_C(0x4a), UINT8_C(0x46), UINT8_C(0x2f)
+    };
     char sparkline[192];
     size_t index;
 
-    CHECK(mblink_linux_graph_trace_index(UINT8_C(0x0c)) == 0U);
-    CHECK(mblink_linux_graph_trace_index(UINT8_C(0xff)) ==
-          MBLINK_LINUX_GRAPH_TRACE_COUNT);
+    CHECK(mblink_linux_trace_configure_graph_pids(
+        &trace, graph_pids,
+        sizeof(graph_pids) / sizeof(graph_pids[0])));
+    CHECK(trace.graph_count == 9U);
+    CHECK(link_session_trace_graph_index(&trace, UINT8_C(0x0c)) == 0U);
+    CHECK(link_session_trace_graph_index(&trace, UINT8_C(0xff)) ==
+          trace.graph_count);
 
     CHECK(mblink_linux_trace_prefer_responder(
         UINT32_C(0x7e8), false, true, UINT32_C(0x7e9), false));
