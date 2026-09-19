@@ -2,6 +2,8 @@
 #include "mblink/mercedes_did_lab.h"
 #include "mblink/mercedes_signal_catalog.h"
 
+#include "infiltratr/core.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -57,14 +59,7 @@ static bool parse_hex_bytes(const char *text, uint8_t *buffer,
 
 static bool parse_u64(const char *text, uint64_t *value)
 {
-    char *end = NULL;
-    unsigned long long parsed;
-    if (text == NULL || value == NULL || text[0] == '\0') return false;
-    errno = 0;
-    parsed = strtoull(text, &end, 10);
-    if (errno != 0 || end == text || *end != '\0') return false;
-    *value = (uint64_t)parsed;
-    return true;
+    return infiltratr_parse_u64(text, 10U, value);
 }
 
 static bool load_series(const char *path, MblinkSignalPoint **points,
@@ -81,23 +76,14 @@ static bool load_series(const char *path, MblinkSignalPoint **points,
 
     while (fgets(line, sizeof(line), file) != NULL) {
         char *comma = strchr(line, ',');
-        char *end_time = NULL, *end_value = NULL;
-        unsigned long long timestamp;
+        uint64_t timestamp;
         double value;
         if (comma == NULL) continue;
         *comma = '\0';
-        errno = 0;
-        timestamp = strtoull(line, &end_time, 10);
-        if (errno != 0 || end_time == line) continue;
-        while (*end_time != '\0' && isspace((unsigned char)*end_time))
-            ++end_time;
-        if (*end_time != '\0') continue;
-        errno = 0;
-        value = strtod(comma + 1, &end_value);
-        if (errno != 0 || end_value == comma + 1) continue;
-        while (*end_value != '\0' && isspace((unsigned char)*end_value))
-            ++end_value;
-        if (*end_value != '\0') continue;
+        if (!infiltratr_parse_u64(line, 10U, &timestamp) ||
+            !infiltratr_parse_double(comma + 1, &value)) {
+            continue;
+        }
 
         if (used == capacity) {
             size_t next = capacity == 0U ? 256U : capacity * 2U;
@@ -109,7 +95,7 @@ static bool load_series(const char *path, MblinkSignalPoint **points,
             if (grown == NULL) { free(items); fclose(file); return false; }
             items = grown; capacity = next;
         }
-        items[used].timestamp_ms = (uint64_t)timestamp;
+        items[used].timestamp_ms = timestamp;
         items[used].value = value;
         ++used;
     }
