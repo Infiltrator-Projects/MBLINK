@@ -29,7 +29,7 @@ static bool replay_queue(MblinkC207ReplayTransport *replay, const char *text)
     if (replay->pending_length != 0U) return false;
     length = strlen(text);
     if (length >= sizeof(replay->pending)) return false;
-    memcpy(replay->pending, text, length + 1U);
+    infiltratr_copy_string(replay->pending, sizeof(replay->pending), text);
     replay->pending_length = length;
     return true;
 }
@@ -265,7 +265,7 @@ static size_t replay_discover(
 {
     (void)context;
     if (paths == NULL || capacity == 0U) return 0U;
-    (void)snprintf(paths[0], 256U, "%s", MBLINK_C207_REPLAY_DEVICE);
+    infiltratr_copy_string(paths[0], 256U, MBLINK_C207_REPLAY_DEVICE);
     return 1U;
 }
 

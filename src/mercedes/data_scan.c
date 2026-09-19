@@ -45,9 +45,9 @@ static MblinkMercedesDataScanResult write_text(
     if (text == NULL || buffer == NULL || written == NULL)
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
     length = strlen(text);
-    if (length + 1U > buffer_size)
+    if (length >= buffer_size)
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
-    memcpy(buffer, text, length + 1U);
+    infiltratr_copy_string(buffer, buffer_size, text);
     *written = length;
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
@@ -1538,7 +1538,7 @@ bool mblink_mercedes_data_record_format_known_for_route(
                 record->data, record->data_length, &compact)) {
             char gear_text[32];
             if (compact.actual_gear_code == 0U) {
-                (void)snprintf(gear_text, sizeof(gear_text), "%s", "N");
+                infiltratr_copy_string(gear_text, sizeof(gear_text), "N");
             } else if (compact.actual_gear_code >= 1U &&
                        compact.actual_gear_code <= 7U) {
                 (void)snprintf(
