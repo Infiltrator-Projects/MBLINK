@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_me_diaglogic.h"
 
+#include "infiltratr/endian.h"
+
 #include <limits.h>
 #include <string.h>
 
@@ -72,18 +74,13 @@ static bool read_slice(ProtoReader *reader, MblinkMercedesMeProtoSlice *slice)
 
 static bool read_fixed64(ProtoReader *reader, uint64_t *value)
 {
-    uint64_t result = 0U;
-    unsigned int index;
     if (reader == NULL || value == NULL) return false;
     if (reader->size - reader->position < 8U) {
         reader->position = reader->size;
         return false;
     }
-    for (index = 0U; index < 8U; ++index)
-        result |= ((uint64_t)reader->bytes[reader->position + index])
-                  << (index * 8U);
+    *value = infiltratr_load_le64(reader->bytes + reader->position);
     reader->position += 8U;
-    *value = result;
     return true;
 }
 
