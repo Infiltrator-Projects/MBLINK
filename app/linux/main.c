@@ -2825,16 +2825,31 @@ static bool verify_display_preferences(void)
     if (strcmp(value, "2.20 Imp gal/h") != 0) return false;
 
     context.fuel_economy_unit = MBLINK_FUEL_ECONOMY_MPG_IMPERIAL;
-    format_fuel_economy(10.0, &context, value, sizeof(value));
-    if (strcmp(value, "28.2 mpg (Imp)") != 0) return false;
-
     context.distance_unit = MBLINK_DISTANCE_MILES;
-    format_distance(100.0, &context, value, sizeof(value));
-    if (strcmp(value, "62.1 mi") != 0) return false;
-
     context.fuel_volume_unit = MBLINK_FUEL_VOLUME_US_GALLONS;
-    format_fuel_volume(10.0, &context, value, sizeof(value));
-    if (strcmp(value, "2.64 US gal") != 0) return false;
+    {
+        LinkUnitPreferences preferences;
+        LinkFuelEconomySnapshot fuel = {0};
+        LinkFuelEconomyDisplay display;
+        fuel.instantaneous_available = true;
+        fuel.instantaneous_l_per_100km = 10.0;
+        fuel.average_available = true;
+        fuel.average_l_per_100km = 10.0;
+        fuel.fuel_rate_available = true;
+        fuel.fuel_rate_l_per_hour = 10.0;
+        fuel.trip_fuel_litres = 10.0;
+        fuel.trip_distance_km = 100.0;
+        fuel.moving = true;
+        mblink_link_unit_preferences(&context, &preferences);
+        if (!link_fuel_economy_format_display(
+                &fuel, &preferences, true, &display)) {
+            return false;
+        }
+        if (strcmp(display.instantaneous, "28.2 mpg (Imp)") != 0)
+            return false;
+        if (strcmp(display.trip, "2.64 US gal over 62.1 mi") != 0)
+            return false;
+    }
 
     sample.pid = UINT8_C(0x0c);
     sample.unit = LINK_OBD2_UNIT_RPM;
