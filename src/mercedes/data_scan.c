@@ -51,30 +51,6 @@ static MblinkMercedesDataScanResult write_text(
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
-static MblinkMercedesDataScanResult format_can_command(
-    const char *prefix,
-    uint32_t identifier,
-    bool extended,
-    char *buffer,
-    size_t buffer_size,
-    size_t *written)
-{
-    int count;
-    if (written != NULL) *written = 0U;
-    if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
-    if (prefix == NULL || buffer == NULL || written == NULL)
-        return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
-    count = extended
-        ? snprintf(buffer, buffer_size, "%s%08X", prefix,
-                   (unsigned int)identifier)
-        : snprintf(buffer, buffer_size, "%s%03X", prefix,
-                   (unsigned int)identifier);
-    if (count < 0 || (size_t)count >= buffer_size)
-        return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
-    *written = (size_t)count;
-    return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
-}
-
 static void advance_identifier(MblinkMercedesDataScan *scan)
 {
     if (scan == NULL) return;
@@ -1077,13 +1053,23 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
          * repeatedly fell through to ELM NO DATA at the timeout. */
         return write_text("ATST64", buffer, buffer_size, written);
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_SET_HEADER:
-        return format_can_command(
-            "ATSH", scan->config.tx_can_id, scan->config.extended_id,
-            buffer, buffer_size, written);
+        if (mblink_elm327_can_format_header_command(
+                scan->config.tx_can_id, scan->config.extended_id,
+                buffer, buffer_size) != MBLINK_ELM327_CAN_RESULT_OK) {
+            if (written != NULL) *written = 0U;
+            return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
+        }
+        *written = strlen(buffer);
+        return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_SET_RECEIVE:
-        return format_can_command(
-            "ATCRA", scan->config.rx_can_id, scan->config.extended_id,
-            buffer, buffer_size, written);
+        if (mblink_elm327_can_format_receive_address_command(
+                scan->config.rx_can_id, scan->config.extended_id,
+                buffer, buffer_size) != MBLINK_ELM327_CAN_RESULT_OK) {
+            if (written != NULL) *written = 0U;
+            return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
+        }
+        *written = strlen(buffer);
+        return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_EXTENDED_SESSION:
         return write_text("1003", buffer, buffer_size, written);
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_TESTER_PRESENT:

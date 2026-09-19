@@ -9,15 +9,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define MBLINK_LINUX_GRAPH_TRACE_COUNT 8U
 #define MBLINK_LINUX_GRAPH_HISTORY_CAPACITY LINK_SESSION_TRACE_GRAPH_HISTORY_CAPACITY
 #define MBLINK_LINUX_SESSION_LOG_CAPACITY LINK_SESSION_TRACE_LOG_CAPACITY
 #define MBLINK_LINUX_SESSION_LOG_MESSAGE_CAPACITY LINK_SESSION_TRACE_LOG_MESSAGE_CAPACITY
 
 typedef LinkSessionTrace MblinkLinuxSessionTrace;
 
-
-size_t mblink_linux_graph_trace_index(uint8_t pid);
+bool mblink_linux_trace_configure_graph_pids(
+    MblinkLinuxSessionTrace *trace,
+    const uint8_t *pids,
+    size_t count);
 void mblink_linux_trace_reset_graph(MblinkLinuxSessionTrace *trace);
 void mblink_linux_trace_record_graph(
     MblinkLinuxSessionTrace *trace, uint8_t pid, double value);

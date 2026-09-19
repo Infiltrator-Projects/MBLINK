@@ -114,6 +114,24 @@ static void test_channel_configuration_29_bit(void)
           "29-bit receive-filter command mismatch");
 }
 
+static void test_shared_address_formatting(void)
+{
+    char command[32];
+
+    check(mblink_elm327_can_format_header_command(
+              UINT32_C(0x7e1), false,
+              command, sizeof(command)) == MBLINK_ELM327_CAN_RESULT_OK,
+          "shared 11-bit header formatter failed");
+    check(strcmp(command, "ATSH7E1") == 0,
+          "shared 11-bit header formatter mismatch");
+    check(mblink_elm327_can_format_receive_address_command(
+              UINT32_C(0x18da10f1), true,
+              command, sizeof(command)) == MBLINK_ELM327_CAN_RESULT_OK,
+          "shared 29-bit receive formatter failed");
+    check(strcmp(command, "ATCRA18DA10F1") == 0,
+          "shared 29-bit receive formatter mismatch");
+}
+
 static void test_channel_validation_and_failure(void)
 {
     MblinkElm327CanChannelConfig invalid11 = { 0x800U, 0x708U, false };
@@ -287,6 +305,7 @@ int main(void)
 {
     test_channel_configuration_11_bit();
     test_channel_configuration_29_bit();
+    test_shared_address_formatting();
     test_channel_validation_and_failure();
     test_pdu_command();
     test_pdu_decode_single();

@@ -615,14 +615,14 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"2825e58e52170a2955da7ecc3ec0dbe477fa5586\\\"",
+					"LINK_SOURCE_REVISION=\\\"0f112bf4f8718f312db0626390340ec0de92e5c1\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.204;
+				MARKETING_VERSION = 0.7.205;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -654,14 +654,14 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"2825e58e52170a2955da7ecc3ec0dbe477fa5586\\\"",
+					"LINK_SOURCE_REVISION=\\\"0f112bf4f8718f312db0626390340ec0de92e5c1\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.204;
+				MARKETING_VERSION = 0.7.205;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -710,7 +710,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.204;
+				MARKETING_VERSION = 0.7.205;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -752,7 +752,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.204;
+				MARKETING_VERSION = 0.7.205;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";

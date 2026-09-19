@@ -3,42 +3,22 @@
 
 #include "link/diagnostic_request.h"
 
-#include <string.h>
-
-static void ensure_graph_configuration(MblinkLinuxSessionTrace *trace)
+bool mblink_linux_trace_configure_graph_pids(
+    MblinkLinuxSessionTrace *trace,
+    const uint8_t *pids,
+    size_t count)
 {
-    size_t graph_count = 0U;
-    const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
-    if (trace == NULL || graph_pids == NULL ||
-        graph_count > LINK_SESSION_TRACE_MAX_GRAPHS) return;
-    if (trace->graph_count == graph_count &&
-        memcmp(trace->graph_pids, graph_pids, graph_count) == 0) return;
-    memcpy(trace->graph_pids, graph_pids, graph_count);
-    trace->graph_count = graph_count;
-}
-
-size_t mblink_linux_graph_trace_index(uint8_t pid)
-{
-    size_t graph_count = 0U;
-    const uint8_t *graph_pids = link_session_trace_default_graph_pids(&graph_count);
-    size_t index;
-    if (graph_pids == NULL) return graph_count;
-    for (index = 0U; index < graph_count; ++index) {
-        if (graph_pids[index] == pid) return index;
-    }
-    return graph_count;
+    return link_session_trace_configure_graph_pids(trace, pids, count);
 }
 
 void mblink_linux_trace_reset_graph(MblinkLinuxSessionTrace *trace)
 {
-    ensure_graph_configuration(trace);
     link_session_trace_reset_graph(trace);
 }
 
 void mblink_linux_trace_record_graph(
     MblinkLinuxSessionTrace *trace, uint8_t pid, double value)
 {
-    ensure_graph_configuration(trace);
     link_session_trace_record_graph(trace, pid, value);
 }
 

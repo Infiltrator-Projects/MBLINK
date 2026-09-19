@@ -302,18 +302,6 @@ static inline bool mblink_mercedes_module_scan_write_command(const char *command
     return true;
 }
 
-static inline bool mblink_mercedes_module_scan_format_can_command(const char *prefix, uint32_t id, bool extended_id, char *buffer, size_t buffer_size, size_t *written)
-{
-    int count;
-    if (written != NULL) *written = 0U;
-    if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
-    if (prefix == NULL || buffer == NULL || written == NULL) return false;
-    count = extended_id ? snprintf(buffer, buffer_size, "%s%08X", prefix, (unsigned int)id) : snprintf(buffer, buffer_size, "%s%03X", prefix, (unsigned int)id);
-    if (count < 0 || (size_t)count >= buffer_size) return false;
-    *written = (size_t)count;
-    return true;
-}
-
 static inline void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesModuleScan *scan, uint32_t tx)
 {
     scan->candidate_tx = tx;
@@ -1243,12 +1231,12 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return WRITE("ATSP7");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ENABLE_HEADERS: return WRITE("ATH1");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: return mblink_mercedes_module_scan_format_can_command("ATSH", scan->candidate_tx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER: return mblink_elm327_can_format_header_command(scan->candidate_tx, scan->candidate_extended, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESET_RECEIVE: return WRITE("ATCRA");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_FILTER: return WRITE("ATCF000");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return WRITE("ATCM000");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return WRITE("ATH0");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_mercedes_module_scan_format_can_command("ATCRA", scan->candidate_rx, scan->candidate_extended, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_elm327_can_format_receive_address_command(scan->candidate_rx, scan->candidate_extended, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return WRITE("1003");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
         return WRITE(mblink_mercedes_module_scan_candidate_protocol(scan) ==
@@ -1295,10 +1283,10 @@ static inline MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command
         module = &scan->modules[scan->dtc_index]; return WRITE(module->extended_id ? "ATSP7" : "ATSP6");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_HEADER:
         if (scan->dtc_index >= scan->module_count) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
-        module = &scan->modules[scan->dtc_index]; return mblink_mercedes_module_scan_format_can_command("ATSH", module->tx_can_id, module->extended_id, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+        module = &scan->modules[scan->dtc_index]; return mblink_elm327_can_format_header_command(module->tx_can_id, module->extended_id, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE:
         if (scan->dtc_index >= scan->module_count) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
-        module = &scan->modules[scan->dtc_index]; return mblink_mercedes_module_scan_format_can_command("ATCRA", module->rx_can_id, module->extended_id, buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+        module = &scan->modules[scan->dtc_index]; return mblink_elm327_can_format_receive_address_command(module->rx_can_id, module->extended_id, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED: if (buffer_size != 0U) buffer[0] = '\0'; *written = 0U; return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     }

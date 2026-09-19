@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           ./build-linux/mblink-linux --ui-settings-verify | tee "$RUNNER_TEMP/settings-verify.log"
-          grep -Fq 'MBLINK settings verified: 8 independent measurement preferences' "$RUNNER_TEMP/settings-verify.log"
+          grep -Fq 'MBLINK settings verified: OFF-by-default vehicle selection + 8 measurement preferences' "$RUNNER_TEMP/settings-verify.log"
       - name: Verify offline C207 replay reaches visible ORC fault
         shell: bash
         run: |

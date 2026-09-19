@@ -4,6 +4,18 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.7.205 — 2026-09-19
+
+- Fixed DID-lab unsigned parsing so negative timestamps and tolerances are rejected, and made CSV floating-point parsing use Common's strict finite parser.
+- Removed signed overflow from extreme signal-correlation lag stepping and added boundary regression coverage.
+- Reused Common's alignment-safe endian readers in Mercedes transmission, DiagLogic and data-scan decoding.
+- Upgraded the exact shared engine dependency to LINK 0.15.25, which in turn pins Infiltratr Common 1.19.3.
+- Linux live-data profiles now start with every real-vehicle channel OFF and store standard selections per VIN rather than globally.
+- Linux Dashboard, Graphs and Table now follow the same explicit selected-channel model; selected graph channels remain visible while awaiting their first sample.
+- Removed the old fixed eight-graph product limit and use LINK's runtime-selected graph configuration.
+- Reused LINK's shared ELM327 CAN address formatting in Mercedes scanners instead of maintaining parallel ATSH/ATCRA formatters.
 - Canonical documentation baseline aligned with the Infiltrator project family.
 
 ## Policy

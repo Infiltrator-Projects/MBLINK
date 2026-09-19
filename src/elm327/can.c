@@ -43,6 +43,26 @@ MblinkElm327CanResult mblink_elm327_can_channel_accept(
     return link_elm327_can_channel_accept(state, response);
 }
 
+MblinkElm327CanResult mblink_elm327_can_format_header_command(
+    uint32_t can_id,
+    bool extended_id,
+    char *buffer,
+    size_t buffer_size)
+{
+    return link_elm327_can_format_header_command(
+        can_id, extended_id, buffer, buffer_size);
+}
+
+MblinkElm327CanResult mblink_elm327_can_format_receive_address_command(
+    uint32_t can_id,
+    bool extended_id,
+    char *buffer,
+    size_t buffer_size)
+{
+    return link_elm327_can_format_receive_address_command(
+        can_id, extended_id, buffer, buffer_size);
+}
+
 MblinkElm327CanResult mblink_elm327_can_build_pdu_command(
     const uint8_t *pdu,
     size_t pdu_length,
