@@ -13,7 +13,7 @@ MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagno
 
 ## Engineering ethos
 
-What can a Mercedes diagnostic tool actually know, and how can it prove that knowledge without guessing? MBLINK is where Mercedes-specific vehicle evidence becomes product behaviour on top of the shared LINK diagnostic engine.
+What can a Mercedes diagnostic tool built from first principles actually know, and how can it prove that knowledge without guessing? MBLINK is where Mercedes-specific vehicle evidence becomes product behaviour on top of the shared LINK diagnostic engine.
 
 LINK owns generic standards, transports, sequencing and safety policy; MBLINK owns Mercedes identity, topology, definitions and genuinely manufacturer-specific behaviour. Public standards, captured traffic, service information and mature tools are evidence to reconcile, not code or assumptions to depend on blindly. Unknown values remain unknown until there is evidence strong enough to name or interpret them.
 
