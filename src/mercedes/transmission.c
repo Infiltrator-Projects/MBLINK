@@ -2,17 +2,11 @@
 #include "mblink/mercedes_transmission.h"
 #include "mblink/mercedes_module_catalog.h"
 
+#include "infiltratr/endian.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
-
-static uint64_t payload_le64(const uint8_t *payload)
-{
-    uint64_t value = 0U;
-    for (size_t index = 0U; index < 8U; ++index)
-        value |= ((uint64_t)payload[index]) << (index * 8U);
-    return value;
-}
 
 static uint32_t extract_bits(uint64_t value, unsigned int offset,
                              unsigned int length)
@@ -20,11 +14,6 @@ static uint32_t extract_bits(uint64_t value, unsigned int offset,
     const uint64_t mask = length == 64U
         ? UINT64_MAX : ((UINT64_C(1) << length) - UINT64_C(1));
     return (uint32_t)((value >> offset) & mask);
-}
-
-static uint16_t be16(const uint8_t *data)
-{
-    return (uint16_t)(((uint16_t)data[0] << 8U) | (uint16_t)data[1]);
 }
 
 static MblinkMercedesTorqueConverterState tcc_state(
@@ -214,7 +203,7 @@ bool mblink_mercedes_transmission_decode_gs218(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.engine_torque_toggle = extract_bits(raw, 0U, 1U) != 0U;
     value.engine_torque_request_min = extract_bits(raw, 1U, 1U) != 0U;
@@ -266,7 +255,7 @@ bool mblink_mercedes_transmission_decode_gs338(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     /*
      * The source EGS52 implementation assigns NTURBINE directly in rpm before
@@ -299,7 +288,7 @@ bool mblink_mercedes_transmission_decode_gs418(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.display_position_code = (uint8_t)extract_bits(raw, 0U, 8U);
     value.drive_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
@@ -340,9 +329,9 @@ bool mblink_mercedes_transmission_decode_kwp_rli30(
     if (data == NULL || decoded == NULL || data_length < 24U) return false;
     memset(&value, 0, sizeof(value));
 
-    value.tcc_delta_speed_raw = be16(&data[0]);
-    value.tcc_speed_raw = be16(&data[2]);
-    value.tcc_pressure_raw = be16(&data[4]);
+    value.tcc_delta_speed_raw = infiltratr_load_be16(&data[0]);
+    value.tcc_speed_raw = infiltratr_load_be16(&data[2]);
+    value.tcc_pressure_raw = infiltratr_load_be16(&data[4]);
     value.tcc_status = data[6];
     value.selector_position = data[7];
     value.drive_program = data[8];
@@ -350,9 +339,9 @@ bool mblink_mercedes_transmission_decode_kwp_rli30(
     value.actual_gear_code = (uint8_t)(data[10] & UINT8_C(0x0f));
     value.target_gear_code = (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
     value.atf_temperature_c = (double)data[11] - 50.0;
-    value.engine_torque_raw = be16(&data[12]);
-    value.converter_torque_raw = be16(&data[14]);
-    value.output_speed_raw = be16(&data[16]);
+    value.engine_torque_raw = infiltratr_load_be16(&data[12]);
+    value.converter_torque_raw = infiltratr_load_be16(&data[14]);
+    value.output_speed_raw = infiltratr_load_be16(&data[16]);
 
     value.kickdown = (data[18] & UINT8_C(0x01)) != 0U;
     value.start_enable = (data[18] & UINT8_C(0x02)) != 0U;
@@ -403,16 +392,16 @@ bool mblink_mercedes_transmission_decode_kwp_rli31(
     if (data == NULL || decoded == NULL || data_length < 20U) return false;
     memset(&value, 0, sizeof(value));
 
-    value.n2_pulse_count = be16(&data[0]);
-    value.n3_pulse_count = be16(&data[2]);
-    value.input_rpm = be16(&data[4]);
-    value.engine_rpm = be16(&data[6]);
-    value.front_left_wheel_speed_raw = be16(&data[8]);
-    value.front_right_wheel_speed_raw = be16(&data[10]);
-    value.rear_left_wheel_speed_raw = be16(&data[12]);
-    value.rear_right_wheel_speed_raw = be16(&data[14]);
-    value.rear_vehicle_speed_raw = be16(&data[16]);
-    value.front_vehicle_speed_raw = be16(&data[18]);
+    value.n2_pulse_count = infiltratr_load_be16(&data[0]);
+    value.n3_pulse_count = infiltratr_load_be16(&data[2]);
+    value.input_rpm = infiltratr_load_be16(&data[4]);
+    value.engine_rpm = infiltratr_load_be16(&data[6]);
+    value.front_left_wheel_speed_raw = infiltratr_load_be16(&data[8]);
+    value.front_right_wheel_speed_raw = infiltratr_load_be16(&data[10]);
+    value.rear_left_wheel_speed_raw = infiltratr_load_be16(&data[12]);
+    value.rear_right_wheel_speed_raw = infiltratr_load_be16(&data[14]);
+    value.rear_vehicle_speed_raw = infiltratr_load_be16(&data[16]);
+    value.front_vehicle_speed_raw = infiltratr_load_be16(&data[18]);
 
     *decoded = value;
     return true;
@@ -428,10 +417,10 @@ bool mblink_mercedes_transmission_decode_kwp_rli32(
     memset(&value, 0, sizeof(value));
 
     value.pedal_percent = data[0];
-    value.upshift_delta_rpm_raw = be16(&data[1]);
-    value.downshift_delta_rpm_raw = be16(&data[3]);
+    value.upshift_delta_rpm_raw = infiltratr_load_be16(&data[1]);
+    value.downshift_delta_rpm_raw = infiltratr_load_be16(&data[3]);
     value.pedal_delta_percent = data[5];
-    value.pitch_raw = be16(&data[6]);
+    value.pitch_raw = infiltratr_load_be16(&data[6]);
     value.driving_status = data[8];
     value.engine_warmup_shift_state = data[9];
     value.requested_low_gear_limit = data[10];
@@ -452,12 +441,12 @@ bool mblink_mercedes_transmission_decode_kwp_rli33(
 
     value.valve_flag = data[0];
     value.shift_valve_state = data[1];
-    value.spc_pressure_raw = be16(&data[2]);
-    value.mpc_pressure_raw = be16(&data[4]);
-    value.spc_target_current_raw = be16(&data[6]);
-    value.spc_actual_current_raw = be16(&data[8]);
-    value.mpc_target_current_raw = be16(&data[10]);
-    value.mpc_actual_current_raw = be16(&data[12]);
+    value.spc_pressure_raw = infiltratr_load_be16(&data[2]);
+    value.mpc_pressure_raw = infiltratr_load_be16(&data[4]);
+    value.spc_target_current_raw = infiltratr_load_be16(&data[6]);
+    value.spc_actual_current_raw = infiltratr_load_be16(&data[8]);
+    value.mpc_target_current_raw = infiltratr_load_be16(&data[10]);
+    value.mpc_actual_current_raw = infiltratr_load_be16(&data[12]);
     value.tcc_pwm_raw = data[14];
 
     *decoded = value;
@@ -474,7 +463,7 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_a1(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.oil_temperature_c = (double)extract_bits(raw, 0U, 8U) - 50.0;
     value.tcc_no_load = extract_bits(raw, 8U, 1U) != 0U;
@@ -504,7 +493,7 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_a2(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.requested_current_duty_percent =
         (double)extract_bits(raw, 0U, 8U) * 0.5;
@@ -530,7 +519,7 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq1(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.torque_request_min = extract_bits(raw, 0U, 1U) != 0U;
     value.torque_request_max = extract_bits(raw, 1U, 1U) != 0U;
@@ -562,7 +551,7 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq2(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.target_gear_code = (uint8_t)extract_bits(raw, 0U, 4U);
     value.actual_gear_code = (uint8_t)extract_bits(raw, 4U, 4U);
@@ -595,7 +584,7 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq3(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.maximum_acceleration_state =
         (uint8_t)extract_bits(raw, 1U, 2U);
@@ -618,7 +607,7 @@ bool mblink_mercedes_transmission_decode_egs53_sbw_rs_tcm(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.message_transmitter_id = (uint8_t)extract_bits(raw, 0U, 2U);
     value.starter_lockout = extract_bits(raw, 7U, 1U) != 0U;
@@ -643,7 +632,7 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = payload_le64(payload);
+    raw = infiltratr_load_le64(payload);
 
     value.display_position_code = (uint8_t)extract_bits(raw, 0U, 8U);
     value.display_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
