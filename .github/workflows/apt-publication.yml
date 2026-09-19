@@ -15,7 +15,7 @@ jobs:
       ${{ github.event.workflow_run.conclusion == 'success' &&
           github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout tested commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,18 +43,38 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
           APP_ID: mblink
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
+
+          payload="$(jq -nc --arg repository "$GITHUB_REPOSITORY" --arg sha "$RELEASE_SHA" \
+            '{event_type:"application-release",client_payload:{repository:$repository,sha:$sha}}')"
+
+          if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
+            if ! curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $DISPATCH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --data "$payload" \
+              https://api.github.com/repos/Infiltrator-Projects/Infiltrator-Repository/dispatches; then
+              echo "::warning::Immediate APT dispatch failed; using the repository five-minute safety refresh."
+            fi
+          else
+            echo "APT dispatch token is unavailable; using the repository five-minute safety refresh."
+          fi
+
           catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
-          for attempt in $(seq 1 72); do
+          for attempt in $(seq 1 120); do
             if curl -fsS --retry 2 --retry-delay 1 "$catalogue?version=$VERSION&attempt=$attempt" \
               | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
               echo "APT repository advertises $APP_ID $VERSION."
               exit 0
             fi
-            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/72)..."
+            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/120)..."
             sleep 10
           done
-          echo "::error::Central APT repository did not advertise $APP_ID $VERSION within 12 minutes of the completed release workflow."
+          echo "::error::Central APT repository did not advertise $APP_ID $VERSION within 20 minutes of the completed release workflow."
           exit 1
