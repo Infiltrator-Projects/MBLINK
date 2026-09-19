@@ -6,6 +6,10 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.206 — 2026-09-19
+
+- Replaced the Linux Dashboard navigation artwork with a high-contrast four-panel glyph that remains legible at sidebar size.
+
 ## 0.7.205 — 2026-09-19
 
 - Fixed DID-lab unsigned parsing so negative timestamps and tolerances are rejected, and made CSV floating-point parsing use Common's strict finite parser.
