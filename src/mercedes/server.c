@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_server.h"
 
+#include "infiltratr/endian.h"
+
 #include <string.h>
 
 static const MblinkMercedesEcuEndpointDefinition *find_module_endpoint(
@@ -90,15 +92,13 @@ LinkUdsServerHandlerResult mblink_mercedes_server_read_did_handler(
             LINK_UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
     }
 
-    identifier = (uint16_t)(((uint16_t)request->pdu[1] << 8U) |
-                            request->pdu[2]);
+    identifier = infiltratr_load_be16(request->pdu + 1U);
     if (identifier == MBLINK_MERCEDES_SERVER_VIN_DID) {
         if (response_data_capacity < MBLINK_MERCEDES_VIN_LENGTH + 2U) {
             return link_uds_server_handler_negative(
                 LINK_UDS_NRC_RESPONSE_TOO_LONG);
         }
-        response_data[0] = (uint8_t)(identifier >> 8U);
-        response_data[1] = (uint8_t)identifier;
+        infiltratr_store_be16(response_data, identifier);
         memcpy(response_data + 2U, state->vin, MBLINK_MERCEDES_VIN_LENGTH);
         return link_uds_server_handler_positive(
             MBLINK_MERCEDES_VIN_LENGTH + 2U);

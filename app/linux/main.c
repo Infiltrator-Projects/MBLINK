@@ -21,6 +21,8 @@
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
 
+#include "infiltratr/core.h"
+
 #include <gtk/gtk.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -54,7 +56,7 @@ static const char *mblink_translate_text(const char *text, void *context)
     if (locale != NULL && strncmp(locale, "de", 2U) == 0) language = 1;
     else if (locale != NULL && strncmp(locale, "pl", 2U) == 0) language = 2;
     if (language == 0) return text;
-    for (index = 0U; index < sizeof(translations) / sizeof(translations[0]); ++index) {
+    for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(translations); ++index) {
         if (strcmp(text, translations[index].english) == 0)
             return language == 1 ? translations[index].german
                                  : translations[index].polish;
@@ -2574,8 +2576,9 @@ static void connection_changed(LinkTransport *transport,
     char log_message[192];
     context->connected = connected;
     context->transport = *transport;
-    (void)snprintf(context->adapter_identity, sizeof(context->adapter_identity), "%s",
-                   connected && adapter_identity != NULL ? adapter_identity : "");
+    infiltratr_copy_string(
+        context->adapter_identity, sizeof(context->adapter_identity),
+        connected && adapter_identity != NULL ? adapter_identity : "");
     if (connected) {
         mblink_linux_trace_clear_log(&context->session_trace, monotonic_ms());
         (void)snprintf(

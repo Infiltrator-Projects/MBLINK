@@ -10,6 +10,8 @@
  */
 #include "c207-replay.h"
 
+#include "infiltratr/core.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,11 +59,12 @@ static void normalize_command(
 
 static bool parse_hex_id(const char *text, uint32_t *value)
 {
-    char *end = NULL;
-    unsigned long parsed;
-    if (text == NULL || value == NULL || text[0] == '\0') return false;
-    parsed = strtoul(text, &end, 16);
-    if (end == text || *end != '\0' || parsed > UINT32_MAX) return false;
+    uint64_t parsed = 0U;
+    if (text == NULL || value == NULL ||
+        !infiltratr_parse_u64_range(
+            text, 16U, UINT64_C(0), UINT32_MAX, &parsed)) {
+        return false;
+    }
     *value = (uint32_t)parsed;
     return true;
 }

@@ -20,6 +20,8 @@
 #include "link-stm32-uds-server.h"
 #include "link-stm32c092-hal.h"
 
+#include "infiltratr/core.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -150,7 +152,7 @@ static void mblink_stm32_console_snapshot(
     snapshot->deferred_rx_dropped =
         link_stm32_uds_server_deferred_rx_dropped(&uds_transport);
     snapshot->dtcs = target_dtcs;
-    snapshot->dtc_count = sizeof(target_dtcs) / sizeof(target_dtcs[0]);
+    snapshot->dtc_count = INFILTRATR_ARRAY_LENGTH(target_dtcs);
     snapshot->reset_pending = reset_pending;
     snapshot->reset_type = reset_type;
 }
@@ -193,10 +195,10 @@ static bool mblink_stm32_server_init(void)
     mercedes.module = MBLINK_MERCEDES_MODULE_ENGINE;
     mercedes.endpoint_key = "c207-om651-engine-eobd-11bit";
     mercedes.dtcs = target_dtcs;
-    mercedes.dtc_count = sizeof(target_dtcs) / sizeof(target_dtcs[0]);
+    mercedes.dtc_count = INFILTRATR_ARRAY_LENGTH(target_dtcs);
     mercedes.dtc_details = target_dtc_details;
     mercedes.dtc_detail_count =
-        sizeof(target_dtc_details) / sizeof(target_dtc_details[0]);
+        INFILTRATR_ARRAY_LENGTH(target_dtc_details);
     mercedes.wwh_dtc_format_identifier = UINT8_C(0x04);
 
     if (!mblink_mercedes_server_init(&mercedes_state, &mercedes))

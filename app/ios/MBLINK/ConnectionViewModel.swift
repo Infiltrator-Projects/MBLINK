@@ -1020,16 +1020,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return string(from: definition.pointee.suffix)
     }
 
-    private func formattedValue(
-        pid: UInt8,
-        definition: UnsafePointer<MblinkParameterDefinition>,
-        value: Double?
-    ) -> String {
+    private func formattedValue(pid: UInt8, value: Double?) -> String {
         guard let value else { return "N/A" }
-        let displayed = displayScalar(pid: pid, rawValue: value)
-        let suffix = displaySuffix(pid: pid, definition: definition)
-        let places = Int(definition.pointee.decimal_places)
-        return String(format: "%.*f%@", places, displayed, suffix)
+        return controller.formattedDisplayValue(
+            forPID: pid, canonicalValue: value)
     }
 
     private func loadDiagnosticParameters(
@@ -1091,7 +1085,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 suffix = displaySuffix(pid: pid, definition: scalarDefinition)
                 history = rawHistory.map { displayScalar(pid: pid, rawValue: $0) }
                 value = rawValue.map { displayScalar(pid: pid, rawValue: $0) }
-                formatted = formattedValue(pid: pid, definition: scalarDefinition, value: rawValue)
+                formatted = formattedValue(pid: pid, value: rawValue)
             } else {
                 title = string(from: catalogue.name)
                 shortName = String(format: "PID %02X", pid)

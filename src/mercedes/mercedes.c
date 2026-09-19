@@ -205,13 +205,12 @@ static bool mercedes_reference_copy_text(
     size_t capacity,
     const char *source)
 {
-    int written;
     if (destination == NULL || capacity == 0U || source == NULL) return false;
-    written = snprintf(destination, capacity, "%s", source);
-    if (written < 0 || (size_t)written >= capacity) {
+    if (strlen(source) >= capacity) {
         destination[0] = '\0';
         return false;
     }
+    infiltratr_copy_string(destination, capacity, source);
     return true;
 }
 
@@ -1479,9 +1478,7 @@ static bool signal_target_time(uint64_t candidate_time, int64_t lag_ms,
     }
     {
         const uint64_t lag = (uint64_t)(-(lag_ms + 1)) + UINT64_C(1);
-        if (candidate_time > UINT64_MAX - lag) return false;
-        *target = candidate_time + lag;
-        return true;
+        return infiltratr_u64_add_checked(candidate_time, lag, target);
     }
 }
 
