@@ -2,6 +2,8 @@
 
 # MBLINK
 
+**Project copyright:** © 2000–2026 Shannon Smith
+
 [![MBLINK CI](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml)
 
 MBLINK is the Mercedes-Benz product face built on the shared LINK vehicle-diagnostics engine. Its scope is Mercedes-Benz vehicles broadly. The C207 E 250 CDI / OM651 with Delphi CRD3.x engine management is the current physical development/evidence vehicle, not the product boundary.
