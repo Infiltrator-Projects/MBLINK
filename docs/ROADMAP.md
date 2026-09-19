@@ -119,8 +119,8 @@ Implemented baseline:
 
 Next work:
 
-1. Build the Linux/Windows **Vehicle Research** workspace on top of the existing MBLINK Discover product and shared LINK research state model.
-2. Make Tactrix OpenPort/J2534 the preferred desktop research transport while retaining ELM/Vgate as a compatibility fallback.
+1. Complete the Linux **Vehicle Research** workspace on top of the shared LINK research state model. The Windows MBLINK Discover first slice is implemented: passive capture, standards inventory, Mercedes FULL SWEEP, operator event markers and typed Vehicle Research evidence/export share one session timeline.
+2. Keep Tactrix OpenPort/J2534 as the preferred desktop research transport while retaining ELM/Vgate as a compatibility fallback.
 3. Add a bounded passive-capture phase before active discovery, then preserve bus IDs, timing and changing-byte evidence.
 4. Run standards baseline acquisition before proprietary harvesting so SAE channels can serve as reference series.
 5. Expand read-only module census and per-module UDS/KWP positive-identifier harvesting, retaining raw positives and valid negatives without inventing semantics.

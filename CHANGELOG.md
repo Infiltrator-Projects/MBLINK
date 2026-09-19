@@ -6,6 +6,13 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.210 — 2026-09-20
+
+- Advanced the exact shared automotive engine to LINK 0.15.31 while retaining Infiltratr Common 1.19.10.
+- Pulled LINK's portable Vehicle Research session state and typed research evidence timeline into MBLINK without duplicating the generic implementation.
+- Upgraded MBLINK Discover on Windows with shared passive-capture, standards-inventory and Mercedes FULL SWEEP phase tracking, operator event markers and Vehicle Research JSONL export summaries.
+- Preserved the existing Mercedes-owned sweep plan and deny-by-default write/control boundary; the research workflow remains read-oriented.
+
 ## 0.7.209 — 2026-09-20
 
 - Advanced the exact shared automotive engine to LINK 0.15.30 and therefore Infiltratr Common 1.19.10.
