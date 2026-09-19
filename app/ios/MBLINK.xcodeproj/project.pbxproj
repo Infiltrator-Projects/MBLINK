@@ -705,7 +705,7 @@
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2000-2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				INFOPLIST_KEY_UIAppFonts = (
 					"mb_corpo_a_cond_regular.ttf",
@@ -747,7 +747,7 @@
 					"$(SRCROOT)/../../platform/apple",
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Shannon Smith";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2000-2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				INFOPLIST_KEY_UIAppFonts = (
 					"mb_corpo_a_cond_regular.ttf",

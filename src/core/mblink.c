@@ -31,7 +31,7 @@ static const InfiltratrProjectInfo mblink_project_info_record = {
     .license_id = "GPL-3.0-or-later",
     .comments = "Portable C Mercedes vehicle diagnostics face over LINK",
     .icon_name = "mblink",
-    .copyright_text = "Copyright (C) 2026 Shannon Smith"
+    .copyright_text = "Copyright (C) 2000-2026 Shannon Smith"
 };
 
 const InfiltratrProjectInfo *mblink_project_info(void)

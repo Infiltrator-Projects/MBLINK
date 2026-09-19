@@ -410,7 +410,7 @@ private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
             forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
         summary: "A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith.",
         authors: ["Shannon Smith"],
-        copyright: "Copyright © 2026 Shannon Smith",
+        copyright: "Copyright © 2000-2026 Shannon Smith",
         website: URL(string: "https://github.com/Infiltrator-Projects/MBLINK"),
         licenseName: "GPL-3.0-or-later",
         licenseText: "MBLINK is free software licensed under the GNU General Public License version 3 or, at your option, any later version (GPL-3.0-or-later).\n\nSee LICENSE in the source package for the complete licence text.",
@@ -447,7 +447,7 @@ struct MBLINKApp: App {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     LinkDiagnosticAboutButton(
                         productName: "MBLINK",
-                        copyright: "© 2026 Shannon Smith") {
+                        copyright: "© 2000-2026 Shannon Smith") {
                             showingAbout = true
                         }
                         .linkDiagnosticTheme(mbLinkTheme)

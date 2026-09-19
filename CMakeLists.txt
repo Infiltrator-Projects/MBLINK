@@ -239,7 +239,7 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
     link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
-        PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2026 Shannon Smith"
+        PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 2000-2026 Shannon Smith"
         PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics"
         PRODUCT_DESCRIPTION "A C-first, open-source Mercedes vehicle diagnostics platform."
         PRODUCT_AUTHORS "Shannon Smith"
