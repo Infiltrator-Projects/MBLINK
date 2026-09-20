@@ -6,6 +6,12 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.211 — 2026-09-20
+
+- Advanced the exact shared engine to LINK 0.15.32, retaining the Vehicle Research implementation and Infiltratr Common 1.19.10.
+- Published the repository-wide 2000-2026 copyright normalization already present on main.
+- No diagnostic protocol, transport, safety, Mercedes evidence, polling or user-facing research behaviour changed from 0.7.210.
+
 ## 0.7.210 — 2026-09-20
 
 - Advanced the exact shared automotive engine to LINK 0.15.31 while retaining Infiltratr Common 1.19.10.
