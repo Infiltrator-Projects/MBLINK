@@ -2,7 +2,7 @@
 
 # MBLINK
 
-**Project copyright:** © 2000-2026 Shannon Smith
+**Project copyright:** © 1993-2026 Shannon Smith
 
 [![MBLINK CI](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/Infiltrator-Projects/MBLINK/actions/workflows/ci.yml)
 
@@ -201,6 +201,6 @@ The committed gitlinks and `VERSION` files remain the sole authorities for depen
 
 ## Licence
 
-Copyright © 2000-2026 Shannon Smith.
+Copyright © 1993-2026 Shannon Smith.
 
 MBLINK is free software licensed under the GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`).
