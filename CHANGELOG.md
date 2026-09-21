@@ -6,7 +6,7 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
-## 0.7.214 — 2026-09-21
+## 0.7.215 — 2026-09-21
 
 - Completed a direct Common 1.19.20 forensic reuse pass in MBLINK without changing Common and without changing MBLINK's LINK dependency.
 - Replaced the embedded STM32 console's private ASCII lowercase helper with Common's deterministic ASCII case conversion while preserving the console's deliberately narrow space/tab trimming grammar.
