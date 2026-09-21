@@ -7,6 +7,7 @@
 #include "mblink/mercedes_did_lab.h"
 #include "mblink/mercedes_om651_api.h"
 
+#include "infiltratr/arithmetic.h"
 #include "infiltratr/core.h"
 
 #include <math.h>
