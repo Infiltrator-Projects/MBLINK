@@ -10,7 +10,6 @@
 #include "infiltratr/core.h"
 #include "infiltratr/endian.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 

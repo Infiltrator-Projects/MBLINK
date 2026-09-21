@@ -12,7 +12,6 @@
 
 #include "infiltratr/core.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,11 +47,11 @@ static void normalize_command(
     command[0] = '\0';
     if (data == NULL || size == 0U) return;
 
-    while (start < end && isspace((unsigned char)data[start])) ++start;
-    while (end > start && isspace((unsigned char)data[end - 1U])) --end;
+    while (start < end && infiltratr_ascii_is_space((unsigned char)data[start])) ++start;
+    while (end > start && infiltratr_ascii_is_space((unsigned char)data[end - 1U])) --end;
     while (start < end && used + 1U < capacity) {
         const unsigned char value = data[start++];
-        command[used++] = (char)toupper(value);
+        command[used++] = (char)infiltratr_ascii_to_upper(value);
     }
     command[used] = '\0';
 }

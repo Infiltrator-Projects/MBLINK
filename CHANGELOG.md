@@ -6,6 +6,14 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.213 — 2026-09-21
+
+- Advanced the exact shared engine to LINK 0.15.34 while retaining Infiltratr Common 1.19.20 unchanged.
+- Reused Common's canonical monotonic clock in the native Linux MBLINK face instead of retaining a second GLib time wrapper.
+- Removed the remaining locale-sensitive ctype use from the C207 replay command normaliser and DID-lab byte parser in favour of Common's deterministic ASCII contracts.
+- Removed an obsolete ctype include from Mercedes data-scan code; Mercedes diagnostic semantics and evidence remain MBLINK-owned.
+- No code was added to Common.
+
 ## 0.7.212 — 2026-09-21
 
 - Advanced the exact shared engine to LINK 0.15.33 and therefore Infiltratr Common 1.19.20.

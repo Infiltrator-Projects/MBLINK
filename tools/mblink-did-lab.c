@@ -5,7 +5,6 @@
 #include "infiltratr/core.h"
 #include "infiltratr/arithmetic.h"
 
-#include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +40,7 @@ static bool parse_hex_bytes(const char *text, uint8_t *buffer,
     for (index = 0U; text[index] != '\0'; ++index) {
         const int nibble = hex_nibble((unsigned char)text[index]);
         if (nibble < 0) {
-            if (isspace((unsigned char)text[index]) ||
+            if (infiltratr_ascii_is_space((unsigned char)text[index]) ||
                 text[index] == ':' || text[index] == '-') continue;
             return false;
         }

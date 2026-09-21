@@ -172,8 +172,9 @@ static void save_display_preferences(const MblinkLinuxContext *context);
 
 static uint64_t monotonic_ms(void)
 {
-    const gint64 value = g_get_monotonic_time();
-    return value <= 0 ? 0U : (uint64_t)(value / 1000);
+    uint64_t nanoseconds = 0U;
+    if (!infiltratr_monotonic_nanoseconds(&nanoseconds)) return 0U;
+    return nanoseconds / UINT64_C(1000000);
 }
 
 static const MblinkMercedesEcuEndpointDefinition *engine_endpoint(void)
