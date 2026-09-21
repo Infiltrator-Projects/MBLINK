@@ -2,7 +2,6 @@
 #include "mblink/mercedes_vin.h"
 #include "infiltratr/core.h"
 
-#include <ctype.h>
 #include <string.h>
 
 
@@ -74,8 +73,8 @@ static const MblinkMercedesBaumusterDefinition mercedes_baumuster[] = {
 static bool vin_character_valid(char value)
 {
     unsigned char c = (unsigned char)value;
-    if (!isalnum(c)) return false;
-    c = (unsigned char)toupper(c);
+    if (!infiltratr_ascii_is_alnum(c)) return false;
+    c = infiltratr_ascii_to_upper(c);
     return c != (unsigned char)'I' &&
            c != (unsigned char)'O' &&
            c != (unsigned char)'Q';
@@ -85,7 +84,7 @@ static void uppercase_copy(char *destination, const char *source, size_t length)
 {
     size_t index;
     for (index = 0U; index < length; ++index)
-        destination[index] = (char)toupper((unsigned char)source[index]);
+        destination[index] = (char)infiltratr_ascii_to_upper((unsigned char)source[index]);
     destination[length] = '\0';
 }
 
@@ -155,7 +154,7 @@ const MblinkMercedesPlantDefinition *mblink_mercedes_plant_at(size_t index)
 const MblinkMercedesPlantDefinition *mblink_mercedes_find_plant(char code)
 {
     size_t index;
-    code = (char)toupper((unsigned char)code);
+    code = (char)infiltratr_ascii_to_upper((unsigned char)code);
     for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(mercedes_plants); ++index) {
         if (mercedes_plants[index].code == code) return &mercedes_plants[index];
     }

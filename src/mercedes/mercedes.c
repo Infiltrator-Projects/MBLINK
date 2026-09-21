@@ -104,12 +104,6 @@ static bool mercedes_dtc_evidence_tier_valid(
            tier <= MBLINK_MERCEDES_DTC_EVIDENCE_REPAIR_VERIFIED;
 }
 
-static char mercedes_reference_ascii_upper(char value)
-{
-    if (value >= 'a' && value <= 'z') return (char)(value - 'a' + 'A');
-    return value;
-}
-
 static bool mercedes_reference_code_normalize(
     const char *code,
     char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH])
@@ -118,16 +112,15 @@ static bool mercedes_reference_code_normalize(
     if (code == NULL || normalized == NULL) return false;
     length = strlen(code);
     if (length != 5U) return false;
-    normalized[0] = mercedes_reference_ascii_upper(code[0]);
+    normalized[0] = (char)infiltratr_ascii_to_upper((unsigned char)code[0]);
     if (normalized[0] != 'P' && normalized[0] != 'B' &&
         normalized[0] != 'C' && normalized[0] != 'U' &&
         normalized[0] != 'N') {
         return false;
     }
     for (size_t index = 1U; index < 5U; ++index) {
-        char value = mercedes_reference_ascii_upper(code[index]);
-        if (!((value >= '0' && value <= '9') ||
-              (value >= 'A' && value <= 'F'))) {
+        char value = (char)infiltratr_ascii_to_upper((unsigned char)code[index]);
+        if (!infiltratr_ascii_is_xdigit((unsigned char)value)) {
             return false;
         }
         normalized[index] = value;

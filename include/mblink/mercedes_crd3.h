@@ -16,6 +16,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "infiltratr/core.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -115,32 +117,6 @@ mblink_mercedes_crd3_hardware_profile_at(size_t index)
         ? &profiles[index] : NULL;
 }
 
-static inline bool mblink_mercedes_crd3_ascii_contains_case_insensitive(
-    const char *text,
-    const char *needle)
-{
-    size_t text_index;
-    size_t needle_length;
-
-    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
-    needle_length = strlen(needle);
-    for (text_index = 0U; text[text_index] != '\0'; ++text_index) {
-        size_t offset = 0U;
-        while (offset < needle_length && text[text_index + offset] != '\0') {
-            unsigned char left = (unsigned char)text[text_index + offset];
-            unsigned char right = (unsigned char)needle[offset];
-            if (left >= (unsigned char)'a' && left <= (unsigned char)'z')
-                left = (unsigned char)(left - ((unsigned char)'a' - (unsigned char)'A'));
-            if (right >= (unsigned char)'a' && right <= (unsigned char)'z')
-                right = (unsigned char)(right - ((unsigned char)'a' - (unsigned char)'A'));
-            if (left != right) break;
-            ++offset;
-        }
-        if (offset == needle_length) return true;
-    }
-    return false;
-}
-
 static inline bool mblink_mercedes_crd3_number_equal(
     const char *left,
     const char *right)
@@ -153,13 +129,13 @@ static inline bool mblink_mercedes_crd3_number_equal(
 
     if (left == NULL || right == NULL) return false;
     for (index = 0U; left[index] != '\0'; ++index) {
-        if (left[index] >= '0' && left[index] <= '9') {
+        if (infiltratr_ascii_is_digit((unsigned char)left[index])) {
             if (left_count + 1U >= sizeof(left_digits)) return false;
             left_digits[left_count++] = left[index];
         }
     }
     for (index = 0U; right[index] != '\0'; ++index) {
-        if (right[index] >= '0' && right[index] <= '9') {
+        if (infiltratr_ascii_is_digit((unsigned char)right[index])) {
             if (right_count + 1U >= sizeof(right_digits)) return false;
             right_digits[right_count++] = right[index];
         }
@@ -220,9 +196,9 @@ mblink_mercedes_crd3_match_hardware_profile(
         if (identity->system_name != NULL &&
             identity->system_name[0] != '\0') {
             family_match =
-                mblink_mercedes_crd3_ascii_contains_case_insensitive(
+                infiltratr_ascii_contains_ci(
                     identity->system_name, profile->system_name_prefix) ||
-                mblink_mercedes_crd3_ascii_contains_case_insensitive(
+                infiltratr_ascii_contains_ci(
                     identity->system_name, "CRD3");
         }
 

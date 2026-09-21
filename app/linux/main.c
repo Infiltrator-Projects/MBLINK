@@ -22,12 +22,14 @@
 #include "mblink/parameter.h"
 
 #include "infiltratr/core.h"
+#include "infiltratr/posix.h"
 
 #include <gtk/gtk.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct MblinkLiteralTranslation {
@@ -53,8 +55,8 @@ static const char *mblink_translate_text(const char *text, void *context)
     int language = 0;
     (void)context;
     if (text == NULL) return "";
-    if (locale != NULL && strncmp(locale, "de", 2U) == 0) language = 1;
-    else if (locale != NULL && strncmp(locale, "pl", 2U) == 0) language = 2;
+    if (infiltratr_ascii_starts_with_ci(locale, "de")) language = 1;
+    else if (infiltratr_ascii_starts_with_ci(locale, "pl")) language = 2;
     if (language == 0) return text;
     for (index = 0U; index < INFILTRATR_ARRAY_LENGTH(translations); ++index) {
         if (strcmp(text, translations[index].english) == 0)
@@ -323,15 +325,41 @@ static void polling_toggled(GtkCheckButton *button, gpointer opaque)
     save_display_preferences(context);
 }
 
+static char *mblink_path_join_alloc(const char *left, const char *right)
+{
+    size_t capacity;
+    char *path;
+
+    if (left == NULL || right == NULL ||
+        !infiltratr_size_add_checked(strlen(left), strlen(right), &capacity) ||
+        !infiltratr_size_add_checked(capacity, 2U, &capacity)) {
+        return NULL;
+    }
+    path = malloc(capacity);
+    if (path == NULL) return NULL;
+    if (!infiltratr_path_join(path, capacity, left, right)) {
+        free(path);
+        return NULL;
+    }
+    return path;
+}
+
 static char *preferences_config_path(void)
 {
-    char *directory = g_build_filename(
-        g_get_user_config_dir(), "the-first-infiltrator", NULL);
+    char *base = NULL;
+    char *directory;
     char *path;
+
+    if (!infiltratr_xdg_config_home_alloc(&base)) return NULL;
+    directory = mblink_path_join_alloc(base, "the-first-infiltrator");
+    free(base);
     if (directory == NULL) return NULL;
-    (void)g_mkdir_with_parents(directory, 0700);
-    path = g_build_filename(directory, "mblink.ini", NULL);
-    g_free(directory);
+    if (infiltratr_mkdir_parents(directory, 0700U) != 0) {
+        free(directory);
+        return NULL;
+    }
+    path = mblink_path_join_alloc(directory, "mblink.ini");
+    free(directory);
     return path;
 }
 
@@ -418,7 +446,7 @@ static void load_polling_selection_for_vehicle(
         g_key_file_unref(key_file);
     }
     g_free(group);
-    g_free(path);
+    free(path);
 
     context->selected_parameters = loaded;
     configure_selected_graphs(context);
@@ -491,7 +519,7 @@ static void initialise_display_preferences(MblinkLinuxContext *context)
                 LINK_DASHBOARD_PRESENTATION_COMBINED);
     }
     g_key_file_unref(key_file);
-    g_free(path);
+    free(path);
 }
 
 static void save_display_preferences(const MblinkLinuxContext *context)
@@ -552,11 +580,13 @@ static void save_display_preferences(const MblinkLinuxContext *context)
 
     data = g_key_file_to_data(key_file, &length, NULL);
     if (data != NULL) {
-        (void)g_file_set_contents(path, data, (gssize)length, NULL);
+        (void)infiltratr_atomic_file_write_bytes(
+            path, INFILTRATR_ATOMIC_FILE_PRESERVE_PERMISSIONS,
+            data, (size_t)length);
         g_free(data);
     }
     g_key_file_unref(key_file);
-    g_free(path);
+    free(path);
 }
 
 static uint64_t mblink_presentation_revision(void *opaque)

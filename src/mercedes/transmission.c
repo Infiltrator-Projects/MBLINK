@@ -5,7 +5,6 @@
 #include "infiltratr/core.h"
 #include "infiltratr/endian.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -914,29 +913,6 @@ static const uint8_t k_kwp_ultimate_nag52_ids[] = {
     UINT8_C(0x31), UINT8_C(0x32)
 };
 
-static bool contains_ascii_ci(const char *text, const char *needle)
-{
-    size_t text_length;
-    size_t needle_length;
-    size_t start;
-    size_t offset;
-
-    if (text == NULL || needle == NULL || needle[0] == '\0') return false;
-    text_length = strlen(text);
-    needle_length = strlen(needle);
-    if (needle_length > text_length) return false;
-
-    for (start = 0U; start + needle_length <= text_length; ++start) {
-        for (offset = 0U; offset < needle_length; ++offset) {
-            const unsigned char left = (unsigned char)text[start + offset];
-            const unsigned char right = (unsigned char)needle[offset];
-            if (tolower(left) != tolower(right)) break;
-        }
-        if (offset == needle_length) return true;
-    }
-    return false;
-}
-
 MblinkMercedesTransmissionFamily
 mblink_mercedes_transmission_family_from_identity(const char *identity)
 {
@@ -944,25 +920,25 @@ mblink_mercedes_transmission_family_from_identity(const char *identity)
     if (identity == NULL || identity[0] == '\0')
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 
-    if (contains_ascii_ci(identity, "ULTIMATE NAG52") ||
-        contains_ascii_ci(identity, "ULTIMATE-NAG52")) {
+    if (infiltratr_ascii_contains_ci(identity, "ULTIMATE NAG52") ||
+        infiltratr_ascii_contains_ci(identity, "ULTIMATE-NAG52")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52;
     }
     /*
      * Match the specific later families before NAG2. "VGS" by itself is not
      * a safe family discriminator because Mercedes reused VGS terminology.
      */
-    if (contains_ascii_ci(identity, "725.0") ||
-        contains_ascii_ci(identity, "9G-TRONIC") ||
-        contains_ascii_ci(identity, "9G TRONIC")) {
+    if (infiltratr_ascii_contains_ci(identity, "725.0") ||
+        infiltratr_ascii_contains_ci(identity, "9G-TRONIC") ||
+        infiltratr_ascii_contains_ci(identity, "9G TRONIC")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G;
     }
-    if (contains_ascii_ci(identity, "724.0") ||
-        contains_ascii_ci(identity, "7G-DCT")) {
+    if (infiltratr_ascii_contains_ci(identity, "724.0") ||
+        infiltratr_ascii_contains_ci(identity, "7G-DCT")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT;
     }
-    if (contains_ascii_ci(identity, "722.8") ||
-        contains_ascii_ci(identity, "CVT")) {
+    if (infiltratr_ascii_contains_ci(identity, "722.8") ||
+        infiltratr_ascii_contains_ci(identity, "CVT")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT;
     }
     /* Use the same aliases as module identification, including bare VGS3. */
@@ -978,12 +954,12 @@ mblink_mercedes_transmission_family_from_identity(const char *identity)
         if (strcmp(definition->key, "transmission-vgs-nag2") == 0)
             return MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
     }
-    if (contains_ascii_ci(identity, "AMG MCT"))
+    if (infiltratr_ascii_contains_ci(identity, "AMG MCT"))
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_MCT;
-    if (contains_ascii_ci(identity, "AMG DCT"))
+    if (infiltratr_ascii_contains_ci(identity, "AMG DCT"))
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_AMG_DCT;
-    if (contains_ascii_ci(identity, "SINGLE-SPEED") ||
-        contains_ascii_ci(identity, "SINGLE SPEED")) {
+    if (infiltratr_ascii_contains_ci(identity, "SINGLE-SPEED") ||
+        infiltratr_ascii_contains_ci(identity, "SINGLE SPEED")) {
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EV_SINGLE_SPEED;
     }
     return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
