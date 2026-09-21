@@ -51,6 +51,30 @@ definitions; the generic codec does not guess record boundaries.
 This completes issue #32 at the shared standards layer without changing
 Discover's read-only allowlist.
 
+### Services presentation
+
+The iOS and native Linux Services screens render LINK's generic 27-service
+catalogue directly from the shared metadata rather than maintaining
+product-local SID tables. Each row shows the codec effect classification and
+the independent Discover safety decision. A blocked service therefore remains
+visible as a generic codec capability without becoming an executable vehicle
+operation.
+
+The same screens expose the complete 27-report ReadDTCInformation catalogue so
+snapshot, extended-data, severity, user-memory and WWH report coverage can be
+inspected without sending those requests. MBLINK does not interpret catalogue
+presence as proof that a Mercedes ECU supports a report type.
+
+LINK 0.15.36 also supplies typed fixed-record views and stricter positive
+response validation. MBLINK re-exports those views through its compatibility
+facade. Snapshot and extended-data tails remain raw whenever their size depends
+on ECU/DID definitions.
+
+ClearDiagnosticInformation service `0x14` remains blocked as a state-changing
+DTC clear. Authentication service `0x29` remains security-gated. Their
+generic request codecs are visible in the catalogue but no active MBLINK
+procedure or UI transmit action is created for either service.
+
 ## Timing and failure
 
 Client timing uses caller-supplied monotonic microseconds. Deadlines use saturating arithmetic from the pinned Infiltratr Common library.

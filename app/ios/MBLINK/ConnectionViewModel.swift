@@ -73,6 +73,33 @@ struct MercedesNativeDataIdentity: Identifiable {
     let dataID: String
 }
 
+/// Product presentation of LINK's generic UDS service metadata.  This model
+/// deliberately carries both codec capability and Discover policy so the UI
+/// cannot confuse "serializable" with "permitted to transmit".
+struct MBUDSServiceCatalogueItem: Identifiable {
+    let id: UInt8
+    let name: String
+    let effect: String
+    let transmissionPolicy: String
+    let readOnlyTransmissionAllowed: Bool
+
+    var codeText: String {
+        String(format: "0x%02X", id)
+    }
+}
+
+/// Presentation-only view of LINK's complete ReadDTCInformation report
+/// catalogue.  Target-ECU support is intentionally not inferred here.
+struct MBUDSDTCReportCatalogueItem: Identifiable {
+    let id: UInt8
+    let name: String
+    let withdrawnIn2020: Bool
+
+    var codeText: String {
+        String(format: "19 %02X", id)
+    }
+}
+
 /// Structured, presentation-ready facts decoded directly from a Mercedes VIN.
 /// Raw diagnostic evidence remains in `mercedesIdentityResults`; the Vehicle
 /// screen uses this model so protocol delimiters never leak into the UI.
@@ -123,6 +150,66 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     @Published private(set) var manufacturerDataScanModuleID: String?
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var mercedesNativeDataIdentities = [MercedesNativeDataIdentity]()
+
+    /// Complete product-neutral UDS codec catalogue from LINK.  Safety is
+    /// evaluated independently for each SID through LINK's deny-by-default
+    /// Discover classifier; no request is transmitted by constructing this
+    /// presentation model.
+    var udsServiceCatalogue: [MBUDSServiceCatalogueItem] {
+        var items = [MBUDSServiceCatalogueItem]()
+        let count = Int(link_uds_standard_service_count())
+        items.reserveCapacity(count)
+
+        for index in 0..<count {
+            guard let pointer = link_uds_standard_service_at(index) else {
+                continue
+            }
+            let definition = pointer.pointee
+            let name = definition.name.map { String(cString: $0) } ?? "Unknown"
+            let effect = link_uds_service_effect_name(definition.effect)
+                .map { String(cString: $0) } ?? "unknown"
+
+            var sid = definition.service
+            let safety = withUnsafePointer(to: &sid) {
+                link_safety_classify($0, 1)
+            }
+            let reason = link_safety_reason_string(safety.reason)
+                .map { String(cString: $0) } ?? "unknown safety decision"
+            let allowed = safety.decision == LINK_SAFETY_ALLOW_READ_ONLY
+            let policy = allowed
+                ? "Read-only allowed · \(reason)"
+                : "Codec only · \(reason)"
+
+            items.append(MBUDSServiceCatalogueItem(
+                id: definition.service,
+                name: name,
+                effect: effect,
+                transmissionPolicy: policy,
+                readOnlyTransmissionAllowed: allowed))
+        }
+        return items
+    }
+
+    /// Complete ReadDTCInformation catalogue from LINK.  These entries mean
+    /// that the generic codec can construct/validate the report; they do not
+    /// claim that the connected Mercedes ECU implements the report type.
+    var udsDTCReportCatalogue: [MBUDSDTCReportCatalogueItem] {
+        var items = [MBUDSDTCReportCatalogueItem]()
+        let count = Int(link_uds_dtc_report_definition_count())
+        items.reserveCapacity(count)
+        for index in 0..<count {
+            guard let pointer = link_uds_dtc_report_definition_at(index) else {
+                continue
+            }
+            let definition = pointer.pointee
+            items.append(MBUDSDTCReportCatalogueItem(
+                id: definition.subfunction,
+                name: definition.name.map { String(cString: $0) } ?? "Unknown",
+                withdrawnIn2020: definition.withdrawn_in_2020))
+        }
+        return items
+    }
+
     private var controller: MBLinkDiagnosticsController {
         productController as! MBLinkDiagnosticsController
     }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/uds.h"
+#include "mblink/uds_services.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -454,8 +455,41 @@ static int test_deadline_saturates(void)
     return 0;
 }
 
+static int test_complete_service_facade(void)
+{
+    size_t index;
+    bool saw_read_dtc = false;
+    bool saw_clear_dtc = false;
+    bool saw_authentication = false;
+
+    CHECK(mblink_uds_standard_service_count() ==
+          MBLINK_UDS_STANDARD_SERVICE_COUNT);
+    CHECK(MBLINK_UDS_STANDARD_SERVICE_COUNT == 27U);
+    for (index = 0U; index < mblink_uds_standard_service_count(); ++index) {
+        const MblinkUdsServiceDefinition *definition =
+            mblink_uds_standard_service_at(index);
+        CHECK(definition != NULL);
+        CHECK(definition->name != NULL && definition->name[0] != '\0');
+        if (definition->service == MBLINK_UDS_SERVICE_READ_DTC_INFORMATION) {
+            saw_read_dtc = true;
+            CHECK(definition->effect == MBLINK_UDS_SERVICE_EFFECT_READ_ONLY);
+        } else if (definition->service ==
+                   MBLINK_UDS_SERVICE_CLEAR_DIAGNOSTIC_INFORMATION) {
+            saw_clear_dtc = true;
+            CHECK(definition->effect ==
+                  MBLINK_UDS_SERVICE_EFFECT_STATE_CHANGING);
+        } else if (definition->service == MBLINK_UDS_SERVICE_AUTHENTICATION) {
+            saw_authentication = true;
+            CHECK(definition->effect == MBLINK_UDS_SERVICE_EFFECT_SECURITY);
+        }
+    }
+    CHECK(saw_read_dtc && saw_clear_dtc && saw_authentication);
+    return 0;
+}
+
 int main(void)
 {
+    if (test_complete_service_facade() != 0) return 1;
     if (test_generic_response_decode() != 0) return 1;
     if (test_session_control() != 0) return 1;
     if (test_tester_present() != 0) return 1;

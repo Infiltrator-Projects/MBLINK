@@ -46,6 +46,14 @@ static int test_complete_report_facade(void)
     CHECK(response.functional_group_identifier_available);
     CHECK(response.functional_group_identifier == 0x33U);
     CHECK(response.records_length == 4U);
+    CHECK(mblink_uds_dtc_response_record_count(&response) == 1U);
+    {
+        MblinkUdsDtcRecord record;
+        CHECK(mblink_uds_dtc_response_status_record_at(
+            &response, 0U, &record));
+        CHECK(record.code == UINT32_C(0x123456));
+        CHECK(record.status == 0x09U);
+    }
     return 0;
 }
 
@@ -114,7 +122,14 @@ static int test_empty_and_invalid_responses(void)
         0x59U, 0x02U, 0xffU, 0x12U, 0x34U
     };
     const uint8_t negative[] = { 0x7fU, 0x19U, 0x31U };
+    const uint8_t truncated_snapshot[] = {
+        0x59U, 0x04U, 0x12U, 0x34U, 0x56U
+    };
+    const uint8_t truncated_user_memory[] = {
+        0x59U, 0x18U, 0x31U, 0x12U, 0x34U, 0x56U
+    };
     MblinkUdsDtcList list;
+    MblinkUdsDtcInformationResponse response;
 
     CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
               empty, sizeof(empty), &list) == MBLINK_UDS_RESULT_OK);
@@ -132,6 +147,14 @@ static int test_empty_and_invalid_responses(void)
     CHECK(mblink_uds_decode_report_dtcs_by_status_mask_response(
               negative, sizeof(negative), &list) ==
           MBLINK_UDS_RESULT_NEGATIVE_RESPONSE);
+    CHECK(mblink_uds_decode_read_dtc_information_response(
+              MBLINK_UDS_DTC_REPORT_SNAPSHOT_BY_DTC_NUMBER,
+              truncated_snapshot, sizeof(truncated_snapshot), &response) ==
+          MBLINK_UDS_RESULT_MALFORMED_PDU);
+    CHECK(mblink_uds_decode_read_dtc_information_response(
+              MBLINK_UDS_DTC_REPORT_USER_MEMORY_SNAPSHOT_BY_DTC_NUMBER,
+              truncated_user_memory, sizeof(truncated_user_memory), &response) ==
+          MBLINK_UDS_RESULT_MALFORMED_PDU);
     return 0;
 }
 

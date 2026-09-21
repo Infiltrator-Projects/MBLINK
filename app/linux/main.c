@@ -12,7 +12,10 @@
 #include "link/workspace.h"
 #include "link/dashboard.h"
 #include "link/selection.h"
+#include "link/discover.h"
+#include "link/uds_services.h"
 #include "mblink/mblink.h"
+#include "mblink/uds_dtc.h"
 #include "mblink/project_info.h"
 #include "mblink/mercedes.h"
 #include "mblink/mercedes_engine_scan.h"
@@ -2298,18 +2301,75 @@ static void append_services(
     GtkWidget *body,
     const MblinkLinuxContext *context)
 {
-    GtkWidget *card =
-        link_gtk_card_new("SERVICES", "Supported Mercedes-Benz procedures");
+    GtkWidget *procedure =
+        link_gtk_card_new("SERVICES", "Mercedes-Benz procedure policy");
+    GtkWidget *catalogue =
+        link_gtk_card_new("UDS CATALOGUE", "LINK generic service codecs");
+    GtkWidget *reports =
+        link_gtk_card_new("READ DTC INFORMATION", "Complete 0x19 report catalogue");
+    size_t index;
+
     link_gtk_card_append_status(
-        card,
+        procedure,
         context != NULL && context->diagnostic_ready
-            ? "NO VERIFIED PROCEDURE ENABLED"
-            : "CONNECT TO EVALUATE SERVICES",
+            ? "NO ACTIVE CONTROL PROCEDURE ENABLED"
+            : "CONNECT TO EVALUATE VEHICLE-SPECIFIC READS",
         "state-warning");
     link_gtk_card_append_note(
-        card,
-        "Service procedures appear only when MBLINK has an explicitly verified target module, prerequisites, request sequence and safety contract. Unknown or destructive operations are not exposed merely because a protocol can encode them.");
-    gtk_box_append(GTK_BOX(body), card);
+        procedure,
+        "Generic UDS codec availability is not a Mercedes capability claim and is not permission to transmit. MBLINK exposes a vehicle procedure only after its target, prerequisites, request sequence and safety behaviour are independently verified.");
+    gtk_box_append(GTK_BOX(body), procedure);
+
+    for (index = 0U; index < link_uds_standard_service_count(); ++index) {
+        const LinkUdsServiceDefinition *definition =
+            link_uds_standard_service_at(index);
+        char key[16];
+        char value[256];
+        uint8_t payload[1];
+        link_safety_result safety;
+        const char *effect;
+        const char *reason;
+        if (definition == NULL) continue;
+        payload[0] = definition->service;
+        safety = link_safety_classify(payload, sizeof(payload));
+        effect = link_uds_service_effect_name(definition->effect);
+        reason = link_safety_reason_string(safety.reason);
+        (void)snprintf(
+            key, sizeof(key), "0x%02X", (unsigned int)definition->service);
+        (void)snprintf(
+            value, sizeof(value), "%s · %s · %s",
+            definition->name != NULL ? definition->name : "Unknown",
+            effect != NULL ? effect : "unknown",
+            safety.decision == LINK_SAFETY_ALLOW_READ_ONLY
+                ? "read-only transmission allowed"
+                : (reason != NULL ? reason : "blocked by policy"));
+        link_gtk_card_append_detail(catalogue, key, value);
+    }
+    link_gtk_card_append_note(
+        catalogue,
+        "A blocked entry still has a standards-shaped codec; it remains non-transmissible through Discover. In particular, service 0x14 DTC clearing and service 0x29 Authentication stay gated.");
+    gtk_box_append(GTK_BOX(body), catalogue);
+
+    for (index = 0U; index < link_uds_dtc_report_definition_count(); ++index) {
+        const LinkUdsDtcReportDefinition *definition =
+            link_uds_dtc_report_definition_at(index);
+        char key[16];
+        char value[256];
+        if (definition == NULL) continue;
+        (void)snprintf(
+            key, sizeof(key), "19 %02X", (unsigned int)definition->subfunction);
+        (void)snprintf(
+            value, sizeof(value), "%s · %s",
+            definition->name != NULL ? definition->name : "Unknown",
+            definition->withdrawn_in_2020
+                ? "legacy compatibility / withdrawn in 2020"
+                : "current generic report type");
+        link_gtk_card_append_detail(reports, key, value);
+    }
+    link_gtk_card_append_note(
+        reports,
+        "Snapshot and extended-data response tails remain raw when their record sizes depend on ECU/DID definitions. The generic layer validates only the fixed envelope it can prove.");
+    gtk_box_append(GTK_BOX(body), reports);
 }
 
 static void render_section(size_t section, GtkWidget *body, void *opaque)

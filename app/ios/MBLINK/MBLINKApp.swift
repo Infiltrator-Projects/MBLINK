@@ -2751,17 +2751,19 @@ private struct MBServicesView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Services", kicker: "Vehicle procedures")
+                    MBSectionHeader(
+                        title: "Services",
+                        kicker: "Generic UDS capability · Mercedes policy")
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("No service procedure enabled for this session",
+                            Label("No active Mercedes control procedure enabled",
                                   systemImage: "wrench.and.screwdriver.fill")
                                 .font(MBTypography.headline)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text(connection.isActive
-                                 ? "MBLINK will list a procedure here only after its target module, prerequisites, request sequence and safety behaviour are explicitly supported."
-                                 : "Connect to the vehicle to evaluate supported service procedures.")
+                                 ? "The catalogue below describes LINK's generic codec and transmission policy. MBLINK exposes an active Mercedes procedure only when its target module, prerequisites, request sequence and safety behaviour are independently verified."
+                                 : "The catalogue below is available offline. Connect to evaluate vehicle-specific read-only capabilities; generic codec support never proves ECU support.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2769,7 +2771,78 @@ private struct MBServicesView: View {
                     }
 
                     MBPanel {
-                        Text("Unknown, destructive or unverified control operations remain unavailable. A service entry appearing in the interface must never be inferred from a generic protocol capability alone.")
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("UDS service catalogue")
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("\(connection.udsServiceCatalogue.count) product-neutral service codecs from LINK. A lock means the codec exists but Discover will not transmit that SID.")
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            ForEach(connection.udsServiceCatalogue) { service in
+                                Divider().overlay(MBBrand.line)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text(service.codeText)
+                                            .font(MBTypography.captionBold)
+                                            .monospaced()
+                                            .foregroundStyle(MBBrand.active)
+                                            .frame(width: 48, alignment: .leading)
+                                        Text(service.name)
+                                            .font(MBTypography.subheadlineBold)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                        Spacer(minLength: 8)
+                                        Image(systemName: service.readOnlyTransmissionAllowed
+                                              ? "eye.fill" : "lock.fill")
+                                            .foregroundStyle(service.readOnlyTransmissionAllowed
+                                                             ? MBBrand.success : MBBrand.warning)
+                                    }
+                                    Text("\(service.effect) · \(service.transmissionPolicy)")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.silver)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("ReadDTCInformation reports")
+                                .font(MBTypography.headline)
+                                .foregroundStyle(MBBrand.silverBright)
+                            Text("\(connection.udsDTCReportCatalogue.count) generic 0x19 report types are represented. Snapshot and extended-data tails remain raw unless an ECU/DID definition proves their record layout.")
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            ForEach(connection.udsDTCReportCatalogue) { report in
+                                Divider().overlay(MBBrand.line)
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text(report.codeText)
+                                        .font(MBTypography.captionBold)
+                                        .monospaced()
+                                        .foregroundStyle(MBBrand.active)
+                                        .frame(width: 54, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(report.name)
+                                            .font(MBTypography.subheadline)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                        Text(report.withdrawnIn2020
+                                             ? "Legacy compatibility · withdrawn in ISO 14229-1:2020"
+                                             : "Current generic report type · target support not assumed")
+                                            .font(MBTypography.caption)
+                                            .foregroundStyle(report.withdrawnIn2020
+                                                             ? MBBrand.warning : MBBrand.silver)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        Text("Mercedes behaviour remains evidence-gated. MBLINK currently uses bounded read-only UDS/KWP discovery on proven module routes; ClearDiagnosticInformation (0x14), Authentication (0x29), programming, resets, routines and other state-changing operations remain unavailable from this screen.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)
