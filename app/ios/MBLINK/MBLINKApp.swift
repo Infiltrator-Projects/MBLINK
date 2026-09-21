@@ -409,6 +409,7 @@ private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
         version: Bundle.main.object(
             forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
         summary: "A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith.",
+        build: "Source / Xcode build",
         authors: ["Shannon Smith"],
         copyright: "Copyright © 1993-2026 Shannon Smith",
         website: URL(string: "https://github.com/Infiltrator-Projects/MBLINK"),

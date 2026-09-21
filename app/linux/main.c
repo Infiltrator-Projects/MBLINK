@@ -3018,7 +3018,6 @@ int main(int argc, char **argv)
     LinkGtkShellDescriptor descriptor = {0};
     LinkAboutInfo about_info = {0};
     const InfiltratrProjectInfo *project_info;
-    char *about_description = NULL;
     bool replay_mode = false;
     bool replay_verify = false;
     bool settings_verify = false;
@@ -3062,15 +3061,11 @@ int main(int argc, char **argv)
     link_fuel_economy_init(&context.fuel_economy);
 
     project_info = mblink_project_info();
-    about_description = g_strdup_printf(
-        "%s\n\nBuild: %s",
-        project_info->comments,
-        mblink_linux_build_label(project_info->build_profile));
-    if (about_description == NULL) return 6;
     about_info.product_name = project_info->program_name;
-    about_info.subtitle = "MERCEDES-BENZ · LINK DIAGNOSTICS";
     about_info.version = project_info->version;
-    about_info.description = about_description;
+    about_info.description = project_info->comments;
+    about_info.build =
+        mblink_linux_build_label(project_info->build_profile);
     about_info.authors = "Shannon Smith";
     about_info.copyright = project_info->copyright_text;
     about_info.website = project_info->website;
@@ -3119,6 +3114,5 @@ int main(int argc, char **argv)
     descriptor.context = &context;
     status = link_gtk_shell_run(argc, argv, &descriptor);
     g_free(runtime_css);
-    g_free(about_description);
     return status;
 }

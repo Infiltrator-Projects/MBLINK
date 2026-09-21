@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.217 — 2026-09-21
+
+- Standardise Linux and iOS About presentation on the suite-wide System Monitor contract through LINK 0.15.38.
+- Separate the canonical build label from descriptive text so About exposes the same product/version/description/build hierarchy as the rest of the suite.
+- Remove product-tagline duplication from About while retaining MBLINK branding in the application shell.
+
+
 This file records user-visible, compatibility, diagnostic-knowledge and validation changes for MBLINK.
 
 ## Unreleased
