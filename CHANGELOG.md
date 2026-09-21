@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.219 — 2026-09-21
+
+- Complete CI diagnostics issue #24 by restoring one canonical 0.7.219 version across VERSION, C header metadata and all iOS MARKETING_VERSION configurations.
+- Pin LINK 0.15.41 exactly and record the matching LINK source revision in both iOS core configurations.
+- Consume LINK issue #25's product-neutral UDS server policy metadata and contextual physical/functional dispatcher without adding any Mercedes-specific policy guesses.
+- Requalify the complete Linux, Windows, sanitizer, Apple/iOS and publication pipeline from a clean preflight state.
+
 ## 0.7.218 — 2026-09-21
 
 - Advance to LINK 0.15.40 so MBLINK's Linux, Windows where applicable, and iOS About surfaces share the completed suite-wide About contract.
