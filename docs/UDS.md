@@ -42,6 +42,12 @@ types are separate catalogues. LINK now also exposes all 27 requested
 `0x42` and `0x55`. The legacy mirror/emissions report types withdrawn by
 ISO 14229-1:2020 remain available for older ECUs.
 
+Transaction-aware callers can additionally use LINK's request-specific response
+validator, re-exported by MBLINK, to verify MemorySelection, record-number,
+functional-group and requested-DTC echoes. This protects higher layers from
+malformed responses that are superficially parseable but do not correspond to
+the request that was sent.
+
 Every report type has a bounded request encoder and a validated positive-response
 envelope. Fixed DTC/count/severity records are structurally validated.
 Snapshot and extended-data records whose lengths depend on DID or manufacturer

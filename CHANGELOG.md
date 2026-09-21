@@ -6,6 +6,14 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.216 — 2026-09-21
+
+- Exposed LINK's forensic 27-service UDS catalogue and complete requested ReadDTCInformation report catalogue through MBLINK without duplicating generic protocol ownership.
+- Advanced the exact LINK dependency to 0.15.38, including request-aware ReadDTCInformation response validation for MemorySelection, record-number, functional-group and applicable DTC echoes.
+- Re-exported the request-aware ReadDTC decoder through the MBLINK compatibility facade and retained typed fixed-record views while leaving OEM-sized snapshot and extended-data tails raw.
+- Preserved deny-by-default vehicle policy: ClearDiagnosticInformation 0x14 remains state-changing and unavailable to automatic discovery; Authentication 0x29 remains security-gated and has no inferred Mercedes procedure.
+- Added forensic issue documentation for the supplied STM32 server deviations that caused misleading 0x19 differential results.
+
 ## 0.7.215 — 2026-09-21
 
 - Completed a direct Common 1.19.20 forensic reuse pass in MBLINK without changing Common and without changing MBLINK's LINK dependency.
