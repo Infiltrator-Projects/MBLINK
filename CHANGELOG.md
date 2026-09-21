@@ -2,7 +2,7 @@
 
 ## 0.7.218 — 2026-09-21
 
-- Advance to LINK 0.15.39 so MBLINK's Linux, Windows where applicable, and iOS About surfaces share the completed suite-wide About contract.
+- Advance to LINK 0.15.40 so MBLINK's Linux, Windows where applicable, and iOS About surfaces share the completed suite-wide About contract.
 - Retain the previously separated build identity and product-specific credits while inheriting the corrected shared Windows and standard SwiftUI metadata handling.
 
 
