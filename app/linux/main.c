@@ -21,6 +21,7 @@
 #include "mblink/obd2.h"
 #include "mblink/parameter.h"
 
+#include "infiltratr/arithmetic.h"
 #include "infiltratr/core.h"
 #include "infiltratr/posix.h"
 
