@@ -304,7 +304,13 @@ jobs:
                  grep -Fq 'standard_selection_keys=obd2.engine.rpm,obd2.vehicle.speed' "$marker" && \
                  grep -Fq 'standard_selection_scoped=true' "$marker" && \
                  grep -Fq 'module_count=4' "$marker" && \
-                 grep -Eq '^transmission_catalogue_count=[1-9][0-9]*
+                 grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$marker" && \
+                 grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$marker" && \
+                 grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$marker" && \
+                 grep -Fq 'uds_service_catalogue_count=27' "$marker" && \
+                 grep -Fq 'uds_dtc_report_catalogue_count=27' "$marker" && \
+                 grep -Eq '^recorded_samples=[1-9][0-9]*$' "$marker"; then
+                flow_ready=true
                 break
               fi
               grep -Fq 'state=failed' "$marker" && break || true
