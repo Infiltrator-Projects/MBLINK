@@ -1813,6 +1813,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 moduleID: Self.ciESPModuleID).count
             let orcCatalogueCount = manufacturerPIDCatalogueItems(
                 moduleID: Self.ciORCModuleID).count
+            let udsServiceCatalogueCount = udsServiceCatalogue.count
+            let udsDTCReportCatalogueCount = udsDTCReportCatalogue.count
             let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
             let state = isReady && liveVIN.count == 17
                 ? "ready" : (failed ? "failed" : "pending")
@@ -1835,6 +1837,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
                 "esp_catalogue_count=\(espCatalogueCount)\n" +
                 "orc_catalogue_count=\(orcCatalogueCount)\n" +
+                "uds_service_catalogue_count=\(udsServiceCatalogueCount)\n" +
+                "uds_dtc_report_catalogue_count=\(udsDTCReportCatalogueCount)\n" +
                 "recorded_samples=\(recordedSampleCount)\n"
             if let directory = FileManager.default.urls(
                     for: .documentDirectory, in: .userDomainMask).first {

@@ -306,8 +306,474 @@ jobs:
                  grep -Fq 'module_count=4' "$marker" && \
                  grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$marker" && \
                  grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$marker" && \
-                 grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$marker" && \
-                 grep -Eq '^recorded_samples=[1-9][0-9]*$' "$marker"; then
+                 grep -Eq '^orc_catalogue_count=[1-9][0-9]*
+                flow_ready=true
+                break
+              fi
+              grep -Fq 'state=failed' "$marker" && break || true
+            fi
+            sleep 1
+          done
+          if test "$flow_ready" != true; then
+            echo '::error::Simulated diagnostic flow did not reach live-ready state.'
+            test ! -f "$marker" || cat "$marker"
+            xcrun simctl spawn "$udid" log show --last 2m --style compact \
+              --predicate 'process == "MBLINK" AND (messageType == error OR messageType == fault)' || true
+            exit 1
+          fi
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+
+          saved_marker="$data_container/Documents/mblink-ci-saved-pid-profile.ok"
+          rm -f "$saved_marker"
+          SIMCTL_CHILD_MBLINK_CI_SAVED_PID_RESTORE=1 \
+            xcrun simctl launch "$udid" com.github.The-First-Infiltrator.MBLINK
+          saved_ready=false
+          for attempt in $(seq 1 20); do
+            if test -f "$saved_marker"; then
+              cat "$saved_marker"
+              if grep -Fq 'state=ready' "$saved_marker" && \
+                 grep -Fq 'active=false' "$saved_marker" && \
+                 grep -Fq 'selected_vin=WDD2073022F123456' "$saved_marker" && \
+                 grep -Fq 'profile_module_count=4' "$saved_marker" && \
+                 grep -Fq 'display_selection_verified=true' "$saved_marker" && \
+                 grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
+                 grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
+                 grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$saved_marker"; then
+                saved_ready=true
+                break
+              fi
+            fi
+            sleep 1
+          done
+          if test "$saved_ready" != true; then
+            echo '::error::Saved C207 PID catalogues did not survive a cold app launch.'
+            test ! -f "$saved_marker" || cat "$saved_marker"
+            exit 1
+          fi
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+      - name: Build iOS simulator Release
+        if: needs.preflight.outputs.is_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived-simulator-Release" \
+            CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
+            MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+      - name: Build and package IPA
+        if: needs.preflight.outputs.is_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/derived"
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
+            "$RUNNER_TEMP/package/Payload/MBLINK.app"
+          (cd "$RUNNER_TEMP/package" && zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
+          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
+      - name: Upload iOS release package
+        if: needs.preflight.outputs.is_release == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: MBLINK-${{ needs.preflight.outputs.version }}-unsigned-iphone-ipa
+          path: ${{ runner.temp }}/MBLINK-${{ needs.preflight.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish complete atomic release
+    needs: [preflight, portable-core, sanitizers, linux-app, windows-discover, apple-ios]
+    if: needs.preflight.outputs.is_release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          link_version="$(tr -d '[:space:]' < src/link/VERSION)"
+          common_version="$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)"
+          subject="$(git log -1 --format=%s "$GITHUB_SHA")"
+          if [[ "$subject" != "Release ${version}" && "$subject" != "Release ${version}:"* ]]; then
+            echo "Release commit subject must begin with Release ${version}." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "link_version=$link_version" >> "$GITHUB_OUTPUT"
+          echo "common_version=$common_version" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
+          path: release-assets
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
+          path: release-assets
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
+          path: release-assets
+      - name: Package complete recursive source archive
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
+          mkdir -p "$staging" release-assets
+          rsync -a --exclude='.git' --exclude='/release-assets/' ./ "$staging/"
+          test -s "$staging/src/link/src/infiltratr-common/CMakeLists.txt"
+          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
+          unzip -tq "release-assets/MBLINK-${VERSION}-source.zip"
+      - name: Verify release artifacts and build checksums
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          for file in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip"; do
+            test -s "release-assets/$file"
+          done
+          (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
+      - name: Stage complete draft and publish exact immutable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          LINK_VERSION: ${{ steps.release.outputs.link_version }}
+          COMMON_VERSION: ${{ steps.release.outputs.common_version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release commit $GITHUB_SHA is no longer on main; refusing to publish." >&2
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Release tag $TAG already exists; published releases are immutable." >&2
+            exit 1
+          fi
+          release_state="$(gh release view "$TAG" \
+            --json isDraft,targetCommitish --jq '[.isDraft, .targetCommitish] | @tsv' \
+            2>/dev/null || true)"
+          if [[ -n "$release_state" ]]; then
+            IFS=$'\t' read -r is_draft target_commitish <<<"$release_state"
+            if [[ "$is_draft" != true || "$target_commitish" != "$GITHUB_SHA" ]]; then
+              echo "Release $TAG already exists; published releases are immutable." >&2
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft \
+              --title "MBLINK $VERSION" \
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION."
+          fi
+          gh release upload "$TAG" release-assets/* --clobber
+          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for expected in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip" \
+            "SHA256SUMS.txt"; do
+            grep -Fxq "$expected" <<<"$assets"
+          done
+          gh release edit "$TAG" --draft=false
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$GITHUB_SHA"
+      - name: Refresh and verify Infiltrator APT repository
+        env:
+          DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
+          RELEASE_SHA: ${{ github.sha }}
+          VERSION: ${{ steps.release.outputs.version }}
+          APP_ID: mblink
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
+            if ! GH_TOKEN="$DISPATCH_TOKEN" gh api \
+              --method POST \
+              repos/Infiltrator-Projects/Infiltrator-Repository/dispatches \
+              -f event_type='application-release' \
+              -f "client_payload[repository]=$GITHUB_REPOSITORY" \
+              -f "client_payload[sha]=$RELEASE_SHA" >/dev/null; then
+              echo "::warning::Immediate APT dispatch failed; waiting for the repository's safety refresh."
+            fi
+          else
+            echo "::warning::Immediate APT dispatch token is unavailable; waiting for the repository's safety refresh."
+          fi
+          catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
+          for attempt in $(seq 1 6); do
+            if curl -fsS --retry 2 --retry-delay 1 "$catalogue?release=$RELEASE_SHA&attempt=$attempt" \
+              | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
+              echo "APT repository advertises $APP_ID $VERSION."
+              exit 0
+            fi
+            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/6)..."
+            sleep 10
+          done
+          echo "::warning::GitHub release is published; central APT catalogue propagation is still pending."
+ "$marker" && \
+                 grep -Fq 'uds_service_catalogue_count=27' "$marker" && \
+                 grep -Fq 'uds_dtc_report_catalogue_count=27' "$marker" && \
+                 grep -Eq '^recorded_samples=[1-9][0-9]*
+                flow_ready=true
+                break
+              fi
+              grep -Fq 'state=failed' "$marker" && break || true
+            fi
+            sleep 1
+          done
+          if test "$flow_ready" != true; then
+            echo '::error::Simulated diagnostic flow did not reach live-ready state.'
+            test ! -f "$marker" || cat "$marker"
+            xcrun simctl spawn "$udid" log show --last 2m --style compact \
+              --predicate 'process == "MBLINK" AND (messageType == error OR messageType == fault)' || true
+            exit 1
+          fi
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+
+          saved_marker="$data_container/Documents/mblink-ci-saved-pid-profile.ok"
+          rm -f "$saved_marker"
+          SIMCTL_CHILD_MBLINK_CI_SAVED_PID_RESTORE=1 \
+            xcrun simctl launch "$udid" com.github.The-First-Infiltrator.MBLINK
+          saved_ready=false
+          for attempt in $(seq 1 20); do
+            if test -f "$saved_marker"; then
+              cat "$saved_marker"
+              if grep -Fq 'state=ready' "$saved_marker" && \
+                 grep -Fq 'active=false' "$saved_marker" && \
+                 grep -Fq 'selected_vin=WDD2073022F123456' "$saved_marker" && \
+                 grep -Fq 'profile_module_count=4' "$saved_marker" && \
+                 grep -Fq 'display_selection_verified=true' "$saved_marker" && \
+                 grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
+                 grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
+                 grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$saved_marker"; then
+                saved_ready=true
+                break
+              fi
+            fi
+            sleep 1
+          done
+          if test "$saved_ready" != true; then
+            echo '::error::Saved C207 PID catalogues did not survive a cold app launch.'
+            test ! -f "$saved_marker" || cat "$saved_marker"
+            exit 1
+          fi
+          xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+      - name: Build iOS simulator Release
+        if: needs.preflight.outputs.is_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived-simulator-Release" \
+            CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
+            MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+      - name: Build and package IPA
+        if: needs.preflight.outputs.is_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/derived"
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
+            "$RUNNER_TEMP/package/Payload/MBLINK.app"
+          (cd "$RUNNER_TEMP/package" && zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
+          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
+      - name: Upload iOS release package
+        if: needs.preflight.outputs.is_release == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: MBLINK-${{ needs.preflight.outputs.version }}-unsigned-iphone-ipa
+          path: ${{ runner.temp }}/MBLINK-${{ needs.preflight.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish complete atomic release
+    needs: [preflight, portable-core, sanitizers, linux-app, windows-discover, apple-ios]
+    if: needs.preflight.outputs.is_release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          link_version="$(tr -d '[:space:]' < src/link/VERSION)"
+          common_version="$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)"
+          subject="$(git log -1 --format=%s "$GITHUB_SHA")"
+          if [[ "$subject" != "Release ${version}" && "$subject" != "Release ${version}:"* ]]; then
+            echo "Release commit subject must begin with Release ${version}." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "link_version=$link_version" >> "$GITHUB_OUTPUT"
+          echo "common_version=$common_version" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
+          path: release-assets
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
+          path: release-assets
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
+          path: release-assets
+      - name: Package complete recursive source archive
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
+          mkdir -p "$staging" release-assets
+          rsync -a --exclude='.git' --exclude='/release-assets/' ./ "$staging/"
+          test -s "$staging/src/link/src/infiltratr-common/CMakeLists.txt"
+          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
+          unzip -tq "release-assets/MBLINK-${VERSION}-source.zip"
+      - name: Verify release artifacts and build checksums
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          for file in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip"; do
+            test -s "release-assets/$file"
+          done
+          (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
+      - name: Stage complete draft and publish exact immutable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          LINK_VERSION: ${{ steps.release.outputs.link_version }}
+          COMMON_VERSION: ${{ steps.release.outputs.common_version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release commit $GITHUB_SHA is no longer on main; refusing to publish." >&2
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Release tag $TAG already exists; published releases are immutable." >&2
+            exit 1
+          fi
+          release_state="$(gh release view "$TAG" \
+            --json isDraft,targetCommitish --jq '[.isDraft, .targetCommitish] | @tsv' \
+            2>/dev/null || true)"
+          if [[ -n "$release_state" ]]; then
+            IFS=$'\t' read -r is_draft target_commitish <<<"$release_state"
+            if [[ "$is_draft" != true || "$target_commitish" != "$GITHUB_SHA" ]]; then
+              echo "Release $TAG already exists; published releases are immutable." >&2
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft \
+              --title "MBLINK $VERSION" \
+              --notes "MBLINK $VERSION: complete launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION."
+          fi
+          gh release upload "$TAG" release-assets/* --clobber
+          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for expected in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip" \
+            "SHA256SUMS.txt"; do
+            grep -Fxq "$expected" <<<"$assets"
+          done
+          gh release edit "$TAG" --draft=false
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$GITHUB_SHA"
+      - name: Refresh and verify Infiltrator APT repository
+        env:
+          DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
+          RELEASE_SHA: ${{ github.sha }}
+          VERSION: ${{ steps.release.outputs.version }}
+          APP_ID: mblink
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
+            if ! GH_TOKEN="$DISPATCH_TOKEN" gh api \
+              --method POST \
+              repos/Infiltrator-Projects/Infiltrator-Repository/dispatches \
+              -f event_type='application-release' \
+              -f "client_payload[repository]=$GITHUB_REPOSITORY" \
+              -f "client_payload[sha]=$RELEASE_SHA" >/dev/null; then
+              echo "::warning::Immediate APT dispatch failed; waiting for the repository's safety refresh."
+            fi
+          else
+            echo "::warning::Immediate APT dispatch token is unavailable; waiting for the repository's safety refresh."
+          fi
+          catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
+          for attempt in $(seq 1 6); do
+            if curl -fsS --retry 2 --retry-delay 1 "$catalogue?release=$RELEASE_SHA&attempt=$attempt" \
+              | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
+              echo "APT repository advertises $APP_ID $VERSION."
+              exit 0
+            fi
+            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/6)..."
+            sleep 10
+          done
+          echo "::warning::GitHub release is published; central APT catalogue propagation is still pending."
+ "$marker"; then
                 flow_ready=true
                 break
               fi
