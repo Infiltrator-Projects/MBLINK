@@ -117,6 +117,13 @@ mblink_mercedes_crd3_hardware_profile_at(size_t index)
         ? &profiles[index] : NULL;
 }
 
+static inline bool mblink_mercedes_crd3_ascii_contains_case_insensitive(
+    const char *text,
+    const char *needle)
+{
+    return infiltratr_ascii_contains_ci(text, needle);
+}
+
 static inline bool mblink_mercedes_crd3_number_equal(
     const char *left,
     const char *right)

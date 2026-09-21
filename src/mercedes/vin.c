@@ -207,7 +207,7 @@ bool mblink_mercedes_vin_decode(
     if (!decoded->mercedes_wmi) return false;
 
     for (index = 3U; index < 9U; ++index) {
-        if (!isdigit((unsigned char)vin[index])) {
+        if (!infiltratr_ascii_is_digit((unsigned char)vin[index])) {
             numeric_baumuster = false;
             break;
         }
