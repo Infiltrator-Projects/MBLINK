@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.220 — 2026-09-21
+
+- Complete issue #29's current evidence tranche without inventing Mercedes meanings: all supplied C207 fault evidence remains regression represented and D18100/50 stays explicitly unknown.
+- Add a typed module-scoped 24-bit UDS DTC definition contract parallel to the existing KWP contract so future proven raw UDS meanings have a safe destination.
+- Add eight primary-documented CDID3/OM651 records from Mercedes-Benz/Daimler XENTRY bulletins, preserving CRD3/CRD3NFZ controller and vehicle-family applicability rather than promoting Sprinter, W212 hybrid or 117/176/246 meanings into C207.
+- Keep the existing 299-row supplied reference corpus unchanged and separate from automatic wire-level resolution.
+- Advance the shared LINK dependency to 0.15.42 with generic AES-CMAC and algorithm-neutral SecurityAccess support; no Mercedes seed/key algorithm is inferred or enabled.
+
 ## 0.7.219 — 2026-09-21
 
 - Complete CI diagnostics issue #24 by restoring one canonical 0.7.219 version across VERSION, C header metadata and all iOS MARKETING_VERSION configurations.

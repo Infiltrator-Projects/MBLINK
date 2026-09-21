@@ -91,8 +91,158 @@ static const MblinkMercedesKwpDtcDefinition mercedes_kwp_dtcs[] = {
 };
 
 /*
+ * Primary-document catalogue for CRD3/OM651 material.  These records retain
+ * the XENTRY code + failure-type suffix exactly as published, but are kept
+ * separate from the C207 wire-level KWP/UDS tables until an applicable capture
+ * proves the raw transport encoding and module namespace.
+ */
+static const MblinkMercedesDtcEvidenceSource crd3_sprinter_2020_sources[] = {
+    {
+        "Mercedes-Benz AG XENTRY bulletin LI03.10-N-071148",
+        "https://static.nhtsa.gov/odi/tsbs/2020/MC-10177550-9999.pdf",
+        MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED,
+        true
+    }
+};
+
+static const MblinkMercedesDtcEvidenceSource crd3_pedal_2014_sources[] = {
+    {
+        "Daimler AG XENTRY bulletin LI54.18-P-057974",
+        "https://static.nhtsa.gov/odi/tsbs/2014/MC-10167512-9999.pdf",
+        MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED,
+        true
+    }
+};
+
+static const MblinkMercedesDtcEvidenceSource crd3_hybrid_2013_sources[] = {
+    {
+        "Daimler AG XENTRY bulletin LI08.30-P-057146",
+        "https://static.nhtsa.gov/odi/tsbs/2013/SB-10062085-2280.pdf",
+        MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED,
+        true
+    }
+};
+
+static const MblinkMercedesDtcEvidenceSource crd3_dpf_2014_sources[] = {
+    {
+        "Daimler AG XENTRY bulletin LI49.20-N-060290",
+        "https://static.nhtsa.gov/odi/tsbs/2014/SB-10063540-2280.pdf",
+        MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED,
+        true
+    }
+};
+
+static const MblinkMercedesDocumentedDtcDefinition
+mercedes_documented_dtcs[] = {
+    {
+        "P0266", "85",
+        "Teach-in of the operating parameters for cylinder 2 has a malfunction; the smooth-running correction value is outside the permissible range",
+        "Engine · fuel injection · cylinder 2 smooth-running adaptation",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Mercedes-Benz AG bulletin; no C207 wire-level promotion.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3NFZ",
+            "Sprinter III / model 906", "OM651"
+        },
+        crd3_sprinter_2020_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_sprinter_2020_sources)
+    },
+    {
+        "P2138", "62",
+        "The values from the accelerator-pedal position sensors are implausible relative to each other; the signal comparison is faulty",
+        "Engine · accelerator pedal · sensor plausibility",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler XENTRY bulletin; limited to its published vehicle scope.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3",
+            "Models 117 / 176 / 246 with OM651", "OM651"
+        },
+        crd3_pedal_2014_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_pedal_2014_sources)
+    },
+    {
+        "P2127", "14",
+        "Position sensor 2 for the accelerator pedal has a short circuit to ground or an open circuit",
+        "Engine · accelerator pedal · position sensor 2 circuit",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler XENTRY bulletin; limited to its published vehicle scope.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3",
+            "Models 117 / 176 / 246 with OM651", "OM651"
+        },
+        crd3_pedal_2014_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_pedal_2014_sources)
+    },
+    {
+        "U0593", "08",
+        "Implausible data were received from control unit Electric machine B; signal or message is faulty",
+        "Hybrid powertrain · network · Electric machine B data",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler bulletin for the E300 hybrid; not a generic C207 definition.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3",
+            "Model 212.09/29 E300 hybrid", "OM651.9"
+        },
+        crd3_hybrid_2013_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_hybrid_2013_sources)
+    },
+    {
+        "U0292", "87",
+        "Communication with control unit Electric machine B has a malfunction; the message is missing",
+        "Hybrid powertrain · network · Electric machine B communication",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler bulletin for the E300 hybrid; not a generic C207 definition.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3",
+            "Model 212.09/29 E300 hybrid", "OM651.9"
+        },
+        crd3_hybrid_2013_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_hybrid_2013_sources)
+    },
+    {
+        "U0298", "87",
+        "Communication with the DC/DC converter has a malfunction; the message is missing",
+        "Hybrid powertrain · network · DC/DC converter communication",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler bulletin for the E300 hybrid; not a generic C207 definition.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3",
+            "Model 212.09/29 E300 hybrid", "OM651.9"
+        },
+        crd3_hybrid_2013_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_hybrid_2013_sources)
+    },
+    {
+        "P2459", "97",
+        "The regeneration frequency of the diesel particulate filter is not OK; system function is restricted",
+        "Engine · exhaust aftertreatment · diesel particulate filter regeneration",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler XENTRY bulletin; CRD3NFZ Sprinter/V-class scope only.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3NFZ",
+            "Sprinter III / V (447) source scope", "OM651"
+        },
+        crd3_dpf_2014_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_dpf_2014_sources)
+    },
+    {
+        "P2463", "09",
+        "The soot content of the diesel particulate filter is not OK; there is a component fault",
+        "Engine · exhaust aftertreatment · diesel particulate filter soot load",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "Primary Daimler XENTRY bulletin; CRD3NFZ Sprinter/V-class scope only.",
+        {
+            "XENTRY published DTC text", "CDID3", "CRD3NFZ",
+            "Sprinter III / V (447) source scope", "OM651"
+        },
+        crd3_dpf_2014_sources,
+        INFILTRATR_ARRAY_LENGTH(crd3_dpf_2014_sources)
+    }
+};
+
+/*
  * Broad source-scoped Mercedes reference catalogue. It is intentionally
- * separate from the module-scoped KWP definitions above and from LINK's
+ * separate from the exact wire-level definitions above and from LINK's
  * standards-owned SAE/ISO catalogue.
  */
 #include "dtc_reference_table.inc"
@@ -138,6 +288,104 @@ static bool mercedes_reference_subcode_equal(
     const bool stored_empty = stored == NULL || stored[0] == '\0';
     if (requested_empty) return stored_empty;
     return !stored_empty && strcmp(stored, requested) == 0;
+}
+
+static bool mercedes_dtc_sources_valid(
+    const MblinkMercedesDtcEvidenceSource *sources,
+    size_t source_count,
+    bool require_meaning)
+{
+    bool meaning_supported = false;
+    if (sources == NULL || source_count == 0U) return false;
+    for (size_t index = 0U; index < source_count; ++index) {
+        const MblinkMercedesDtcEvidenceSource *source = &sources[index];
+        if (!mercedes_text_valid(source->label) ||
+            !mercedes_text_valid(source->reference) ||
+            !mercedes_dtc_evidence_tier_valid(source->tier)) {
+            return false;
+        }
+        meaning_supported = meaning_supported || source->supports_meaning;
+    }
+    return !require_meaning || meaning_supported;
+}
+
+bool mblink_mercedes_documented_dtc_definition_is_valid(
+    const MblinkMercedesDocumentedDtcDefinition *definition)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    return definition != NULL &&
+           mercedes_reference_code_normalize(definition->code, normalized) &&
+           strcmp(definition->code, normalized) == 0 &&
+           mercedes_text_valid(definition->subcode) &&
+           mercedes_text_valid(definition->description) &&
+           mercedes_text_valid(definition->subsystem) &&
+           mercedes_status_valid(definition->status) &&
+           mercedes_text_valid(definition->provenance) &&
+           mercedes_text_valid(definition->applicability_details.protocol) &&
+           mercedes_text_valid(definition->applicability_details.module_family) &&
+           mercedes_text_valid(definition->applicability_details.ecu_family) &&
+           mercedes_text_valid(definition->applicability_details.vehicle_family) &&
+           mercedes_text_valid(definition->applicability_details.engine_family) &&
+           mercedes_dtc_sources_valid(
+               definition->sources, definition->source_count, true);
+}
+
+size_t mblink_mercedes_documented_dtc_count(void)
+{
+    return INFILTRATR_ARRAY_LENGTH(mercedes_documented_dtcs);
+}
+
+const MblinkMercedesDocumentedDtcDefinition *
+mblink_mercedes_documented_dtc_at(size_t index)
+{
+    return index < mblink_mercedes_documented_dtc_count()
+        ? &mercedes_documented_dtcs[index] : NULL;
+}
+
+size_t mblink_mercedes_documented_dtc_match_count(
+    const char *code,
+    const char *subcode)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    size_t count = 0U;
+    if (!mercedes_reference_code_normalize(code, normalized)) return 0U;
+    for (size_t index = 0U;
+         index < mblink_mercedes_documented_dtc_count(); ++index) {
+        const MblinkMercedesDocumentedDtcDefinition *definition =
+            &mercedes_documented_dtcs[index];
+        if (mblink_mercedes_documented_dtc_definition_is_valid(definition) &&
+            strcmp(definition->code, normalized) == 0 &&
+            mercedes_reference_subcode_equal(
+                definition->subcode, subcode)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+const MblinkMercedesDocumentedDtcDefinition *
+mblink_mercedes_documented_dtc_match_at(
+    const char *code,
+    const char *subcode,
+    size_t match_index)
+{
+    char normalized[MBLINK_MERCEDES_REFERENCE_DTC_CODE_LENGTH];
+    size_t seen = 0U;
+    if (!mercedes_reference_code_normalize(code, normalized)) return NULL;
+    for (size_t index = 0U;
+         index < mblink_mercedes_documented_dtc_count(); ++index) {
+        const MblinkMercedesDocumentedDtcDefinition *definition =
+            &mercedes_documented_dtcs[index];
+        if (!mblink_mercedes_documented_dtc_definition_is_valid(definition) ||
+            strcmp(definition->code, normalized) != 0 ||
+            !mercedes_reference_subcode_equal(
+                definition->subcode, subcode)) {
+            continue;
+        }
+        if (seen == match_index) return definition;
+        ++seen;
+    }
+    return NULL;
 }
 
 size_t mblink_mercedes_reference_dtc_count(void)
@@ -309,6 +557,55 @@ mblink_mercedes_dtc_lookup_reference_at(size_t index)
         ? &mercedes_dtc_lookup_references[index] : NULL;
 }
 
+bool mblink_mercedes_uds_dtc_definition_is_valid(
+    const MblinkMercedesUdsDtcDefinition *definition)
+{
+    if (definition == NULL ||
+        !mercedes_text_valid(definition->module_key) ||
+        definition->code == UINT32_C(0) ||
+        definition->code > UINT32_C(0x00ffffff) ||
+        !mercedes_text_valid(definition->description) ||
+        !mercedes_text_valid(definition->subsystem) ||
+        !mercedes_text_valid(definition->applicability) ||
+        !mercedes_status_valid(definition->status) ||
+        !mercedes_text_valid(definition->provenance) ||
+        !mercedes_text_valid(definition->applicability_details.protocol) ||
+        !mercedes_text_valid(definition->applicability_details.module_family) ||
+        !mercedes_text_valid(definition->applicability_details.ecu_family) ||
+        !mercedes_text_valid(definition->applicability_details.vehicle_family) ||
+        !mercedes_text_valid(definition->applicability_details.engine_family) ||
+        !mercedes_dtc_sources_valid(
+            definition->sources, definition->source_count, true)) {
+        return false;
+    }
+    return true;
+}
+
+/*
+ * No current C207 capture has enough evidence to populate an exact 24-bit
+ * UDS meaning. The API is complete now; D18100/50 deliberately remains unknown.
+ */
+size_t mblink_mercedes_uds_dtc_count(void)
+{
+    return 0U;
+}
+
+const MblinkMercedesUdsDtcDefinition *mblink_mercedes_uds_dtc_at(
+    size_t index)
+{
+    (void)index;
+    return NULL;
+}
+
+const MblinkMercedesUdsDtcDefinition *mblink_mercedes_uds_dtc_find(
+    const char *module_key,
+    uint32_t code)
+{
+    (void)module_key;
+    (void)code;
+    return NULL;
+}
+
 bool mblink_mercedes_kwp_dtc_definition_is_valid(
     const MblinkMercedesKwpDtcDefinition *definition)
 {
@@ -408,15 +705,24 @@ bool mblink_mercedes_uds_dtc_format(
     char *buffer,
     size_t capacity)
 {
+    const MblinkMercedesUdsDtcDefinition *definition;
     int written;
-    (void)module_key;
     if (buffer == NULL || capacity == 0U || code > UINT32_C(0x00ffffff))
         return false;
     buffer[0] = '\0';
-    written = snprintf(buffer, capacity,
-        "%06X — unknown Mercedes definition · raw UDS status 0x%02X · lookup: %s",
-        (unsigned int)code, (unsigned int)raw_status,
-        mercedes_dtc_lookup_references[0].url);
+    definition = mercedes_text_valid(module_key)
+        ? mblink_mercedes_uds_dtc_find(module_key, code) : NULL;
+    if (definition != NULL) {
+        written = snprintf(buffer, capacity,
+            "%06X — %s · raw UDS status 0x%02X",
+            (unsigned int)code, definition->description,
+            (unsigned int)raw_status);
+    } else {
+        written = snprintf(buffer, capacity,
+            "%06X — unknown Mercedes definition · raw UDS status 0x%02X · lookup: %s",
+            (unsigned int)code, (unsigned int)raw_status,
+            mercedes_dtc_lookup_references[0].url);
+    }
     if (written < 0 || (size_t)written >= capacity) {
         buffer[0] = '\0';
         return false;

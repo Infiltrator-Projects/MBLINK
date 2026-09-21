@@ -249,6 +249,90 @@ static int test_decode_wrapper(void)
     return 0;
 }
 
+static int test_documented_crd3_dtc_catalogue(void)
+{
+    const MblinkMercedesDocumentedDtcDefinition *definition;
+    static const MblinkMercedesDtcEvidenceSource fixture_source[] = {
+        {
+            "fixture primary source", "fixture://primary",
+            MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED, true
+        }
+    };
+    MblinkMercedesUdsDtcDefinition uds_fixture = {
+        .module_key = "engine-crd3",
+        .code = UINT32_C(0x123456),
+        .description = "Fixture exact UDS meaning",
+        .subsystem = "Engine fixture",
+        .applicability = "Fixture only",
+        .status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        .provenance = "test fixture",
+        .applicability_details = {
+            "UDS ReadDTCInformation", "CDID3", "CRD3",
+            "C207 fixture", "OM651"
+        },
+        .sources = fixture_source,
+        .source_count = 1U
+    };
+
+    CHECK(mblink_mercedes_documented_dtc_count() == 8U);
+
+    CHECK(mblink_mercedes_documented_dtc_match_count(
+              "P0266", "85") == 1U);
+    definition = mblink_mercedes_documented_dtc_match_at(
+        "P0266", "85", 0U);
+    CHECK(definition != NULL);
+    CHECK(mblink_mercedes_documented_dtc_definition_is_valid(definition));
+    CHECK(strstr(definition->description, "cylinder 2") != NULL);
+    CHECK(strcmp(definition->applicability_details.ecu_family,
+                 "CRD3NFZ") == 0);
+    CHECK(strcmp(definition->applicability_details.engine_family,
+                 "OM651") == 0);
+    CHECK(definition->sources[0].tier ==
+          MBLINK_MERCEDES_DTC_EVIDENCE_PRIMARY_DOCUMENTED);
+    CHECK(definition->sources[0].supports_meaning);
+
+    CHECK(mblink_mercedes_documented_dtc_match_count(
+              "P2138", "62") == 1U);
+    definition = mblink_mercedes_documented_dtc_match_at(
+        "P2138", "62", 0U);
+    CHECK(definition != NULL);
+    CHECK(strcmp(definition->applicability_details.ecu_family,
+                 "CRD3") == 0);
+    CHECK(strstr(definition->applicability_details.vehicle_family,
+                 "117 / 176 / 246") != NULL);
+
+    CHECK(mblink_mercedes_documented_dtc_match_count(
+              "U0593", "08") == 1U);
+    definition = mblink_mercedes_documented_dtc_match_at(
+        "U0593", "08", 0U);
+    CHECK(definition != NULL);
+    CHECK(strstr(definition->applicability_details.vehicle_family,
+                 "E300 hybrid") != NULL);
+
+    CHECK(mblink_mercedes_documented_dtc_match_count(
+              "P2459", "97") == 1U);
+    CHECK(mblink_mercedes_documented_dtc_match_count(
+              "P2463", "09") == 1U);
+
+    /* The primary-document tranche is deliberately not the broad resolver. */
+    CHECK(mblink_mercedes_reference_dtc_match_count("P2138", NULL) == 0U);
+    CHECK(mblink_mercedes_documented_dtc_match_count("P2138", NULL) == 0U);
+    CHECK(mblink_mercedes_documented_dtc_match_at(
+              "P2138", "62", 1U) == NULL);
+    CHECK(mblink_mercedes_documented_dtc_at(
+              mblink_mercedes_documented_dtc_count()) == NULL);
+
+    /* Exact 24-bit UDS definitions now have a typed validation contract. */
+    CHECK(mblink_mercedes_uds_dtc_definition_is_valid(&uds_fixture));
+    uds_fixture.code = UINT32_C(0x01000000);
+    CHECK(!mblink_mercedes_uds_dtc_definition_is_valid(&uds_fixture));
+    CHECK(mblink_mercedes_uds_dtc_count() == 0U);
+    CHECK(mblink_mercedes_uds_dtc_at(0U) == NULL);
+    CHECK(mblink_mercedes_uds_dtc_find(
+              "unknown-602-480", UINT32_C(0xd18100)) == NULL);
+    return 0;
+}
+
 static int test_kwp_dtc_lookup(void)
 {
     const MblinkMercedesKwpDtcDefinition *definition;
@@ -339,6 +423,7 @@ int main(void)
     if (test_definition_validation() != 0) return 1;
     if (test_profile_lookup_and_duplicates() != 0) return 1;
     if (test_decode_wrapper() != 0) return 1;
+    if (test_documented_crd3_dtc_catalogue() != 0) return 1;
     if (test_kwp_dtc_lookup() != 0) return 1;
     return 0;
 }

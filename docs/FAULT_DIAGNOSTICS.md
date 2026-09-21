@@ -84,19 +84,49 @@ The generic diagnostic-knowledge layer is implemented in the exact LINK revision
 - MBLINK has product-level regression coverage proving the shared LINK knowledge and compatibility APIs reach the Mercedes product face;
 - MBLINK has a module-scoped Mercedes KWP2000 definition table with provenance; the vehicle-captured ORC `9B51` record resolves to the driver seat-belt buckle circuit description while preserving raw status `E0`;
 - MBLINK also contains a separate **299-row source-scoped Mercedes reference catalogue** reconstructed from the diagnostic material supplied to the project: 78 BenzWorld body/chassis rows, 104 Mercedes P1xxx reference rows, all 38 TaT teaser rows including explicit subcodes/duplicates, and 79 supplied SprinterManual reference rows. Duplicate meanings are retained deliberately instead of one source silently overwriting another;
+- a separate **8-row primary-documented CDID3/OM651 catalogue** now records XENTRY fault text and applicability from Mercedes-Benz/Daimler bulletins for CRD3, CRD3NFZ and narrowly identified vehicle families. These records are intentionally not fed into the automatic C207 resolver when their published applicability is W212 hybrid, 117/176/246, Sprinter III or V (447);
 - standard OBD manufacturer-specific codes that LINK correctly classifies as unknown can now be enriched on both iPhone and Linux from that Mercedes reference catalogue when the meaning is unambiguous. Conflicting codes such as `B1000` or `P2004` are shown as ambiguous and require module/subcode context rather than receiving an arbitrary meaning;
 - the broad reference catalogue does **not** override standards-defined LINK meanings and does not promote source-scoped Sprinter/legacy rows into C207-specific KWP/UDS definitions;
-- Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte;
+- Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte. MBLINK now has the same typed, module-scoped definition contract for exact 24-bit UDS meanings that it already has for 16-bit KWP meanings; the production UDS definition count remains zero because no supplied C207 capture yet proves a raw 24-bit value's proprietary meaning. In particular, `D18100 / 50` remains explicitly unknown;
 - OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
 
 The broad fault-investigation vertical slice is now functionally complete. Ongoing work is manufacturer knowledge depth rather than missing scan-state/readiness/freeze-frame plumbing:
 
 1. the Faults UI distinguishes scan-not-run/in-progress, failed/incomplete, verified-clean and faults-present states, and standard OBD fault cards consume structured diagnostic knowledge. A regression-tested presentation-state classifier prevents an empty unrun or failed scan from becoming a clean result;
 2. readiness and capability-driven Mode 02 frame-zero freeze-frame context are integrated into the shared fault workflow and surfaced separately from current live data;
-3. Mercedes knowledge is deliberately split: exact KWP/UDS definitions remain module-scoped and evidence-gated, while the supplied five-character reference corpus is searchable with source/applicability metadata and explicit ambiguity. Additional CRD3/OM651 wire-level mappings remain evidence-gated rather than being inferred from a generic reference row;
+3. Mercedes knowledge is deliberately split: exact KWP/UDS definitions remain module-scoped and evidence-gated, while the supplied five-character reference corpus and primary-documented CRD3/OM651 records are searchable with explicit source/applicability metadata. The currently supplied C207 evidence tranche is fully represented; additional wire-level meanings remain evidence-gated rather than being inferred from a reference row;
 4. standards-backed generic diagnostic knowledge continues to be maintained in LINK.
 
 Additional manufacturer definitions remain important, but they are catalogue expansion rather than a missing end-to-end fault workflow.
+
+## Issue #29 completion boundary
+
+Issue #29 is a finite ingestion and model-completeness milestone, not a promise
+that every Mercedes fault code ever produced is known.
+
+The issue is complete when the current evidence tranche satisfies all of these
+conditions:
+
+- every fault-bearing C207 capture supplied to the project is regression
+  represented, including the known ORC `9B51/E0`, unknown UDS
+  `D18100/50`, valid empty lists, truncated responses and negative-service
+  evidence;
+- exact 16-bit KWP and 24-bit UDS manufacturer definitions have typed,
+  module-scoped contracts with protocol/ECU/vehicle/engine applicability and
+  classified evidence sources;
+- the broad 299-row supplied reference corpus remains source-scoped and
+  ambiguity preserving;
+- the primary Mercedes/Daimler documents currently identified for CDID3/OM651
+  are ingested without widening their published vehicle/ECU applicability;
+- no documented XENTRY code is converted into a raw C207 KWP/UDS meaning unless
+  an applicable wire capture or equivalent evidence proves that mapping; and
+- unknown and incomplete records remain unknown/incomplete with their raw
+  evidence preserved.
+
+That boundary is now implemented. New workshop documents, repair confirmations
+or vehicle captures are future catalogue increments and should be tracked in
+new evidence-specific issues. They do not reopen this completed ingestion
+milestone.
 
 ## Required standard OBD fault workflow
 
@@ -198,7 +228,7 @@ Fault diagnostics are not considered feature-complete until all of the following
 - MBLINK contains tested Mercedes-specific DTC knowledge with applicability and provenance — **implemented as both the exact module-scoped KWP/UDS layer and the 299-row source-scoped reference layer; additional ECU-specific wire mappings remain evidence-gated**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
 - the app distinguishes not-scanned, failed, clean and faults-present states — **implemented on iPhone and Linux fault-investigation surfaces, with product regression coverage proving that unrun/failed empty scans cannot become clean**;
-- stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD and the initial module-scoped KWP definition are implemented; Mercedes coverage remains incomplete**;
+- stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD, the captured module-scoped KWP definition and the current primary-documented CRD3/OM651 tranche are implemented; future catalogue growth remains normal evidence maintenance rather than an open architectural gap**;
 - freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **implemented in the shared flow and surfaced on iPhone/Linux; physical ECU availability remains capability-dependent**;
 - unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;
 - the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared LINK API implemented; additional platform consumers remain**.

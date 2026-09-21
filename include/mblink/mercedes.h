@@ -134,6 +134,42 @@ typedef struct {
     size_t source_count;
 } MblinkMercedesKwpDtcDefinition;
 
+/**
+ * Exact 24-bit Mercedes UDS DTC definition.  This is deliberately parallel to
+ * the KWP namespace: a 24-bit value acquires a meaning only inside a proven
+ * module/protocol/applicability scope.
+ */
+typedef struct {
+    const char *module_key;
+    uint32_t code;
+    const char *description;
+    const char *subsystem;
+    const char *applicability;
+    MblinkMercedesDefinitionStatus status;
+    const char *provenance;
+    MblinkMercedesDtcApplicability applicability_details;
+    const MblinkMercedesDtcEvidenceSource *sources;
+    size_t source_count;
+} MblinkMercedesUdsDtcDefinition;
+
+/**
+ * Primary or specialist documented Mercedes fault definition whose published
+ * XENTRY-style code/subcode is known but whose raw on-wire KWP/UDS numeric
+ * encoding has not been proven for the current vehicle.  These records are
+ * intentionally NOT consumed by the automatic C207 wire-level resolver.
+ */
+typedef struct {
+    const char *code;
+    const char *subcode;
+    const char *description;
+    const char *subsystem;
+    MblinkMercedesDefinitionStatus status;
+    const char *provenance;
+    MblinkMercedesDtcApplicability applicability_details;
+    const MblinkMercedesDtcEvidenceSource *sources;
+    size_t source_count;
+} MblinkMercedesDocumentedDtcDefinition;
+
 #define MBLINK_MERCEDES_DTC_TEXT_LENGTH 320U
 
 typedef struct {
@@ -196,6 +232,29 @@ const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_find(
 size_t mblink_mercedes_kwp_dtc_count(void);
 const MblinkMercedesKwpDtcDefinition *mblink_mercedes_kwp_dtc_at(
     size_t index);
+
+bool mblink_mercedes_uds_dtc_definition_is_valid(
+    const MblinkMercedesUdsDtcDefinition *definition);
+const MblinkMercedesUdsDtcDefinition *mblink_mercedes_uds_dtc_find(
+    const char *module_key,
+    uint32_t code);
+size_t mblink_mercedes_uds_dtc_count(void);
+const MblinkMercedesUdsDtcDefinition *mblink_mercedes_uds_dtc_at(
+    size_t index);
+
+bool mblink_mercedes_documented_dtc_definition_is_valid(
+    const MblinkMercedesDocumentedDtcDefinition *definition);
+size_t mblink_mercedes_documented_dtc_count(void);
+const MblinkMercedesDocumentedDtcDefinition *
+mblink_mercedes_documented_dtc_at(size_t index);
+size_t mblink_mercedes_documented_dtc_match_count(
+    const char *code,
+    const char *subcode);
+const MblinkMercedesDocumentedDtcDefinition *
+mblink_mercedes_documented_dtc_match_at(
+    const char *code,
+    const char *subcode,
+    size_t match_index);
 
 const char *mblink_mercedes_dtc_evidence_tier_name(
     MblinkMercedesDtcEvidenceTier tier);
