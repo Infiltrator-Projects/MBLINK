@@ -1464,10 +1464,8 @@ static bool signal_target_time(uint64_t candidate_time, int64_t lag_ms,
 {
     if (target == NULL) return false;
     if (lag_ms >= 0) {
-        const uint64_t lag = (uint64_t)lag_ms;
-        if (candidate_time < lag) return false;
-        *target = candidate_time - lag;
-        return true;
+        return infiltratr_u64_subtract_checked(
+            candidate_time, (uint64_t)lag_ms, target);
     }
     {
         const uint64_t lag = (uint64_t)(-(lag_ms + 1)) + UINT64_C(1);

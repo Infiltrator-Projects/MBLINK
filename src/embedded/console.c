@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/embedded_console.h"
 
+#include "infiltratr/core.h"
+
 #include <string.h>
 
 typedef struct {
@@ -106,12 +108,6 @@ static void emit_line(
     }
 }
 
-static char ascii_lower(char value)
-{
-    if (value >= 'A' && value <= 'Z') return (char)(value - 'A' + 'a');
-    return value;
-}
-
 static bool command_equals(const char *line, size_t length, const char *command)
 {
     size_t start = 0U;
@@ -125,7 +121,8 @@ static bool command_equals(const char *line, size_t length, const char *command)
     command_length = strlen(command);
     if ((end - start) != command_length) return false;
     for (index = 0U; index < command_length; ++index) {
-        if (ascii_lower(line[start + index]) != ascii_lower(command[index]))
+        if (infiltratr_ascii_to_lower((unsigned char)line[start + index]) !=
+            infiltratr_ascii_to_lower((unsigned char)command[index]))
             return false;
     }
     return true;

@@ -6,6 +6,13 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 - No unreleased changes.
 
+## 0.7.214 — 2026-09-21
+
+- Completed a direct Common 1.19.20 forensic reuse pass in MBLINK without changing Common and without changing MBLINK's LINK dependency.
+- Replaced the embedded STM32 console's private ASCII lowercase helper with Common's deterministic ASCII case conversion while preserving the console's deliberately narrow space/tab trimming grammar.
+- Replaced manual guarded unsigned timestamp subtraction in Mercedes signal-correlation lag handling with Common's checked uint64 subtraction contract.
+- Deliberately retained Mercedes-specific printable-text validation, variable-width decoding, RGB presentation extraction and other local code where Common does not provide an exact semantic improvement.
+
 ## 0.7.213 — 2026-09-21
 
 - Advanced the exact shared engine to LINK 0.15.34 while retaining Infiltratr Common 1.19.20 unchanged.
