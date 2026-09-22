@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.225 — 2026-09-22
+
+- Advance the exact LINK dependency to 0.15.52 so MBLINK qualifies the final STM32 tester/server clarification, issue #37 clear-DTC regression, exact issue-27 Cube integration check and issue #38 DTC lifecycle implementation together.
+- Retain 0.7.224's typed 0x29 Authentication facade/tests and the widened central APT publication verification window; no product-local duplicate of LINK's DTC lifecycle is introduced.
+- Inherit LINK's portable FunctionalGroupIdentifier/FDC/confirmation/aging reference engine for ECU-side examples while keeping MBLINK's diagnostic-client boundaries unchanged.
+
 ## 0.7.224 — 2026-09-22
 
 - Advance the exact LINK dependency to 0.15.51, including the STM32 tester/server role clarification, issue #37 DTC-clear regression coverage and exact issue-27 Cube-main CI qualification.
