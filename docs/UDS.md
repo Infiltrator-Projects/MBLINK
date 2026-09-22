@@ -71,10 +71,19 @@ snapshot, extended-data, severity, user-memory and WWH report coverage can be
 inspected without sending those requests. MBLINK does not interpret catalogue
 presence as proof that a Mercedes ECU supports a report type.
 
-LINK 0.15.36 also supplies typed fixed-record views and stricter positive
-response validation. MBLINK re-exports those views through its compatibility
-facade. Snapshot and extended-data tails remain raw whenever their size depends
-on ECU/DID definitions.
+MBLINK now consumes LINK 0.15.49 and re-exports both the fixed-record views
+and the newer variable-record helpers. Snapshot and stored-data records expose
+their DTC/status/record-number envelope plus a bounded DID/value span; callers
+supply the applicable DID-length resolver and LINK segments each DID value
+without guessing. Extended-data reports expose the DTC, status, record number
+and bounded payload as a typed view. Unknown DID lengths remain explicitly
+unsupported rather than being silently mis-sized.
+
+This closes the generic implementation gap in issue #59: every requested 0x19
+report family is present, fixed fields are typed, and variable snapshot/stored
+information can now be structurally decoded when the ECU/application definition
+is known. Mercedes-specific DID meanings still require evidence and remain
+outside the generic UDS layer.
 
 ClearDiagnosticInformation service `0x14` remains blocked as a state-changing
 DTC clear. Authentication service `0x29` remains security-gated. Their

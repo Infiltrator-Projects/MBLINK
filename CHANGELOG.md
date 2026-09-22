@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.221 — 2026-09-22
+
+- Complete MBLINK issue #59's generic DTC snapshot/stored/extended-data surface by advancing the exact LINK dependency to 0.15.49.
+- Re-export LINK's typed variable-record APIs: DID-length resolver, DID values, snapshot/stored-data record views and extended-data record views.
+- Add product-level regression coverage that decodes snapshot and stored-data DID/value sequences, extended-data records and the unknown-DID rejection path rather than leaving the newer LINK capability untested behind the facade.
+- Inherit LINK's fail-closed UDS OTA/bootloader core for issue #56 while keeping all active programming disabled unless an explicit target backend is provided and armed.
+
 ## 0.7.220 — 2026-09-21
 
 - Complete issue #29's current evidence tranche without inventing Mercedes meanings: all supplied C207 fault evidence remains regression represented and D18100/50 stays explicitly unknown.
