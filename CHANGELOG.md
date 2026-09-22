@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.228 — 2026-09-22
+
+- Advance MBLINK to LINK 0.15.55 at `0caaf4026dcf807397649cd27a38f25ec3be2934`, retaining the Common 1.19.23 pin and corrected dependency metadata.
+
 ## 0.7.227 — 2026-09-22
 
 - Advance MBLINK to the canonical LINK 0.15.54 release at `38826aa2dca78072343a201553460e61cc2f726f`, which pins Infiltratr Common 1.19.23.
