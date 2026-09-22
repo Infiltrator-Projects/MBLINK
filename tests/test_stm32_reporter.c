@@ -66,14 +66,16 @@ static const LinkUdsServerDtcDetail reporter_dtc_details[] = {
         1U, 1U, true, true, true, 0x33U, 0x01U,
         0x01U, 0x01U, reporter_snapshot_1, sizeof(reporter_snapshot_1),
         0x01U, 0x01U, reporter_stored_1, sizeof(reporter_stored_1),
-        0x01U, reporter_ext_1, sizeof(reporter_ext_1)
+        0x01U, reporter_ext_1, sizeof(reporter_ext_1),
+        NULL, 0U
     },
     {
         UINT32_C(0xabcdef), 0x40U, 0x02U, 0x10U,
         0U, 2U, true, true, false, 0x33U, 0x01U,
         0x01U, 0x01U, reporter_snapshot_2, sizeof(reporter_snapshot_2),
         0x01U, 0x01U, reporter_stored_2, sizeof(reporter_stored_2),
-        0x01U, reporter_ext_2, sizeof(reporter_ext_2)
+        0x01U, reporter_ext_2, sizeof(reporter_ext_2),
+        NULL, 0U
     }
 };
 
@@ -688,14 +690,16 @@ static int test_reporter_0x19_edge_semantics_through_stm32_transport(void)
             true,true,true,0x33U,0x01U,
             0x01U,0U,NULL,0U,
             0x01U,0U,NULL,0U,
-            0x01U,NULL,0U
+            0x01U,NULL,0U,
+            NULL,0U
         },
         {
             UINT32_C(0x222222),0x40U,0x02U,0U,2U,2U,
             false,true,false,0x33U,0x01U,
             0U,0U,NULL,0U,
             0U,0U,NULL,0U,
-            0x90U,obd_ext,sizeof(obd_ext)
+            0x90U,obd_ext,sizeof(obd_ext),
+            NULL,0U
         }
     };
     static const uint8_t requests[][7] = {
