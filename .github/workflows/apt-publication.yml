@@ -15,7 +15,7 @@ jobs:
       ${{ github.event.workflow_run.conclusion == 'success' &&
           github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - name: Checkout tested commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,14 +67,14 @@ jobs:
           fi
 
           catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
-          for attempt in $(seq 1 120); do
+          for attempt in $(seq 1 210); do
             if curl -fsS --retry 2 --retry-delay 1 "$catalogue?version=$VERSION&attempt=$attempt" \
               | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
               echo "APT repository advertises $APP_ID $VERSION."
               exit 0
             fi
-            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/120)..."
+            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/210)..."
             sleep 10
           done
-          echo "::error::Central APT repository did not advertise $APP_ID $VERSION within 20 minutes of the completed release workflow."
+          echo "::error::Central APT repository did not advertise $APP_ID $VERSION within 35 minutes of the completed release workflow."
           exit 1
