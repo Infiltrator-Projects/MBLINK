@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.230 — 2026-09-22
+
+- Advance the exact shared LINK dependency to 0.15.60 at `a42d380c27f1bf1612216b2345abadb72e3ba36a`, retaining the Common 1.19.23 dependency chain and synchronising both iOS LINK provenance definitions to the same gitlink.
+- Consume LINK's completed STM32F103 workbook Freeze Frame Snapshot Record support: exact Sheet 7 record 0x01 framing for DF00/DF01/DF02/DF03/DF04/DD00, target-owned freeze-frame values, strict missing-record rejection and preserved one-page STM32F103 journal footprint.
+- Qualify the complete MBLINK OTA bootloader control flow with a product-level backend regression covering fail-closed arming, ProgrammingSession, SecurityAccess, DTC/communication quiesce, inactive-slot download, TransferData sequencing, TransferExit, integrity/authenticity, secure-boot staging, anti-rollback and post-boot commit.
+- Keep MBLINK #56 open for the real STM32F767 target backend: no board flash map, protected monotonic store, production signing/HSM material or secure-boot handoff is fabricated where the target evidence has not been supplied.
+
 ## 0.7.229 — 2026-09-22
 
 - Correct the iOS LINK source-revision metadata to the actual 0.15.55 gitlink `0caaf4026dcf807397649cd27a38f25ec3be2934`, resolving the preflight failure that made 0.7.228 red before compilation.
