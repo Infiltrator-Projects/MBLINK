@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.222 — 2026-09-22
+
+- Expose LINK 0.15.49's fail-closed UDS OTA/bootloader core directly through an MBLINK facade for issue #56 instead of leaving the capability hidden in the submodule.
+- Add a product-level regression proving the default configuration cannot arm programming and requires security, quiesce, authenticity and secure-boot validation.
+- Document the STM32F767 integration boundary: existing LINK bxCAN transport plus target-owned inactive-slot flash, integrity/authenticity/HSM, secure-boot and protected anti-rollback storage callbacks.
+
 ## 0.7.221 — 2026-09-22
 
 - Complete MBLINK issue #59's generic DTC snapshot/stored/extended-data surface by advancing the exact LINK dependency to 0.15.49.
