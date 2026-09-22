@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.223 — 2026-09-22
+
+- Advance the exact LINK dependency to 0.15.50, which in turn pins Infiltratr Common 1.19.22, keeping the vehicle stack on one tested shared dependency chain.
+- Synchronise the iOS embedded LINK provenance with the exact `src/link` gitlink so release builds report the code they actually contain.
+
 ## 0.7.222 — 2026-09-22
 
 - Expose LINK 0.15.49's fail-closed UDS OTA/bootloader core directly through an MBLINK facade for issue #56 instead of leaving the capability hidden in the submodule.
