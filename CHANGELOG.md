@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.226 — 2026-09-22
+
+- Replace the red LINK 0.15.52 dependency from MBLINK 0.7.225 with the exact corrected LINK 0.15.53 release commit `0c1d6b5367b7bb05596ddd46b23151ccfb9a19b2`.
+- Carry forward the completed typed 0x29 Authentication facade/tests, DTC variable-record facade, fail-closed OTA core and 35-minute asynchronous APT verification repair.
+- Qualify the corrected LINK DTC lifecycle engine, issue #36 tester/server naming, issue #37 clear/session semantics and exact STM32C092 issue-27 Cube-main compile through MBLINK's own cross-platform matrix.
+
 ## 0.7.225 — 2026-09-22
 
 - Advance the exact LINK dependency to 0.15.52 so MBLINK qualifies the final STM32 tester/server clarification, issue #37 clear-DTC regression, exact issue-27 Cube integration check and issue #38 DTC lifecycle implementation together.
