@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.229 — 2026-09-22
+
+- Correct the iOS LINK source-revision metadata to the actual 0.15.55 gitlink `0caaf4026dcf807397649cd27a38f25ec3be2934`, resolving the preflight failure that made 0.7.228 red before compilation.
+- Carry forward the completed typed 0x29 Authentication facade/tests, issue #37 clear/session regression, exact STM32C092 issue-27 Cube-main qualification, tester/server naming repair and 35-minute asynchronous APT verification window.
+- Requalify the complete MBLINK stack against the current LINK/Common chain before publication.
+
 ## 0.7.228 — 2026-09-22
 
 - Advance MBLINK to LINK 0.15.55 at `0caaf4026dcf807397649cd27a38f25ec3be2934`, retaining the Common 1.19.23 pin and corrected dependency metadata.
