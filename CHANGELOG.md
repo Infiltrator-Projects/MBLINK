@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.227 — 2026-09-22
+
+- Advance MBLINK to the canonical LINK 0.15.54 release at `38826aa2dca78072343a201553460e61cc2f726f`, which pins Infiltratr Common 1.19.23.
+- Preserve the qualified Mercedes-specific diagnostics surface while consuming the newest shared LINK/Common implementation and provenance.
+
 ## 0.7.226 — 2026-09-22
 
 - Replace the red LINK 0.15.52 dependency from MBLINK 0.7.225 with the exact corrected LINK 0.15.53 release commit `0c1d6b5367b7bb05596ddd46b23151ccfb9a19b2`.
