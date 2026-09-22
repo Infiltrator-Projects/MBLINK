@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.224 — 2026-09-22
+
+- Advance the exact LINK dependency to 0.15.51, including the STM32 tester/server role clarification, issue #37 DTC-clear regression coverage and exact issue-27 Cube-main CI qualification.
+- Complete MBLINK issue #63's generic product facade by re-exporting LINK's typed ISO 14229-1:2020 Authentication codec for all nine 0x29 tasks and adding MBLINK-level builder/decoder regression coverage.
+- Fix the publication-infrastructure regression identified against issue #24: central APT refresh is asynchronous, so verification now permits 35 minutes instead of racing the repository/Pages propagation boundary at 20 minutes.
+- Keep Authentication trust, certificates, private keys and Mercedes/OEM policy evidence-gated; no security bypass or unproven manufacturer algorithm is introduced.
+
 ## 0.7.223 — 2026-09-22
 
 - Advance the exact LINK dependency to 0.15.50, which in turn pins Infiltratr Common 1.19.22, keeping the vehicle stack on one tested shared dependency chain.
