@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.231 — 2026-09-23
+
+- Advance the exact shared LINK dependency from 0.15.60 to 0.15.61 at `2e212f67e5a664330d432a6798350202be54eb10`.
+- Consume LINK's exact nested Infiltratr Common 1.19.24 pin at `748e089ae175329471d4cf375522c44081371bd5`, replacing the now-stale Common 1.19.23 dependency chain without adding a second product-level Common authority.
+- Synchronise both iOS LINK provenance definitions and the product version metadata with the new gitlink; no MBLINK diagnostic, safety or transport policy is weakened by this dependency-only release.
+
 ## 0.7.230 — 2026-09-22
 
 - Advance the exact shared LINK dependency to 0.15.60 at `a42d380c27f1bf1612216b2345abadb72e3ba36a`, retaining the Common 1.19.23 dependency chain and synchronising both iOS LINK provenance definitions to the same gitlink.
