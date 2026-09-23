@@ -52,29 +52,45 @@ jobs:
           payload="$(jq -nc --arg repository "$GITHUB_REPOSITORY" --arg sha "$RELEASE_SHA" \
             '{event_type:"application-release",client_payload:{repository:$repository,sha:$sha}}')"
 
+          dispatched=false
           if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
-            if ! curl --fail-with-body --silent --show-error \
+            if curl --fail-with-body --silent --show-error \
               --request POST \
               --header "Authorization: Bearer $DISPATCH_TOKEN" \
               --header "Accept: application/vnd.github+json" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
               --data "$payload" \
               https://api.github.com/repos/Infiltrator-Projects/Infiltrator-Repository/dispatches; then
-              echo "::warning::Immediate APT dispatch failed; using the repository five-minute safety refresh."
+              echo "Immediate APT dispatch accepted; verifying publication."
+              dispatched=true
+            else
+              echo "::warning::Immediate APT dispatch failed; central scheduled publication will verify this release asynchronously."
             fi
           else
-            echo "APT dispatch token is unavailable; using the repository five-minute safety refresh."
+            echo "::warning::APT dispatch token is unavailable; central scheduled publication will verify this release asynchronously."
           fi
 
           catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
+
+          if curl -fsS --retry 2 --retry-delay 1 "$catalogue?version=$VERSION&attempt=0" \
+            | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
+            echo "APT repository already advertises $APP_ID $VERSION."
+            exit 0
+          fi
+
+          if [[ "$dispatched" != true ]]; then
+            echo "APT verification deferred to the central repository workflow."
+            exit 0
+          fi
+
           for attempt in $(seq 1 210); do
             if curl -fsS --retry 2 --retry-delay 1 "$catalogue?version=$VERSION&attempt=$attempt" \
               | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
               echo "APT repository advertises $APP_ID $VERSION."
               exit 0
             fi
-            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/210)..."
+            echo "Waiting for immediate APT publication of $APP_ID $VERSION ($attempt/210)..."
             sleep 10
           done
-          echo "::error::Central APT repository did not advertise $APP_ID $VERSION within 35 minutes of the completed release workflow."
+          echo "::error::Immediate APT dispatch was accepted, but the central APT repository did not advertise $APP_ID $VERSION within 35 minutes."
           exit 1
