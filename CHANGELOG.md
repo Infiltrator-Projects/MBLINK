@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.232 — 2026-09-23
+
+- Advance the exact shared LINK dependency from 0.15.61 to released LINK 0.15.62 at `0f2cc710fb8f211013cd5f55df390fe0911886da`.
+- Retain LINK's exact nested Infiltratr Common 1.19.24 pin and consume the guarded STM32 UDS RX fallback added for LINK #47 without weakening MBLINK diagnostic or safety policy.
+- Synchronise both iOS LINK provenance definitions and every product version surface with the new gitlink.
+
+
 ## 0.7.231 — 2026-09-23
 
 - Advance the exact shared LINK dependency from 0.15.60 to 0.15.61 at `2e212f67e5a664330d432a6798350202be54eb10`.
