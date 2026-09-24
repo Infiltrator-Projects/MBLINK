@@ -52,7 +52,7 @@ jobs:
   portable-core:
     name: Linux / C11
     needs: preflight
-    runs-on: ubuntu-24.04
+    runs-on: ${{ needs.preflight.outputs.is_release == 'true' && 'ubuntu-24.04' || 'linux-native' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,7 +66,7 @@ jobs:
   sanitizers:
     name: Linux / ASan + UBSan
     needs: preflight
-    runs-on: ubuntu-24.04
+    runs-on: ${{ needs.preflight.outputs.is_release == 'true' && 'ubuntu-24.04' || 'linux-native' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,18 +82,34 @@ jobs:
   linux-app:
     name: Linux / GTK4 app
     needs: preflight
-    runs-on: ubuntu-24.04
+    runs-on: ${{ needs.preflight.outputs.is_release == 'true' && 'ubuntu-24.04' || 'linux-native' }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
       - name: Install build dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev \
             libusb-1.0-0-dev pkg-config xvfb xauth
+
+      - name: Verify self-hosted Linux dependencies
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for command_name in cmake ctest dpkg-deb pkg-config xvfb-run; do
+            command -v "$command_name" >/dev/null 2>&1 || {
+              echo "Self-hosted runner is missing $command_name." >&2
+              exit 1
+            }
+          done
+          pkg-config --exists gtk4
+          pkg-config --exists bluez
+          pkg-config --exists libusb-1.0
       - name: Configure and build Linux app
         run: |
           cmake -S . -B build-linux \
