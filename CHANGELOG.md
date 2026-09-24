@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.233 — 2026-09-24
+
+- Advance the exact shared LINK dependency from 0.15.62 to released LINK 0.15.69 at `651c1f4180257a0711c4ac93d75194b943700e81`.
+- Consume the latest shared Linux publisher-alignment work, including 12 px ordinary cards, without changing Mercedes diagnostic, transport or safety policy.
+- Keep LINK as the sole Common authority and preserve MBLINK's existing dependencies and platform architecture.
+
+
 ## 0.7.232 — 2026-09-23
 
 - Advance the exact shared LINK dependency from 0.15.61 to released LINK 0.15.62 at `0f2cc710fb8f211013cd5f55df390fe0911886da`.
