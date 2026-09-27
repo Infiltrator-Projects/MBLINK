@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.237 — 2026-09-28
+
+- Promote a generic 0x7E1/0x7E9 Mercedes transmission controller to the exact EGS53 family when its captured Daimler KWP identification supplies corporate part number `0034464310` / `A 003 446 43 10`.
+- Feed parsed ECU spare-part numbers into controller-family classification after textual identity, software and hardware evidence, so numeric KWP identities no longer hide a source-corroborated family.
+- Add a regression using the exact `1A87` payload captured from the C207 session and require the UI-facing module name to become `EGS53 transmission ECU`.
+
 ## 0.7.236 — 2026-09-28
 
 - Advance the exact shared LINK dependency to 0.15.78 at `090981200402518465beb5ae714c5a1ccdc601b6`, bringing automatic ELM327 resynchronisation/retry to standard diagnostic phases and adding timeout/power-state lifecycle evidence for the iOS failure captured by MBLINK 0.7.203.
