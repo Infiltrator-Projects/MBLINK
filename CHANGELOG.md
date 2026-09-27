@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.236 — 2026-09-28
+
+- Advance the exact shared LINK dependency to 0.15.78 at `b8b2217d13a84fe0b21a32e80fa1ee503702c2c5`, bringing automatic ELM327 resynchronisation/retry to standard diagnostic phases and adding timeout/power-state lifecycle evidence for the iOS failure captured by MBLINK 0.7.203.
+- Keep every responding controller visible during connection progress by showing its current MBLINK name and exact request/response address instead of reporting only a retained-module count.
+- Keep source-backed Mercedes route identities authoritative, including EIS/EZS, ABR2XT/ESP, ORC_212, HU_204, engine and GS/VGS/EGS mappings.
+- Add presentation-only online candidates for the observed 0x622/0x484 steering-column, 0x6A2/0x494 multifunction-camera, 0x6BA/0x497 and 0x6C2/0x498 reversible-tensioner, and 0x6FA/0x49F fuel-pump routes. These remain explicitly labelled "Likely" until C207-specific identity evidence confirms them; conflicting 0x60A evidence remains unresolved.
+
 ## 0.7.235 — 2026-09-27
 
 - Recover Mercedes engine and module discovery when LINK refuses to queue a diagnostic command: stop the pending scan, preserve captured responses and restore normal diagnostics instead of leaving the app stuck scanning.
