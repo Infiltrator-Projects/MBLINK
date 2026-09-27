@@ -1381,7 +1381,9 @@ static bool MBLinkSimulatorResponder(
     (void)[_shared setLiveManufacturerJobEnabled:NO
         token:MBLinkScheduledModuleFollowupJobToken];
     _moduleFollowupJobEnabled = NO;
-    if (_moduleScanActive || _manufacturerProbeActive || self.manufacturerDataScanActive) {
+    if (_moduleScanActive || _manufacturerProbeActive ||
+        self.manufacturerDataScanActive ||
+        self.manufacturerDataScanModuleIdentifier.length != 0U) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
     }
@@ -1740,7 +1742,9 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
 {
     if (!_shared.isActive) return;
 
-    if (self.manufacturerDataScanActive || _moduleScanActive ||
+    if (self.manufacturerDataScanActive ||
+        self.manufacturerDataScanModuleIdentifier.length != 0U ||
+        _moduleScanActive ||
         _manufacturerProbeActive || _cachedModuleRefreshActive) {
         _scheduledManufacturerJobActive = NO;
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
@@ -2295,7 +2299,8 @@ static void MBLinkAppendManufacturerDefinition(
 {
     if (identifier.length == 0U || !_shared.isActive) return;
 
-    if (self.manufacturerDataScanActive) {
+    if (self.manufacturerDataScanActive ||
+        self.manufacturerDataScanModuleIdentifier.length != 0U) {
         self.manufacturerDataScanStatusText =
             [self.manufacturerDataScanModuleIdentifier
                 isEqualToString:identifier]
@@ -2352,6 +2357,7 @@ static void MBLinkAppendManufacturerDefinition(
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
+        [self queueModuleScanFollowup];
         if (liveOnly && _scheduledManufacturerJobActive) {
             _scheduledManufacturerJobActive = NO;
             (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
@@ -2382,6 +2388,7 @@ static void MBLinkAppendManufacturerDefinition(
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
+        [self queueModuleScanFollowup];
         return;
     }
 
@@ -2927,6 +2934,7 @@ static void MBLinkAppendManufacturerDefinition(
             @"Could not resume standard diagnostics after Mercedes data scan"];
     }
     [self updateScheduledManufacturerLiveJob];
+    [self queueModuleScanFollowup];
     [self notifyDelegate];
 }
 

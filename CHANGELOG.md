@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.235 — 2026-09-27
+
+- Recover Mercedes engine and module discovery when LINK refuses to queue a diagnostic command: stop the pending scan, preserve captured responses and restore normal diagnostics instead of leaving the app stuck scanning.
+- Show the actual Mercedes module discovery status on empty Live Data and Factory Readings screens so failures and delays are visible.
+- Serialize queued factory reads with recurring Mercedes live jobs, including the period before a manual read acquires the diagnostic channel.
+
 ## 0.7.234 — 2026-09-27
 
 - Make the iOS start flow clearer: show supported starter OBD readings, connection state and available live data without implying the Mercedes research catalogue is a working ECU integration.
