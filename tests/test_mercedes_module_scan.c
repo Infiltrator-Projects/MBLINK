@@ -915,5 +915,35 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
     }
 
+    /* Online address hints stay presentation-only and never override stronger evidence. */
+    {
+        MblinkMercedesModuleScanEntry hinted;
+        memset(&hinted, 0, sizeof(hinted));
+        hinted.tx_can_id = UINT32_C(0x622); hinted.rx_can_id = UINT32_C(0x484);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Likely steering column module (SCM / SCCM)") == 0);
+        hinted.tx_can_id = UINT32_C(0x6a2); hinted.rx_can_id = UINT32_C(0x494);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Likely multifunction camera (MFK)") == 0);
+        hinted.tx_can_id = UINT32_C(0x6ba); hinted.rx_can_id = UINT32_C(0x497);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Likely left reversible belt tensioner (RevETR-LF)") == 0);
+        hinted.tx_can_id = UINT32_C(0x6c2); hinted.rx_can_id = UINT32_C(0x498);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Likely right reversible belt tensioner (RevETR-RF)") == 0);
+        hinted.tx_can_id = UINT32_C(0x6fa); hinted.rx_can_id = UINT32_C(0x49f);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Likely fuel-pump control unit") == 0);
+        hinted.tx_can_id = UINT32_C(0x60a); hinted.rx_can_id = UINT32_C(0x481);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Mercedes ECU") == 0);
+        hinted.tx_can_id = UINT32_C(0x602); hinted.rx_can_id = UINT32_C(0x480);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "Daimler VIN-cascade ECU 602") == 0);
+        hinted.tx_can_id = UINT32_C(0x64a); hinted.rx_can_id = UINT32_C(0x489);
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
+                     "ORC_212") == 0);
+    }
+
     return 0;
 }
