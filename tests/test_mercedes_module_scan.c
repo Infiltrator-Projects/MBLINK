@@ -301,6 +301,36 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             mblink_mercedes_controller_family_definition_for_evidence(
                 "transmission-vgs", "VGS3_0402 722.9", NULL, NULL)->key,
             "transmission-vgs-nag2") == 0);
+        {
+            /*
+             * Exact 1A87 payload captured from Shannon's C207 on 2026-09-28.
+             * The ECU never says "EGS53"; it identifies itself with Mercedes
+             * corporate part number 0034464310.  The part number must promote
+             * the generic 7E1/7E9 transmission route to the EGS53 family.
+             */
+            MblinkMercedesModuleScanEntry captured_egs53;
+            MblinkElm327Response captured_1a87 = response(
+                MBLINK_ELM327_RESULT_OK,
+                "5A8703080355FF064818290030303334343634333130FFFFFFFFFF",
+                false);
+            memset(&captured_egs53, 0, sizeof(captured_egs53));
+            captured_egs53.definition =
+                mblink_mercedes_module_definition_for_key("transmission-vgs");
+            captured_egs53.kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
+            captured_egs53.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+
+            CHECK(mblink_mercedes_module_scan_capture_kwp_87(
+                      &captured_egs53, &captured_1a87));
+            CHECK(captured_egs53.spare_part_number_available);
+            CHECK(strcmp(captured_egs53.spare_part_number,
+                         "0034464310") == 0);
+            CHECK(captured_egs53.controller_family != NULL);
+            CHECK(strcmp(captured_egs53.controller_family->key,
+                         "transmission-egs53") == 0);
+            CHECK(strcmp(
+                mblink_mercedes_module_scan_module_name(&captured_egs53),
+                "EGS53 transmission ECU") == 0);
+        }
         CHECK(strcmp(
             mblink_mercedes_controller_family_definition_for_evidence(
                 "esp", "ABR2XT", NULL, NULL)->key,
