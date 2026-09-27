@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.234 — 2026-09-27
+
+- Make the iOS start flow clearer: show supported starter OBD readings, connection state and available live data without implying the Mercedes research catalogue is a working ECU integration.
+- Add a Factory Readings screen driven by actual captured module responses, with module data reads and links to full response evidence. Keep unverified Mercedes identifiers in the separate Factory Reference catalogue.
+- Update the LINK Bluetooth picker with explicit scan and connection states and separate BLE from Classic adapter behavior. Pin the shared LINK source at `eb360c6`.
+- Qualify the portable diagnostic core, iOS simulator build and simulated diagnostic launch before release. Real vehicle access, protected Mercedes export decoding and physical adapter behavior require separate validation.
+
 ## 0.7.233 — 2026-09-24
 
 - Advance the exact shared LINK dependency from 0.15.62 to released LINK 0.15.69 at `ca30258e0684b77689128b8a538891c79c2f876c`.
