@@ -590,6 +590,7 @@ private struct MBCommandCentreView: View {
             MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") { MBModulesView() }
             MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") { MBFaultsView() }
             MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") { MBLiveDataView() }
+            MBHomeTile("Factory Readings", "Read actual Mercedes responses by control unit", "engine.combustion.fill") { MBFactoryReadingsView() }
             MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") { MBStandardOBDView() }
         }
     }
@@ -1329,13 +1330,31 @@ private struct MBModulesView: View {
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Factory data", kicker: "Mercedes target catalogue")
+                            MBSectionHeader(title: "Factory readings", kicker: "Vehicle responses")
+                            Text("Read or refresh actual manufacturer responses for each responding controller.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                            NavigationLink { MBFactoryReadingsView() } label: {
+                                HStack {
+                                    Label("Open factory readings", systemImage: "engine.combustion.fill")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .font(MBTypography.subheadlineBold)
+                                .foregroundStyle(MBBrand.silverBright)
+                            }
+                        }
+                    }
+
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            MBSectionHeader(title: "Factory reference", kicker: "Mercedes target catalogue")
                             Text("\(connection.mercedesTargetSignals.count) evidence-backed manufacturer value identities")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                             NavigationLink { MBDieselView() } label: {
                                 HStack {
-                                    Label("Open factory-data targets", systemImage: "engine.combustion.fill")
+                                    Label("Open research targets", systemImage: "books.vertical.fill")
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                 }
@@ -2157,6 +2176,9 @@ private struct MBLiveDataView: View {
                 MBHomeTile("Graphs", "Plot selected values over time", "chart.xyaxis.line") {
                     MBGraphsView()
                 }
+                MBHomeTile("Factory Readings", "Captured Mercedes values and raw responses", "engine.combustion.fill") {
+                    MBFactoryReadingsView()
+                }
                 MBHomeTile("Choose PIDs", "Control what the adapter polls", "switch.2") {
                     MBPIDSetupView()
                 }
@@ -2256,6 +2278,105 @@ private struct MBLiveDataView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 17, style: .continuous)
                 .stroke(MBBrand.line, lineWidth: 1))
+    }
+}
+
+private struct MBFactoryReadingsView: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    private var modules: [DiagnosticModule] {
+        connection.diagnosticModules.sorted {
+            let left = connection.manufacturerData(moduleID: $0.id).count
+            let right = connection.manufacturerData(moduleID: $1.id).count
+            if left != right { return left > right }
+            return $0.name < $1.name
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            MBBackground()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    MBSectionHeader(title: "Factory readings",
+                                    kicker: "Responses from this vehicle's control units")
+                    MBPanel {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(connection.manufacturerDataScanStatusText)
+                                .font(MBTypography.subheadlineBold)
+                                .foregroundStyle(MBBrand.silverBright)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Each read uses the selected module's route. Values without a verified scale stay in raw form. Choose a module to see its full responses and evidence.")
+                                .font(MBTypography.caption)
+                                .foregroundStyle(MBBrand.silver)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if modules.isEmpty {
+                        MBPanel {
+                            Text(connection.isActive
+                                 ? "Control-unit discovery is in progress. Responding modules will appear here."
+                                 : "Connect to identify the vehicle and its responding control units.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                        }
+                    }
+
+                    ForEach(modules) { module in
+                        let values = connection.manufacturerData(moduleID: module.id)
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 10) {
+                                NavigationLink {
+                                    MBModuleDetailView(moduleID: module.id)
+                                } label: {
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Image(systemName: module.symbol)
+                                            .foregroundStyle(MBBrand.active)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(module.name)
+                                                .font(MBTypography.headline)
+                                                .foregroundStyle(MBBrand.silverBright)
+                                            Text("\(module.addressText) · \(values.count) response\(values.count == 1 ? "" : "s")")
+                                                .font(MBTypography.caption)
+                                                .foregroundStyle(MBBrand.silver)
+                                        }
+                                        Spacer(minLength: 4)
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(MBBrand.muted)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+
+                                ForEach(Array(values.prefix(2))) { value in
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(value.title)
+                                            .font(MBTypography.caption)
+                                            .foregroundStyle(MBBrand.silver)
+                                        Spacer(minLength: 8)
+                                        Text(value.formattedValue)
+                                            .font(MBTypography.captionBold)
+                                            .foregroundStyle(MBBrand.silverBright)
+                                    }
+                                }
+
+                                Button {
+                                    connection.discoverManufacturerData(moduleID: module.id)
+                                } label: {
+                                    Label(values.isEmpty ? "Read module data" : "Refresh known readings",
+                                          systemImage: "arrow.clockwise")
+                                        .font(MBTypography.subheadlineBold)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(!connection.isActive)
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .mbDiagnosticScreen("Factory Readings")
     }
 }
 
