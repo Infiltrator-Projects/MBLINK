@@ -52,7 +52,8 @@ jobs:
   portable-core:
     name: Linux / C11
     needs: preflight
-    runs-on: ${{ needs.preflight.outputs.is_release == 'true' && 'ubuntu-24.04' || 'linux-native' }}
+    # Recursive checkout needs git on every run, including development builds.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
