@@ -629,6 +629,22 @@ private struct MBCommandCentreView: View {
                     Text("\(connection.diagnosticModules.count) responding control units retained so far")
                         .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(connection.diagnosticModules) { module in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(module.name)
+                                    .font(MBTypography.captionBold)
+                                    .foregroundStyle(MBBrand.silver)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 6)
+                                Text(module.addressText)
+                                    .font(MBTypography.caption2)
+                                    .foregroundStyle(MBBrand.muted)
+                                    .monospacedDigit()
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
