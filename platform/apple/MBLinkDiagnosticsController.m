@@ -3013,7 +3013,14 @@ static void MBLinkAppendManufacturerDefinition(
         self.mercedesUDSFaultStatusText = @"Reading Mercedes UDS fault memory";
         [self notifyDelegate];
     }
-    (void)[_shared beginManufacturerCommand:command timeout:4000U];
+    if (![_shared beginManufacturerCommand:command timeout:4000U]) {
+        _manufacturerProbeActive = NO;
+        self.mercedesProbeStatusText =
+            @"Mercedes engine probe command could not be sent";
+        self.mercedesIdentitySummaryText = @"Probe did not complete";
+        [self notifyDelegate];
+        [self finishMercedesExtensionRestoringAdapter:YES];
+    }
 }
 
 - (void)processMercedesProbeResponse:(const MblinkElm327Response *)response
@@ -3177,7 +3184,17 @@ static void MBLinkAppendManufacturerDefinition(
         MBLinkStringFromCString(mblink_mercedes_module_scan_stage_name(_mercedesModuleScan.stage)),
         _mercedesModuleScan.module_count];
     [self notifyDelegate];
-    (void)[_shared beginManufacturerCommand:command timeout:mblink_mercedes_module_scan_timeout_ms(&_mercedesModuleScan)];
+    if (![_shared beginManufacturerCommand:command
+                                  timeout:mblink_mercedes_module_scan_timeout_ms(
+                                      &_mercedesModuleScan)]) {
+        _moduleScanActive = NO;
+        [self updateMercedesModuleFaultEvidenceInProgress];
+        [self updateMercedesModuleScanSummary];
+        self.mercedesProbeStatusText =
+            @"Mercedes module scan command could not be sent; responses already captured were retained";
+        [self notifyDelegate];
+        [self finishMercedesExtensionRestoringAdapter:YES];
+    }
 }
 
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response

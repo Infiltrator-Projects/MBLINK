@@ -2186,12 +2186,19 @@ private struct MBLiveDataView: View {
 
                     if modules.isEmpty {
                         MBPanel {
-                            Text(connection.isActive
-                                 ? "Control-unit discovery is still in progress. Each responding ECU will appear here with its own supported PID list."
-                                 : "Connect to the vehicle to discover control units and their supported PIDs.")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(connection.isActive
+                                     ? "No responding control units are available yet."
+                                     : "Connect to the vehicle to discover control units and their supported PIDs.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                if connection.isActive {
+                                    Text(connection.mercedesProbeStatusText)
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     } else {
                         ForEach(modules) { module in
@@ -2315,11 +2322,19 @@ private struct MBFactoryReadingsView: View {
 
                     if modules.isEmpty {
                         MBPanel {
-                            Text(connection.isActive
-                                 ? "Control-unit discovery is in progress. Responding modules will appear here."
-                                 : "Connect to identify the vehicle and its responding control units.")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(connection.isActive
+                                     ? "No responding Mercedes control units are available yet."
+                                     : "Connect to identify the vehicle and its responding control units.")
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.silver)
+                                if connection.isActive {
+                                    Text(connection.mercedesProbeStatusText)
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
 
