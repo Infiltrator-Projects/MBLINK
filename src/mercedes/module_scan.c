@@ -97,8 +97,44 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     return "unknown";
 }
 
+static const char *mblink_mercedes_online_candidate_name(
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (module == NULL || module->extended_id) return NULL;
+
+    /*
+     * Presentation-only research hints for exact routes observed in the
+     * 2026-09 C207 capture. The TX meanings are catalogued in the
+     * OSUSecLab/CANHunter Mercedes dataset (NDSS 2020 companion-app research).
+     * That corpus spans Mercedes model families, so these remain "Likely"
+     * until the ECU returns C207 identity data or stronger factory evidence.
+     * 0x6FA also appears independently as a Mercedes fuel-pump controller in
+     * a BMWhat/Mercedes Lite diagnostic report. These hints never alter
+     * protocol selection, routing, safety policy or automatic transmission.
+     */
+    if (module->tx_can_id == UINT32_C(0x622) &&
+        module->rx_can_id == UINT32_C(0x484))
+        return "Likely steering column module (SCM / SCCM)";
+    if (module->tx_can_id == UINT32_C(0x6a2) &&
+        module->rx_can_id == UINT32_C(0x494))
+        return "Likely multifunction camera (MFK)";
+    if (module->tx_can_id == UINT32_C(0x6ba) &&
+        module->rx_can_id == UINT32_C(0x497))
+        return "Likely left reversible belt tensioner (RevETR-LF)";
+    if (module->tx_can_id == UINT32_C(0x6c2) &&
+        module->rx_can_id == UINT32_C(0x498))
+        return "Likely right reversible belt tensioner (RevETR-RF)";
+    if (module->tx_can_id == UINT32_C(0x6fa) &&
+        module->rx_can_id == UINT32_C(0x49f))
+        return "Likely fuel-pump control unit";
+    return NULL;
+}
+
 const char *mblink_mercedes_module_scan_module_name(const MblinkMercedesModuleScanEntry *module)
 {
+    const MblinkMercedesKnownRoute *known_route;
+    const char *online_candidate;
+
     if (module == NULL) return "Mercedes ECU";
     if (module->controller_family != NULL)
         return module->controller_family->display_name;
@@ -107,6 +143,15 @@ const char *mblink_mercedes_module_scan_module_name(const MblinkMercedesModuleSc
     if (module->identity_available && module->identity[0] != '\0') return module->identity;
     if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1))
         return "Transmission ECU / GS (7E1/7E9)";
+
+    known_route = mblink_mercedes_module_scan_known_entry_route(module);
+    if (known_route != NULL && known_route->qualifier != NULL &&
+        known_route->qualifier[0] != '\0')
+        return known_route->qualifier;
+
+    online_candidate = mblink_mercedes_online_candidate_name(module);
+    if (online_candidate != NULL) return online_candidate;
+
     switch (module->kind) {
     case MBLINK_MERCEDES_MODULE_ENGINE: return "Engine ECU";
     case MBLINK_MERCEDES_MODULE_TRANSMISSION: return "Transmission ECU";
