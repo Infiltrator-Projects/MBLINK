@@ -971,7 +971,9 @@ static bool MBLinkSimulatorResponder(
         snapshot.designation = module->definition != NULL &&
                 module->definition->component_designation != NULL
             ? MBLinkStringFromCString(
-                module->definition->component_designation) : @"";
+                module->definition->component_designation)
+            : ([snapshot.name hasPrefix:@"Likely "]
+                ? @"Online candidate · not yet C207-confirmed" : @"");
         snapshot.network = module->definition != NULL &&
                 module->definition->network != NULL
             ? MBLinkStringFromCString(module->definition->network) : @"";
@@ -3338,6 +3340,13 @@ static void MBLinkAppendManufacturerDefinition(
                 MBLinkStringFromCString(
                     mblink_mercedes_module_kind_name(module->kind)),
                 moduleFaultCount,
+                moduleFaultCount == 1U ? @"" : @"s"]];
+            [identity addObject:[NSString stringWithFormat:
+                @"  PROTOCOL · %@", protocol]];
+        } else if ([name hasPrefix:@"Likely "]) {
+            [identity addObject:[NSString stringWithFormat:
+                @"MODULE · %@ · %@ · online candidate · %zu fault record%@",
+                name, address, moduleFaultCount,
                 moduleFaultCount == 1U ? @"" : @"s"]];
             [identity addObject:[NSString stringWithFormat:
                 @"  PROTOCOL · %@", protocol]];
