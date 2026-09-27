@@ -919,6 +919,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         MblinkMercedesModuleScanEntry hinted;
         memset(&hinted, 0, sizeof(hinted));
+        hinted.kind = MBLINK_MERCEDES_MODULE_OTHER;
         hinted.tx_can_id = UINT32_C(0x622); hinted.rx_can_id = UINT32_C(0x484);
         CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
                      "Likely steering column module (SCM / SCCM)") == 0);
