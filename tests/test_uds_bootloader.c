@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/uds_bootloader.h"
+#include "mblink/stm32f767_ota.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -15,6 +16,8 @@ typedef struct {
     uint32_t monotonic_version;
     uint32_t staged_version;
     uint8_t selected_slot;
+    uint8_t active_slot;
+    bool pending;
     uint8_t image[32U];
     uint64_t image_size;
     uint64_t bytes_written;
@@ -42,6 +45,43 @@ static bool fake_select_slot(void *context, uint8_t *slot)
     if (target == NULL || slot == NULL) return false;
     target->selected_slot = UINT8_C(1);
     *slot = target->selected_slot;
+    return true;
+}
+
+static bool fake_active_slot(void *context, uint8_t *slot)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    if (target == NULL || slot == NULL) return false;
+    *slot = target->active_slot;
+    return true;
+}
+
+static bool fake_erase_slot(
+    void *context, uint8_t slot, uint32_t address, uint32_t size)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    if (target == NULL || slot != 1U || target->active_slot == slot ||
+        address != UINT32_C(0x08100000) || size != UINT32_C(0x100000))
+        return false;
+    target->selected_slot = slot;
+    target->bytes_written = 0U;
+    target->begin_calls++;
+    memset(target->image, 0xff, sizeof(target->image));
+    return true;
+}
+
+static bool fake_program_address(
+    void *context, uint32_t address, const uint8_t *data, size_t length)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    uint64_t offset;
+    if (address < UINT32_C(0x08100000)) return false;
+    offset = (uint64_t)address - UINT32_C(0x08100000);
+    if (target == NULL || data == NULL || offset > sizeof(target->image) ||
+        offset != target->bytes_written ||
+        length > sizeof(target->image) - (size_t)offset) return false;
+    memcpy(target->image + (size_t)offset, data, length);
+    target->bytes_written += length;
     return true;
 }
 
@@ -119,7 +159,36 @@ static bool fake_stage(void *context, uint8_t slot, uint32_t version)
     FakeTarget *target = (FakeTarget *)context;
     if (target == NULL || slot != target->selected_slot) return false;
     target->staged_version = version;
+    target->pending = true;
     target->stage_calls++;
+    return true;
+}
+
+static bool fake_stage_persistent(
+    void *context, uint8_t slot, uint32_t version, uint64_t size)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    if (target == NULL || size != target->image_size) return false;
+    return fake_stage(context, slot, version);
+}
+
+static bool fake_read_pending(
+    void *context, uint8_t *slot, uint32_t *version, uint64_t *size)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    if (target == NULL || !target->pending || slot == NULL ||
+        version == NULL || size == NULL) return false;
+    *slot = target->selected_slot;
+    *version = target->staged_version;
+    *size = target->image_size;
+    return true;
+}
+
+static bool fake_clear_pending(void *context)
+{
+    FakeTarget *target = (FakeTarget *)context;
+    if (target == NULL || !target->pending) return false;
+    target->pending = false;
     return true;
 }
 
@@ -272,11 +341,106 @@ static int test_rollback_rejected(void)
     return 0;
 }
 
+static MblinkStm32f767OtaConfig target_config(FakeTarget *fake)
+{
+    MblinkStm32f767OtaConfig config = {0};
+    config.flash.base = UINT32_C(0x08000000);
+    config.flash.size = UINT32_C(0x200000);
+    config.bootloader.base = UINT32_C(0x08000000);
+    config.bootloader.size = UINT32_C(0x20000);
+    config.slots[0].base = UINT32_C(0x08020000);
+    config.slots[0].size = UINT32_C(0xe0000);
+    config.slots[1].base = UINT32_C(0x08100000);
+    config.slots[1].size = UINT32_C(0x100000);
+    config.ops.context = fake;
+    config.ops.read_active_slot = fake_active_slot;
+    config.ops.read_monotonic_version = fake_read_version;
+    config.ops.erase_slot = fake_erase_slot;
+    config.ops.program = fake_program_address;
+    config.ops.finish_image = fake_finish;
+    config.ops.verify_integrity = fake_integrity;
+    config.ops.verify_authenticity = fake_authenticity;
+    config.ops.stage_slot = fake_stage_persistent;
+    config.ops.secure_boot_validate = fake_secure_boot;
+    config.ops.commit_monotonic_version = fake_commit;
+    config.ops.read_pending_candidate = fake_read_pending;
+    config.ops.clear_pending_candidate = fake_clear_pending;
+    config.ops.abort_slot = fake_abort;
+    return config;
+}
+
+static int test_stm32f767_target_binding(void)
+{
+    static const uint8_t image[] = {0x33U, 0x44U, 0x55U};
+    FakeTarget fake = {0};
+    MblinkStm32f767OtaTarget target;
+    MblinkStm32f767OtaTarget restarted_target;
+    MblinkStm32f767OtaConfig layout = target_config(&fake);
+    MblinkUdsBootloaderConfig config = MBLINK_UDS_BOOTLOADER_CONFIG_INIT;
+    MblinkUdsBootloader bootloader;
+
+    layout.slots[1].base = layout.slots[0].base;
+    CHECK(!mblink_stm32f767_ota_bind(&target, &layout, &config));
+    CHECK(!config.allow_programming);
+    layout = target_config(&fake);
+    layout.ops.verify_authenticity = NULL;
+    CHECK(!mblink_stm32f767_ota_bind(&target, &layout, &config));
+    CHECK(!config.allow_programming);
+    layout = target_config(&fake);
+    fake.monotonic_version = 7U;
+    fake.active_slot = 0U;
+    fake.image_size = sizeof(image);
+    CHECK(mblink_stm32f767_ota_bind(&target, &layout, &config));
+    CHECK(config.allow_programming);
+    CHECK(mblink_uds_bootloader_init(&bootloader, &config));
+    CHECK(mblink_uds_bootloader_arm(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_enter_programming_session(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_grant_security(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_set_dtc_recording_disabled(
+              &bootloader, true) == MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_set_communication_disabled(
+              &bootloader, true) == MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_request_download(
+              &bootloader, 8U, sizeof(image)) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(fake.selected_slot == 1U && fake.begin_calls == 1U);
+    CHECK(!config.backend.write_block(
+        config.backend.context, 1U, UINT64_C(0xfffff), image,
+        sizeof(image)));
+    CHECK(mblink_uds_bootloader_transfer_data(
+              &bootloader, 1U, image, sizeof(image)) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(memcmp(fake.image, image, sizeof(image)) == 0);
+    CHECK(mblink_uds_bootloader_request_transfer_exit(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_check_memory(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    CHECK(mblink_uds_bootloader_stage_for_reset(&bootloader) ==
+          MBLINK_UDS_BOOTLOADER_RESULT_OK);
+    /* A premature boot confirmation must not burn the rollback counter. */
+    CHECK(!config.backend.commit_monotonic_version(
+              config.backend.context, 8U));
+    CHECK(fake.monotonic_version == 7U);
+    fake.active_slot = 1U;
+    /* Rebind after reset: the previous bootloader object's RAM is gone. */
+    CHECK(mblink_stm32f767_ota_bind(
+        &restarted_target, &layout, &config));
+    CHECK(mblink_stm32f767_ota_confirm_after_boot(&restarted_target));
+    CHECK(fake.monotonic_version == 8U);
+    CHECK(!fake.pending);
+    CHECK(!mblink_stm32f767_ota_confirm_after_boot(&restarted_target));
+    return 0;
+}
+
 int main(void)
 {
     CHECK(test_fail_closed_defaults() == 0);
     CHECK(test_complete_ota_flow() == 0);
     CHECK(test_rollback_rejected() == 0);
+    CHECK(test_stm32f767_target_binding() == 0);
     puts("MBLINK UDS bootloader facade tests passed");
     return 0;
 }

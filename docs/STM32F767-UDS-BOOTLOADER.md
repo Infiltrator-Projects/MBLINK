@@ -29,5 +29,20 @@ selector, erase/write backend, integrity verifier, authenticity/HSM verifier,
 secure-boot candidate validation and protected monotonic-version storage before
 the core can arm.
 
+`include/mblink/stm32f767_ota.h` and `src/embedded/stm32f767_ota.c` now bind
+that core to a target-supplied F767 flash layout. The binding rejects missing
+verification/persistence hooks, overlapping bootloader and A/B image regions,
+attempts to erase or program the active slot, and image writes outside the
+inactive region. The protected pending-candidate record must survive reset;
+`mblink_stm32f767_ota_confirm_after_boot()` rechecks the running slot, image
+integrity, authenticity and secure-boot eligibility before advancing the
+protected anti-rollback version.
+
+No exact F767 part number, board flash/linker map, protected metadata store,
+cryptographic verification implementation or physical board is supplied by
+this issue. Until a product supplies these operations, the target does not
+enable programming. The host tests exercise the binding with a simulated
+device, including a refused version commit while still running the old slot.
+
 This keeps the full OTA control flow in shared tested code while ensuring that
 linking MBLINK alone cannot accidentally enable ECU reprogramming.
