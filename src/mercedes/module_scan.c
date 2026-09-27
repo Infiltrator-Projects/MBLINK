@@ -684,6 +684,21 @@ void mblink_mercedes_module_scan_classify_controller_family(
             module->identity_available ? module->identity : NULL,
             module->software_number_available ? module->software_number : NULL,
             module->hardware_number_available ? module->hardware_number : NULL);
+
+    /*
+     * Daimler KWP identification can provide a decisive corporate part number
+     * without ever returning a textual family name such as "EGS53".  Treat the
+     * parsed spare-part number as classification evidence after the ordinary
+     * identity/software/hardware fields.  This keeps the generic route label
+     * when the part number is unknown, while allowing source-corroborated part
+     * numbers to promote the controller to its exact family.
+     */
+    if (module->controller_family == NULL &&
+        module->spare_part_number_available) {
+        module->controller_family =
+            mblink_mercedes_controller_family_definition_for_evidence(
+                module_key, module->spare_part_number, NULL, NULL);
+    }
 }
 
 void mblink_mercedes_module_scan_classify_identity(
