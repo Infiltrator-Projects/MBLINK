@@ -558,6 +558,23 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         setPolling(enabled, stableKey: stableKey)
     }
 
+    // A small, user-initiated starting set avoids filling the adapter queue.
+    // Only offer PIDs actually advertised by the connected vehicle.
+    var starterStandardPIDs: [MBPIDCatalogueItem] {
+        let preferred: [UInt16] = [0x0C, 0x0D, 0x05]
+        let available = standardPIDCatalogueItems().filter { $0.advertised }
+        return preferred.compactMap { pid in
+            available.first { $0.identifier == pid }
+        }
+    }
+
+    func enableStarterStandardPIDs() {
+        guard effectivePIDConfigurationVIN != nil else { return }
+        for item in starterStandardPIDs where !item.pollingEnabled {
+            setStandardPIDSelection(true, stableKey: item.id)
+        }
+    }
+
     func setManufacturerPIDSelection(
         _ enabled: Bool,
         moduleID: String,

@@ -596,13 +596,20 @@ private struct MBCommandCentreView: View {
 
     private var supportingTools: some View {
         VStack(alignment: .leading, spacing: 14) {
-            MBSectionHeader(title: "Tools", kicker: "PID setup, evidence, tests, services and preferences")
+            if connection.isReady && connection.configuredPollingCount == 0 {
+                MBMeasurementStartPanel()
+            }
+            MBSectionHeader(title: "Tools", kicker: "Measurements, records and settings")
             LinkDiagnosticGrid {
                 MBHomeTile("PID Setup", "OBD first, then documented data for each discovered module", "switch.2") { MBPIDSetupView() }
                 MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") { MBEvidenceView() }
-                MBHomeTile("Tests", "Readiness and supported diagnostic checks", "checkmark.square.fill") { MBTestsView() }
-                MBHomeTile("Services", "Verified vehicle procedures", "wrench.and.screwdriver.fill") { MBServicesView() }
+                MBHomeTile("Readiness", "Monitor status and freeze-frame records", "checkmark.square.fill") { MBTestsView() }
                 MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") { MBSettingsView() }
+            }
+            MBSectionHeader(title: "Reference", kicker: "Research and unavailable procedures")
+            LinkDiagnosticGrid {
+                MBHomeTile("Factory reference", "Research identifiers; live values are in Modules", "books.vertical.fill") { MBDieselView() }
+                MBHomeTile("Service reference", "Generic UDS codes; no active vehicle procedures", "wrench.and.screwdriver.fill") { MBServicesView() }
             }
         }
     }
@@ -725,6 +732,18 @@ private struct MBPIDSetupView: View {
                                     .font(MBTypography.caption2.monospaced())
                                     .foregroundStyle(MBBrand.muted)
                             }
+                            if connection.pidConfigurationVehicleVIN != nil &&
+                                connection.starterStandardPIDs.contains(where: { !$0.pollingEnabled }) {
+                                Button {
+                                    connection.enableStarterStandardPIDs()
+                                } label: {
+                                    Label("Enable \(connection.starterStandardPIDs.count) advertised starter readings",
+                                          systemImage: "play.fill")
+                                        .font(MBTypography.subheadlineBold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(MBBrand.active)
+                            }
                         }
                     }
 
@@ -815,6 +834,47 @@ private struct MBPIDSetupView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The saved vehicle and module discovery are retained. All live-polling selections for this VIN are switched OFF.")
+        }
+    }
+}
+
+private struct MBMeasurementStartPanel: View {
+    @EnvironmentObject private var connection: ConnectionViewModel
+
+    var body: some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Start with live measurements", systemImage: "waveform.path.ecg")
+                    .font(MBTypography.headline)
+                    .foregroundStyle(MBBrand.silverBright)
+                Text(connection.pidConfigurationVehicleVIN == nil
+                     ? "Connect and wait for the vehicle VIN before choosing measurements."
+                     : connection.starterStandardPIDs.isEmpty
+                        ? "No starter readings have been advertised yet. You can inspect all available measurements in PID Setup."
+                        : "Choose engine speed, vehicle speed and coolant temperature where this vehicle advertises them. Polling starts only when you tap the button.")
+                    .font(MBTypography.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+                    .fixedSize(horizontal: false, vertical: true)
+                if connection.pidConfigurationVehicleVIN != nil &&
+                    connection.starterStandardPIDs.contains(where: { !$0.pollingEnabled }) {
+                    Button {
+                        connection.enableStarterStandardPIDs()
+                    } label: {
+                        Label("Enable \(connection.starterStandardPIDs.count) starter readings",
+                              systemImage: "play.fill")
+                            .font(MBTypography.subheadlineBold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(MBBrand.active)
+                }
+                NavigationLink {
+                    MBPIDSetupView()
+                } label: {
+                    Label("Choose measurements individually", systemImage: "switch.2")
+                        .font(MBTypography.subheadlineBold)
+                }
+            }
         }
     }
 }
@@ -2083,6 +2143,10 @@ private struct MBLiveDataView: View {
                         title: "Live data",
                         kicker: "Choose a control unit")
 
+                    if connection.configuredPollingCount == 0 {
+                        MBMeasurementStartPanel()
+                    }
+
                     LinkDiagnosticGrid {
                 MBHomeTile("Dashboard", "Selected values at a glance", "gauge.with.dots.needle.67percent") {
                     MBDashboardView()
@@ -2093,8 +2157,8 @@ private struct MBLiveDataView: View {
                 MBHomeTile("Graphs", "Plot selected values over time", "chart.xyaxis.line") {
                     MBGraphsView()
                 }
-                MBHomeTile("Factory Data", "Mercedes manufacturer measurements", "engine.combustion.fill") {
-                    MBDieselView()
+                MBHomeTile("Choose PIDs", "Control what the adapter polls", "switch.2") {
+                    MBPIDSetupView()
                 }
             }
 
@@ -2210,7 +2274,12 @@ private struct MBDataTableView: View {
                     MBPanel {
                         VStack(spacing: 0) {
                         if sorted.isEmpty {
-                            Text("Enable measurements in PID Setup to show them in Dashboard, Graphs and Table.")
+                            NavigationLink {
+                                MBPIDSetupView()
+                            } label: {
+                                Label("Choose measurements to populate this table", systemImage: "switch.2")
+                                    .font(MBTypography.subheadlineBold)
+                            }
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
@@ -2289,13 +2358,7 @@ private struct MBDashboardView: View {
                         }
                     }
                     if displayed.isEmpty {
-                        MBPanel {
-                            Text(connection.isActive
-                                 ? "Enable measurements in PID Setup to show them in Dashboard, Graphs and Table."
-                                 : "Connect to the vehicle to populate dashboard measurements.")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
-                        }
+                        MBMeasurementStartPanel()
                     } else {
                         LazyVGrid(columns: mbDashboardColumns, spacing: 12) {
                             ForEach(displayed) { parameter in
@@ -2350,9 +2413,15 @@ private struct MBDieselView: View {
         Array(Set(targetSignals.map(\.category))).sorted()
     }
 
-    private var mappedCount: Int {
+    private var verifiedCount: Int {
         connection.mercedesTargetSignals.filter {
-            $0.status != "corroborated-unmapped"
+            $0.status == "vehicle-verified"
+        }.count
+    }
+
+    private var candidateCount: Int {
+        connection.mercedesTargetSignals.filter {
+            $0.status == "mapping-candidate"
         }.count
     }
 
@@ -2361,7 +2430,7 @@ private struct MBDieselView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Factory data", kicker: "Mercedes-Benz evidence catalogue")
+                    MBSectionHeader(title: "Factory reference", kicker: "Mercedes-Benz evidence catalogue")
 
                     MBPanel {
                         VStack(spacing: 4) {
@@ -2369,8 +2438,10 @@ private struct MBDieselView: View {
                                       value: "\(connection.mercedesTargetSignals.count)")
                             MBInfoRow(label: "Mercedes me identities",
                                       value: "\(connection.mercedesNativeDataIdentities.count)")
-                            MBInfoRow(label: "Mapped / verified targets",
-                                      value: "\(mappedCount)")
+                            MBInfoRow(label: "Vehicle-verified targets",
+                                      value: "\(verifiedCount)")
+                            MBInfoRow(label: "Unverified mapping candidates",
+                                      value: "\(candidateCount)")
                         }
                     }
 
@@ -2403,7 +2474,7 @@ private struct MBDieselView: View {
             prompt: scope == .vehicle
                 ? "Factory value or category"
                 : "Mercedes me identity")
-        .mbDiagnosticScreen("Factory Data")
+        .mbDiagnosticScreen("Factory Reference")
     }
 
     @ViewBuilder
@@ -2693,7 +2764,7 @@ private struct MBTestsView: View {
             MBBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Tests", kicker: "Read-only diagnostic checks")
+                    MBSectionHeader(title: "Readiness", kicker: "Read-only diagnostic status")
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 10) {
@@ -2740,7 +2811,7 @@ private struct MBTestsView: View {
                 .padding(16)
             }
         }
-        .mbDiagnosticScreen("Tests")
+        .mbDiagnosticScreen("Readiness")
     }
 }
 
