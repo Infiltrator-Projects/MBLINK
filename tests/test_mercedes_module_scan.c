@@ -1048,8 +1048,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     {
         MblinkMercedesModuleScanEntry routed;
 
-#define CHECK_ROUTE(TX, RX, NAME, MODULE_KEY, FAMILY_KEY, STATUS) do { \
-        const char *expected_family_key = (FAMILY_KEY); \
+#define CHECK_ROUTE(TX, RX, NAME, MODULE_KEY, STATUS) do { \
         memset(&routed, 0, sizeof(routed)); \
         routed.kind = MBLINK_MERCEDES_MODULE_OTHER; \
         routed.tx_can_id = UINT32_C(TX); \
@@ -1060,44 +1059,45 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(routed.definition->key, MODULE_KEY) == 0); \
         CHECK(strcmp(mblink_mercedes_module_scan_module_name(&routed), NAME) == 0); \
         CHECK(routed.identification_status == STATUS); \
-        if (expected_family_key != NULL) { \
-            CHECK(routed.controller_family != NULL); \
-            CHECK(strcmp(routed.controller_family->key, expected_family_key) == 0); \
-        } \
+        CHECK(routed.controller_family == NULL); \
     } while (0)
 
-        CHECK_ROUTE(0x602, 0x480, "CGW_212 central gateway",
-                    "central-gateway", "gateway-cgw212",
+        CHECK_ROUTE(0x602, 0x480, "Central gateway (CGW)",
+                    "central-gateway",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x60a, 0x481, "Instrument cluster",
-                    "instrument-cluster", NULL,
+                    "instrument-cluster",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x612, 0x482, "EIS/EZS_212 ignition controller",
-                    "eis-ezs", "eis-ezs212",
+        CHECK_ROUTE(0x612, 0x482, "Electronic ignition switch (EIS / EZS)",
+                    "eis-ezs",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x622, 0x484, "SCCM_212 steering-column controller",
-                    "steering-column", "steering-sccm212",
+        CHECK_ROUTE(0x622, 0x484, "Steering column control unit",
+                    "steering-column",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x632, 0x486, "ABR2XT brake/ESP controller",
-                    "esp", "esp-abr2xt",
+        CHECK_ROUTE(0x632, 0x486,
+                    "Electronic Stability Program (ESP) control unit",
+                    "esp",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x64a, 0x489, "ORC_212 restraint controller",
-                    "restraints-orc", "restraints-orc212",
+        CHECK_ROUTE(0x64a, 0x489,
+                    "Occupant restraint / airbag control unit (ORC)",
+                    "restraints-orc",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x652, 0x48a, "HU_204 head unit",
-                    "audio-headunit", "headunit-hu204",
+        CHECK_ROUTE(0x652, 0x48a, "Audio 20 / COMAND head unit",
+                    "audio-headunit",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x6a2, 0x494, "MFK multifunction camera",
-                    "multifunction-camera", "camera-mfk",
+        CHECK_ROUTE(0x6a2, 0x494, "Multifunction camera (MFK)",
+                    "multifunction-camera",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x6ba, 0x497, "RBTMFL_204 reversible belt tensioner",
-                    "belt-pretensioner-left", "pretensioner-rbtmfl204",
+        CHECK_ROUTE(0x6ba, 0x497,
+                    "PRE-SAFE reversible belt tensioner · front left",
+                    "belt-pretensioner-left",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x6c2, 0x498, "RBTMFR_204 reversible belt tensioner",
-                    "belt-pretensioner-right", "pretensioner-rbtmfr204",
+        CHECK_ROUTE(0x6c2, 0x498,
+                    "PRE-SAFE reversible belt tensioner · front right",
+                    "belt-pretensioner-right",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x6fa, 0x49f, "FSCU fuel-pump controller",
-                    "fuel-pump", "fuel-pump-fscu",
+        CHECK_ROUTE(0x6fa, 0x49f, "Fuel-pump control unit (FSCU)",
+                    "fuel-pump",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
 
         /*
@@ -1113,22 +1113,22 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             } saved_routes[] = {
                 { UINT32_C(0x602), UINT32_C(0x480),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "CGW_212 central gateway" },
+                  "Central gateway (CGW)" },
                 { UINT32_C(0x60a), UINT32_C(0x481),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
                   "Instrument cluster" },
                 { UINT32_C(0x612), UINT32_C(0x482),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "EIS/EZS_212 ignition controller" },
+                  "Electronic ignition switch (EIS / EZS)" },
                 { UINT32_C(0x622), UINT32_C(0x484),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "SCCM_212 steering-column controller" },
+                  "Steering column control unit" },
                 { UINT32_C(0x64a), UINT32_C(0x489),
                   MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-                  "ORC_212 restraint controller" },
+                  "Occupant restraint / airbag control unit (ORC)" },
                 { UINT32_C(0x652), UINT32_C(0x48a),
                   MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-                  "HU_204 head unit" }
+                  "Audio 20 / COMAND head unit" }
             };
             size_t saved_index;
             for (saved_index = 0U;
