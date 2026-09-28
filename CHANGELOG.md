@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.250 — 2026-09-28
+
+- Introduce a unified Mercedes ECU definition pack that presents controller key, friendly ECU/module names, component/network, physical TX/RX lookup, resolved protocol/session metadata, aliases, named data items, evidence status and field metadata through one API.
+- Move the Apple manufacturer PID catalogue and Factory Readings onto the same ECU pack so the UI and read engine no longer reconstruct controller capability independently from several tables.
+- Preserve raw vehicle-positive identifiers inside the pack as explicitly unadvertised raw observations, while keeping source-backed live values and documented reads distinct.
+- Add pack-level regression coverage for IC_204, EGS53 grouped 21 30 signals and the ESP raw-observation safety gate, plus architecture documentation and CI invariants.
+
 ## 0.7.249 — 2026-09-28
 
 - Correct IC_204 at 0x60A -> 0x481 to its source-backed HSCAN_UDS_500 / UDS diagnostic protocol instead of allowing the route to fall back to KWP2000.
