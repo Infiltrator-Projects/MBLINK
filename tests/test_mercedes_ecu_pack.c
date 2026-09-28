@@ -164,7 +164,13 @@ static int test_20260928_capture_routes_under_new_engine(void)
         uint32_t rx;
         uint8_t expected_mask;
     } routes[] = {
+        { UINT32_C(0x602), UINT32_C(0x480),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
         { UINT32_C(0x60a), UINT32_C(0x481),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x612), UINT32_C(0x482),
           MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
           MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
         { UINT32_C(0x622), UINT32_C(0x484),
