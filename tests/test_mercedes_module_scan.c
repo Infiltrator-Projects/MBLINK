@@ -893,6 +893,31 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.candidate_rx == UINT32_C(0x482));
 
         /*
+         * The old 0.7.249 vehicle capture tried KWP on these routes before
+         * controller identity was known. Feed the same physical routes into
+         * the new pack-backed discovery selector: the UDS-only MFK route must
+         * start UDS, while reused SCCM and belt-tensioner addresses expose
+         * both variants but also start with the documented UDS family.
+         */
+        {
+            static const uint32_t captured_uds_first[] = {
+                UINT32_C(0x622), UINT32_C(0x6a2),
+                UINT32_C(0x6ba), UINT32_C(0x6c2), UINT32_C(0x6fa)
+            };
+            for (size_t captured_index = 0U;
+                 captured_index <
+                    sizeof(captured_uds_first) /
+                    sizeof(captured_uds_first[0]);
+                 ++captured_index) {
+                CHECK(mblink_mercedes_module_scan_set_full_target(
+                    &scan, mobile_target_index_for_tx(
+                        captured_uds_first[captured_index])));
+                CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+                      MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+            }
+        }
+
+        /*
          * Source-backed slots retain protocol overrides. ORC_212 is KWP2000
          * on the exact 0x64A -> 0x489 lattice pair.
          */
