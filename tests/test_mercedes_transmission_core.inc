@@ -554,7 +554,9 @@ static int test_transport_formatter(void)
     char text[512];
 
     put_bits(payload, 0U, 8U, 100U);
-    put_bits(payload, 17U, 3U, 4U);
+    put_bits(payload, 9U, 3U, 4U);  /* clutch SLIP */
+    put_bits(payload, 17U, 3U, 4U); /* selector D */
+    put_bits(payload, 21U, 3U, 1U); /* program COMFORT */
     put_bits(payload, 32U, 16U, 350U);
     CHECK(mblink_mercedes_transmission_format_can_frame(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
