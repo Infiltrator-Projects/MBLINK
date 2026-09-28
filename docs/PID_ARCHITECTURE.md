@@ -61,6 +61,35 @@ The UI must not populate a Mercedes module merely with SAE Mode 01 PIDs advertis
 
 Unknown or unresolved modules may still appear in the module list. They must not be assigned invented semantics. Only source-backed or exact-route-proven read-only channels may be offered until better identification exists.
 
+## ECU definition packs
+
+Once a controller family is resolved, callers must consume one
+`MblinkMercedesEcuPack` view rather than independently joining route,
+module, controller-family and PID tables in the UI.
+
+The pack is the canonical controller-scoped diagnostic view. It carries:
+
+- the stable controller-family key and human-facing ECU/module names
+- component designation and vehicle network
+- physical request/response CAN identifiers and identifier width
+- the resolved UDS or KWP2000 protocol
+- documented session, TesterPresent and quit commands when available
+- module/controller aliases used for identification
+- the controller-owned data catalogue
+- each data item's service, identifier, real name, live/read-only
+  classification, evidence status, provenance and decoded field metadata
+
+A pack may contain documented identification/configuration reads that are not
+live measurements. It may also retain vehicle-verified raw identifiers whose
+semantics are still unknown. Those raw observations remain explicitly
+`raw-observed` and are never advertised as selectable live PIDs until
+independent semantic evidence promotes them.
+
+Factory Readings and PID Setup must both consume this same pack. Factory
+Readings may issue the pack's safe documented read commands. PID Setup exposes
+only items the pack marks as advertised live data. This prevents the two
+surfaces from developing separate ideas of what a particular ECU supports.
+
 ## Transmission example
 
 For the Mercedes gearbox-control route 0x7E1 -> 0x7E9, MBLINK already contains source-backed KWP2000 transmission knowledge.
@@ -160,7 +189,8 @@ A release satisfies this design only when all of the following are true:
 
 - PID Setup shows the full generic SAE catalogue first.
 - Discovered/saved Mercedes modules appear below it as separate sections.
-- A module's Mercedes choices come from documented controller/family knowledge, not merely its advertised SAE PIDs.
+- A module's Mercedes choices come from its resolved `MblinkMercedesEcuPack`, not merely its advertised SAE PIDs.
+- The ECU pack carries the friendly name, controller key, physical lookup route, protocol/session metadata and named data items as one controller-scoped view.
 - The known transmission module exposes the supported transmission live channels described above.
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery causes no manufacturer live-data request.
