@@ -952,6 +952,8 @@ static int test_documented_global_ecu_catalog(void)
     const MblinkMercedesDocumentedEcuProfile*p=mblink_mercedes_documented_ecu_profile_for_controller_family("transmission-egs53",0x7e1,0x7e9,false,MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
     CHECK(p!=NULL&&strcmp(p->name,"EGS53")==0&&p->read_count==4U);
     bool a=false,b=false,c=false,d=false;for(size_t i=0U;i<p->read_count;++i){const MblinkMercedesDocumentedRead*r=mblink_mercedes_documented_ecu_read_at(p,i);if(r->service==0x1a&&r->identifier==0x86)a=true;if(r->service==0x1a&&r->identifier==0x9a)b=true;if(r->service==0x1a&&r->identifier==0x9c)c=true;if(r->service==0x21&&r->identifier==0xb1)d=true;}CHECK(a&&b&&c&&d);
+    p=mblink_mercedes_documented_ecu_profile_for_controller_family("cluster-ic204",0x60a,0x481,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"IC_204")==0&&p->read_count==9U);
+    CHECK(mblink_mercedes_documented_ecu_profile_for_controller_family("cluster-ic204",0x60a,0x481,false,MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)==NULL);
     p=mblink_mercedes_documented_ecu_profile_for_controller_family("steering-sccm212",0x622,0x484,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"SCCM_212_X")==0);
     p=mblink_mercedes_documented_ecu_profile_for_controller_family("steering-scm",0x622,0x484,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"SCCM_212_X")==0);
     CHECK(mblink_mercedes_documented_field_count(0x22,0xf150)==3U);
