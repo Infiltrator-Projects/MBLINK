@@ -495,6 +495,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         cached[3].tx_can_id = UINT32_C(0x64a);
         cached[3].rx_can_id = UINT32_C(0x489);
+        cached[3].protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
         cached[3].kind = MBLINK_MERCEDES_MODULE_RESTRAINTS;
 
         CHECK(mblink_mercedes_module_scan_begin_cached(
@@ -856,6 +857,24 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.candidate_tx == UINT32_C(0x60a));
+        CHECK(scan.candidate_rx == UINT32_C(0x481));
+        CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+              MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E01") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1802FF00") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.candidate_tx == UINT32_C(0x612));
         CHECK(scan.candidate_rx == UINT32_C(0x482));
 
@@ -1036,8 +1055,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK_ROUTE(0x602, 0x480, "CGW_212 central gateway",
                     "central-gateway", "gateway-cgw212",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x60a, 0x481, "IC_204 instrument cluster",
-                    "instrument-cluster", "cluster-ic204",
+        CHECK_ROUTE(0x60a, 0x481, "Instrument cluster",
+                    "instrument-cluster", NULL,
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x612, 0x482, "EIS/EZS_212 ignition controller",
                     "eis-ezs", "eis-ezs212",
@@ -1083,7 +1102,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   "CGW_212 central gateway" },
                 { UINT32_C(0x60a), UINT32_C(0x481),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "IC_204 instrument cluster" },
+                  "Instrument cluster" },
                 { UINT32_C(0x612), UINT32_C(0x482),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
                   "EIS/EZS_212 ignition controller" },
