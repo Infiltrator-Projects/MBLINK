@@ -1343,7 +1343,6 @@ mblink_mercedes_module_scan_begin_cached(
                 const MblinkMercedesModuleDefinition *definition =
                     mblink_mercedes_module_definition_for_key(
                         route->module_key);
-                destination->protocol = route->protocol;
                 if (definition != NULL) {
                     destination->definition = definition;
                     destination->kind = definition->kind;
@@ -1351,8 +1350,13 @@ mblink_mercedes_module_scan_begin_cached(
                 }
             }
         }
+        mblink_mercedes_module_scan_apply_route_identity(destination);
         if (destination->identity_available)
             mblink_mercedes_module_scan_classify_identity(destination);
+        else
+            mblink_mercedes_module_scan_classify_controller_family(destination);
+        destination->protocol =
+            mblink_mercedes_module_scan_entry_protocol(destination);
     }
     scan->dtc_index = 0U;
     scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
@@ -1767,6 +1771,21 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
         module = mblink_mercedes_module_scan_find_candidate(scan);
         if (module != NULL)
             mblink_mercedes_module_scan_capture_dtc(module, response);
+
+        /*
+         * Some Mercedes generations reuse the same physical CAN route with
+         * different diagnostic protocols.  When the route catalogue proves
+         * that ambiguity and there is no route-specific VIN probe to try,
+         * make one bounded attempt with the other documented protocol before
+         * declaring the address absent.  Once an ECU family is identified,
+         * the resolved ECU pack takes over and no protocol guessing continues.
+         */
+        if (module == NULL &&
+            mblink_mercedes_module_scan_vin_command(scan) == NULL &&
+            mblink_mercedes_module_scan_try_alternate_protocol(scan)) {
+            break;
+        }
+
         if (mblink_mercedes_module_scan_candidate_protocol(scan) ==
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
             if (module != NULL)
