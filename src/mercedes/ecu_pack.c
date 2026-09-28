@@ -135,6 +135,28 @@ uint8_t mblink_mercedes_ecu_pack_route_protocol_mask(
     return mask;
 }
 
+size_t mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol)
+{
+    size_t matches = 0U;
+    const size_t count =
+        mblink_mercedes_documented_ecu_profile_count_for_route(
+            tx_can_id, rx_can_id, extended_id);
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            mblink_mercedes_documented_ecu_profile_at_for_route(
+                tx_can_id, rx_can_id, extended_id, index);
+        if (profile == NULL) continue;
+        if (profile->protocol_known && profile->protocol != protocol) continue;
+        ++matches;
+    }
+    return matches;
+}
+
 bool mblink_mercedes_ecu_pack_resolve(
     const char *module_key,
     const char *controller_family_key,
