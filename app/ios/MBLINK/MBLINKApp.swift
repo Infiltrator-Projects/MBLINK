@@ -979,12 +979,6 @@ private struct MBPIDCatalogueSection: View {
 
 private struct MBVehicleView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
-    @State private var technicalDetailsExpanded = false
-
-    private var totalFaultCount: Int {
-        connection.mercedesUDSFaults.count + connection.storedDTCs.count +
-            connection.pendingDTCs.count + connection.permanentDTCs.count
-    }
 
     private var identityFacts: [MBVehicleFact] {
         guard let identity = connection.vehicleIdentity else { return [] }
@@ -1076,24 +1070,6 @@ private struct MBVehicleView: View {
                                 MBSectionHeader(title: "Build", kicker: "Production identity")
                                 MBVehicleFactGrid(facts: buildFacts)
                             }
-                        }
-                    }
-                    MBPanel {
-                        DisclosureGroup(isExpanded: $technicalDetailsExpanded) {
-                            VStack(spacing: 4) {
-                                MBInfoRow(label: "Connection", value: connection.statusText)
-                                MBInfoRow(label: "Vehicle profile", value: connection.vehicleProfileStatusText)
-                                MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
-                                MBInfoRow(label: "Endpoint", value: connection.mercedesProbeEndpointText)
-                                MBInfoRow(label: "CRD3 identity", value: connection.mercedesCrd3SummaryText)
-                                MBInfoRow(label: "Identity sweep", value: connection.mercedesIdentitySummaryText)
-                                MBInfoRow(label: "Probe", value: connection.mercedesProbeStatusText)
-                            }
-                            .padding(.top, 8)
-                        } label: {
-                            Label("Diagnostic details", systemImage: "wrench.and.screwdriver")
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
                         }
                     }
                 }
@@ -2686,6 +2662,11 @@ private struct MBEvidenceView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
     @State private var showingTechnicalDetails = false
 
+    private var totalFaultCount: Int {
+        connection.mercedesUDSFaults.count + connection.storedDTCs.count +
+            connection.pendingDTCs.count + connection.permanentDTCs.count
+    }
+
     var body: some View {
         ZStack {
             MBBackground()
@@ -2695,6 +2676,12 @@ private struct MBEvidenceView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             MBSectionHeader(title: "Session summary", kicker: "Vehicle evidence")
                             MBInfoRow(label: "VIN", value: connection.mercedesVINText, monospaced: true)
+                            Divider().overlay(MBBrand.line)
+                            MBInfoRow(label: "Connection", value: connection.statusText)
+                            Divider().overlay(MBBrand.line)
+                            MBInfoRow(label: "Vehicle profile", value: connection.vehicleProfileStatusText)
+                            Divider().overlay(MBBrand.line)
+                            MBInfoRow(label: "Fault records", value: "\(totalFaultCount)")
                             Divider().overlay(MBBrand.line)
                             MBInfoRow(label: "Mercedes probe", value: connection.mercedesProbeStatusText)
                             Divider().overlay(MBBrand.line)
@@ -2711,11 +2698,11 @@ private struct MBEvidenceView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Divider().overlay(MBBrand.line)
                                     .padding(.vertical, 5)
-                                MBInfoRow(label: "Engine endpoint", value: connection.mercedesProbeEndpointText)
+                                MBInfoRow(label: "Endpoint", value: connection.mercedesProbeEndpointText)
                                 Divider().overlay(MBBrand.line)
-                                MBInfoRow(label: "Identity", value: connection.mercedesIdentitySummaryText)
+                                MBInfoRow(label: "Identity sweep", value: connection.mercedesIdentitySummaryText)
                                 Divider().overlay(MBBrand.line)
-                                MBInfoRow(label: "CRD3", value: connection.mercedesCrd3SummaryText)
+                                MBInfoRow(label: "CRD3 identity", value: connection.mercedesCrd3SummaryText)
                             }
                         } label: {
                             Label("Technical details", systemImage: "wrench.and.screwdriver")

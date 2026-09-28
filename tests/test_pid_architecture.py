@@ -105,6 +105,23 @@ require(
     and 'Text("Control units")' not in vehicle_view,
     "Vehicle screen must not duplicate the dedicated Modules screen",
 )
+require(
+    "Diagnostic details" not in vehicle_view
+    and 'MBInfoRow(label: "Connection"' not in vehicle_view
+    and 'MBInfoRow(label: "Fault records"' not in vehicle_view,
+    "Vehicle screen must remain vehicle/profile identity only",
+)
+evidence_start = app.index("private struct MBEvidenceView")
+evidence_end = app.index("private struct MBTestsView", evidence_start)
+evidence_view = app[evidence_start:evidence_end]
+require(
+    'MBInfoRow(label: "Connection"' in evidence_view
+    and 'MBInfoRow(label: "Vehicle profile"' in evidence_view
+    and 'MBInfoRow(label: "Fault records"' in evidence_view
+    and 'MBInfoRow(label: "Endpoint"' in evidence_view
+    and 'MBInfoRow(label: "Identity sweep"' in evidence_view,
+    "Evidence screen must own diagnostic/session details",
+)
 modules_start = app.index("private struct MBModulesView")
 modules_end = app.index("private struct MBModuleDetailView", modules_start)
 modules_view = app[modules_start:modules_end]
