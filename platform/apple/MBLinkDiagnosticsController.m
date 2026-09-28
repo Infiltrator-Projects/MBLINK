@@ -367,24 +367,6 @@ static NSString *MBLinkMercedesEndpointText(
         (unsigned int)endpoint->address.rx_can_id];
 }
 
-static void MBLinkCopyProfileString(
-    id value,
-    char *destination,
-    size_t destinationCapacity,
-    bool *available)
-{
-    if (available != NULL) *available = false;
-    if (destination == NULL || destinationCapacity == 0U) return;
-    destination[0] = '\0';
-    if (![value isKindOfClass:[NSString class]]) return;
-    NSString *text = (NSString *)value;
-    if (text.length == 0U) return;
-    const char *utf8 = text.UTF8String;
-    if (utf8 == NULL) return;
-    (void)snprintf(destination, destinationCapacity, "%s", utf8);
-    if (available != NULL) *available = destination[0] != '\0';
-}
-
 static BOOL MBLinkPopulateModuleEntryFromProfile(
     NSDictionary *dictionary,
     MblinkMercedesModuleScanEntry *entry)
@@ -405,70 +387,39 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         return NO;
     }
 
-    memset(entry, 0, sizeof(*entry));
-    entry->tx_can_id = tx.unsignedIntValue;
-    entry->rx_can_id = rx.unsignedIntValue;
-    entry->extended_id = extended.boolValue;
-    entry->protocol =
-        (MblinkMercedesDiagnosticProtocol)protocol.unsignedIntegerValue;
+    NSString *identity = [dictionary[@"identity"] isKindOfClass:[NSString class]]
+        ? dictionary[@"identity"] : nil;
+    NSString *sparePart = [dictionary[@"sparePart"] isKindOfClass:[NSString class]]
+        ? dictionary[@"sparePart"] : nil;
+    NSString *software = [dictionary[@"software"] isKindOfClass:[NSString class]]
+        ? dictionary[@"software"] : nil;
+    NSString *hardware = [dictionary[@"hardware"] isKindOfClass:[NSString class]]
+        ? dictionary[@"hardware"] : nil;
 
-    NSNumber *kind = dictionary[@"kind"];
-    entry->kind = [kind isKindOfClass:[NSNumber class]]
-        ? (MblinkMercedesModuleKind)kind.unsignedIntegerValue
-        : mblink_mercedes_module_scan_kind(
-            entry->tx_can_id, entry->extended_id);
-    /*
-     * Exact family identity remains evidence-gated, but Mercedes CAN
-     * definitions explicitly name 0x7E1/0x7E9 as GS gearbox-control
-     * diagnostic request/response. Route classification may therefore retain
-     * transmission kind even when the ECU declines the UDS identity DIDs.
-     */
-    entry->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
-    entry->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
+    (void)mblink_mercedes_module_scan_resolve_controller(
+        tx.unsignedIntValue,
+        rx.unsignedIntValue,
+        extended.boolValue,
+        (MblinkMercedesDiagnosticProtocol)protocol.unsignedIntegerValue,
+        identity.UTF8String,
+        sparePart.UTF8String,
+        software.UTF8String,
+        hardware.UTF8String,
+        entry);
 
-    MBLinkCopyProfileString(
-        dictionary[@"identity"], entry->identity,
-        sizeof(entry->identity), &entry->identity_available);
-    MBLinkCopyProfileString(
-        dictionary[@"sparePart"], entry->spare_part_number,
-        sizeof(entry->spare_part_number),
-        &entry->spare_part_number_available);
-    MBLinkCopyProfileString(
-        dictionary[@"software"], entry->software_number,
-        sizeof(entry->software_number),
-        &entry->software_number_available);
-    MBLinkCopyProfileString(
-        dictionary[@"hardware"], entry->hardware_number,
-        sizeof(entry->hardware_number),
-        &entry->hardware_number_available);
-    if (!entry->extended_id &&
-        entry->tx_can_id == UINT32_C(0x7e1) &&
-        entry->rx_can_id == UINT32_C(0x7e9)) {
-        entry->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
-        entry->definition = NULL;
-        entry->identification_status =
-            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
-    }
-    if (entry->identity_available)
-        mblink_mercedes_module_scan_classify_identity(entry);
-    if (!entry->extended_id) {
-        const MblinkMercedesKnownRoute *route =
-            mblink_mercedes_known_route_for_tx(entry->tx_can_id);
-        if (route != NULL && route->rx_can_id == entry->rx_can_id) {
-            const MblinkMercedesModuleDefinition *definition =
-                mblink_mercedes_module_definition_for_key(
-                    route->module_key);
-            entry->protocol = route->protocol;
-            if (definition != NULL) {
-                entry->definition = definition;
-                entry->kind = definition->kind;
-                entry->identification_status = definition->status;
-                mblink_mercedes_module_scan_classify_controller_family(entry);
-            }
+    NSString *savedFamilyKey =
+        [dictionary[@"controllerFamily"] isKindOfClass:[NSString class]]
+            ? dictionary[@"controllerFamily"] : nil;
+    if (savedFamilyKey.length != 0U) {
+        const MblinkMercedesControllerFamilyDefinition *savedFamily =
+            mblink_mercedes_controller_family_definition_for_key(
+                savedFamilyKey.UTF8String);
+        if (savedFamily != NULL &&
+            entry->definition != NULL &&
+            strcmp(savedFamily->module_key, entry->definition->key) == 0) {
+            entry->controller_family = savedFamily;
         }
     }
-
-    mblink_mercedes_module_scan_apply_route_identity(entry);
 
     const uint32_t maxID = entry->extended_id
         ? UINT32_C(0x1fffffff) : UINT32_C(0x7ff);
@@ -901,6 +852,36 @@ static bool MBLinkSimulatorResponder(
         evidence = _cachedVehicleProfile[@"engineEvidence"];
     }
     return evidence ?: @[];
+}
+
+- (NSString *)resolvedMercedesModuleNameForRequestCANIdentifier:
+        (uint32_t)requestCANIdentifier
+    responseCANIdentifier:(uint32_t)responseCANIdentifier
+    extendedID:(BOOL)extendedID
+    protocol:(NSUInteger)protocol
+    identityText:(nullable NSString *)identityText
+    partNumber:(nullable NSString *)partNumber
+    softwareNumber:(nullable NSString *)softwareNumber
+    hardwareNumber:(nullable NSString *)hardwareNumber
+{
+    MblinkMercedesModuleScanEntry resolved;
+    MblinkMercedesDiagnosticProtocol diagnosticProtocol =
+        protocol <= (NSUInteger)MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+            ? (MblinkMercedesDiagnosticProtocol)protocol
+            : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+
+    (void)mblink_mercedes_module_scan_resolve_controller(
+        requestCANIdentifier,
+        responseCANIdentifier,
+        extendedID,
+        diagnosticProtocol,
+        identityText.UTF8String,
+        partNumber.UTF8String,
+        softwareNumber.UTF8String,
+        hardwareNumber.UTF8String,
+        &resolved);
+    return MBLinkStringFromCString(
+        mblink_mercedes_module_scan_module_name(&resolved));
 }
 
 - (NSArray<MBLinkMercedesModuleSnapshot *> *)mercedesModuleSnapshots
@@ -3212,8 +3193,27 @@ static void MBLinkAppendManufacturerDefinition(
             @"extended": @(module->extended_id),
             @"protocol": @((NSUInteger)
                 mblink_mercedes_module_scan_entry_protocol(module)),
-            @"kind": @((NSUInteger)module->kind)
+            @"kind": @((NSUInteger)module->kind),
+            @"name": MBLinkStringFromCString(
+                mblink_mercedes_module_scan_module_name(module))
         } mutableCopy];
+        if (module->definition != NULL) {
+            if (module->definition->key != NULL)
+                dictionary[@"moduleKey"] =
+                    MBLinkStringFromCString(module->definition->key);
+            if (module->definition->component_designation != NULL)
+                dictionary[@"designation"] =
+                    MBLinkStringFromCString(
+                        module->definition->component_designation);
+            if (module->definition->network != NULL)
+                dictionary[@"network"] =
+                    MBLinkStringFromCString(module->definition->network);
+        }
+        if (module->controller_family != NULL &&
+            module->controller_family->key != NULL) {
+            dictionary[@"controllerFamily"] =
+                MBLinkStringFromCString(module->controller_family->key);
+        }
         if (module->identity_available)
             dictionary[@"identity"] =
                 MBLinkStringFromCString(module->identity);
