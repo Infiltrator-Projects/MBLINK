@@ -1654,7 +1654,50 @@ bool mblink_mercedes_egs52_decode_signal(const MblinkMercedesEgs52SignalDefiniti
  MblinkMercedesEgs52DecodedSignal x;uint64_t r;size_t i;
  if(s==NULL||d==NULL)return false;
  if(s->masked){if(!masked(s,p,n,&r))return false;}else if(!plain(p,n,s->bit_offset,s->bit_length,&r))return false;
- memset(&x,0,sizeof(x));x.raw=r;
+ memset(&x,0,sizeof(x));x.raw=r;x.unit=s->unit;
+
+ /*
+  * EGS52 read semantics from can_egs52.cpp and its unambiguous setters.
+  * These rules remain EGS52-only; do not borrow them into EGS51/53.
+  */
+ if ((strcmp(s->name,"T_MOT")==0 || strcmp(s->name,"T_OEL")==0 ||
+      strcmp(s->name,"T_LUFT")==0 || strcmp(s->name,"FMMOTMAX")==0 ||
+      strcmp(s->name,"M_KOMP")==0) && r==UINT64_C(255)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if ((strcmp(s->name,"DHR")==0 || strcmp(s->name,"DHL")==0) &&
+     r==UINT64_C(0x3fff)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if (strcmp(s->name,"T_MOT")==0 || strcmp(s->name,"T_OEL")==0 ||
+     strcmp(s->name,"T_LUFT")==0) {
+  x.physical_available=true;x.physical_value=(double)r-40.0;x.unit="°C";
+  *d=x;return true;
+ }
+ if (strcmp(s->name,"T_GET")==0) {
+  x.physical_available=true;x.physical_value=(double)r-50.0;x.unit="°C";
+  *d=x;return true;
+ }
+ if (strcmp(s->name,"VB")==0) {
+  x.physical_available=true;x.physical_value=(double)r*0.868;
+  x.unit="µL/250ms";*d=x;return true;
+ }
+ if (strcmp(s->name,"M_EGS")==0 || strcmp(s->name,"M_STA")==0 ||
+     strcmp(s->name,"M_MIN")==0 || strcmp(s->name,"M_MAX")==0 ||
+     strcmp(s->name,"M_ESPV")==0 || strcmp(s->name,"DM_ART")==0 ||
+     strcmp(s->name,"M_ESP")==0) {
+  x.physical_available=true;x.physical_value=(double)r*0.25-500.0;
+  x.unit="Nm";*d=x;return true;
+ }
+ if (strcmp(s->name,"M_VERL")==0 || strcmp(s->name,"M_KOMP")==0) {
+  x.physical_available=true;x.physical_value=(double)r*0.25;
+  x.unit="Nm";*d=x;return true;
+ }
+ if (strcmp(s->name,"FMMOTMAX")==0) {
+  x.physical_available=true;x.physical_value=(double)r*0.0078;
+  x.unit="ratio";*d=x;return true;
+ }
+
  switch(s->type){
  case MBLINK_MERCEDES_EGS52_SIGNAL_BOOL:x.boolean_available=true;x.boolean_value=r!=0U;break;
  case MBLINK_MERCEDES_EGS52_SIGNAL_NUMBER:x.physical_available=true;x.physical_value=(double)r*s->multiplier+s->offset;break;
