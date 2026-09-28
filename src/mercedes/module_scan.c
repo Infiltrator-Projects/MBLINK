@@ -118,7 +118,8 @@ typedef struct MblinkMercedesResearchRouteIdentity {
 static const MblinkMercedesResearchRouteIdentity
 mblink_mercedes_research_route_identities[] = {
     { UINT32_C(0x602), UINT32_C(0x480),
-      "central-gateway", NULL, MBLINK_MERCEDES_DEFINITION_CANDIDATE },
+      "central-gateway", "gateway-cgw212",
+      MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
     { UINT32_C(0x60a), UINT32_C(0x481),
       "instrument-cluster", "cluster-ic204",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
@@ -126,7 +127,7 @@ mblink_mercedes_research_route_identities[] = {
       "eis-ezs", "eis-ezs212",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
     { UINT32_C(0x622), UINT32_C(0x484),
-      "steering-column", "steering-scm",
+      "steering-column", "steering-sccm212",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
     { UINT32_C(0x632), UINT32_C(0x486),
       "esp", "esp-abr2xt",
