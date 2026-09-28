@@ -67,6 +67,12 @@ require(
     "the main-screen PID Setup tile must be the only route into PID selection",
 )
 require(
+    "MBDieselView" not in app
+    and "Factory reference" not in app
+    and "Factory Reference" not in app,
+    "obsolete Factory Reference UI must not exist",
+)
+require(
     "MBMeasurementStartPanel" not in app
     and "MBPIDModuleSetupView" not in app,
     "no secondary PID-selection helper view may exist",
@@ -139,6 +145,33 @@ require(
     "MBPIDSetupView" not in live_view
     and "Choose PIDs" not in live_view,
     "Live Data must only display live data and must not expose PID selection",
+)
+
+documented_defs_start = controller.index(
+    "documentedDataDefinitionsForModuleIdentifier:"
+)
+documented_defs_end = controller.index(
+    "loadSavedVehicleProfileForPIDConfiguration:", documented_defs_start
+)
+documented_defs = controller[documented_defs_start:documented_defs_end]
+require(
+    "mblink_mercedes_documented_route_read_" not in documented_defs
+    and "mblink_mercedes_route_evidence_identifier_" not in documented_defs,
+    "PID catalogue must come from the identified ECU profile, not route fallbacks",
+)
+require(
+    ".filter { $0.live }" in model,
+    "manufacturer PID Setup must expose documented live values only",
+)
+require(
+    "runtimeCandidateIdentifiersForModule" not in controller
+    and "mblink_mercedes_data_scan_begin_probe_identifiers" not in controller
+    and "mblink_mercedes_data_scan_begin(" not in controller,
+    "Apple runtime must not probe or brute-force manufacturer PID candidates",
+)
+require(
+    "mblink_mercedes_documented_route_read_" not in controller,
+    "Apple manufacturer reads must not use route-wide documented unions",
 )
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")

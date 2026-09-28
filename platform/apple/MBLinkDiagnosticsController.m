@@ -92,10 +92,8 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
             (const MblinkMercedesModuleScanEntry *)module
                                                            identifier:
             (NSString *)identifier;
-- (NSArray<NSNumber *> *)runtimeCandidateIdentifiersForModule:
-            (const MblinkMercedesModuleScanEntry *)module
-                                                      identifier:
-            (NSString *)identifier;
+- (NSArray<NSNumber *> *)documentedLiveIdentifiersForModuleIdentifier:
+    (NSString *)identifier;
 - (void)updateScheduledManufacturerLiveJob;
 - (void)beginScheduledTransmissionLiveJob;
 - (void)beginScheduledManufacturerChannelRestore;
@@ -141,12 +139,10 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
         _standardDataLatest;
     NSUInteger _manufacturerDataRequestGeneration;
     BOOL _manufacturerDataForceFullScan;
-    BOOL _automaticTransmissionTemperatureProbeAttempted;
     BOOL _manufacturerDataScanLiveOnly;
     BOOL _scheduledManufacturerJobRegistered;
     BOOL _scheduledManufacturerJobActive;
     MBLinkScheduledRestoreStage _scheduledManufacturerRestoreStage;
-    NSMutableSet<NSString *> *_automaticManufacturerCandidateAttempts;
     NSMutableDictionary<NSString *, NSSet<NSNumber *> *> *
         _selectedManufacturerLiveIdentifiersByModule;
     NSUInteger _scheduledManufacturerModuleCursor;
@@ -326,29 +322,8 @@ static BOOL MBLinkTransmissionModuleSupportsCanonical2130(
 
     const MblinkMercedesTransmissionFamily family =
         MBLinkTransmissionFamilyForModule(module);
-    if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN) {
-        return mblink_mercedes_transmission_family_uses_2130_actual_values(
-            family);
-    }
-
-    const size_t evidenceCount =
-        mblink_mercedes_route_evidence_identifier_count(
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            mblink_mercedes_module_scan_entry_protocol(module),
-            module->kind);
-    for (size_t index = 0U; index < evidenceCount; ++index) {
-        const MblinkMercedesRouteEvidenceEntry *entry =
-            mblink_mercedes_route_evidence_identifier_at(
-                module->tx_can_id, module->rx_can_id,
-                module->extended_id,
-                mblink_mercedes_module_scan_entry_protocol(module),
-                module->kind, index);
-        if (entry != NULL && entry->live &&
-            entry->identifier == UINT16_C(0x30)) {
-            return YES;
-        }
-    }
-    return NO;
+    return family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN &&
+        mblink_mercedes_transmission_family_uses_2130_actual_values(family);
 }
 
 static BOOL MBLinkDecodeTransmissionLive2130(
@@ -793,13 +768,10 @@ static bool MBLinkSimulatorResponder(
     _standardDataByResponder = [[NSMutableDictionary alloc] init];
     _standardDataLatest = [[NSMutableDictionary alloc] init];
     _manufacturerDataForceFullScan = NO;
-    _automaticTransmissionTemperatureProbeAttempted = NO;
     _manufacturerDataScanLiveOnly = NO;
     _scheduledManufacturerJobRegistered = NO;
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
-    _automaticManufacturerCandidateAttempts =
-        [[NSMutableSet alloc] init];
     _selectedManufacturerLiveIdentifiersByModule =
         [[NSMutableDictionary alloc] init];
     _scheduledManufacturerModuleCursor = 0U;
@@ -1478,110 +1450,6 @@ static bool MBLinkSimulatorResponder(
     return [[ids array] sortedArrayUsingSelector:@selector(compare:)];
 }
 
-- (NSArray<NSNumber *> *)runtimeCandidateIdentifiersForModule:
-            (const MblinkMercedesModuleScanEntry *)module
-                                                      identifier:
-            (NSString *)identifier
-{
-    if (module == NULL || identifier.length == 0U) return @[];
-
-    NSSet<NSNumber *> *known = [NSSet setWithArray:
-        [self runtimeManufacturerDataIdentifiersForModule:module
-                                                identifier:identifier]];
-    NSMutableOrderedSet<NSNumber *> *candidates =
-        [[NSMutableOrderedSet alloc] init];
-
-    if (MBLinkMercedesModuleIsTransmissionController(module) &&
-        mblink_mercedes_module_scan_entry_protocol(module) ==
-            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
-        const MblinkMercedesTransmissionFamily family =
-            MBLinkTransmissionFamilyForModule(module);
-        const size_t profileCount =
-            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-                family);
-        for (size_t index = 0U; index < profileCount; ++index) {
-            const uint8_t candidate =
-                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
-                    family, index);
-            if (!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
-                    family, candidate)) {
-                continue;
-            }
-            NSNumber *number = @((uint16_t)candidate);
-            if ([known containsObject:number]) continue;
-            NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
-                identifier, (unsigned int)candidate];
-            if ([_automaticManufacturerCandidateAttempts
-                    containsObject:attemptKey]) {
-                continue;
-            }
-            [candidates addObject:number];
-        }
-    }
-
-    const char *profileKey =
-        MBLinkMercedesDataProfileKeyForModule(module);
-    const MblinkMercedesDiagnosticProtocol protocol =
-        mblink_mercedes_module_scan_entry_protocol(module);
-    const size_t profileCount =
-        mblink_mercedes_controller_data_profile_identifier_count(
-            profileKey, protocol);
-    for (size_t index = 0U; index < profileCount; ++index) {
-        const MblinkMercedesControllerDataProfileEntry *entry =
-            mblink_mercedes_controller_data_profile_identifier_at(
-                profileKey, protocol, index);
-        if (entry == NULL || !entry->live) continue;
-        NSNumber *number = @(entry->identifier);
-        if ([known containsObject:number]) continue;
-
-        NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
-            identifier, (unsigned int)entry->identifier];
-        if ([_automaticManufacturerCandidateAttempts
-                containsObject:attemptKey]) {
-            continue;
-        }
-        [candidates addObject:number];
-    }
-    const size_t evidenceCount =
-        mblink_mercedes_route_evidence_identifier_count(
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            protocol, module->kind);
-    for (size_t index = 0U; index < evidenceCount; ++index) {
-        const MblinkMercedesRouteEvidenceEntry *entry =
-            mblink_mercedes_route_evidence_identifier_at(
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                protocol, module->kind, index);
-        if (entry == NULL || !entry->live) continue;
-        NSNumber *number = @(entry->identifier);
-        if ([known containsObject:number]) continue;
-
-        NSString *attemptKey = [NSString stringWithFormat:@"%@:%04X",
-            identifier, (unsigned int)entry->identifier];
-        if ([_automaticManufacturerCandidateAttempts
-                containsObject:attemptKey]) {
-            continue;
-        }
-        [candidates addObject:number];
-    }
-
-    /*
- * Readable does not automatically mean safe to poll continuously.
- * Route-specific runtime policy is the final automatic-read gate.
- */
-NSMutableArray<NSNumber *> *runtimeSafe = [[NSMutableArray alloc] init];
-for (NSNumber *candidate in candidates) {
-    const NSUInteger value = candidate.unsignedIntegerValue;
-    if (value <= UINT16_MAX &&
-        mblink_mercedes_data_identifier_is_runtime_refreshable(
-            module->tx_can_id, module->rx_can_id,
-            module->extended_id, protocol, (uint16_t)value)) {
-        [runtimeSafe addObject:candidate];
-    }
-}
-return [runtimeSafe copy];
-}
-
-
 - (nullable NSString *)selectedManufacturerModuleIdentifierAdvancing:
     (BOOL)advance
 {
@@ -1600,15 +1468,8 @@ return [runtimeSafe copy];
             _selectedManufacturerLiveIdentifiersByModule[identifier];
         if (selected.count == 0U) continue;
 
-        NSArray<NSNumber *> *runtime =
-            [self runtimeManufacturerDataIdentifiersForModule:module
-                                                   identifier:identifier];
-        NSArray<NSNumber *> *candidates =
-            [self runtimeCandidateIdentifiersForModule:module
-                                             identifier:identifier];
-        NSMutableSet<NSNumber *> *available =
-            [NSMutableSet setWithArray:runtime];
-        [available addObjectsFromArray:candidates];
+        NSMutableSet<NSNumber *> *available = [NSMutableSet setWithArray:
+            [self documentedLiveIdentifiersForModuleIdentifier:identifier]];
         [available intersectSet:selected];
         if (available.count == 0U) continue;
 
@@ -1700,15 +1561,10 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
         return;
     }
 
-    NSArray<NSNumber *> *runtime = MBLinkFilterIdentifiersBySelection(
-        [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:moduleIdentifier],
+    NSArray<NSNumber *> *documented = MBLinkFilterIdentifiersBySelection(
+        [self documentedLiveIdentifiersForModuleIdentifier:moduleIdentifier],
         selected);
-    NSArray<NSNumber *> *candidates = MBLinkFilterIdentifiersBySelection(
-        [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:moduleIdentifier],
-        selected);
-    if (runtime.count == 0U && candidates.count == 0U) {
+    if (documented.count == 0U) {
         _scheduledManufacturerJobActive = NO;
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         [self updateScheduledManufacturerLiveJob];
@@ -1720,8 +1576,7 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
         moduleIdentifier
                                           forceFullScan:NO
                                                liveOnly:YES
-                                   candidateIdentifiers:
-        candidates.count != 0U ? candidates : runtime];
+                                   candidateIdentifiers:documented];
 }
 
 - (void)beginScheduledManufacturerChannelRestore
@@ -1956,49 +1811,6 @@ static void MBLinkAppendManufacturerDefinition(
         }
     }
 
-    /*
-     * If identity has not selected one controller generation yet, expose the
-     * de-duplicated safe read union for every documented controller that uses
-     * this exact route/protocol. Positive replies then become vehicle evidence;
-     * the route alone is never presented as proof of a particular generation.
-     */
-    if (documentedProfile == NULL) {
-        const size_t routeReadCount =
-            mblink_mercedes_documented_route_read_count(
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                protocol);
-        for (size_t index = 0U; index < routeReadCount; ++index) {
-            const MblinkMercedesDocumentedRead *read =
-                mblink_mercedes_documented_route_read_at(
-                    module->tx_can_id, module->rx_can_id,
-                    module->extended_id, protocol, index);
-            if (read == NULL) continue;
-            const char *name =
-                mblink_mercedes_documented_read_name(
-                    read->service, read->identifier);
-            NSString *title = name != NULL
-                ? MBLinkStringFromCString(name)
-                : [NSString stringWithFormat:
-                    @"Documented route read %02X %04X",
-                    (unsigned int)read->service,
-                    (unsigned int)read->identifier];
-            MBLinkAppendManufacturerDefinition(
-                values, seenWireKeys,
-                MBLinkManufacturerStableKey(
-                    identifier, read->service, read->identifier),
-                read->service, read->identifier,
-                [NSString stringWithFormat:@"%02X %04X",
-                    (unsigned int)read->service,
-                    (unsigned int)read->identifier],
-                title,
-                [NSString stringWithFormat:
-                    @"%@ · exact-route candidate set",
-                    MBLinkStringFromCString(
-                        mblink_mercedes_documented_route_source())],
-                read->service == UINT8_C(0x21), NO);
-        }
-    }
-
     const char *profileKey = MBLinkMercedesDataProfileKeyForModule(module);
     const size_t profileCount =
         mblink_mercedes_controller_data_profile_identifier_count(
@@ -2019,28 +1831,6 @@ static void MBLinkAppendManufacturerDefinition(
             YES, NO);
     }
 
-    const size_t evidenceCount =
-        mblink_mercedes_route_evidence_identifier_count(
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            protocol, module->kind);
-    for (size_t index = 0U; index < evidenceCount; ++index) {
-        const MblinkMercedesRouteEvidenceEntry *entry =
-            mblink_mercedes_route_evidence_identifier_at(
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                protocol, module->kind, index);
-        if (entry == NULL || !entry->live) continue;
-        MBLinkAppendManufacturerDefinition(
-            values, seenWireKeys,
-            MBLinkManufacturerStableKey(identifier, service, entry->identifier),
-            service, entry->identifier,
-            [NSString stringWithFormat:@"%02X %04X",
-                (unsigned int)service, (unsigned int)entry->identifier],
-            [NSString stringWithFormat:@"Documented module data 0x%04X",
-                (unsigned int)entry->identifier],
-            MBLinkStringFromCString(entry->provenance),
-            YES, NO);
-    }
-
     [values sortUsingComparator:^NSComparisonResult(
         MBLinkManufacturerPIDDefinitionSnapshot *left,
         MBLinkManufacturerPIDDefinitionSnapshot *right) {
@@ -2049,6 +1839,19 @@ static void MBLinkAppendManufacturerDefinition(
         return [left.title compare:right.title];
     }];
     return [values copy];
+}
+
+- (NSArray<NSNumber *> *)documentedLiveIdentifiersForModuleIdentifier:
+    (NSString *)identifier
+{
+    NSMutableOrderedSet<NSNumber *> *identifiers =
+        [[NSMutableOrderedSet alloc] init];
+    for (MBLinkManufacturerPIDDefinitionSnapshot *definition in
+         [self documentedDataDefinitionsForModuleIdentifier:identifier]) {
+        if (!definition.live) continue;
+        [identifiers addObject:@(definition.identifier)];
+    }
+    return [[identifiers array] sortedArrayUsingSelector:@selector(compare:)];
 }
 
 - (void)loadSavedVehicleProfileForPIDConfiguration:(NSString *)vin
@@ -2293,7 +2096,7 @@ static void MBLinkAppendManufacturerDefinition(
 - (void)rescanManufacturerDataForModuleIdentifier:(NSString *)identifier
 {
     [self beginManufacturerDataScanForModuleIdentifier:identifier
-                                         forceFullScan:YES];
+                                         forceFullScan:NO];
 }
 
 - (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
@@ -2335,11 +2138,9 @@ static void MBLinkAppendManufacturerDefinition(
     _manufacturerDataScanLiveOnly = liveOnly;
     const NSUInteger generation = ++_manufacturerDataRequestGeneration;
     self.manufacturerDataScanModuleIdentifier = identifier;
-    self.manufacturerDataScanStatusText = forceFullScan
-        ? @"Waiting for a safe gap to rescan the full module data range"
-        : (liveOnly
-            ? @"Waiting for a safe gap to refresh live Mercedes data"
-            : @"Waiting for a safe gap to refresh known module data");
+    self.manufacturerDataScanStatusText = liveOnly
+        ? @"Waiting for a safe gap to refresh selected documented Mercedes data"
+        : @"Waiting for a safe gap to read documented ECU data";
     [self notifyDelegate];
 
     [self tryBeginManufacturerDataScanForModuleIdentifier:identifier
@@ -2446,20 +2247,8 @@ static void MBLinkAppendManufacturerDefinition(
     const size_t documentedControllerReadCount =
         mblink_mercedes_documented_ecu_read_count(
             documentedControllerProfile);
-    const size_t documentedRouteReadCount =
-        documentedControllerProfile == NULL
-            ? mblink_mercedes_documented_route_read_count(
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                mblink_mercedes_module_scan_entry_protocol(module))
-            : 0U;
     const BOOL profiledDocumentedModule =
-        documentedControllerReadCount != 0U ||
-        documentedRouteReadCount != 0U;
-    const size_t routeEvidenceCount =
-        mblink_mercedes_route_evidence_identifier_count(
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            mblink_mercedes_module_scan_entry_protocol(module),
-            module->kind);
+        documentedControllerReadCount != 0U;
 
     BOOL targetedRefresh =
         !_manufacturerDataForceFullScan &&
@@ -2477,37 +2266,24 @@ static void MBLinkAppendManufacturerDefinition(
             }
         }
     }
-    BOOL candidateProbe = NO;
     MblinkMercedesDataScanResult result =
         MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
 
-    if (candidateIdentifiers.count != 0U &&
-        !_manufacturerDataForceFullScan) {
+    if (candidateIdentifiers.count != 0U) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
         for (NSNumber *number in candidateIdentifiers) {
             if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
                 break;
-            const NSUInteger candidate = number.unsignedIntegerValue;
-            if (candidate > UINT16_MAX) continue;
-            identifiers[identifierCount++] = (uint16_t)candidate;
+            const NSUInteger documentedIdentifier = number.unsignedIntegerValue;
+            if (documentedIdentifier > UINT16_MAX) continue;
+            identifiers[identifierCount++] = (uint16_t)documentedIdentifier;
         }
 
         if (identifierCount != 0U) {
-            result = mblink_mercedes_data_scan_begin_probe_identifiers(
+            result = mblink_mercedes_data_scan_begin_identifiers(
                 &_manufacturerDataScan, &config,
                 identifiers, identifierCount);
-            candidateProbe =
-                result == MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
-            if (candidateProbe) {
-                for (size_t index = 0U; index < identifierCount; ++index) {
-                    NSString *attemptKey = [NSString stringWithFormat:
-                        @"%@:%04X", identifier,
-                        (unsigned int)identifiers[index]];
-                    [_automaticManufacturerCandidateAttempts
-                        addObject:attemptKey];
-                }
-            }
         }
     } else if (targetedRefresh) {
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
@@ -2555,17 +2331,12 @@ static void MBLinkAppendManufacturerDefinition(
             targetedRefresh = NO;
         }
 
-        if (!liveOnly &&
-            result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+        if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK)
             targetedRefresh = NO;
-            result = mblink_mercedes_data_scan_begin(
-                &_manufacturerDataScan, &config);
-        }
     } else if (!_manufacturerDataForceFullScan && !liveOnly &&
                (profiledTransmissionModule ||
                 profiledControllerModule ||
-                profiledDocumentedModule ||
-                routeEvidenceCount != 0U)) {
+                profiledDocumentedModule)) {
         /*
          * Global controller documentation is expressed as exact read commands,
          * not just integer IDs. Keep service+identifier together so a KWP
@@ -2637,37 +2408,9 @@ static void MBLinkAppendManufacturerDefinition(
                 if (read != NULL)
                     APPEND_READ_COMMAND(read->service, read->identifier);
             }
-        } else if (documentedRouteReadCount != 0U) {
-            for (size_t index = 0U;
-                 index < documentedRouteReadCount; ++index) {
-                const MblinkMercedesDocumentedRead *read =
-                    mblink_mercedes_documented_route_read_at(
-                        module->tx_can_id, module->rx_can_id,
-                        module->extended_id,
-                        mblink_mercedes_module_scan_entry_protocol(module),
-                        index);
-                if (read != NULL)
-                    APPEND_READ_COMMAND(read->service, read->identifier);
-            }
+        }
         }
 
-        {
-            const uint8_t evidenceService =
-                mblink_mercedes_module_scan_entry_protocol(module) ==
-                    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
-                    ? UINT8_C(0x21) : UINT8_C(0x22);
-            for (size_t index = 0U; index < routeEvidenceCount; ++index) {
-                const MblinkMercedesRouteEvidenceEntry *entry =
-                    mblink_mercedes_route_evidence_identifier_at(
-                        module->tx_can_id, module->rx_can_id,
-                        module->extended_id,
-                        mblink_mercedes_module_scan_entry_protocol(module),
-                        module->kind, index);
-                if (entry != NULL)
-                    APPEND_READ_COMMAND(
-                        evidenceService, entry->identifier);
-            }
-        }
 
 #undef APPEND_READ_COMMAND
 
@@ -2676,9 +2419,6 @@ static void MBLinkAppendManufacturerDefinition(
                 &_manufacturerDataScan, &config,
                 commands, commandCount);
         }
-    } else if (!liveOnly) {
-        result = mblink_mercedes_data_scan_begin(
-            &_manufacturerDataScan, &config);
     }
 
     /*
@@ -2706,7 +2446,7 @@ static void MBLinkAppendManufacturerDefinition(
     if (result != MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:YES];
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
-            @"Mercedes data scan could not start: %@",
+            @"Documented Mercedes data read could not start: %@",
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_result_name(result))];
         self.manufacturerDataScanModuleIdentifier = nil;
@@ -2721,8 +2461,7 @@ static void MBLinkAppendManufacturerDefinition(
         const size_t count = _manufacturerDataScan.identifier_list_active
             ? _manufacturerDataScan.identifier_count : 1U;
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
-            @"Live Mercedes %@ · %zu runtime ID%@ · %@",
-            candidateProbe ? @"candidate observation" : @"refresh",
+            @"Live Mercedes documented refresh · %zu ID%@ · %@",
             count, count == 1U ? @"" : @"s",
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_stage_name(
@@ -2737,10 +2476,7 @@ static void MBLinkAppendManufacturerDefinition(
                     _manufacturerDataScan.stage))];
     } else {
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
-            @"%@ · %@",
-            _manufacturerDataForceFullScan
-                ? @"Rescanning full Mercedes manufacturer-data range"
-                : @"Reading Mercedes manufacturer data",
+            @"Reading documented Mercedes ECU data · %@",
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_stage_name(
                     _manufacturerDataScan.stage))];
@@ -2782,7 +2518,7 @@ static void MBLinkAppendManufacturerDefinition(
                                    timeout:mblink_mercedes_data_scan_timeout_ms(
                                        &_manufacturerDataScan)]) {
         [self finishManufacturerDataScanWithStatus:
-            @"Mercedes manufacturer-data command could not be sent"];
+            @"Documented Mercedes data command could not be sent"];
     }
 }
 
@@ -2967,10 +2703,8 @@ static void MBLinkAppendManufacturerDefinition(
 {
     [self publishManufacturerDataScanResults];
     /*
-     * Positive manufacturer identifiers are expensive to discover but cheap to
-     * refresh. Persist them against the VIN/module route immediately so a later
-     * session can target only known positives instead of repeating the full
-     * 0x20xx / KWP local-ID sweep.
+     * Retain documented-read results against the VIN/module profile so later
+     * sessions can show prior evidence without performing PID discovery.
      */
     [self saveCurrentVehicleProfile];
 
@@ -2981,29 +2715,6 @@ static void MBLinkAppendManufacturerDefinition(
     const MblinkMercedesModuleScanEntry *finishedModule =
         [self moduleEntryForIdentifier:
             self.manufacturerDataScanModuleIdentifier];
-    if (finishedModule != NULL &&
-        !finishedModule->extended_id &&
-        finishedModule->tx_can_id == UINT32_C(0x7e1) &&
-        finishedModule->rx_can_id == UINT32_C(0x7e9) &&
-        _automaticTransmissionTemperatureProbeAttempted) {
-        const size_t candidateCount =
-            mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-                finishedModule->tx_can_id,
-                finishedModule->rx_can_id,
-                finishedModule->extended_id);
-        for (size_t index = 0U; index < candidateCount; ++index) {
-            const uint16_t candidate =
-                mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-                    finishedModule->tx_can_id,
-                    finishedModule->rx_can_id,
-                    finishedModule->extended_id,
-                    index);
-            NSString *attemptKey = [NSString stringWithFormat:
-                @"%@:%04X", self.manufacturerDataScanModuleIdentifier,
-                (unsigned int)candidate];
-            [_automaticManufacturerCandidateAttempts addObject:attemptKey];
-        }
-    }
     const NSUInteger retained =
         _manufacturerDataByModule[module].count;
     self.manufacturerDataScanStatusText = [NSString stringWithFormat:

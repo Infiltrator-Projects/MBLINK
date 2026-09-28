@@ -604,9 +604,8 @@ private struct MBCommandCentreView: View {
                 MBHomeTile("Readiness", "Monitor status and freeze-frame records", "checkmark.square.fill") { MBTestsView() }
                 MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") { MBSettingsView() }
             }
-            MBSectionHeader(title: "Reference", kicker: "Research and unavailable procedures")
+            MBSectionHeader(title: "Reference", kicker: "Unavailable procedures")
             LinkDiagnosticGrid {
-                MBHomeTile("Factory reference", "Research identifiers; live values are in Modules", "books.vertical.fill") { MBDieselView() }
                 MBHomeTile("Service reference", "Generic UDS codes; no active vehicle procedures", "wrench.and.screwdriver.fill") { MBServicesView() }
             }
         }
@@ -1190,24 +1189,6 @@ private struct MBModulesView: View {
                             NavigationLink { MBFactoryReadingsView() } label: {
                                 HStack {
                                     Label("Open factory readings", systemImage: "engine.combustion.fill")
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                            }
-                        }
-                    }
-
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Factory reference", kicker: "Mercedes target catalogue")
-                            Text("\(connection.mercedesTargetSignals.count) evidence-backed manufacturer value identities")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
-                            NavigationLink { MBDieselView() } label: {
-                                HStack {
-                                    Label("Open research targets", systemImage: "books.vertical.fill")
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                 }
@@ -2173,7 +2154,7 @@ private struct MBFactoryReadingsView: View {
                                 .font(MBTypography.subheadlineBold)
                                 .foregroundStyle(MBBrand.silverBright)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Each read uses the selected module's route. Values without a verified scale stay in raw form. Choose a module to see its full responses and evidence.")
+                            Text("Each read uses only the documented commands for the identified ECU. Values without a verified scale stay in raw form. No PID discovery scan is performed.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.silver)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2238,7 +2219,7 @@ private struct MBFactoryReadingsView: View {
                                 Button {
                                     connection.discoverManufacturerData(moduleID: module.id)
                                 } label: {
-                                    Label(values.isEmpty ? "Read module data" : "Refresh known readings",
+                                    Label(values.isEmpty ? "Read documented data" : "Refresh documented readings",
                                           systemImage: "arrow.clockwise")
                                         .font(MBTypography.subheadlineBold)
                                 }
@@ -2368,221 +2349,6 @@ private struct MBDashboardView: View {
             }
         }
         .mbDiagnosticScreen("Dashboard")
-    }
-}
-
-private struct MBDieselView: View {
-    private enum Scope: String, CaseIterable, Identifiable {
-        case vehicle = "Vehicle targets"
-        case mercedesMe = "Mercedes me IDs"
-        var id: String { rawValue }
-    }
-
-    @EnvironmentObject private var connection: ConnectionViewModel
-    @State private var searchText = ""
-    @State private var scope: Scope = .vehicle
-
-    private var targetSignals: [MercedesTargetSignal] {
-        guard scope == .vehicle else { return [] }
-        guard !searchText.isEmpty else { return connection.mercedesTargetSignals }
-        return connection.mercedesTargetSignals.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.category.localizedCaseInsensitiveContains(searchText) ||
-            $0.status.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    private var nativeIdentities: [MercedesNativeDataIdentity] {
-        guard scope == .mercedesMe else { return [] }
-        let values = connection.mercedesNativeDataIdentities
-        guard !searchText.isEmpty else {
-            return values.sorted { $0.symbol < $1.symbol }
-        }
-        return values.filter {
-            $0.symbol.localizedCaseInsensitiveContains(searchText) ||
-            $0.dataID.localizedCaseInsensitiveContains(searchText)
-        }.sorted { $0.symbol < $1.symbol }
-    }
-
-    private var targetCategories: [String] {
-        Array(Set(targetSignals.map(\.category))).sorted()
-    }
-
-    private var verifiedCount: Int {
-        connection.mercedesTargetSignals.filter {
-            $0.status == "vehicle-verified"
-        }.count
-    }
-
-    private var candidateCount: Int {
-        connection.mercedesTargetSignals.filter {
-            $0.status == "mapping-candidate"
-        }.count
-    }
-
-    var body: some View {
-        ZStack {
-            MBBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 15) {
-                    MBSectionHeader(title: "Factory reference", kicker: "Mercedes-Benz evidence catalogue")
-
-                    MBPanel {
-                        VStack(spacing: 4) {
-                            MBInfoRow(label: "OM651 vehicle targets",
-                                      value: "\(connection.mercedesTargetSignals.count)")
-                            MBInfoRow(label: "Mercedes me identities",
-                                      value: "\(connection.mercedesNativeDataIdentities.count)")
-                            MBInfoRow(label: "Vehicle-verified targets",
-                                      value: "\(verifiedCount)")
-                            MBInfoRow(label: "Unverified mapping candidates",
-                                      value: "\(candidateCount)")
-                        }
-                    }
-
-                    Picker("Factory data source", selection: $scope) {
-                        ForEach(Scope.allCases) { item in
-                            Text(item.rawValue).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if scope == .vehicle {
-                        vehicleTargets
-                    } else {
-                        mercedesMeIdentities
-                    }
-
-                    MBPanel {
-                        Text(scope == .vehicle
-                             ? "Vehicle targets are manufacturer values known to exist on the OM651/CDID3 family. MBLINK only polls a value after its request, response shape, scale and meaning are verified."
-                             : "Mercedes me IDs are exact model identifiers recovered from the official diagnostic stack. They prove the factory framework knew the value; they do not by themselves prove a CAN address, UDS/KWP request, payload layout or scale.")
-                            .font(MBTypography.caption)
-                            .foregroundStyle(MBBrand.muted)
-                    }
-                }
-                .padding(16)
-            }
-        }
-        .searchable(
-            text: $searchText,
-            prompt: scope == .vehicle
-                ? "Factory value or category"
-                : "Mercedes me identity")
-        .mbDiagnosticScreen("Factory Reference")
-    }
-
-    @ViewBuilder
-    private var vehicleTargets: some View {
-        ForEach(targetCategories, id: \.self) { category in
-            let signals = targetSignals.filter { $0.category == category }
-            if !signals.isEmpty {
-                MBPanel {
-                    VStack(alignment: .leading, spacing: 9) {
-                        Text(category.uppercased())
-                            .font(MBTypography.caption2Bold)
-                            .tracking(0.9)
-                            .foregroundStyle(MBBrand.muted)
-
-                        ForEach(signals) { signal in
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text(signal.title)
-                                        .font(MBTypography.subheadlineBold)
-                                        .foregroundStyle(MBBrand.silverBright)
-                                    Spacer(minLength: 8)
-                                    Text(statusLabel(signal.status))
-                                        .font(MBTypography.caption2Bold)
-                                        .foregroundStyle(signal.status == "vehicle-verified"
-                                                         ? MBBrand.success : MBBrand.warning)
-                                }
-                                if signal.status != "corroborated-unmapped" {
-                                    Text(signal.provenance)
-                                        .font(MBTypography.caption2)
-                                        .foregroundStyle(MBBrand.muted)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            .padding(.vertical, 5)
-
-                            if signal.id != signals.last?.id {
-                                Divider().overlay(MBBrand.line)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if targetSignals.isEmpty {
-            MBPanel {
-                Text("No vehicle factory-data targets match the current search.")
-                    .font(MBTypography.subheadline)
-                    .foregroundStyle(MBBrand.silver)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var mercedesMeIdentities: some View {
-        if nativeIdentities.isEmpty {
-            MBPanel {
-                Text("No Mercedes me data identities match the current search.")
-                    .font(MBTypography.subheadline)
-                    .foregroundStyle(MBBrand.silver)
-            }
-        } else {
-            MBPanel {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(nativeIdentities) { identity in
-                        HStack(alignment: .top, spacing: 10) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(nativeTitle(identity.symbol))
-                                    .font(MBTypography.subheadlineBold)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                Text(identity.dataID)
-                                    .font(MBTypography.caption)
-                                    .foregroundStyle(MBBrand.silver)
-                                    .textSelection(.enabled)
-                                Text(identity.symbol)
-                                    .font(MBTypography.caption2)
-                                    .foregroundStyle(MBBrand.muted)
-                                    .textSelection(.enabled)
-                            }
-                            Spacer(minLength: 8)
-                            Text("KNOWN ID")
-                                .font(MBTypography.caption2Bold)
-                                .foregroundStyle(MBBrand.silver)
-                        }
-                        .padding(.vertical, 8)
-
-                        if identity.id != nativeIdentities.last?.id {
-                            Divider().overlay(MBBrand.line)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func nativeTitle(_ symbol: String) -> String {
-        let acronyms: Set<String> = [
-            "ABS", "BT", "CAN", "DCS", "ECU", "HIL", "ID",
-            "MMC", "OBD", "RPM", "SAM", "TM", "VIN"
-        ]
-        return symbol.split(separator: "_").map { part in
-            let word = String(part)
-            if acronyms.contains(word) { return word }
-            return word.prefix(1) + word.dropFirst().lowercased()
-        }.joined(separator: " ")
-    }
-
-    private func statusLabel(_ status: String) -> String {
-        switch status {
-        case "vehicle-verified": return "VERIFIED"
-        case "mapping-candidate": return "CANDIDATE"
-        default: return "UNMAPPED"
-        }
     }
 }
 
@@ -2920,7 +2686,7 @@ private struct MBServicesView: View {
                     }
 
                     MBPanel {
-                        Text("Mercedes behaviour remains evidence-gated. MBLINK currently uses bounded read-only UDS/KWP discovery on proven module routes; ClearDiagnosticInformation (0x14), Authentication (0x29), programming, resets, routines and other state-changing operations remain unavailable from this screen.")
+                        Text("Mercedes behaviour remains evidence-gated. MBLINK reads only source-backed commands belonging to an identified controller profile; it does not probe a module for unknown PIDs. ClearDiagnosticInformation (0x14), Authentication (0x29), programming, resets, routines and other state-changing operations remain unavailable from this screen.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)

@@ -507,7 +507,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let liveDefinitions = controller.documentedDataDefinitions(
-            forModuleIdentifier: moduleID)
+            forModuleIdentifier: moduleID).filter { $0.live }
         let definitions: [[String: Any]]
         if !liveDefinitions.isEmpty {
             definitions = liveDefinitions.map { definition in
