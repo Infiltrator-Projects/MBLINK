@@ -1025,9 +1025,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK_ROUTE(0x632, 0x486, "ABR2XT brake/ESP controller",
                     "esp", "esp-abr2xt",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x64a, 0x489, "ORC_212 restraint controller",
-                    "restraints-orc", "restraints-orc212",
-                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x652, 0x48a, "HU_204 head unit",
                     "audio-headunit", "headunit-hu204",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
