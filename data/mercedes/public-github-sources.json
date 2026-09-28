@@ -86,6 +86,14 @@
       "use": "future-architecture-reference",
       "destination": "LINK",
       "value": "Software-defined-vehicle service deployment/communication architecture"
+    },
+    {
+      "repository": "OSUSecLab/CANHunter",
+      "status": "active",
+      "license": "not-declared-in-root",
+      "use": "semantic-evidence",
+      "destination": "MBLINK Mercedes route catalogue",
+      "value": "High-value NDSS 2020 corpus extracted from vehicle companion apps; Data/CAN_Bus_Commands/Mercedes.json maps many Mercedes CAN request IDs to ECU semantics. Use as a standing lookup source, cross-checking model-specific traces/service evidence where Mercedes reuses an address."
     }
   ]
 }

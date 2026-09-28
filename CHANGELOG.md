@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.238 — 2026-09-28
+
+- Replace the C207 capture's presentation-only "Likely" ECU hints with structured route identities that feed the real module catalogue, module kind, controller family, component designation and saved VIN profile.
+- Resolve the captured 0x60A/0x481 route as IC_204 instrument cluster, 0x622/0x484 as SCCM/SCM steering-column controller, 0x6A2/0x494 as MFK A40/11 multifunction camera, 0x6BA/0x497 and 0x6C2/0x498 as RBTMFL/RBTMFR PRE-SAFE tensioners, and 0x6FA/0x49F as N118/FSCU fuel-pump control. Preserve 0x602/0x480 as a candidate central-gateway match because Mercedes reuses 0x602 on other families.
+- Promote source-backed exact routes already in the scanner to their useful family names: EIS/EZS_212, ABR2XT, ORC_212 and HU_204. Keep ECU-returned identity/part-number evidence authoritative, including the EGS53 A0034464310 classifier from 0.7.237.
+- Correct the model-207 ORC component designation to N2/10 and add structured A40/11 and N118 module/controller definitions.
+- Register OSUSecLab/CANHunter as a standing Mercedes semantic research source in the machine-readable source inventory and project research documentation; route matches retain provenance and model-family ambiguity rules.
+- Rehydrate older saved VIN profiles through the new route classifier so existing profiles gain the improved labels without requiring a fresh vehicle census.
+
 ## 0.7.237 — 2026-09-28
 
 - Promote a generic 0x7E1/0x7E9 Mercedes transmission controller to the exact EGS53 family when its captured Daimler KWP identification supplies corporate part number `0034464310` / `A 003 446 43 10`.

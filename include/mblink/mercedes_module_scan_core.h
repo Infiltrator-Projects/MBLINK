@@ -178,6 +178,14 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
 
 const char *mblink_mercedes_module_scan_module_name(const MblinkMercedesModuleScanEntry *module);
 
+/*
+ * Apply source-backed Mercedes route identity without changing transport or
+ * probing policy. Exact ECU-returned identity remains authoritative and may
+ * refine this route-level classification later.
+ */
+void mblink_mercedes_module_scan_apply_route_identity(
+    MblinkMercedesModuleScanEntry *module);
+
 MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t tx_can_id, bool extended_id);
 
 bool mblink_mercedes_module_scan_write_command(const char *command, char *buffer, size_t buffer_size, size_t *written);

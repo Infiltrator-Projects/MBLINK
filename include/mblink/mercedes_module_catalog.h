@@ -112,12 +112,12 @@ mblink_mercedes_module_definition_at(size_t index)
         },
         {
             "restraints-orc", "Occupant restraint / airbag control unit (ORC)",
-            "N2/7", "vehicle CAN",
+            "N2/10", "vehicle CAN",
             MBLINK_MERCEDES_MODULE_RESTRAINTS,
             MBLINK_MERCEDES_MODULE_PRESENCE_CORE,
             { "ORC", "SRS", "AIRBAG", "RESTRAINT" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-            "W212/C207 service topology identifies N2/7 restraints; genuine 207/212 Mercedes parts identify the controller family as ORC."
+            "Mercedes model 207/212 wiring and parts information identifies N2/10 as the airbag/ORC control unit; genuine 207/212 Mercedes parts identify the controller family as ORC."
         },
         {
             "instrument-cluster", "Instrument cluster", "A1",
@@ -169,6 +169,24 @@ mblink_mercedes_module_definition_at(size_t index)
             { "RBTMFR_204", "RBTMFR", "PRETENSION FRONT RIGHT", "BELTPRETENSIONER RIGHT" },
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
             "W212/C207 diagnostic coverage and Mercedes PRE-SAFE service information identify the right reversible emergency tensioner family as RBTMFR_204."
+        },
+        {
+            "multifunction-camera", "Multifunction camera (MFK)", "A40/11",
+            "driver-assistance / chassis CAN",
+            MBLINK_MERCEDES_MODULE_OTHER,
+            MBLINK_MERCEDES_MODULE_PRESENCE_OPTIONAL_EQUIPMENT,
+            { "MFK", "MFK_204", "MFK_212", "MULTIFUNCTION CAMERA" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "Mercedes C207/W212 service information identifies A40/11 as the multifunction camera; OSUSecLab/CANHunter independently maps Mercedes diagnostic request 0x6A2 to MFK A40/11."
+        },
+        {
+            "fuel-pump", "Fuel-pump control unit (FSCU)", "N118",
+            "drivetrain CAN",
+            MBLINK_MERCEDES_MODULE_OTHER,
+            MBLINK_MERCEDES_MODULE_PRESENCE_POWERTRAIN_VARIANT,
+            { "FSCU", "UFPCAMG", "FUEL PUMP", "N118" },
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+            "Mercedes C207/OM651 wiring identifies N118 as the fuel-pump control unit; OSUSecLab/CANHunter independently maps Mercedes diagnostic request 0x6FA to FSCU/fuel-pump control."
         },
         {
             "seat-driver", "Driver seat adjustment control unit", "driver seat module",
@@ -495,6 +513,17 @@ mblink_mercedes_controller_family_definition_at(size_t index)
           "204/207/212-era right PRE-SAFE tensioner evidence",
           "Mercedes PRE-SAFE diagnostic coverage identifies RBTMFR." },
 
+        { "camera-mfk", "multifunction-camera", "MFK multifunction camera",
+          { "MFK", "MFK_204", "MFK_212", "MULTIFUNCTION CAMERA" },
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+          "Mercedes C207/W212 multifunction-camera applications",
+          "C207/W212 service information identifies A40/11; OSUSecLab/CANHunter maps 0x6A2 to the Mercedes MFK." },
+        { "fuel-pump-fscu", "fuel-pump", "FSCU fuel-pump controller",
+          { "FSCU", "UFPCAMG", "FUEL PUMP", "N118" },
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+          "Mercedes fuel-pump control applications including C207/OM651",
+          "C207/OM651 wiring identifies N118; OSUSecLab/CANHunter maps 0x6FA to FSCU/fuel-pump control." },
+
         { "cluster-ic204", "instrument-cluster", "IC_204 instrument cluster",
           { "IC_204", "IC204", NULL, NULL },
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
@@ -565,8 +594,8 @@ mblink_mercedes_controller_family_definition_at(size_t index)
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
           "Mercedes MRM applications; exact generation varies",
           "Mercedes CAN/diagnostic material identifies MRM." },
-        { "steering-scm", "steering-column", "SCM/STW steering-column controller",
-          { "SCM", "STW", "STEERING COLUMN", NULL },
+        { "steering-scm", "steering-column", "SCCM/SCM steering-column controller",
+          { "SCCM", "SCM", "STW", "STEERING COLUMN" },
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
           "Generic steering-column controller family",
           "Mercedes diagnostic identities use SCM/STW." },

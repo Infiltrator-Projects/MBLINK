@@ -951,35 +951,65 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
     }
 
-    /* Online address hints stay presentation-only and never override stronger evidence. */
+    /*
+     * Captured C207 route identities are structured catalogue data, not
+     * presentation-only "Likely" strings.
+     */
     {
-        MblinkMercedesModuleScanEntry hinted;
-        memset(&hinted, 0, sizeof(hinted));
-        hinted.kind = MBLINK_MERCEDES_MODULE_OTHER;
-        hinted.tx_can_id = UINT32_C(0x622); hinted.rx_can_id = UINT32_C(0x484);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Likely steering column module (SCM / SCCM)") == 0);
-        hinted.tx_can_id = UINT32_C(0x6a2); hinted.rx_can_id = UINT32_C(0x494);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Likely multifunction camera (MFK)") == 0);
-        hinted.tx_can_id = UINT32_C(0x6ba); hinted.rx_can_id = UINT32_C(0x497);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Likely left reversible belt tensioner (RevETR-LF)") == 0);
-        hinted.tx_can_id = UINT32_C(0x6c2); hinted.rx_can_id = UINT32_C(0x498);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Likely right reversible belt tensioner (RevETR-RF)") == 0);
-        hinted.tx_can_id = UINT32_C(0x6fa); hinted.rx_can_id = UINT32_C(0x49f);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Likely fuel-pump control unit") == 0);
-        hinted.tx_can_id = UINT32_C(0x60a); hinted.rx_can_id = UINT32_C(0x481);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Mercedes ECU") == 0);
-        hinted.tx_can_id = UINT32_C(0x602); hinted.rx_can_id = UINT32_C(0x480);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "Daimler VIN-cascade ECU 602") == 0);
-        hinted.tx_can_id = UINT32_C(0x64a); hinted.rx_can_id = UINT32_C(0x489);
-        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&hinted),
-                     "ORC_212") == 0);
+        MblinkMercedesModuleScanEntry routed;
+
+#define CHECK_ROUTE(TX, RX, NAME, MODULE_KEY, FAMILY_KEY, STATUS) do { \
+        memset(&routed, 0, sizeof(routed)); \
+        routed.kind = MBLINK_MERCEDES_MODULE_OTHER; \
+        routed.tx_can_id = UINT32_C(TX); \
+        routed.rx_can_id = UINT32_C(RX); \
+        routed.identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE; \
+        mblink_mercedes_module_scan_apply_route_identity(&routed); \
+        CHECK(routed.definition != NULL); \
+        CHECK(strcmp(routed.definition->key, MODULE_KEY) == 0); \
+        CHECK(strcmp(mblink_mercedes_module_scan_module_name(&routed), NAME) == 0); \
+        CHECK(routed.identification_status == STATUS); \
+        if ((FAMILY_KEY) != NULL) { \
+            CHECK(routed.controller_family != NULL); \
+            CHECK(strcmp(routed.controller_family->key, FAMILY_KEY) == 0); \
+        } \
+    } while (0)
+
+        CHECK_ROUTE(0x602, 0x480, "Central gateway (CGW)",
+                    "central-gateway", NULL,
+                    MBLINK_MERCEDES_DEFINITION_CANDIDATE);
+        CHECK_ROUTE(0x60a, 0x481, "IC_204 instrument cluster",
+                    "instrument-cluster", "cluster-ic204",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x612, 0x482, "EIS/EZS_212 ignition controller",
+                    "eis-ezs", "eis-ezs212",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x622, 0x484, "SCCM/SCM steering-column controller",
+                    "steering-column", "steering-scm",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x632, 0x486, "ABR2XT brake/ESP controller",
+                    "esp", "esp-abr2xt",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x64a, 0x489, "ORC_212 restraint controller",
+                    "restraints-orc", "restraints-orc212",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x652, 0x48a, "HU_204 head unit",
+                    "audio-headunit", "headunit-hu204",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x6a2, 0x494, "MFK multifunction camera",
+                    "multifunction-camera", "camera-mfk",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x6ba, 0x497, "RBTMFL_204 reversible belt tensioner",
+                    "belt-pretensioner-left", "pretensioner-rbtmfl204",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x6c2, 0x498, "RBTMFR_204 reversible belt tensioner",
+                    "belt-pretensioner-right", "pretensioner-rbtmfr204",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x6fa, 0x49f, "FSCU fuel-pump controller",
+                    "fuel-pump", "fuel-pump-fscu",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+
+#undef CHECK_ROUTE
     }
 
     return 0;

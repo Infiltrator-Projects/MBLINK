@@ -497,6 +497,8 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         }
     }
 
+    mblink_mercedes_module_scan_apply_route_identity(entry);
+
     const uint32_t maxID = entry->extended_id
         ? UINT32_C(0x1fffffff) : UINT32_C(0x7ff);
     return entry->tx_can_id <= maxID && entry->rx_can_id <= maxID;
