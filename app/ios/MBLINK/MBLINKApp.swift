@@ -1259,29 +1259,6 @@ private struct MBModulesView: View {
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(
-                                title: "PID setup",
-                                kicker: connection.isActive
-                                    ? "Current + saved"
-                                    : "Saved VIN profile")
-                            Text("Open PID Setup to choose vehicle-wide SAE PIDs and documented Mercedes data for each discovered controller, including from a saved VIN profile while disconnected.")
-                                .font(MBTypography.subheadline)
-                                .foregroundStyle(MBBrand.silver)
-                            NavigationLink { MBPIDSetupView() } label: {
-                                HStack {
-                                    Label("Open Saved Vehicles & PIDs",
-                                          systemImage: "list.bullet.rectangle.portrait.fill")
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                            }
-                        }
-                    }
-
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 12) {
                             MBSectionHeader(title: "Factory readings", kicker: "Vehicle responses")
                             Text("Read or refresh actual manufacturer responses for each responding controller.")
                                 .font(MBTypography.subheadline)
@@ -1327,7 +1304,6 @@ private struct MBModulesView: View {
                                 MBInfoRow(label: "Module state", value: connection.mercedesProbeStatusText)
                                 Divider().overlay(MBBrand.line)
                                 capability("Standard OBD-II diagnostics", "waveform.path.ecg")
-                                capability("Offline VIN/controller PID configuration", "list.bullet.rectangle")
                                 capability("UDS / ISO-TP diagnostic engine", "point.3.connected.trianglepath.dotted")
                                 capability("Read-only Mercedes fault memory", "exclamationmark.triangle.fill")
                             }

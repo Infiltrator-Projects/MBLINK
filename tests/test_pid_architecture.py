@@ -95,6 +95,16 @@ require(
     and 'Text("Control units")' not in vehicle_view,
     "Vehicle screen must not duplicate the dedicated Modules screen",
 )
+modules_start = app.index("private struct MBModulesView")
+modules_end = app.index("private struct MBModuleDetailView", modules_start)
+modules_view = app[modules_start:modules_end]
+require(
+    "MBPIDSetupView" not in modules_view
+    and 'title: "PID setup"' not in modules_view
+    and "Open Saved Vehicles & PIDs" not in modules_view
+    and "PID configuration" not in modules_view,
+    "Modules screen must remain ECU inventory only and must not expose PID setup",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
