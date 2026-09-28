@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.247 — 2026-09-28
+
+- Publish the completed documented ECU PID catalogue wiring and corrected SCCM_212 family aliasing from the post-0.7.246 mainline work.
+- Keep response-only Mercedes identifiers out of selectable live PID setup unless their semantics are source-corroborated.
+- Correct the iOS simulated-flow release gate so the deliberately empty ESP selectable catalogue is required to remain empty instead of being misreported as a failed live-ready state.
+
 ## 0.7.246 — 2026-09-28
 
 - Apply the 39-minute C207 road-capture findings to live manufacturer polling: UDS background refresh is now deny-by-default and enabled only for explicitly qualified runtime-changing routes/identifiers.

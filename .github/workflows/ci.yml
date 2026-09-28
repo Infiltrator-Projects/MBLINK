@@ -309,7 +309,7 @@ jobs:
                  grep -Fq 'standard_selection_scoped=true' "$marker" && \
                  grep -Fq 'module_count=4' "$marker" && \
                  grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$marker" && \
-                 grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$marker" && \
+                 grep -Fq 'esp_catalogue_count=0' "$marker" && \
                  grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$marker" && \
                  grep -Fq 'uds_service_catalogue_count=27' "$marker" && \
                  grep -Fq 'uds_dtc_report_catalogue_count=27' "$marker" && \
@@ -344,7 +344,7 @@ jobs:
                  grep -Fq 'profile_module_count=4' "$saved_marker" && \
                  grep -Fq 'display_selection_verified=true' "$saved_marker" && \
                  grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
-                 grep -Eq '^esp_catalogue_count=[1-9][0-9]*$' "$saved_marker" && \
+                 grep -Fq 'esp_catalogue_count=0' "$saved_marker" && \
                  grep -Eq '^orc_catalogue_count=[1-9][0-9]*$' "$saved_marker"; then
                 saved_ready=true
                 break
