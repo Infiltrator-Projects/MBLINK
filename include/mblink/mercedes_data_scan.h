@@ -275,6 +275,17 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_commands(
     const MblinkMercedesDataScanConfig *config,
     const MblinkMercedesDataProbeCommand *commands,
     size_t command_count);
+
+/**
+ * Begin deterministic reads of an explicit, source-backed command list for an
+ * identified controller. This does not perform PID discovery.
+ */
+MblinkMercedesDataScanResult
+mblink_mercedes_data_scan_begin_documented_commands(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const MblinkMercedesDataProbeCommand *commands,
+    size_t command_count);
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
     const MblinkMercedesDataScan *scan,
     char *buffer,

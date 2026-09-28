@@ -166,12 +166,19 @@ require(
 require(
     "runtimeCandidateIdentifiersForModule" not in controller
     and "mblink_mercedes_data_scan_begin_probe_identifiers" not in controller
+    and "mblink_mercedes_data_scan_begin_probe_commands" not in controller
     and "mblink_mercedes_data_scan_begin(" not in controller,
     "Apple runtime must not probe or brute-force manufacturer PID candidates",
 )
 require(
     "mblink_mercedes_documented_route_read_" not in controller,
     "Apple manufacturer reads must not use route-wide documented unions",
+)
+require(
+    "persistedManufacturerDataIdentifiersForModule" not in controller
+    and "runtimeManufacturerDataIdentifiersForModule" not in controller
+    and "targetedRefresh" not in controller,
+    "Apple manufacturer reads must not reuse legacy discovered PID lists",
 )
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")

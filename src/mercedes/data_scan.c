@@ -1281,6 +1281,17 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_commands(
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
+MblinkMercedesDataScanResult
+mblink_mercedes_data_scan_begin_documented_commands(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const MblinkMercedesDataProbeCommand *commands,
+    size_t command_count)
+{
+    return mblink_mercedes_data_scan_begin_probe_commands(
+        scan, config, commands, command_count);
+}
+
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
     const MblinkMercedesDataScan *scan,
     char *buffer,
