@@ -1405,20 +1405,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             return resolved
         }
 
-        switch kind {
-        case 1: return "Unknown engine control unit"
-        case 2: return "Unknown transmission control unit"
-        case 3: return "Unknown ABS / ESP control unit"
-        case 4: return "Unknown restraint control unit"
-        case 5: return "Unknown instrument cluster"
-        case 6: return "Unknown Mercedes body controller"
-        case 7: return "Unknown Mercedes gateway"
-        default:
-            if extended {
-                return String(format: "Unknown Mercedes ECU 0x%08X", tx)
-            }
-            return String(format: "Unknown Mercedes ECU 0x%03X", tx)
+        // Do not reuse an old coarse numeric kind when the authoritative
+        // identity resolver cannot classify this route. Old profiles may have
+        // carried broad/body/ABS guesses that were never ECU identity.
+        if extended {
+            return String(format: "Unknown Mercedes ECU 0x%08X", tx)
         }
+        return String(format: "Unknown Mercedes ECU 0x%03X", tx)
     }
 
     private func loadSavedPIDConfiguration() -> (
