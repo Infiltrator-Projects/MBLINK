@@ -1117,30 +1117,6 @@ private struct MBVehicleView: View {
                         }
                     }
                     MBPanel {
-                        NavigationLink { MBModulesView() } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "square.stack.3d.up.fill")
-                                    .font(MBTypography.title3)
-                                    .foregroundStyle(MBBrand.silverBright)
-                                    .frame(width: 30)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Control units")
-                                        .font(MBTypography.subheadlineBold)
-                                        .foregroundStyle(MBBrand.silverBright)
-                                    Text(connection.isActive
-                                         ? "\(connection.diagnosticModules.count) responding · open module inventory and scan details"
-                                         : "\(connection.pidConfigurationModules.count) saved · available offline")
-                                        .font(MBTypography.caption)
-                                        .foregroundStyle(MBBrand.muted)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(MBBrand.muted)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    MBPanel {
                         DisclosureGroup(isExpanded: $technicalDetailsExpanded) {
                             VStack(spacing: 4) {
                                 MBInfoRow(label: "Connection", value: connection.statusText)

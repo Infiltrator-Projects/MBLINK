@@ -90,6 +90,11 @@ require(
     and "PID Setup & Saved Vehicle" not in vehicle_view,
     "Vehicle screen must not expose PID-selection controls",
 )
+require(
+    "MBModulesView" not in vehicle_view
+    and 'Text("Control units")' not in vehicle_view,
+    "Vehicle screen must not duplicate the dedicated Modules screen",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
