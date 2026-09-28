@@ -831,6 +831,21 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(send_ok(&scan, "ATCRA481") == 0);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT);
+        CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+              MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E00") == 0);
+        {
+            MblinkMercedesModuleScanEntry stale_ic204;
+            memset(&stale_ic204, 0, sizeof(stale_ic204));
+            stale_ic204.tx_can_id = UINT32_C(0x60a);
+            stale_ic204.rx_can_id = UINT32_C(0x481);
+            stale_ic204.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+            CHECK(mblink_mercedes_module_scan_entry_protocol(&stale_ic204) ==
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+        }
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.candidate_tx == UINT32_C(0x612));
