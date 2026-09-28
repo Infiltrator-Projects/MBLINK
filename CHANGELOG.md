@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.248 — 2026-09-28
+
+- Make the CI diagnostics reporter recover automatically when its previous tracking issue has been deleted instead of failing an otherwise-green release.
+- On failures, reuse an existing diagnostics issue when available or create a fresh one; on success, close any open matching diagnostics issue and succeed cleanly when none exists.
+- Carry forward the 0.7.247 ECU catalogue hardening, stale-cache quarantine and cold-launch validation unchanged.
+
 ## 0.7.247 — 2026-09-28
 
 - Publish the completed documented ECU PID catalogue wiring and corrected SCCM_212 family aliasing from the post-0.7.246 mainline work.
