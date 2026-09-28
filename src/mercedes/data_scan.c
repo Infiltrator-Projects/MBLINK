@@ -392,7 +392,8 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
         ? mblink_mercedes_known_route_for_tx(tx_can_id) : NULL;
     config.request_extended_session =
         route != NULL && route->rx_can_id == rx_can_id &&
-        route->protocol == protocol && route->extended_session_evidenced;
+        route->protocol == protocol &&
+        mblink_mercedes_known_route_allows_automatic_extended_session(route);
 
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
         config.first_identifier = UINT16_C(0x0001);

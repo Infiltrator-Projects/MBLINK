@@ -1493,7 +1493,7 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
             const MblinkMercedesKnownRoute *route =
                 mblink_mercedes_module_scan_known_route(scan);
             scan->stage =
-                route != NULL && route->extended_session_evidenced
+                mblink_mercedes_known_route_allows_automatic_extended_session(route)
                     ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION
                     : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
         }
@@ -1748,7 +1748,7 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
                 mblink_mercedes_module_scan_known_entry_route(
                     &scan->modules[scan->dtc_index]);
             scan->stage =
-                route != NULL && route->extended_session_evidenced
+                mblink_mercedes_known_route_allows_automatic_extended_session(route)
                     ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION
                     : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
         }

@@ -625,6 +625,40 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     }
 
     /*
+     * Safety regression from the 2026-09-28 C207 road capture.  A cached ESP
+     * route must never re-enter UDS extended session during unattended profile
+     * validation.  After route setup the next wire request is TesterPresent,
+     * not 10 03.
+     */
+    {
+        MblinkMercedesModuleScanEntry cached_esp;
+        memset(&cached_esp, 0, sizeof(cached_esp));
+        cached_esp.tx_can_id = UINT32_C(0x632);
+        cached_esp.rx_can_id = UINT32_C(0x486);
+        cached_esp.protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+        cached_esp.kind = MBLINK_MERCEDES_MODULE_ABS_ESP;
+
+        CHECK(mblink_mercedes_module_scan_begin_cached(
+                  &scan, &cached_esp, 1U) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATH0") == 0);
+        CHECK(send_ok(&scan, "ATCAF1") == 0);
+        CHECK(send_ok(&scan, "ATCFC1") == 0);
+        CHECK(send_ok(&scan, "ATST20") == 0);
+        CHECK(send_ok(&scan, "ATSP6") == 0);
+        CHECK(send_ok(&scan, "ATSH632") == 0);
+        CHECK(send_ok(&scan, "ATCRA486") == 0);
+
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "3E00") == 0);
+    }
+
+    /*
      * The iPhone first-VIN census uses the compact Mercedes gateway lattice,
      * never the workstation's 760-target forensic sweep.
      */

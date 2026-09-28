@@ -133,9 +133,17 @@ int main(void)
             (route->tx_can_id == UINT32_C(0x602) ||
              route->tx_can_id == UINT32_C(0x612) ||
              route->tx_can_id == UINT32_C(0x632));
+        const bool automatic_session_allowed =
+            route != NULL &&
+            (route->tx_can_id == UINT32_C(0x602) ||
+             route->tx_can_id == UINT32_C(0x612));
         CHECK(route != NULL);
         CHECK(route->extended_session_evidenced == session_evidenced);
+        CHECK(
+            mblink_mercedes_known_route_allows_automatic_extended_session(
+                route) == automatic_session_allowed);
     }
+    CHECK(!mblink_mercedes_known_route_allows_automatic_extended_session(NULL));
 
     /* Source-backed physical routes are deliberately first. */
     CHECK(link_discover_sweep_plan_target_at(plan, 0U, &target));

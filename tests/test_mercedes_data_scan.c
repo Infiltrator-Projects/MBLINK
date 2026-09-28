@@ -261,7 +261,7 @@ static int test_c207_vehicle_verified_raw_positives(void)
         MBLINK_MERCEDES_MODULE_ABS_ESP);
     config.first_identifier = UINT16_C(0x2001);
     config.last_identifier = UINT16_C(0x2001);
-    CHECK(config.request_extended_session);
+    CHECK(!config.request_extended_session);
     CHECK(mblink_mercedes_data_scan_begin(&scan, &config) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
     CHECK(accept_command(&scan, "ATSP6", ok) == 0);
@@ -271,8 +271,9 @@ static int test_c207_vehicle_verified_raw_positives(void)
     CHECK(accept_command(&scan, "ATST64", ok) == 0);
     CHECK(accept_command(&scan, "ATSH632", ok) == 0);
     CHECK(accept_command(&scan, "ATCRA486", ok) == 0);
-    CHECK(accept_command(
-              &scan, "1003", response_ok("7F10785003001400C8")) == 0);
+    /* Safety regression: automatic ESP reads stay in the default diagnostic
+     * session.  10 03 must never appear between route setup and TesterPresent. */
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_TESTER_PRESENT);
     CHECK(accept_command(&scan, "3E00", response_ok("7E00")) == 0);
     CHECK(accept_command(
               &scan, "222001", response_ok("011\n0:622001061A06")) == 0);

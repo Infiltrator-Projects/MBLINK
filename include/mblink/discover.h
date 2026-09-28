@@ -79,6 +79,16 @@ const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
     uint32_t tx_can_id);
 
 /*
+ * Historical trace evidence is not permission for unattended session changes.
+ * In particular, chassis-control ECUs can change normal vehicle behaviour when
+ * moved out of their default diagnostic session.  Automatic discovery, cached
+ * refresh and live-data paths must consult this policy rather than the raw
+ * extended_session_evidenced flag.
+ */
+bool mblink_mercedes_known_route_allows_automatic_extended_session(
+    const MblinkMercedesKnownRoute *route);
+
+/*
  * Mercedes owns the address/probe strategy; LINK owns the sweep machinery.
  * Both Linux and Windows consume this same product plan.
  */

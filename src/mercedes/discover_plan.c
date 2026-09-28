@@ -155,6 +155,32 @@ const MblinkMercedesKnownRoute *mblink_mercedes_known_route_for_tx(
     return NULL;
 }
 
+bool mblink_mercedes_known_route_allows_automatic_extended_session(
+    const MblinkMercedesKnownRoute *route)
+{
+    if (route == NULL || !route->extended_session_evidenced)
+        return false;
+
+    /*
+     * The C207 ABR/ESP route 0x632 -> 0x486 is positively evidenced for
+     * DiagnosticSessionControl 10 03, but the vehicle capture also proves that
+     * the controller rejects that transition once road speed rises and the
+     * driver's observed steering assistance changed while repeated low-speed
+     * transitions were being attempted.  Preserve the evidence as historical
+     * truth, but never use it as an unattended/live-session permission.
+     *
+     * Explicit forensic tooling can still construct and send a deliberate
+     * session-control request; this policy only governs MBLINK's automatic
+     * discovery, cached refresh and live-data machinery.
+     */
+    if (route->module_key != NULL &&
+        strcmp(route->module_key, "esp") == 0) {
+        return false;
+    }
+
+    return true;
+}
+
 static bool mercedes_tx_is_known(uint32_t tx)
 {
     return mblink_mercedes_known_route_for_tx(tx) != NULL;
