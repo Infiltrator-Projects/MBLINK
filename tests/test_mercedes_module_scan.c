@@ -854,6 +854,10 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   &scan, command, sizeof(command), &written) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.candidate_tx == UINT32_C(0x612));
+        CHECK(scan.candidate_rx == UINT32_C(0x482));
 
         /*
          * Source-backed slots retain protocol overrides. ORC_212 is KWP2000
