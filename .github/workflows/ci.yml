@@ -300,9 +300,7 @@ jobs:
           snapshot="$RUNNER_TEMP/mblink-ci-simulated-flow.snapshot"
           for attempt in $(seq 1 60); do
             if test -f "$marker"; then
-              # The simulator updates this marker while live polling is active.
-              # Validate one coherent snapshot rather than racing a sequence of
-              # grep calls against a file that may be rewritten between them.
+              # Live polling rewrites the marker, so validate a stable copy.
               if ! cp "$marker" "$snapshot" 2>/dev/null; then
                 sleep 1
                 continue
@@ -316,7 +314,19 @@ jobs:
                  grep -Fq 'standard_selection_keys=obd2.engine.rpm,obd2.vehicle.speed' "$snapshot" && \
                  grep -Fq 'standard_selection_scoped=true' "$snapshot" && \
                  grep -Fq 'module_count=4' "$snapshot" && \
-                 grep -Eq '^transmission_catalogue_count=[1-9][0-9]*
+                 grep -Eq 'transmission_catalogue_count=[1-9][0-9]*' "$snapshot" && \
+                 grep -Fq 'esp_catalogue_count=0' "$snapshot" && \
+                 grep -Eq 'orc_catalogue_count=[1-9][0-9]*' "$snapshot" && \
+                 grep -Fq 'uds_service_catalogue_count=27' "$snapshot" && \
+                 grep -Fq 'uds_dtc_report_catalogue_count=27' "$snapshot" && \
+                 grep -Eq 'recorded_samples=[1-9][0-9]*' "$snapshot"; then
+                flow_ready=true
+                break
+              fi
+              grep -Fq 'state=failed' "$snapshot" && break || true
+            fi
+            sleep 1
+          done
           if test "$flow_ready" != true; then
             echo '::error::Simulated diagnostic flow did not reach live-ready state.'
             test ! -f "$marker" || cat "$marker"
