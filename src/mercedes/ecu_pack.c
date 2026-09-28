@@ -64,6 +64,77 @@ static void clear_item(MblinkMercedesEcuDataItem *item)
     if (item != NULL) memset(item, 0, sizeof(*item));
 }
 
+static const MblinkMercedesDocumentedEcuProfile *
+pack_profile_for_controller(
+    const MblinkMercedesControllerFamilyDefinition *controller,
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol observed_protocol,
+    bool *protocol_authoritative,
+    bool *protocol_conflict)
+{
+    const MblinkMercedesDocumentedEcuProfile *uds_profile;
+    const MblinkMercedesDocumentedEcuProfile *kwp_profile;
+    const MblinkMercedesDocumentedEcuProfile *profile;
+
+    if (protocol_authoritative != NULL) *protocol_authoritative = false;
+    if (protocol_conflict != NULL) *protocol_conflict = false;
+    if (controller == NULL || controller->key == NULL) return NULL;
+
+    uds_profile =
+        mblink_mercedes_documented_ecu_profile_for_controller_family(
+            controller->key, tx_can_id, rx_can_id, extended_id,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+    kwp_profile =
+        mblink_mercedes_documented_ecu_profile_for_controller_family(
+            controller->key, tx_can_id, rx_can_id, extended_id,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+
+    /*
+     * A controller family can only dictate transport when its own documented
+     * pack has one unambiguous protocol on this route.  If future evidence
+     * publishes two protocol variants for the same family/route, retain the
+     * protocol actually observed on the vehicle until identity is refined.
+     */
+    if (uds_profile != NULL && kwp_profile != NULL &&
+        uds_profile != kwp_profile) {
+        return observed_protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+            ? kwp_profile : uds_profile;
+    }
+
+    profile = uds_profile != NULL ? uds_profile : kwp_profile;
+    if (profile != NULL && profile->protocol_known) {
+        if (protocol_authoritative != NULL) *protocol_authoritative = true;
+        if (protocol_conflict != NULL)
+            *protocol_conflict = profile->protocol != observed_protocol;
+    }
+    return profile;
+}
+
+uint8_t mblink_mercedes_ecu_pack_route_protocol_mask(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id)
+{
+    uint8_t mask = 0U;
+    const size_t count =
+        mblink_mercedes_documented_ecu_profile_count_for_route(
+            tx_can_id, rx_can_id, extended_id);
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            mblink_mercedes_documented_ecu_profile_at_for_route(
+                tx_can_id, rx_can_id, extended_id, index);
+        if (profile == NULL || !profile->protocol_known) continue;
+        if (profile->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS)
+            mask |= MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK;
+        else if (profile->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)
+            mask |= MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK;
+    }
+    return mask;
+}
+
 bool mblink_mercedes_ecu_pack_resolve(
     const char *module_key,
     const char *controller_family_key,
@@ -97,9 +168,10 @@ bool mblink_mercedes_ecu_pack_resolve(
         module = mblink_mercedes_module_definition_for_key(effective_module_key);
 
     if (controller != NULL) {
-        profile =
-            mblink_mercedes_documented_ecu_profile_for_controller_family(
-                controller->key, tx_can_id, rx_can_id, extended_id, protocol);
+        profile = pack_profile_for_controller(
+            controller, tx_can_id, rx_can_id, extended_id, protocol,
+            &pack->protocol_authoritative,
+            &pack->observed_protocol_conflict);
     }
 
     pack->key = controller != NULL ? controller->key :
@@ -115,7 +187,8 @@ bool mblink_mercedes_ecu_pack_resolve(
     pack->tx_can_id = tx_can_id;
     pack->rx_can_id = rx_can_id;
     pack->extended_id = extended_id;
-    pack->protocol = protocol;
+    pack->protocol = pack->protocol_authoritative && profile != NULL
+        ? profile->protocol : protocol;
     pack->session_command = profile != NULL ? profile->session_command : NULL;
     pack->tester_present_command =
         profile != NULL ? profile->tester_present_command : NULL;
@@ -129,7 +202,7 @@ bool mblink_mercedes_ecu_pack_resolve(
     pack->controller_data_profile_key =
         controller != NULL &&
         mblink_mercedes_controller_data_profile_identifier_count(
-            controller->key, protocol) != 0U
+            controller->key, pack->protocol) != 0U
             ? controller->key : NULL;
 
     return pack->key != NULL || pack->documented_profile != NULL;
@@ -147,7 +220,7 @@ bool mblink_mercedes_ecu_pack_resolve_module(
         module->tx_can_id,
         module->rx_can_id,
         module->extended_id,
-        mblink_mercedes_module_scan_entry_protocol(module),
+        module->protocol,
         pack);
 }
 
