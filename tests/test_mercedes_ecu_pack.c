@@ -17,14 +17,47 @@ static int test_ic204_pack(void)
     bool saw_f150 = false;
     size_t advertised = 0U;
 
+    /*
+     * 0x60A -> 0x481 is not a protocol identity by itself: the global
+     * catalogue contains UDS IC_204-family clusters and KWP2000 KI221 on the
+     * same physical route.  Preserve the observed protocol until ECU identity
+     * resolves a family.
+     */
+    CHECK(mblink_mercedes_ecu_pack_route_protocol_mask(
+              UINT32_C(0x60a), UINT32_C(0x481), false) ==
+          (MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+           MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK));
+    CHECK(mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
+              UINT32_C(0x60a), UINT32_C(0x481), false,
+              MBLINK_MERCEDES_DIAGNOSTIC_UDS) > 1U);
     CHECK(mblink_mercedes_module_scan_resolve_controller(
         UINT32_C(0x60a), UINT32_C(0x481), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         NULL, NULL, NULL, NULL, &module));
     CHECK(mblink_mercedes_module_scan_entry_protocol(&module) ==
-          MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+    CHECK(module.controller_family == NULL);
+
+    /*
+     * Once IC_204 identity is known, its pack owns communications.  Even a
+     * stale/wrong KWP observation is corrected to the pack's documented UDS.
+     */
+    CHECK(mblink_mercedes_module_scan_resolve_controller(
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        "IC_204", NULL, NULL, NULL, &module));
     CHECK(module.controller_family != NULL);
     CHECK(strcmp(module.controller_family->key, "cluster-ic204") == 0);
+    CHECK(mblink_mercedes_module_scan_entry_protocol(&module) ==
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        "instrument-cluster", "cluster-ic204",
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+    CHECK(pack.protocol_authoritative);
+    CHECK(pack.observed_protocol_conflict);
+    CHECK(pack.protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS);
 
     CHECK(mblink_mercedes_ecu_pack_resolve_module(&module, &pack));
     CHECK(strcmp(pack.key, "cluster-ic204") == 0);
