@@ -35,9 +35,19 @@ require(
 manufacturer_api = (ROOT / "include/mblink/mercedes_data_scan.h").read_text(
     encoding="utf-8"
 )
+ecu_pack_api = (ROOT / "include/mblink/mercedes_ecu_pack.h").read_text(
+    encoding="utf-8"
+)
+ecu_pack = (ROOT / "src/mercedes/ecu_pack.c").read_text(encoding="utf-8")
 require(
     "mblink_mercedes_data_runtime_candidate_identifier_count_for_route" in manufacturer_api,
     "public Mercedes runtime-candidate API is missing",
+)
+require(
+    "MblinkMercedesEcuPack" in ecu_pack_api
+    and "mblink_mercedes_ecu_pack_resolve_module" in ecu_pack_api
+    and "mblink_mercedes_ecu_pack_data_item_at" in ecu_pack_api,
+    "Mercedes ECU identity, route, protocol and data metadata must have one public pack view",
 )
 
 apple_api = (ROOT / "platform/apple/MBLinkDiagnosticsController.h").read_text(
@@ -164,7 +174,9 @@ require(
     "manufacturer PID Setup must expose documented live values only",
 )
 require(
-    "entry->status != MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in controller,
+    "!item.advertised" in documented_defs
+    and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
+    and "item->advertised" in ecu_pack,
     "response-only raw identifiers must not become selectable live PIDs",
 )
 require(
