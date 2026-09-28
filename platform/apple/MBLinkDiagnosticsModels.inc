@@ -45,7 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readwrite, getter=isNumericValueAvailable) BOOL numericValueAvailable;
 @property(nonatomic, readwrite) double numericValue;
 @property(nonatomic, copy, readwrite) NSString *rawHex;
-@property(nonatomic, readwrite, getter=isPollingEnabled) BOOL pollingEnabled;
 @property(nonatomic, copy, readwrite) NSString *qualityNote;
 @end
 @implementation MBLinkTransmissionLiveValueSnapshot

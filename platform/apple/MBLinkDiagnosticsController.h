@@ -42,7 +42,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly, getter=isNumericValueAvailable) BOOL numericValueAvailable;
 @property(nonatomic, readonly) double numericValue;
 @property(nonatomic, copy, readonly) NSString *rawHex;
-@property(nonatomic, readonly, getter=isPollingEnabled) BOOL pollingEnabled;
 @property(nonatomic, copy, readonly) NSString *qualityNote;
 @end
 
@@ -168,11 +167,6 @@ NS_ASSUME_NONNULL_BEGIN
     manufacturerLivePollingIdentifiersForModuleIdentifier:(NSString *)identifier;
 - (void)setManufacturerLivePollingIdentifiers:(NSArray<NSNumber *> *)identifiers
                            forModuleIdentifier:(NSString *)identifier;
-
-- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:(NSString *)identifier;
-- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:(NSString *)identifier;
-- (void)setManufacturerLivePollingEnabled:(BOOL)enabled
-                       forModuleIdentifier:(NSString *)identifier;
 
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                      responderCANIdentifier:(uint32_t)responderCANIdentifier

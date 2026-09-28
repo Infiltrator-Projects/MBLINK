@@ -2135,12 +2135,6 @@ static void MBLinkAppendManufacturerDefinition(
     NSString *quality = [NSString stringWithFormat:
         @"Mercedes GS 21 30 %@ response · portable MBLINK decoder · %@",
         decoded.rich_layout ? @"rich" : @"compact", qualification];
-    const BOOL pollingEnabled =
-        [self manufacturerLivePollingSupportedForModuleIdentifier:
-            moduleIdentifier] &&
-        [self manufacturerLivePollingEnabledForModuleIdentifier:
-            moduleIdentifier];
-
     NSMutableArray<MBLinkTransmissionLiveValueSnapshot *> *values =
         [[NSMutableArray alloc] init];
 
@@ -2159,7 +2153,6 @@ static void MBLinkAppendManufacturerDefinition(
         value.numericValueAvailable = YES;
         value.numericValue = display;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -2177,7 +2170,6 @@ static void MBLinkAppendManufacturerDefinition(
                 decoded.actual_gear_code));
         value.numericValueAvailable = NO;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -2195,7 +2187,6 @@ static void MBLinkAppendManufacturerDefinition(
                 decoded.target_gear_code));
         value.numericValueAvailable = NO;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -2264,7 +2255,6 @@ static void MBLinkAppendManufacturerDefinition(
         value.numericValueAvailable = selectorName == NULL;
         value.numericValue = (double)decoded.selector_position_code;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
@@ -2289,59 +2279,11 @@ static void MBLinkAppendManufacturerDefinition(
         value.numericValueAvailable = programName == NULL;
         value.numericValue = (double)decoded.drive_program_code;
         value.rawHex = rli30.rawHex;
-        value.pollingEnabled = pollingEnabled;
         value.qualityNote = quality;
         [values addObject:value];
     }
 
     return [values copy];
-}
-
-- (BOOL)manufacturerLivePollingSupportedForModuleIdentifier:
-    (NSString *)identifier
-{
-    if (identifier.length == 0U) return NO;
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:identifier];
-    if (module == NULL) return NO;
-    NSArray<NSNumber *> *runtime =
-        [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:identifier];
-    NSArray<NSNumber *> *candidates =
-        [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:identifier];
-    return runtime.count != 0U || candidates.count != 0U;
-}
-
-- (BOOL)manufacturerLivePollingEnabledForModuleIdentifier:
-    (NSString *)identifier
-{
-    return [self manufacturerLivePollingIdentifiersForModuleIdentifier:
-        identifier].count != 0U;
-}
-
-- (void)setManufacturerLivePollingEnabled:(BOOL)enabled
-                       forModuleIdentifier:(NSString *)identifier
-{
-    if (identifier.length == 0U) return;
-    if (!enabled) {
-        [self setManufacturerLivePollingIdentifiers:@[]
-                               forModuleIdentifier:identifier];
-        return;
-    }
-
-    const MblinkMercedesModuleScanEntry *module =
-        [self moduleEntryForIdentifier:identifier];
-    if (module == NULL) return;
-    NSMutableOrderedSet<NSNumber *> *all = [[NSMutableOrderedSet alloc] init];
-    [all addObjectsFromArray:
-        [self runtimeManufacturerDataIdentifiersForModule:module
-                                               identifier:identifier]];
-    [all addObjectsFromArray:
-        [self runtimeCandidateIdentifiersForModule:module
-                                         identifier:identifier]];
-    [self setManufacturerLivePollingIdentifiers:[all array]
-                           forModuleIdentifier:identifier];
 }
 
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier

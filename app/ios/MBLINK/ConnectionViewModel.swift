@@ -558,23 +558,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         setPolling(enabled, stableKey: stableKey)
     }
 
-    // A small, user-initiated starting set avoids filling the adapter queue.
-    // Only offer PIDs actually advertised by the connected vehicle.
-    var starterStandardPIDs: [MBPIDCatalogueItem] {
-        let preferred: [UInt16] = [0x0C, 0x0D, 0x05]
-        let available = standardPIDCatalogueItems().filter { $0.advertised }
-        return preferred.compactMap { pid in
-            available.first { $0.identifier == pid }
-        }
-    }
-
-    func enableStarterStandardPIDs() {
-        guard effectivePIDConfigurationVIN != nil else { return }
-        for item in starterStandardPIDs where !item.pollingEnabled {
-            setStandardPIDSelection(true, stableKey: item.id)
-        }
-    }
-
     func setManufacturerPIDSelection(
         _ enabled: Bool,
         moduleID: String,
@@ -1730,6 +1713,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         loadPrimaryDiagnosticParameters()
     }
 
+    override func productDashboardParameters(
+        standard: [LinkDiagnosticParameter]
+    ) -> [LinkDiagnosticParameter] {
+        // PID Setup is the sole display-membership authority in MBLINK.
+        // Ignore LINK's generic dashboard preference store completely.
+        enabledDisplayParameters
+    }
+
     override func productDidRefreshStandardState() {
         // Never join samples from separate sessions or vehicles in one graph.
         let liveHistoryVIN = activeVehicleVIN
@@ -1881,13 +1872,11 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private func verifySingleDisplaySelection() -> Bool {
         guard !isActive, effectivePIDConfigurationVIN != nil else { return false }
         let oldStandard = storedPollingKeys()
-        let oldDashboard = dashboardSelectionStore.globalStableKeys
         let oldManufacturer = pidConfigurationModules.map {
             ($0.id, manufacturerSelectionSet(moduleID: $0.id))
         }
         defer {
             storeStandardPollingKeys(oldStandard)
-            dashboardSelectionStore.setGlobalStableKeys(oldDashboard)
             for (moduleID, keys) in oldManufacturer {
                 storeManufacturerSelection(keys, moduleID: moduleID)
             }
@@ -1896,7 +1885,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
 
         resetPIDSelectionsForCurrentVehicle()
-        dashboardSelectionStore.setGlobalStableKeys([])
         guard enabledDisplayParameters.isEmpty else { return false }
         let standard = Array(standardPIDCatalogueItems().prefix(6).map(\.id))
         let transmission = ["mercedes.transmission.oil_temperature",
@@ -1913,9 +1901,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             moduleID: Self.ciORCModuleID, stableKey: factory.id)
         let expected = Set(standard + transmission + [factory.id])
         guard Set(enabledDisplayParameters.map(\.id)) == expected else { return false }
-        // Old dashboard preferences must neither exclude ON channels nor retain
-        // OFF channels, including when the parameter catalogue still has rows.
-        dashboardSelectionStore.setGlobalStableKeys(Array(expected))
         for key in standard { setStandardPIDSelection(false, stableKey: key) }
         for key in transmission {
             setManufacturerPIDSelection(false,

@@ -48,6 +48,41 @@ require(
     "Apple MBLINK diagnostics must extend LINK's product diagnostics controller",
 )
 
+app = (ROOT / "app/ios/MBLINK/MBLINKApp.swift").read_text(encoding="utf-8")
+model = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
+    encoding="utf-8"
+)
+controller = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
+    encoding="utf-8"
+)
+require(
+    "enableStarterStandardPIDs" not in app
+    and "enableStarterStandardPIDs" not in model
+    and "Enable starter readings" not in app,
+    "PID Setup must not have a second starter-reading enable surface",
+)
+require(
+    "setManufacturerLivePollingEnabled" not in apple_api
+    and "manufacturerLivePollingEnabledForModuleIdentifier" not in apple_api
+    and "setManufacturerLivePollingEnabled" not in controller,
+    "Apple controller must not expose a blanket manufacturer polling toggle",
+)
+require(
+    "override func productDashboardParameters" in model
+    and "enabledDisplayParameters" in model
+    and "dashboardSelectionStore" not in model,
+    "MBLINK display membership must come only from PID Setup selections",
+)
+factory_start = app.index("private struct MBFactoryReadingsView")
+factory_end = app.index(".mbDiagnosticScreen(\"Factory Readings\")", factory_start)
+factory_view = app[factory_start:factory_end]
+require(
+    "discoverManufacturerData" in factory_view
+    and "setManufacturerPIDSelection" not in factory_view
+    and "setStandardPIDSelection" not in factory_view,
+    "Factory Readings must stay manual and must never change live PID selections",
+)
+
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
     '#include "../link/src/' not in core,

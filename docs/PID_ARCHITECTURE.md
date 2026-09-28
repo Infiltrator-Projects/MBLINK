@@ -89,7 +89,14 @@ MBLINK must not silently enable manufacturer polling merely because a module or 
 
 Existing explicit user selections may be preserved during migrations, but untouched historical automatic defaults must not be recreated.
 
-The user may explicitly enable or disable individual channels. A manual "Select all" action is acceptable, but nothing is selected automatically.
+The user may explicitly enable or disable individual channels. PID Setup is the
+only control surface permitted to change that state. There are no starter,
+dashboard, graph, table, Factory Readings, module-wide, or other shortcuts that
+can turn live channels on or off. A bulk reset inside PID Setup may turn all
+channels off, but nothing is selected automatically.
+
+Factory Readings is manual diagnostics only. Reading, refreshing or rescanning a
+module there must never change live-PID selections or create recurring polling.
 
 Selections are stored per VIN and, where relevant, per controller/module. Reconnecting to the same VIN restores the user's own choices. Loading a saved VIN profile offline must expose the same configuration without pretending a live vehicle is attached.
 
@@ -156,6 +163,9 @@ A release satisfies this design only when all of the following are true:
   VIN/module, and both can be edited from a saved offline vehicle profile.
 - Unknown modules are not assigned invented PID meanings.
 - Opening PID Setup does not launch a brute-force scan.
+- PID Setup is the only UI that can enable or disable live channels.
+- Factory Readings read/refresh/rescan operations never alter live selections.
+- No starter-reading or module-wide polling enable shortcut exists.
 - LINK remains the sole scheduler/transport owner for shared generic and manufacturer jobs.
 
 If implementation code, UI text, tests, or CI guards conflict with this document, the implementation should be treated as the regression unless this document is deliberately revised first.

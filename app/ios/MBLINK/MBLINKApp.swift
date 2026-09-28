@@ -749,18 +749,6 @@ private struct MBPIDSetupView: View {
                                     .font(MBTypography.caption2.monospaced())
                                     .foregroundStyle(MBBrand.muted)
                             }
-                            if connection.pidConfigurationVehicleVIN != nil &&
-                                connection.starterStandardPIDs.contains(where: { !$0.pollingEnabled }) {
-                                Button {
-                                    connection.enableStarterStandardPIDs()
-                                } label: {
-                                    Label("Enable \(connection.starterStandardPIDs.count) advertised starter readings",
-                                          systemImage: "play.fill")
-                                        .font(MBTypography.subheadlineBold)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(MBBrand.active)
-                            }
                         }
                     }
 
@@ -866,25 +854,10 @@ private struct MBMeasurementStartPanel: View {
                     .foregroundStyle(MBBrand.silverBright)
                 Text(connection.pidConfigurationVehicleVIN == nil
                      ? "Connect and wait for the vehicle VIN before choosing measurements."
-                     : connection.starterStandardPIDs.isEmpty
-                        ? "No starter readings have been advertised yet. You can inspect all available measurements in PID Setup."
-                        : "Choose engine speed, vehicle speed and coolant temperature where this vehicle advertises them. Polling starts only when you tap the button.")
+                     : "PID Setup is the only place that turns live measurements on or off. ON means poll and display it; OFF means do neither.")
                     .font(MBTypography.subheadline)
                     .foregroundStyle(MBBrand.silver)
                     .fixedSize(horizontal: false, vertical: true)
-                if connection.pidConfigurationVehicleVIN != nil &&
-                    connection.starterStandardPIDs.contains(where: { !$0.pollingEnabled }) {
-                    Button {
-                        connection.enableStarterStandardPIDs()
-                    } label: {
-                        Label("Enable \(connection.starterStandardPIDs.count) starter readings",
-                              systemImage: "play.fill")
-                            .font(MBTypography.subheadlineBold)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(MBBrand.active)
-                }
                 NavigationLink {
                     MBPIDSetupView()
                 } label: {
