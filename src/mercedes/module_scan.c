@@ -418,6 +418,67 @@ bool mblink_mercedes_module_scan_write_command(const char *command, char *buffer
     return true;
 }
 
+static uint8_t mblink_mercedes_module_scan_protocol_bit(
+    MblinkMercedesDiagnosticProtocol protocol)
+{
+    return protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+        ? MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK
+        : MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK;
+}
+
+static void mblink_mercedes_module_scan_prepare_candidate_protocol(
+    MblinkMercedesModuleScan *scan)
+{
+    const MblinkMercedesKnownRoute *route;
+    uint8_t mask;
+    MblinkMercedesDiagnosticProtocol preferred =
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+
+    if (scan == NULL) return;
+    mask = mblink_mercedes_ecu_pack_route_protocol_mask(
+        scan->candidate_tx, scan->candidate_rx, scan->candidate_extended);
+    route = !scan->candidate_extended
+        ? mblink_mercedes_known_route_for_tx(scan->candidate_tx) : NULL;
+    if (route != NULL && route->rx_can_id == scan->candidate_rx)
+        preferred = route->protocol;
+
+    if (mask == 0U)
+        mask = mblink_mercedes_module_scan_protocol_bit(preferred);
+    if ((mask & mblink_mercedes_module_scan_protocol_bit(preferred)) == 0U) {
+        preferred = (mask & MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK) != 0U
+            ? MBLINK_MERCEDES_DIAGNOSTIC_UDS
+            : MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    }
+
+    scan->candidate_protocol = preferred;
+    scan->candidate_protocol_mask = mask;
+    scan->candidate_protocol_attempted_mask =
+        mblink_mercedes_module_scan_protocol_bit(preferred);
+}
+
+static bool mblink_mercedes_module_scan_try_alternate_protocol(
+    MblinkMercedesModuleScan *scan)
+{
+    uint8_t remaining;
+
+    if (scan == NULL) return false;
+    remaining = scan->candidate_protocol_mask &
+        (uint8_t)~scan->candidate_protocol_attempted_mask;
+    if (remaining == 0U) return false;
+
+    if ((remaining & MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK) != 0U)
+        scan->candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    else
+        scan->candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+
+    scan->candidate_protocol_attempted_mask |=
+        mblink_mercedes_module_scan_protocol_bit(scan->candidate_protocol);
+    scan->vin_probe_index = 0U;
+    scan->stage =
+        MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
+    return true;
+}
+
 void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesModuleScan *scan, uint32_t tx)
 {
     scan->candidate_tx = tx;
@@ -425,6 +486,7 @@ void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesModuleScan *scan
     scan->candidate_extended = false;
     scan->candidate_route_locked = false;
     scan->vin_probe_index = 0U;
+    mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
 }
 
 bool mblink_mercedes_module_scan_set_gateway_target(
@@ -443,6 +505,7 @@ bool mblink_mercedes_module_scan_set_gateway_target(
     scan->candidate_extended = true;
     scan->candidate_route_locked = true;
     scan->vin_probe_index = 0U;
+    mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
     return true;
 }
 
@@ -486,6 +549,7 @@ bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
     scan->vin_probe_index = 0U;
+    mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
     /*
      * Only lock routes whose RX identifier is authoritative.  Source-backed
      * Mercedes routes carry independently evidenced TX/RX pairs, 29-bit normal
@@ -543,9 +607,8 @@ MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
     const MblinkMercedesModuleScan *scan)
 {
-    const MblinkMercedesKnownRoute *route =
-        mblink_mercedes_module_scan_known_route(scan);
-    return route != NULL ? route->protocol : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    return scan != NULL ? scan->candidate_protocol
+                        : MBLINK_MERCEDES_DIAGNOSTIC_UDS;
 }
 
 bool mblink_mercedes_module_scan_is_production_vin_target(
@@ -660,11 +723,25 @@ MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_entry_protocol(
     const MblinkMercedesModuleScanEntry *module)
 {
-    const MblinkMercedesKnownRoute *route =
-        mblink_mercedes_module_scan_known_entry_route(module);
-    return route != NULL ? route->protocol
-                         : (module != NULL ? module->protocol
-                                           : MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+    MblinkMercedesEcuPack pack;
+
+    if (module == NULL) return MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+
+    /*
+     * Once identity/controller-family evidence resolves an ECU pack, that
+     * pack owns the protocol.  A route is only a discovery hint because
+     * Mercedes reused physical addresses across generations and protocols.
+     */
+    if (module->controller_family != NULL &&
+        mblink_mercedes_ecu_pack_resolve(
+            module->definition != NULL ? module->definition->key : NULL,
+            module->controller_family->key,
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            module->protocol, &pack) &&
+        pack.protocol_authoritative) {
+        return pack.protocol;
+    }
+    return module->protocol;
 }
 
 void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan)
