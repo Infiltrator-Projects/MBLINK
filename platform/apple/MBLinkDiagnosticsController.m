@@ -32,8 +32,6 @@ static const uint32_t MBLinkScheduledTransmissionLiveJobToken =
     UINT32_C(0x4D420001);
 static const uint32_t MBLinkScheduledTransmissionLiveIntervalMs =
     UINT32_C(750);
-static const uint32_t MBLinkScheduledModuleFollowupJobToken =
-    UINT32_C(0x4D420002);
 static NSString * const MBLinkDisabledManufacturerPollingDefaultsKey =
     @"mblink.disabledManufacturerLivePolling.v1";
 
@@ -120,8 +118,6 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     (uint32_t)responderCANIdentifier
                                                       extendedID:(BOOL)extendedID;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
-- (void)queueModuleScanFollowup;
-- (void)beginScheduledModuleScanFollowup;
 - (void)updateMercedesProbeEvidenceSummary;
 - (NSString *)mercedesProbeFailureText;
 @end
@@ -133,12 +129,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     MblinkMercedesModuleScan _mercedesModuleScan;
     BOOL _moduleScanActive;
     BOOL _cachedModuleRefreshActive;
-    BOOL _moduleScanResumePending;
-    BOOL _lateTransmissionProbePending;
-    BOOL _lateTransmissionProbeAttempted;
-    BOOL _moduleFollowupJobRegistered;
-    BOOL _moduleFollowupJobEnabled;
-    BOOL _moduleFollowupUpdateQueued;
+    BOOL _startupModuleDiscoveryStarted;
     NSDictionary *_Nullable _cachedVehicleProfile;
     MblinkMercedesDataScan _manufacturerDataScan;
     NSMutableDictionary<NSString *, NSArray<MBLinkMercedesDataSnapshot *> *> *
@@ -791,13 +782,8 @@ static bool MBLinkSimulatorResponder(
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
+    _startupModuleDiscoveryStarted = NO;
     _cachedVehicleProfile = nil;
-    _moduleScanResumePending = NO;
-    _lateTransmissionProbePending = NO;
-    _lateTransmissionProbeAttempted = NO;
-    _moduleFollowupJobRegistered = NO;
-    _moduleFollowupJobEnabled = NO;
-    _moduleFollowupUpdateQueued = NO;
     _manufacturerDataScan = (MblinkMercedesDataScan){0};
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanStatusText = @"Not scanned";
@@ -881,9 +867,6 @@ static bool MBLinkSimulatorResponder(
 
 - (void)disconnect
 {
-    _moduleScanResumePending = NO;
-    _lateTransmissionProbePending = NO;
-    _moduleFollowupJobEnabled = NO;
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     self.manufacturerDataScanActive = NO;
@@ -1126,7 +1109,6 @@ static bool MBLinkSimulatorResponder(
     (LinkDiagnosticsController *)controller
 {
     (void)controller;
-    [self queueModuleScanFollowup];
     [self notifyDelegate];
 }
 
@@ -1148,20 +1130,6 @@ static bool MBLinkSimulatorResponder(
         for (size_t i = 0U; i < event->responder_decoded.count; ++i) {
             const LinkObd2ResponderDecodedPid *entry = &event->responder_decoded.entries[i];
             if (!entry->responder_id_available || entry->decoded.definition == NULL) continue;
-            if (!_lateTransmissionProbeAttempted && !entry->extended_id &&
-                entry->responder_id == UINT32_C(0x7e9)) {
-                BOOL identified = NO;
-                for (size_t j = 0U; j < _mercedesModuleScan.module_count; ++j) {
-                    const MblinkMercedesModuleScanEntry *module =
-                        &_mercedesModuleScan.modules[j];
-                    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e1) &&
-                        module->rx_can_id == UINT32_C(0x7e9) &&
-                        module->tester_present_response && module->identity_available)
-                        identified = YES;
-                }
-                _lateTransmissionProbePending = !identified;
-                if (identified) _lateTransmissionProbeAttempted = YES;
-            }
             MBLinkStandardDataSnapshot *snapshot = [[MBLinkStandardDataSnapshot alloc] init];
             snapshot.pid = entry->decoded.definition->pid;
             snapshot.responderCANIdentifier = entry->responder_id;
@@ -1178,7 +1146,6 @@ static bool MBLinkSimulatorResponder(
                 _standardDataLatest[@(snapshot.pid)] = snapshot;
         }
         [self persistCapabilitiesFromFlowEvent:event];
-        [self queueModuleScanFollowup];
         [self notifyDelegate];
         return;
     }
@@ -1243,6 +1210,18 @@ static bool MBLinkSimulatorResponder(
     (LinkDiagnosticsController *)controller
 {
     (void)controller;
+    /*
+     * Module identification and saved-profile validation are startup-only.
+     * They may run once for each connection, before the live scheduler starts.
+     * A recovery, UI refresh or live sample must never turn the ECU census
+     * into recurring manufacturer work.
+     */
+    if (_startupModuleDiscoveryStarted) {
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        return;
+    }
+    _startupModuleDiscoveryStarted = YES;
+
     if ([self beginCachedVehicleProfileRefresh]) return;
     /*
      * The normal Connect path establishes the fitted-module map first.  The
@@ -1257,10 +1236,6 @@ static bool MBLinkSimulatorResponder(
   beginScheduledManufacturerJob:(uint32_t)token
 {
     (void)controller;
-    if (token == MBLinkScheduledModuleFollowupJobToken) {
-        [self beginScheduledModuleScanFollowup];
-        return;
-    }
     if (token != MBLinkScheduledTransmissionLiveJobToken) {
         [_shared failWithStatus:@"Unknown scheduled Mercedes live job"];
         return;
@@ -1329,16 +1304,11 @@ static bool MBLinkSimulatorResponder(
          */
         if (capturedModules != 0U)
             [self updateMercedesModuleScanSummary];
-        _moduleScanResumePending =
-            mblink_mercedes_module_scan_resume_after_interruption(
-                &_mercedesModuleScan);
         self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes module scan interrupted: %@%@", status,
-            _moduleScanResumePending
-                ? @" · continuation queued after adapter recovery"
-                : @" · retry limit reached or no remaining routes"];
+            @"Mercedes startup module scan interrupted: %@ · partial results retained; no live-mode rescan",
+            status];
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"Partial · %zu module routes · %zu Mercedes factory fault record%@ retained",
+            @"Partial · %zu module routes · %zu Mercedes factory fault record%@ retained · next connection will validate again",
             capturedModules, capturedFaults, capturedFaults == 1U ? @"" : @"s"];
     } else if (_manufacturerProbeActive) {
         self.mercedesProbeStatusText = [NSString stringWithFormat:
@@ -1352,71 +1322,8 @@ static bool MBLinkSimulatorResponder(
     }
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
-    if (!_moduleScanResumePending) _cachedModuleRefreshActive = NO;
-    [self queueModuleScanFollowup];
+    _cachedModuleRefreshActive = NO;
     [self notifyDelegate];
-}
-
-- (void)queueModuleScanFollowup
-{
-    if (!_shared.isActive || _shared.isSimulated ||
-        (!_moduleScanResumePending && !_lateTransmissionProbePending) ||
-        _moduleFollowupJobEnabled || _moduleFollowupUpdateQueued) return;
-    /* Failure callbacks run inside LINK's recovery transition. Register on
-     * the next main-queue turn, then let LINK's live scheduler own the wire. */
-    _moduleFollowupUpdateQueued = YES;
-    __weak MBLinkDiagnosticsController *weakSelf = self;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        MBLinkDiagnosticsController *strongSelf = weakSelf;
-        if (strongSelf == nil) return;
-        strongSelf->_moduleFollowupUpdateQueued = NO;
-        if (!strongSelf->_shared.isActive ||
-            (!strongSelf->_moduleScanResumePending &&
-             !strongSelf->_lateTransmissionProbePending) ||
-            strongSelf->_moduleFollowupJobEnabled) return;
-        strongSelf->_moduleFollowupJobEnabled = YES;
-        BOOL accepted;
-        if (strongSelf->_moduleFollowupJobRegistered) {
-            accepted = [strongSelf->_shared setLiveManufacturerJobEnabled:YES
-                token:MBLinkScheduledModuleFollowupJobToken];
-        } else {
-            strongSelf->_moduleFollowupJobRegistered = YES;
-            accepted = [strongSelf->_shared registerLiveManufacturerJobWithToken:
-                MBLinkScheduledModuleFollowupJobToken intervalMilliseconds:250U
-                priority:LINK_SCHEDULER_PRIORITY_HIGH];
-            if (!accepted) strongSelf->_moduleFollowupJobRegistered = NO;
-        }
-        if (!accepted) strongSelf->_moduleFollowupJobEnabled = NO;
-    });
-}
-
-- (void)beginScheduledModuleScanFollowup
-{
-    (void)[_shared setLiveManufacturerJobEnabled:NO
-        token:MBLinkScheduledModuleFollowupJobToken];
-    _moduleFollowupJobEnabled = NO;
-    if (_moduleScanActive || _manufacturerProbeActive ||
-        self.manufacturerDataScanActive ||
-        self.manufacturerDataScanModuleIdentifier.length != 0U) {
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-        return;
-    }
-    if (_moduleScanResumePending) {
-        _moduleScanResumePending = NO;
-    } else if (_lateTransmissionProbePending) {
-        _lateTransmissionProbePending = NO;
-        _lateTransmissionProbeAttempted = YES;
-        _cachedModuleRefreshActive = NO;
-        if (!mblink_mercedes_module_scan_begin_late_transmission(&_mercedesModuleScan)) {
-            (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-            return;
-        }
-    } else {
-        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
-        return;
-    }
-    _moduleScanActive = YES;
-    [self beginCurrentMercedesModuleScanCommand];
 }
 
 - (nullable const MblinkMercedesModuleScanEntry *)
@@ -2519,7 +2426,6 @@ static void MBLinkAppendManufacturerDefinition(
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
-        [self queueModuleScanFollowup];
         if (liveOnly && _scheduledManufacturerJobActive) {
             _scheduledManufacturerJobActive = NO;
             (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
@@ -2550,7 +2456,6 @@ static void MBLinkAppendManufacturerDefinition(
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
-        [self queueModuleScanFollowup];
         return;
     }
 
@@ -3187,7 +3092,6 @@ static void MBLinkAppendManufacturerDefinition(
             @"Could not resume standard diagnostics after Mercedes data scan"];
     }
     [self updateScheduledManufacturerLiveJob];
-    [self queueModuleScanFollowup];
     [self notifyDelegate];
 }
 

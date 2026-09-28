@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.244 — 2026-09-28
+
+- Make Mercedes module census and saved-profile validation strictly startup-only: one module-identification pass per connection before live polling begins.
+- Remove the 250 ms high-priority live-scheduler module-followup job that could resume an interrupted startup census after the shared flow had already entered live mode.
+- Remove live-sample-triggered late transmission identification so ordinary PID samples can never re-arm ECU discovery.
+- Preserve partial startup module/fault evidence after an interruption and defer another topology validation until the next connection instead of polling the vehicle's ECU map again in live mode.
+- Keep recurring Mercedes scheduler work limited to explicitly selected manufacturer live-data identifiers; module discovery itself is never a recurring job.
+
 ## 0.7.243 — 2026-09-28
 
 - Separate historical evidence that a Mercedes ECU has accepted UDS `10 03` from MBLINK's permission to enter that session automatically.
