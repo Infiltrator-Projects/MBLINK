@@ -213,6 +213,11 @@ mblink_mercedes_research_route_controller_family(
      * for UDS IC_204 and KWP2000 KI221; a KWP responder must not be relabelled
      * IC_204 merely because the CAN addresses match Shannon's C207 capture.
      */
+    if (mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            module->protocol) != 1U) {
+        return NULL;
+    }
     if (mblink_mercedes_ecu_pack_resolve(
             identity->module_key, identity->controller_family_key,
             module->tx_can_id, module->rx_can_id, module->extended_id,
