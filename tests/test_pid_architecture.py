@@ -160,7 +160,7 @@ require(
     "PID catalogue must come from the identified ECU profile, not route fallbacks",
 )
 require(
-    ".filter { $0.live }" in model,
+    ".filter { $0.isLive }" in model,
     "manufacturer PID Setup must expose documented live values only",
 )
 require(
