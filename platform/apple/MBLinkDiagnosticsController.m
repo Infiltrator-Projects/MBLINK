@@ -982,74 +982,10 @@ static bool MBLinkSimulatorResponder(
     }
 
     /*
-     * A standards-based live response is independent proof that a control
-     * unit exists. In the captured C207 session 7E9 continued answering Mode
-     * 01 after its UDS probe returned no data, so do not erase that responder
-     * from the vehicle map merely because the manufacturer session is quiet.
+     * Legislated OBD-II responders are intentionally not represented as
+     * Mercedes modules. Standard SAE/EOBD live data has its own vehicle-wide
+     * PID source in PID Setup; Modules contains manufacturer ECUs only.
      */
-    for (uint32_t responseID = UINT32_C(0x7e8);
-         responseID <= UINT32_C(0x7ef);
-         ++responseID) {
-        NSArray<NSNumber *> *pids =
-            [self observedPIDsForResponderCANIdentifier:
-                responseID extendedID:NO];
-        if (pids.count == 0U) continue;
-        BOOL alreadyPresent = NO;
-        for (MBLinkMercedesModuleSnapshot *existing in snapshots) {
-            if (!existing.isExtendedID &&
-                existing.responseCANIdentifier == responseID) {
-                alreadyPresent = YES;
-                break;
-            }
-        }
-        if (alreadyPresent) continue;
-
-        const uint32_t requestID = responseID - UINT32_C(8);
-        const MblinkMercedesModuleKind kind =
-            mblink_mercedes_module_scan_kind(requestID, false);
-        MBLinkMercedesModuleSnapshot *snapshot =
-            [[MBLinkMercedesModuleSnapshot alloc] init];
-        snapshot.identifier = [NSString stringWithFormat:
-            @"11:%08X:%08X", (unsigned int)requestID,
-            (unsigned int)responseID];
-        snapshot.name = requestID == UINT32_C(0x7e0)
-            ? @"Engine ECU"
-            : requestID == UINT32_C(0x7e1)
-                ? @"Transmission ECU / GS"
-                : [NSString stringWithFormat:
-                    @"OBD responder 0x%03X", (unsigned int)responseID];
-        snapshot.designation = requestID == UINT32_C(0x7e1)
-            ? @"GS gearbox-control diagnostic responder"
-            : @"Observed legislated-OBD responder";
-        snapshot.network = @"Powertrain CAN / legislated OBD";
-        snapshot.kind = MBLinkStringFromCString(
-            mblink_mercedes_module_kind_name(kind));
-        snapshot.protocolName = @"SAE Mode 01 / ISO 15765-4";
-        snapshot.requestCANIdentifier = requestID;
-        snapshot.responseCANIdentifier = responseID;
-        snapshot.extendedID = NO;
-        snapshot.faultStatus =
-            @"Live responder observed · module fault state not established";
-        snapshot.faultCount = 0U;
-        snapshot.faults = @[];
-        if (requestID == UINT32_C(0x7e1)) {
-            snapshot.evidenceDetails = @[
-                [NSString stringWithFormat:
-                    @"Live Mode 01 responder · %lu confirmed PID%@",
-                    (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"],
-                @"Mercedes GS route · D_RQ_GS 0x7E1 → D_RS_GS 0x7E9",
-                @"Read-only 21 30 · ATF temperature + current-gear candidate",
-                @"Passive GS 0x218 / 0x338 / 0x418 decoder support compiled"
-            ];
-        } else {
-            snapshot.evidenceDetails = @[
-                [NSString stringWithFormat:
-                    @"Live Mode 01 responder · %lu confirmed PID%@",
-                    (unsigned long)pids.count, pids.count == 1U ? @"" : @"s"]
-            ];
-        }
-        [snapshots addObject:snapshot];
-    }
     return [snapshots copy];
 }
 
