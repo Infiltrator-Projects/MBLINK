@@ -2207,7 +2207,6 @@ static void MBLinkAppendManufacturerDefinition(
             value.formattedValue = MBLinkStringFromCString(name);
             value.numericValueAvailable = NO;
             value.rawHex = rli30.rawHex;
-            value.pollingEnabled = pollingEnabled;
             value.qualityNote = quality;
             [values addObject:value];
         }
@@ -2229,7 +2228,6 @@ static void MBLinkAppendManufacturerDefinition(
             value.formattedValue = MBLinkStringFromCString(name);
             value.numericValueAvailable = NO;
             value.rawHex = rli30.rawHex;
-            value.pollingEnabled = pollingEnabled;
             value.qualityNote = quality;
             [values addObject:value];
         }
