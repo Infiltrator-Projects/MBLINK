@@ -109,13 +109,14 @@ int main(void)
     link_discover_sweep_target target;
     char label[64];
     size_t index;
-    size_t known_seen[9] = {
-        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U
+    size_t known_seen[10] = {
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U
     };
-    const uint32_t known_tx[9] = {
+    const uint32_t known_tx[10] = {
         UINT32_C(0x612), UINT32_C(0x632), UINT32_C(0x64a),
         UINT32_C(0x652), UINT32_C(0x6b2), UINT32_C(0x602),
-        UINT32_C(0x607), UINT32_C(0x4e0), UINT32_C(0x7e1)
+        UINT32_C(0x607), UINT32_C(0x4e0), UINT32_C(0x7e1),
+        UINT32_C(0x60a)
     };
     static const uint8_t kwp_2105[] = {0x21U, 0x05U};
     static const uint8_t obd_0902[] = {0x09U, 0x02U};
@@ -124,7 +125,7 @@ int main(void)
 
     CHECK(link_discover_sweep_plan_is_valid(plan));
     CHECK(plan->target_count == 760U);
-    CHECK(mblink_mercedes_known_route_count() == 9U);
+    CHECK(mblink_mercedes_known_route_count() == 10U);
     for (index = 0U; index < mblink_mercedes_known_route_count(); ++index) {
         const MblinkMercedesKnownRoute *route =
             mblink_mercedes_known_route_at(index);
@@ -235,15 +236,26 @@ int main(void)
         CHECK(route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
         CHECK(strcmp(route->module_key, "transmission-vgs") == 0);
     }
+    {
+        const MblinkMercedesKnownRoute *route =
+            mblink_mercedes_known_route_for_tx(UINT32_C(0x60a));
+        CHECK(route != NULL);
+        CHECK(route->rx_can_id == UINT32_C(0x481));
+        CHECK(route->protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS);
+        CHECK(strcmp(route->module_key, "instrument-cluster") == 0);
+    }
 
-    /* Generic enumeration follows and excludes all source-backed in-range routes. */
+    /* IC_204 is now a source-backed UDS route; generic enumeration follows. */
     CHECK(link_discover_sweep_plan_target_at(plan, 9U, &target));
+    CHECK(target.tx_can_id == UINT32_C(0x60a));
+    CHECK(target.rx_can_id == UINT32_C(0x481));
+    CHECK(link_discover_sweep_plan_target_at(plan, 10U, &target));
     CHECK(target.tx_can_id == UINT32_C(0x600));
     CHECK(target.rx_can_id == UINT32_C(0x608));
-    CHECK(link_discover_sweep_plan_target_at(plan, 10U, &target));
+    CHECK(link_discover_sweep_plan_target_at(plan, 11U, &target));
     CHECK(target.tx_can_id == UINT32_C(0x601));
     CHECK(target.rx_can_id == UINT32_C(0x609));
-    CHECK(link_discover_sweep_plan_target_at(plan, 11U, &target));
+    CHECK(link_discover_sweep_plan_target_at(plan, 12U, &target));
     CHECK(target.tx_can_id == UINT32_C(0x603));
     CHECK(target.rx_can_id == UINT32_C(0x60b));
 
@@ -251,11 +263,11 @@ int main(void)
         size_t known;
         CHECK(link_discover_sweep_plan_target_at(plan, index, &target));
         CHECK(!target.extended_id);
-        for (known = 0U; known < 9U; ++known) {
+        for (known = 0U; known < 10U; ++known) {
             if (target.tx_can_id == known_tx[known]) ++known_seen[known];
         }
     }
-    for (index = 0U; index < 9U; ++index) CHECK(known_seen[index] == 1U);
+    for (index = 0U; index < 10U; ++index) CHECK(known_seen[index] == 1U);
 
     /* The GS route is now priority source-backed instead of generic. */
     CHECK(link_discover_sweep_plan_target_at(plan, 8U, &target));
