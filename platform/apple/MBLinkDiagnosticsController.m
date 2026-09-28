@@ -339,20 +339,6 @@ static BOOL MBLinkDecodeTransmissionLive2130(
         data, dataLength, decoded);
 }
 
-static const char *
-MBLinkMercedesDataProfileKeyForModule(
-    const MblinkMercedesModuleScanEntry *module)
-{
-    if (module == NULL) return NULL;
-    if (module->controller_family != NULL)
-        return module->controller_family->key;
-    return mblink_mercedes_data_profile_key_for_controller(
-        module->definition != NULL ? module->definition->key : NULL,
-        module->identity_available ? module->identity : NULL,
-        module->software_number_available ? module->software_number : NULL,
-        module->hardware_number_available ? module->hardware_number : NULL);
-}
-
 static NSString *MBLinkMercedesEndpointText(
     const MblinkMercedesEcuEndpointDefinition *endpoint)
 {
@@ -1986,36 +1972,11 @@ static void MBLinkAppendManufacturerDefinition(
             module->extended_id,
             mblink_mercedes_module_scan_entry_protocol(module),
             module->kind);
-    const MblinkMercedesTransmissionFamily transmissionFamily =
-        MBLinkTransmissionFamilyForModule(module);
-    const BOOL profiledTransmissionModule =
-        MBLinkMercedesModuleIsTransmissionController(module) &&
-        transmissionFamily != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN &&
-        mblink_mercedes_module_scan_entry_protocol(module) ==
-            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-        mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-            transmissionFamily) != 0U;
-    const char *controllerProfileKey =
-        MBLinkMercedesDataProfileKeyForModule(module);
-    const size_t controllerProfileCount =
-        mblink_mercedes_controller_data_profile_identifier_count(
-            controllerProfileKey,
-            mblink_mercedes_module_scan_entry_protocol(module));
-    const BOOL profiledControllerModule =
-        controllerProfileKey != NULL && controllerProfileCount != 0U;
-    const MblinkMercedesDocumentedEcuProfile *documentedControllerProfile =
-        module->controller_family != NULL &&
-        module->controller_family->key != NULL
-            ? mblink_mercedes_documented_ecu_profile_for_controller_family(
-                module->controller_family->key,
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                mblink_mercedes_module_scan_entry_protocol(module))
-            : NULL;
-    const size_t documentedControllerReadCount =
-        mblink_mercedes_documented_ecu_read_count(
-            documentedControllerProfile);
-    const BOOL profiledDocumentedModule =
-        documentedControllerReadCount != 0U;
+    MblinkMercedesEcuPack ecuPack;
+    const BOOL hasEcuPack =
+        mblink_mercedes_ecu_pack_resolve_module(module, &ecuPack);
+    const size_t ecuPackItemCount = hasEcuPack
+        ? mblink_mercedes_ecu_pack_data_item_count(&ecuPack) : 0U;
 
     MblinkMercedesDataScanResult result =
         MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
@@ -2040,10 +2001,7 @@ static void MBLinkAppendManufacturerDefinition(
                 &_manufacturerDataScan, &config,
                 identifiers, identifierCount);
         }
-    } else if (!liveOnly &&
-               (profiledTransmissionModule ||
-                profiledControllerModule ||
-                profiledDocumentedModule)) {
+    } else if (!liveOnly && ecuPackItemCount != 0U) {
         /*
          * Factory Readings issues only source-backed commands belonging to the
          * specifically identified controller. It never searches a PID range.
@@ -2073,45 +2031,14 @@ static void MBLinkAppendManufacturerDefinition(
         } \
     } while (0)
 
-        if (profiledTransmissionModule) {
-            const size_t sourceCount =
-                mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-                    transmissionFamily);
-            for (size_t index = 0U; index < sourceCount; ++index) {
-                APPEND_READ_COMMAND(
-                    UINT8_C(0x21),
-                    (uint16_t)
-                    mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
-                        transmissionFamily, index));
+        for (size_t itemIndex = 0U;
+             itemIndex < ecuPackItemCount; ++itemIndex) {
+            MblinkMercedesEcuDataItem item;
+            if (!mblink_mercedes_ecu_pack_data_item_at(
+                    &ecuPack, itemIndex, &item)) {
+                continue;
             }
-        }
-
-        if (profiledControllerModule) {
-            const uint8_t controllerService =
-                mblink_mercedes_module_scan_entry_protocol(module) ==
-                    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
-                    ? UINT8_C(0x21) : UINT8_C(0x22);
-            for (size_t index = 0U; index < controllerProfileCount; ++index) {
-                const MblinkMercedesControllerDataProfileEntry *entry =
-                    mblink_mercedes_controller_data_profile_identifier_at(
-                        controllerProfileKey,
-                        mblink_mercedes_module_scan_entry_protocol(module),
-                        index);
-                if (entry != NULL)
-                    APPEND_READ_COMMAND(
-                        controllerService, entry->identifier);
-            }
-        }
-
-        if (profiledDocumentedModule) {
-            for (size_t index = 0U;
-                 index < documentedControllerReadCount; ++index) {
-                const MblinkMercedesDocumentedRead *read =
-                    mblink_mercedes_documented_ecu_read_at(
-                        documentedControllerProfile, index);
-                if (read != NULL)
-                    APPEND_READ_COMMAND(read->service, read->identifier);
-            }
+            APPEND_READ_COMMAND(item.service, item.identifier);
         }
 
 #undef APPEND_READ_COMMAND
