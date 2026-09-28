@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.246 — 2026-09-28
+
+- Apply the 39-minute C207 road-capture findings to live manufacturer polling: UDS background refresh is now deny-by-default and enabled only for explicitly qualified runtime-changing routes/identifiers.
+- Keep the static 0x602/0x480 F1xx identity/configuration records out of the live scheduler, while retaining them for startup/manual inspection.
+- Demote ABR2XT DIDs 0x2003, 0x2009 and 0x20C0 to manual-only after the road capture showed they were overwhelmingly state-gated/NO DATA; retain 0x2001, 0x2004, 0x2007 and 0x200D as the qualified runtime set.
+- Stop scheduled 11-bit Mercedes live reads from replaying the full ELM initializer/ATZ on every cycle; restore the functional CAN header/filter and return directly to LINK's live scheduler instead.
+- Detect late positive responses carrying the wrong UDS/KWP identifier, never associate them with the current request, and retry the current identifier before advancing.
+
 ## 0.7.245 — 2026-09-28
 
 - Route every Apple module-discovery entry through one per-connection startup gate, including the retained legacy engine-probe completion path.
