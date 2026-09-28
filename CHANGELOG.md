@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.242 — 2026-09-28
+
+- Decode the vehicle-proven Siemens EGS53 KWP RLI 0x30 path using the exact identified controller family instead of losing the EGS53 classification in the iOS live-value layer.
+- Present proven EGS53 semantics from the captured 0x21/0x30 record, including TCC state, selector position, drive program, recognised gear, actual/target gear and ATF temperature, while leaving unproven pressure/speed/torque conversions conservative.
+- Import source-backed EGS51, EGS52 and EGS53 CAN definitions as three strictly separate lookups: 11 frames/146 signals, 121 frames/528 signals and 95 frames/602 signals respectively, preserving family-specific enums, scaling, duplicate frame candidates and composite masks.
+- Correct the legacy passive EGS CAN decoders to consume Mercedes CAN bytes in documented wire order rather than the upstream generator's internal little-endian union order.
+- Fix the transmission regression-test helper contract that made Linux C11 and ASan/UBSan builds fail under -Werror after the wire-order tests were added.
+
 ## 0.7.241 — 2026-09-28
 
 - Make the 1,319-profile global Mercedes ECU catalogue route-first as well as family-aware: every discovered exact TX/RX route can now supply its documented safe read-only command set even before ECU identity resolves one controller generation.
