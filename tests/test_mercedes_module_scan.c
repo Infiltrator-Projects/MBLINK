@@ -1044,6 +1044,63 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                     "fuel-pump", "fuel-pump-fscu",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
 
+        /*
+         * Saved/offline profiles must resolve through the same catalogue as a
+         * live controller. These are the routes observed on Shannon's C207.
+         */
+        {
+            static const struct {
+                uint32_t tx;
+                uint32_t rx;
+                MblinkMercedesDiagnosticProtocol protocol;
+                const char *expected_name;
+            } saved_routes[] = {
+                { UINT32_C(0x602), UINT32_C(0x480),
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+                  "Central gateway (CGW)" },
+                { UINT32_C(0x60a), UINT32_C(0x481),
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+                  "IC_204 instrument cluster" },
+                { UINT32_C(0x612), UINT32_C(0x482),
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+                  "EIS/EZS_212 ignition controller" },
+                { UINT32_C(0x622), UINT32_C(0x484),
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+                  "SCCM/SCM steering-column controller" },
+                { UINT32_C(0x652), UINT32_C(0x48a),
+                  MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+                  "HU_204 head unit" }
+            };
+            size_t saved_index;
+            for (saved_index = 0U;
+                 saved_index < sizeof(saved_routes) / sizeof(saved_routes[0]);
+                 ++saved_index) {
+                MblinkMercedesModuleScanEntry resolved;
+                CHECK(mblink_mercedes_module_scan_resolve_controller(
+                    saved_routes[saved_index].tx,
+                    saved_routes[saved_index].rx,
+                    false,
+                    saved_routes[saved_index].protocol,
+                    NULL, NULL, NULL, NULL,
+                    &resolved));
+                CHECK(strcmp(
+                    mblink_mercedes_module_scan_module_name(&resolved),
+                    saved_routes[saved_index].expected_name) == 0);
+            }
+        }
+        {
+            MblinkMercedesModuleScanEntry resolved;
+            CHECK(mblink_mercedes_module_scan_resolve_controller(
+                UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+                NULL, "0034464310", NULL, NULL, &resolved));
+            CHECK(resolved.controller_family != NULL);
+            CHECK(strcmp(resolved.controller_family->key,
+                         "transmission-egs53") == 0);
+            CHECK(strcmp(mblink_mercedes_module_scan_module_name(&resolved),
+                         "EGS53 transmission ECU") == 0);
+        }
+
 #undef CHECK_ROUTE
     }
 
