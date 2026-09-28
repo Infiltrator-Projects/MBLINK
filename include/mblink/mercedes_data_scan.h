@@ -64,6 +64,11 @@ typedef struct MblinkMercedesDataScanConfig {
     bool request_extended_session;
 } MblinkMercedesDataScanConfig;
 
+typedef struct MblinkMercedesDataProbeCommand {
+    uint8_t service;
+    uint16_t identifier;
+} MblinkMercedesDataProbeCommand;
+
 typedef struct MblinkMercedesDataRecord {
     uint16_t identifier;
     uint8_t service;
@@ -77,6 +82,7 @@ typedef struct MblinkMercedesDataScan {
     MblinkMercedesDataScanStage stage;
     MblinkMercedesDataScanResult failure;
     uint16_t current_identifier;
+    uint8_t current_service;
     size_t attempted_count;
     size_t positive_count;
     size_t negative_count;
@@ -99,6 +105,7 @@ typedef struct MblinkMercedesDataScan {
      */
     uint8_t current_no_response_retries;
     uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+    uint8_t services[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
     MblinkMercedesDataRecord records[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
 } MblinkMercedesDataScan;
 
@@ -262,6 +269,11 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_identifiers(
     const MblinkMercedesDataScanConfig *config,
     const uint16_t *identifiers,
     size_t identifier_count);
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_commands(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const MblinkMercedesDataProbeCommand *commands,
+    size_t command_count);
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
     const MblinkMercedesDataScan *scan,
     char *buffer,

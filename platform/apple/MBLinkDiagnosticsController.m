@@ -8,6 +8,7 @@
 #import "mblink/mercedes_probe.h"
 #import "mblink/mercedes_module_scan.h"
 #import "mblink/mercedes_data_scan.h"
+#import "mblink/mercedes_documented_ecus.h"
 #import "mblink/mercedes_transmission.h"
 #import "mblink/uds_dtc.h"
 
@@ -1986,6 +1987,49 @@ static void MBLinkAppendManufacturerDefinition(
         }
     }
 
+    const MblinkMercedesDocumentedEcuProfile *documentedProfile = NULL;
+    if (module->controller_family != NULL &&
+        module->controller_family->key != NULL) {
+        documentedProfile =
+            mblink_mercedes_documented_ecu_profile_for_controller_family(
+                module->controller_family->key,
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                protocol);
+    }
+    if (documentedProfile != NULL) {
+        const size_t documentedCount =
+            mblink_mercedes_documented_ecu_read_count(documentedProfile);
+        for (size_t index = 0U; index < documentedCount; ++index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_ecu_read_at(
+                    documentedProfile, index);
+            if (read == NULL) continue;
+            const char *name =
+                mblink_mercedes_documented_read_name(
+                    read->service, read->identifier);
+            NSString *title = name != NULL
+                ? MBLinkStringFromCString(name)
+                : [NSString stringWithFormat:
+                    @"Documented %@ read 0x%04X",
+                    read->service == UINT8_C(0x22) ? @"UDS" : @"KWP",
+                    (unsigned int)read->identifier];
+            MBLinkAppendManufacturerDefinition(
+                values, seenWireKeys,
+                MBLinkManufacturerStableKey(
+                    identifier, read->service, read->identifier),
+                read->service, read->identifier,
+                [NSString stringWithFormat:@"%02X %04X",
+                    (unsigned int)read->service,
+                    (unsigned int)read->identifier],
+                title,
+                [NSString stringWithFormat:@"%@ · %@",
+                    MBLinkStringFromCString(
+                        mblink_mercedes_documented_route_source()),
+                    MBLinkStringFromCString(documentedProfile->name)],
+                read->service == UINT8_C(0x21), NO);
+        }
+    }
+
     const char *profileKey = MBLinkMercedesDataProfileKeyForModule(module);
     const size_t profileCount =
         mblink_mercedes_controller_data_profile_identifier_count(
@@ -2426,6 +2470,20 @@ static void MBLinkAppendManufacturerDefinition(
             mblink_mercedes_module_scan_entry_protocol(module));
     const BOOL profiledControllerModule =
         controllerProfileKey != NULL && controllerProfileCount != 0U;
+    const MblinkMercedesDocumentedEcuProfile *documentedControllerProfile =
+        module->controller_family != NULL &&
+        module->controller_family->key != NULL
+            ? mblink_mercedes_documented_ecu_profile_for_controller_family(
+                module->controller_family->key,
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module))
+            : NULL;
+    const size_t documentedControllerReadCount =
+        mblink_mercedes_documented_ecu_read_count(
+            documentedControllerProfile);
+    const BOOL profiledDocumentedModule =
+        documentedControllerProfile != NULL &&
+        documentedControllerReadCount != 0U;
     const size_t routeEvidenceCount =
         mblink_mercedes_route_evidence_identifier_count(
             module->tx_can_id, module->rx_can_id, module->extended_id,
@@ -2436,6 +2494,18 @@ static void MBLinkAppendManufacturerDefinition(
         !_manufacturerDataForceFullScan &&
         knownIdentifierCount > 0U &&
         knownIdentifierCount <= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS;
+    if (targetedRefresh && knownValues.count != 0U) {
+        const uint8_t defaultService =
+            mblink_mercedes_module_scan_entry_protocol(module) ==
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                ? UINT8_C(0x21) : UINT8_C(0x22);
+        for (MBLinkMercedesDataSnapshot *snapshot in knownValues) {
+            if (snapshot.service != defaultService) {
+                targetedRefresh = NO;
+                break;
+            }
+        }
+    }
     BOOL candidateProbe = NO;
     MblinkMercedesDataScanResult result =
         MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
@@ -2523,58 +2593,105 @@ static void MBLinkAppendManufacturerDefinition(
     } else if (!_manufacturerDataForceFullScan && !liveOnly &&
                (profiledTransmissionModule ||
                 profiledControllerModule ||
+                profiledDocumentedModule ||
                 routeEvidenceCount != 0U)) {
         /*
-         * One de-duplicated read-only plan combines controller-family
-         * knowledge with exact-route positive field evidence. The latter is
-         * semantic-free: it exists only so stricter classification cannot
-         * discard data already proven on this physical ECU.
+         * Global controller documentation is expressed as exact read commands,
+         * not just integer IDs. Keep service+identifier together so a KWP
+         * ReadECUIdentification (1A xx) can never silently become 21 xx.
+         * Only 22/21/1A reads can enter this list; the C core rejects anything
+         * else before it reaches LINK/the adapter.
          */
-        NSMutableOrderedSet<NSNumber *> *probeIDs =
-            [[NSMutableOrderedSet alloc] init];
+        MblinkMercedesDataProbeCommand
+            commands[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t commandCount = 0U;
+
+#define APPEND_READ_COMMAND(SERVICE, IDENTIFIER) do { \
+        const uint8_t appendService = (SERVICE); \
+        const uint16_t appendIdentifier = (IDENTIFIER); \
+        BOOL duplicate = NO; \
+        for (size_t seenIndex = 0U; seenIndex < commandCount; ++seenIndex) { \
+            if (commands[seenIndex].service == appendService && \
+                commands[seenIndex].identifier == appendIdentifier) { \
+                duplicate = YES; \
+                break; \
+            } \
+        } \
+        if (!duplicate && \
+            commandCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS && \
+            mblink_mercedes_documented_read_is_safe( \
+                appendService, appendIdentifier)) { \
+            commands[commandCount].service = appendService; \
+            commands[commandCount].identifier = appendIdentifier; \
+            ++commandCount; \
+        } \
+    } while (0)
 
         if (profiledTransmissionModule) {
             const size_t sourceCount =
                 mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
                     transmissionFamily);
             for (size_t index = 0U; index < sourceCount; ++index) {
-                [probeIDs addObject:@((uint16_t)
+                APPEND_READ_COMMAND(
+                    UINT8_C(0x21),
+                    (uint16_t)
                     mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
-                        transmissionFamily, index))];
+                        transmissionFamily, index));
             }
         }
+
         if (profiledControllerModule) {
+            const uint8_t controllerService =
+                mblink_mercedes_module_scan_entry_protocol(module) ==
+                    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                    ? UINT8_C(0x21) : UINT8_C(0x22);
             for (size_t index = 0U; index < controllerProfileCount; ++index) {
                 const MblinkMercedesControllerDataProfileEntry *entry =
                     mblink_mercedes_controller_data_profile_identifier_at(
                         controllerProfileKey,
                         mblink_mercedes_module_scan_entry_protocol(module),
                         index);
-                if (entry != NULL) [probeIDs addObject:@(entry->identifier)];
+                if (entry != NULL)
+                    APPEND_READ_COMMAND(
+                        controllerService, entry->identifier);
             }
         }
-        for (size_t index = 0U; index < routeEvidenceCount; ++index) {
-            const MblinkMercedesRouteEvidenceEntry *entry =
-                mblink_mercedes_route_evidence_identifier_at(
-                    module->tx_can_id, module->rx_can_id,
-                    module->extended_id,
-                    mblink_mercedes_module_scan_entry_protocol(module),
-                    module->kind, index);
-            if (entry != NULL) [probeIDs addObject:@(entry->identifier)];
+
+        if (profiledDocumentedModule) {
+            for (size_t index = 0U;
+                 index < documentedControllerReadCount; ++index) {
+                const MblinkMercedesDocumentedRead *read =
+                    mblink_mercedes_documented_ecu_read_at(
+                        documentedControllerProfile, index);
+                if (read != NULL)
+                    APPEND_READ_COMMAND(read->service, read->identifier);
+            }
         }
 
-        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
-        size_t identifierCount = 0U;
-        for (NSNumber *number in probeIDs) {
-            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
-                break;
-            identifiers[identifierCount++] =
-                (uint16_t)number.unsignedIntegerValue;
+        {
+            const uint8_t evidenceService =
+                mblink_mercedes_module_scan_entry_protocol(module) ==
+                    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                    ? UINT8_C(0x21) : UINT8_C(0x22);
+            for (size_t index = 0U; index < routeEvidenceCount; ++index) {
+                const MblinkMercedesRouteEvidenceEntry *entry =
+                    mblink_mercedes_route_evidence_identifier_at(
+                        module->tx_can_id, module->rx_can_id,
+                        module->extended_id,
+                        mblink_mercedes_module_scan_entry_protocol(module),
+                        module->kind, index);
+                if (entry != NULL)
+                    APPEND_READ_COMMAND(
+                        evidenceService, entry->identifier);
+            }
         }
-        if (identifierCount != 0U) {
-            result = mblink_mercedes_data_scan_begin_probe_identifiers(
+
+#undef APPEND_READ_COMMAND
+
+        if (commandCount != 0U) {
+            result = mblink_mercedes_data_scan_begin_probe_commands(
                 &_manufacturerDataScan, &config,
-                identifiers, identifierCount);
+                commands, commandCount);
         }
     } else if (!liveOnly) {
         result = mblink_mercedes_data_scan_begin(

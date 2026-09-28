@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.240 — 2026-09-28
+
+- Add a global source-backed Mercedes ECU knowledge layer: 1,319 documented controller profiles, 1,107 explicit CAN routes and 4,355 simple read-only 0x22/0x21/0x1A references normalized from public Foxwell/Xentry-derived metadata.
+- Preserve route ambiguity: shared CAN routes can enumerate several controller generations; ECU identity/part-number evidence selects the exact family before family-specific documentation is applied.
+- Add GPL-3.0 detailed field-schema provenance from laravelcompany/ecudocs.com and portable byte/bit-location metadata for common Daimler UDS and KWP identity records.
+- Extend manufacturer-data probing to explicit service+identifier command lists, including KWP 0x1A, while rejecting security, routine, IO-control and write/programming services before they reach the adapter.
+- Feed exact classified controller families into the global documented profile in the iOS module-data view and probe plan. The captured EGS53 therefore selects the public EGS53 command set rather than inheriting generic 7E1/7E9 assumptions.
+- Add regression coverage for all 13 captured C207 responder routes, route ambiguity, EGS53 family selection, SCCM field locations and mixed KWP 0x1A/0x21 reads.
+
 ## 0.7.239 — 2026-09-28
 
 - Keep a fixed control-unit identity panel for every discovered ECU: CAN route, protocol, designation, network, ECU identity, part number, software version and hardware version are always visible.

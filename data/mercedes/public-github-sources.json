@@ -94,6 +94,22 @@
       "use": "semantic-evidence",
       "destination": "MBLINK Mercedes route catalogue",
       "value": "High-value NDSS 2020 corpus extracted from vehicle companion apps; Data/CAN_Bus_Commands/Mercedes.json maps many Mercedes CAN request IDs to ECU semantics. Use as a standing lookup source, cross-checking model-specific traces/service evidence where Mercedes reuses an address."
+    },
+    {
+      "repository": "laravelcompany/ecudocs.com",
+      "status": "active",
+      "license": "GPL-3.0",
+      "use": "semantic-and-field-schema",
+      "destination": "MBLINK global Mercedes documented-ECU catalogue",
+      "value": "GPL-3.0 public ECU JSON corpus with request/reply definitions and response byte/bit field layouts, scaling and enumerations."
+    },
+    {
+      "repository": "panda-zhao/panda-zhao.github.io",
+      "status": "active",
+      "license": "not-declared-in-root",
+      "use": "normalized-factual-route-and-read-evidence",
+      "destination": "MBLINK global Mercedes documented-ECU catalogue",
+      "value": "Foxwell/Xentry-derived Mercedes SysInfors/SysEnterCmd metadata normalized into controller names, routes, sessions and simple read-only 22/21/1A references."
     }
   ]
 }

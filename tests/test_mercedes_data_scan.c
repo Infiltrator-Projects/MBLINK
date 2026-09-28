@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_data_scan.h"
+#include "mblink/mercedes_documented_ecus.h"
 #include "mblink/mercedes_transmission.h"
 #include "mblink/kwp2000.h"
 
@@ -881,6 +882,32 @@ static int test_20260903_transmission_capture_replay(void)
     return 0;
 }
 
+static int test_documented_global_ecu_catalog(void)
+{
+    static const struct {uint32_t tx;uint32_t rx;} routes[]={{0x602,0x480},{0x60a,0x481},{0x612,0x482},{0x622,0x484},{0x632,0x486},{0x64a,0x489},{0x652,0x48a},{0x6a2,0x494},{0x6ba,0x497},{0x6c2,0x498},{0x6fa,0x49f},{0x7e0,0x7e8},{0x7e1,0x7e9}};
+    CHECK(mblink_mercedes_documented_ecu_profile_count()==1319U);
+    for(size_t i=0U;i<sizeof(routes)/sizeof(routes[0]);++i)CHECK(mblink_mercedes_documented_ecu_profile_count_for_route(routes[i].tx,routes[i].rx,false)>0U);
+    CHECK(mblink_mercedes_documented_ecu_profile_count_for_route(0x7e1,0x7e9,false)>3U);
+    const MblinkMercedesDocumentedEcuProfile*p=mblink_mercedes_documented_ecu_profile_for_controller_family("transmission-egs53",0x7e1,0x7e9,false,MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+    CHECK(p!=NULL&&strcmp(p->name,"EGS53")==0&&p->read_count==4U);
+    bool a=false,b=false,c=false,d=false;for(size_t i=0U;i<p->read_count;++i){const MblinkMercedesDocumentedRead*r=mblink_mercedes_documented_ecu_read_at(p,i);if(r->service==0x1a&&r->identifier==0x86)a=true;if(r->service==0x1a&&r->identifier==0x9a)b=true;if(r->service==0x1a&&r->identifier==0x9c)c=true;if(r->service==0x21&&r->identifier==0xb1)d=true;}CHECK(a&&b&&c&&d);
+    p=mblink_mercedes_documented_ecu_profile_for_controller_family("steering-scm",0x622,0x484,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"SCCM_212_X")==0);
+    CHECK(mblink_mercedes_documented_field_count(0x22,0xf150)==3U);
+    const MblinkMercedesDocumentedField*f=mblink_mercedes_documented_field_at(0x22,0xf150,0U);CHECK(f!=NULL&&f->response_byte==4U&&strcmp(f->name,"Hardware version year")==0);
+    CHECK(mblink_mercedes_documented_read_is_safe(0x22,0xf150));CHECK(mblink_mercedes_documented_read_is_safe(0x1a,0x86));CHECK(!mblink_mercedes_documented_read_is_safe(0x27,1));CHECK(!mblink_mercedes_documented_read_is_safe(0x31,1));
+    return 0;
+}
+static int test_documented_kwp_command_list(void)
+{
+    MblinkMercedesDataScan scan;MblinkMercedesDataScanConfig config=mblink_mercedes_data_scan_default_config(0x7e1,0x7e9,false,MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,MBLINK_MERCEDES_MODULE_TRANSMISSION);
+    static const MblinkMercedesDataProbeCommand commands[]={{0x1a,0x86},{0x21,0xb1}};MblinkElm327Response ok=response_ok("OK");
+    CHECK(mblink_mercedes_data_scan_begin_probe_commands(&scan,&config,commands,2U)==MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan,"ATSP6",ok)==0);CHECK(accept_command(&scan,"ATH0",ok)==0);CHECK(accept_command(&scan,"ATCAF1",ok)==0);CHECK(accept_command(&scan,"ATCFC1",ok)==0);CHECK(accept_command(&scan,"ATST64",ok)==0);CHECK(accept_command(&scan,"ATSH7E1",ok)==0);CHECK(accept_command(&scan,"ATCRA7E9",ok)==0);CHECK(accept_command(&scan,"3E01",response_ok("7E"))==0);
+    CHECK(accept_command(&scan,"1A86",response_ok("5A8600344643104806291808035500110504FFFF"))==0);CHECK(accept_command(&scan,"21B1",response_ok("61B100"))==0);CHECK(scan.positive_count==2U);
+    const MblinkMercedesDataRecord*r=mblink_mercedes_data_scan_record_at(&scan,0U);CHECK(r!=NULL&&r->service==0x1a&&r->identifier==0x86);
+    return 0;
+}
+
 int main(void)
 {
     if (test_uds_data_scan() != 0) return 1;
@@ -893,6 +920,8 @@ int main(void)
     if (test_source_candidate_identifier_probe() != 0) return 1;
     if (test_runtime_candidate_catalog() != 0) return 1;
     if (test_20260903_transmission_capture_replay() != 0) return 1;
+    if (test_documented_global_ecu_catalog() != 0) return 1;
+    if (test_documented_kwp_command_list() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;
 }

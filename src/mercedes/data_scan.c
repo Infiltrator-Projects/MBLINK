@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_data_scan.h"
+#include "mblink/mercedes_documented_ecus.h"
 
 #include "mblink/elm327_can.h"
 #include "mblink/kwp2000.h"
@@ -14,6 +15,91 @@
 #include <string.h>
 
 #define MBLINK_MERCEDES_DATA_SCAN_PDU_CAPACITY 512U
+#include "mercedes_documented_ecus.inc"
+static const char k_documented_route_source[] =
+    "panda-zhao/panda-zhao.github.io Foxwell/Xentry-derived Mercedes metadata";
+static const char k_documented_field_source[] =
+    "laravelcompany/ecudocs.com GPL-3.0 public ECU JSON definitions";
+
+static const MblinkMercedesDocumentedField mblink_documented_fields[] = {
+    {0x22,0xf100,"ECU software mode",4U,7,1U,NULL,k_documented_field_source},
+    {0x22,0xf100,"Gateway flag",4U,6,1U,NULL,k_documented_field_source},
+    {0x22,0xf100,"Identification",4U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf100,"Variant",5U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf100,"Version",6U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf100,"Session type",7U,1,1U,NULL,k_documented_field_source},
+    {0x22,0xf111,"Mercedes Car Group hardware part number",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf121,"Mercedes Car Group software part number",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf150,"Hardware version year",4U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf150,"Hardware version week",5U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf150,"Hardware version patch level",6U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf151,"Software version year",4U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf151,"Software version week",5U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf151,"Software version patch level",6U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf153,"Boot software version year",4U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf153,"Boot software version week",5U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf153,"Boot software version patch level",6U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf154,"Hardware supplier",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf155,"Software supplier",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Software programmed and valid",4U,7,1U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Software mismatch",4U,6,1U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Hardware mismatch",4U,5,1U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Supplier identification",5U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Programming date year",7U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Programming date month",8U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Programming date day",9U,-1,8U,NULL,k_documented_field_source},
+    {0x22,0xf15b,"Programming tool serial number",10U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf18c,"ECU serial number",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf187,"Vehicle manufacturer spare part number",4U,-1,0U,NULL,"ISO 14229"},
+    {0x22,0xf188,"Vehicle manufacturer ECU software number",4U,-1,0U,NULL,"ISO 14229"},
+    {0x22,0xf190,"VIN original",4U,-1,0U,NULL,k_documented_field_source},
+    {0x22,0xf191,"Vehicle manufacturer ECU hardware number",4U,-1,0U,NULL,"ISO 14229"},
+    {0x22,0xf197,"System name",4U,-1,0U,NULL,"ISO 14229; vendor definitions can vary"},
+    {0x22,0xf1a0,"VIN current",4U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x86,"DCS ECU identification record",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x87,"Vehicle manufacturer ECU identification / spare-part record",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x88,"Vehicle manufacturer ECU software number",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x89,"ECU software version / diagnostic variant",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x8a,"System supplier identifier",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x8b,"ECU manufacturing date",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x8c,"ECU serial number",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x90,"Vehicle identification number",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x97,"System name or engine type",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x98,"Repair shop code / tester serial number",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x99,"Programming date",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x9a,"Calibration repair-shop / equipment serial",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x9b,"ECU installation date",3U,-1,0U,NULL,k_documented_field_source},
+    {0x1a,0x9c,"Calibration equipment software number",3U,-1,0U,NULL,k_documented_field_source}
+};
+typedef struct MblinkMercedesControllerProfileAlias { const char *family; const char *name; } MblinkMercedesControllerProfileAlias;
+static const MblinkMercedesControllerProfileAlias mblink_documented_controller_aliases[] = {
+    {"transmission-egs51","EGS51"},{"transmission-egs52","EGS52"},{"transmission-egs53","EGS53"},{"transmission-vgs-nag2","VGSNAG2"},
+    {"esp-abr2xt","ABR2XT_X"},{"esp-esp212","ESP212_X"},{"restraints-orc212","ORC_212_X"},
+    {"pretensioner-rbtmfl204","RBTMFL_204"},{"pretensioner-rbtmfr204","RBTMFR_204"},{"camera-mfk","MPC212_X"},
+    {"fuel-pump-fscu","FSCM212"},{"cluster-ic204","IC_204"},{"cluster-ic212","IC_212"},{"headunit-hu204","HU_204"},
+    {"audio-ctrlc204","CTRLC_204"},{"display-dispc204","DISPC_204"},{"gateway-cgw212","CGW_212_X"},
+    {"eis-ezs212","EIS_212_X"},{"steering-mrm","MRM221"},{"steering-scm","SCCM_212_X"},
+    {"sam-front-212","SAMF_212"},{"sam-rear-212","SAMR_212"},{"climate-212","HVAC_212"},
+    {"airmatic-ads212","ADS212"},{"distronic-dtr","DTR_212"},{"seat-driver-212","SEATD_212"},{"seat-passenger-204","SEATP_204"}
+};
+size_t mblink_mercedes_documented_ecu_profile_count(void){return INFILTRATR_ARRAY_LENGTH(mblink_documented_profiles);}
+const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_at(size_t i){return i<mblink_mercedes_documented_ecu_profile_count()?&mblink_documented_profiles[i]:NULL;}
+size_t mblink_mercedes_documented_ecu_profile_count_for_route(uint32_t tx,uint32_t rx,bool ext){size_t n=0U;for(size_t i=0U;i<mblink_mercedes_documented_ecu_profile_count();++i){const MblinkMercedesDocumentedEcuProfile*p=&mblink_documented_profiles[i];if(p->route_available&&p->tx_can_id==tx&&p->rx_can_id==rx&&p->extended_id==ext)++n;}return n;}
+const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_at_for_route(uint32_t tx,uint32_t rx,bool ext,size_t wanted){size_t n=0U;for(size_t i=0U;i<mblink_mercedes_documented_ecu_profile_count();++i){const MblinkMercedesDocumentedEcuProfile*p=&mblink_documented_profiles[i];if(!p->route_available||p->tx_can_id!=tx||p->rx_can_id!=rx||p->extended_id!=ext)continue;if(n++==wanted)return p;}return NULL;}
+const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_for_name_and_route(const char*name,uint32_t tx,uint32_t rx,bool ext){if(name==NULL||name[0]=='\0')return NULL;for(size_t i=0U;i<mblink_mercedes_documented_ecu_profile_count();++i){const MblinkMercedesDocumentedEcuProfile*p=&mblink_documented_profiles[i];if(strcmp(p->name,name)==0&&(!p->route_available||(p->tx_can_id==tx&&p->rx_can_id==rx&&p->extended_id==ext)))return p;}return NULL;}
+const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_for_controller_family(const char*family,uint32_t tx,uint32_t rx,bool ext,MblinkMercedesDiagnosticProtocol protocol){if(family==NULL||family[0]=='\0')return NULL;for(size_t a=0U;a<INFILTRATR_ARRAY_LENGTH(mblink_documented_controller_aliases);++a){if(strcmp(mblink_documented_controller_aliases[a].family,family)!=0)continue;for(size_t i=0U;i<mblink_mercedes_documented_ecu_profile_count();++i){const MblinkMercedesDocumentedEcuProfile*p=&mblink_documented_profiles[i];if(strcmp(p->name,mblink_documented_controller_aliases[a].name)!=0)continue;if(p->route_available&&(p->tx_can_id!=tx||p->rx_can_id!=rx||p->extended_id!=ext))continue;if(p->protocol_known&&p->protocol!=protocol)continue;return p;}}return NULL;}
+size_t mblink_mercedes_documented_ecu_read_count(const MblinkMercedesDocumentedEcuProfile*p){return p!=NULL?p->read_count:0U;}
+const MblinkMercedesDocumentedRead *mblink_mercedes_documented_ecu_read_at(const MblinkMercedesDocumentedEcuProfile*p,size_t i){if(p==NULL||i>=p->read_count||p->read_offset+i>=INFILTRATR_ARRAY_LENGTH(mblink_documented_reads))return NULL;return &mblink_documented_reads[p->read_offset+i];}
+const char *mblink_mercedes_documented_read_name(uint8_t s,uint16_t id){
+ if(s==0x22){switch(id){case 0xf100:return"Active diagnostic information";case 0xf111:return"Mercedes hardware part number";case 0xf121:return"Mercedes software part number";case 0xf150:return"Hardware version";case 0xf151:return"Software version";case 0xf153:return"Boot software version";case 0xf154:return"Hardware supplier";case 0xf155:return"Software supplier";case 0xf15b:return"Programming fingerprint";case 0xf18c:return"ECU serial number";case 0xf187:return"Vehicle manufacturer spare part number";case 0xf188:return"Vehicle manufacturer ECU software number";case 0xf190:return"VIN original";case 0xf191:return"Vehicle manufacturer ECU hardware number";case 0xf197:return"System name";case 0xf1a0:return"VIN current";default:return NULL;}}
+ if(s==0x1a){switch(id){case 0x86:return"DCS ECU identification";case 0x87:return"Vehicle manufacturer ECU identification";case 0x88:return"Vehicle manufacturer ECU software number";case 0x89:return"ECU software version / diagnostic variant";case 0x8a:return"System supplier identifier";case 0x8b:return"ECU manufacturing date";case 0x8c:return"ECU serial number";case 0x90:return"Vehicle identification number";case 0x97:return"System name or engine type";case 0x98:return"Repair shop / tester serial";case 0x99:return"Programming date";case 0x9a:return"Calibration repair-shop / equipment serial";case 0x9b:return"ECU installation date";case 0x9c:return"Calibration equipment software number";default:return NULL;}}
+ return NULL;
+}
+bool mblink_mercedes_documented_read_is_safe(uint8_t s,uint16_t id){if(s==0x22)return true;if((s==0x21||s==0x1a)&&id!=0U&&id<=0xffU)return true;return false;}
+size_t mblink_mercedes_documented_field_count(uint8_t s,uint16_t id){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i)if(mblink_documented_fields[i].service==s&&mblink_documented_fields[i].identifier==id)++n;return n;}
+const MblinkMercedesDocumentedField *mblink_mercedes_documented_field_at(uint8_t s,uint16_t id,size_t wanted){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i){const MblinkMercedesDocumentedField*f=&mblink_documented_fields[i];if(f->service!=s||f->identifier!=id)continue;if(n++==wanted)return f;}return NULL;}
+const char *mblink_mercedes_documented_route_source(void){return k_documented_route_source;}
+const char *mblink_mercedes_documented_field_source(void){return k_documented_field_source;}
 
 static MblinkMercedesDataScanResult fail_scan(
     MblinkMercedesDataScan *scan,
@@ -65,6 +151,7 @@ static void advance_identifier(MblinkMercedesDataScan *scan)
         }
         scan->current_identifier =
             scan->identifiers[scan->identifier_index];
+        scan->current_service = scan->services[scan->identifier_index];
         return;
     }
 
@@ -993,6 +1080,9 @@ static MblinkMercedesDataScanResult begin_identifier_list(
             }
         }
         scan->identifiers[index] = identifier;
+        scan->services[index] =
+            config->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
+                ? UINT8_C(0x21) : UINT8_C(0x22);
     }
 
     scan->identifier_list_active = true;
@@ -1000,6 +1090,7 @@ static MblinkMercedesDataScanResult begin_identifier_list(
     scan->identifier_count = identifier_count;
     scan->identifier_index = 0U;
     scan->current_identifier = scan->identifiers[0U];
+    scan->current_service = scan->services[0U];
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
@@ -1021,6 +1112,28 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_identifiers(
 {
     return begin_identifier_list(
         scan, config, identifiers, identifier_count, false);
+}
+
+MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin_probe_commands(
+    MblinkMercedesDataScan *scan,
+    const MblinkMercedesDataScanConfig *config,
+    const MblinkMercedesDataProbeCommand *commands,
+    size_t command_count)
+{
+    MblinkMercedesDataScanResult result;
+    if(scan==NULL||config==NULL||commands==NULL||command_count==0U||command_count>MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+        return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
+    result=initialise_scan(scan,config);if(result!=MBLINK_MERCEDES_DATA_SCAN_RESULT_OK)return result;
+    for(size_t i=0U;i<command_count;++i){
+        const uint8_t service=commands[i].service;const uint16_t identifier=commands[i].identifier;bool valid=false;
+        if(config->protocol==MBLINK_MERCEDES_DIAGNOSTIC_UDS)valid=service==0x22;
+        else if(config->protocol==MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)valid=(service==0x21||service==0x1a)&&identifier!=0U&&identifier<=0xffU;
+        if(!valid||!mblink_mercedes_documented_read_is_safe(service,identifier)){memset(scan,0,sizeof(*scan));return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;}
+        for(size_t p=0U;p<i;++p)if(scan->services[p]==service&&scan->identifiers[p]==identifier){memset(scan,0,sizeof(*scan));return MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;}
+        scan->services[i]=service;scan->identifiers[i]=identifier;
+    }
+    scan->identifier_list_active=true;scan->identifier_list_retry_no_response=false;scan->identifier_count=command_count;scan->identifier_index=0U;scan->current_service=scan->services[0U];scan->current_identifier=scan->identifiers[0U];
+    return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
@@ -1075,15 +1188,14 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
             scan->config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
                 ? "3E01" : "3E00",
             buffer, buffer_size, written);
-    case MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER:
-        count = scan->config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
-            ? snprintf(command, sizeof(command), "21%02X",
-                       (unsigned int)scan->current_identifier)
-            : snprintf(command, sizeof(command), "22%04X",
-                       (unsigned int)scan->current_identifier);
-        if (count < 0 || (size_t)count >= sizeof(command))
-            return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
-        return write_text(command, buffer, buffer_size, written);
+    case MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER: {
+        const uint8_t service=scan->identifier_list_active?scan->current_service:(scan->config.protocol==MBLINK_MERCEDES_DIAGNOSTIC_KWP2000?UINT8_C(0x21):UINT8_C(0x22));
+        if(service==0x22)count=snprintf(command,sizeof(command),"22%04X",(unsigned int)scan->current_identifier);
+        else if(service==0x21||service==0x1a)count=snprintf(command,sizeof(command),"%02X%02X",(unsigned int)service,(unsigned int)scan->current_identifier);
+        else return MBLINK_MERCEDES_DATA_SCAN_RESULT_FAILED_STATE;
+        if(count<0||(size_t)count>=sizeof(command))return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
+        return write_text(command,buffer,buffer_size,written);
+    }
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE:
         if (buffer_size != 0U) buffer[0] = '\0';
         *written = 0U;
@@ -1200,6 +1312,16 @@ static void accept_kwp_identifier(
     advance_identifier(scan);
 }
 
+static void accept_kwp_ecu_identification(MblinkMercedesDataScan *scan,const MblinkElm327Response *response)
+{
+    uint8_t pdu[MBLINK_MERCEDES_DATA_SCAN_PDU_CAPACITY];size_t length=0U;
+    if(response->result!=MBLINK_ELM327_RESULT_OK){if(retry_known_identifier_after_no_response(scan))return;scan->no_response_count++;advance_identifier(scan);return;}
+    if(mblink_elm327_can_decode_pdu(response,pdu,sizeof(pdu),&length)!=MBLINK_ELM327_CAN_RESULT_OK||length<2U){scan->invalid_count++;advance_identifier(scan);return;}
+    if(pdu[0]==0x5a&&pdu[1]==(uint8_t)scan->current_identifier)record_positive(scan,0x1a,scan->current_identifier,pdu+2U,length-2U);
+    else if(length>=3U&&pdu[0]==0x7f&&pdu[1]==0x1a)scan->negative_count++;else scan->invalid_count++;
+    advance_identifier(scan);
+}
+
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_accept(
     MblinkMercedesDataScan *scan,
     const MblinkElm327Response *response)
@@ -1249,10 +1371,9 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_accept(
         scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER;
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER:
-        if (scan->config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)
-            accept_kwp_identifier(scan, response);
-        else
-            accept_uds_identifier(scan, response);
+        if(scan->identifier_list_active&&scan->current_service==0x1a)accept_kwp_ecu_identification(scan,response);
+        else if(scan->config.protocol==MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)accept_kwp_identifier(scan,response);
+        else accept_uds_identifier(scan,response);
         return scan->stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE
             ? MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE
             : MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
@@ -1307,6 +1428,9 @@ bool mblink_mercedes_data_record_format_code(
         MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER) {
         count = snprintf(
             buffer, buffer_size, "KWP local ID 0x%02X",
+            (unsigned int)record->identifier);
+    } else if (record->service == UINT8_C(0x1a)) {
+        count = snprintf(buffer, buffer_size, "KWP ECU ID 0x%02X",
             (unsigned int)record->identifier);
     } else {
         count = snprintf(

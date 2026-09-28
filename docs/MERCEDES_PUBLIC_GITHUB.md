@@ -21,3 +21,13 @@ Model applicability is evidence-driven. A Mercedes backend property such as `fil
 **OSUSecLab/CANHunter** — https://github.com/OSUSecLab/CANHunter — is a standing MBLINK research source, not a one-off lookup. Its `Data/CAN_Bus_Commands/Mercedes.json` corpus contains a large set of Mercedes CAN request-ID to ECU-semantic mappings recovered from companion applications and is particularly useful when a live capture proves an otherwise unnamed responder.
 
 CANHunter evidence must retain provenance. Mercedes reuses some diagnostic IDs across model families, so an address-only match is a candidate unless model-specific Mercedes/Vediamo/Xentry/service evidence removes the ambiguity. Exact ECU-returned identity and part-number evidence always outrank a generic CANHunter semantic.
+
+## Global documented ECU knowledge layer
+
+MBLINK no longer treats one captured vehicle as the Mercedes database. The portable core carries a normalized global controller catalogue built from public Mercedes diagnostic evidence: 1,319 named controller profiles, 1,107 profiles with explicit CAN request/response routes, and 4,355 simple read-only 0x22/0x21/0x1A references. A physical route may map to several controller generations, so route coincidence is candidate evidence until ECU identity, part number, model-specific evidence or another stronger discriminator selects the family.
+
+The route/read layer is normalized from the public Foxwell/Xentry-derived Mercedes SysInfors/SysEnterCmd metadata in panda-zhao/panda-zhao.github.io. Security access, routines, IO control, coding, writes and programming commands are excluded from the automatic read catalogue.
+
+Detailed response-field semantics come from source-backed controller definitions. laravelcompany/ecudocs.com is GPL-3.0 and publishes ECU JSON definitions with request/reply templates and byte/bit field positions, scaling and enumerations. MBLINK embeds documented Daimler identity/metadata layouts and exposes their response positions through the portable C API. Controller-specific actual-value layouts are added only when a matching definition exists; otherwise the payload remains RAW instead of being guessed.
+
+The live ECU remains the strongest evidence of what one installed software revision actually supports. Public profiles define safe candidate reads; positive replies become vehicle evidence and unsupported/negative replies are not promoted into facts.
