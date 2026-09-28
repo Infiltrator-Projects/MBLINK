@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.243 — 2026-09-28
+
+- Separate historical evidence that a Mercedes ECU has accepted UDS `10 03` from MBLINK's permission to enter that session automatically.
+- Permanently block unattended extended-session entry on the C207 ABR/ESP `0x632 → 0x486` route during first-VIN discovery, cached module/fault refresh and manufacturer live-data refresh; ESP reads now remain in the default diagnostic session.
+- Add C207 safety regressions that preserve the captured positive-session evidence while requiring the automatic ESP wire sequence to proceed from route setup directly to TesterPresent, with no intervening `10 03`.
+
 ## 0.7.242 — 2026-09-28
 
 - Decode the vehicle-proven Siemens EGS53 KWP RLI 0x30 path using the exact identified controller family instead of losing the EGS53 classification in the iOS live-value layer.
