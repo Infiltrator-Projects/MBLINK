@@ -902,7 +902,8 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         {
             static const uint32_t captured_uds_first[] = {
                 UINT32_C(0x622), UINT32_C(0x6a2),
-                UINT32_C(0x6ba), UINT32_C(0x6c2), UINT32_C(0x6fa)
+                UINT32_C(0x6ba), UINT32_C(0x6c2), UINT32_C(0x6fa),
+                UINT32_C(0x7e0)
             };
             for (size_t captured_index = 0U;
                  captured_index <
@@ -916,6 +917,11 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                       MBLINK_MERCEDES_DIAGNOSTIC_UDS);
             }
         }
+
+        CHECK(mblink_mercedes_module_scan_set_full_target(
+                  &scan, mobile_target_index_for_tx(UINT32_C(0x7e1))));
+        CHECK(mblink_mercedes_module_scan_candidate_protocol(&scan) ==
+              MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
 
         /*
          * Source-backed slots retain protocol overrides. ORC_212 is KWP2000
