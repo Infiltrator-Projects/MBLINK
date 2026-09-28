@@ -157,11 +157,62 @@ static int test_raw_observation_stays_unadvertised(void)
     return 0;
 }
 
+static int test_20260928_capture_routes_under_new_engine(void)
+{
+    static const struct {
+        uint32_t tx;
+        uint32_t rx;
+        uint8_t expected_mask;
+    } routes[] = {
+        { UINT32_C(0x60a), UINT32_C(0x481),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x622), UINT32_C(0x484),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x632), UINT32_C(0x486),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x64a), UINT32_C(0x489),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x652), UINT32_C(0x48a),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x6a2), UINT32_C(0x494),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK },
+        { UINT32_C(0x6ba), UINT32_C(0x497),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x6c2), UINT32_C(0x498),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK },
+        { UINT32_C(0x6fa), UINT32_C(0x49f),
+          MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
+          MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK }
+    };
+
+    /*
+     * 0.7.249 captured these exact C207 routes. Some old route labels selected
+     * KWP before the ECU family was known. The pack engine must instead expose
+     * every documented protocol variant for reused addresses, while the MFK
+     * route is unambiguously UDS. This fixture intentionally stores no VIN or
+     * private vehicle identity.
+     */
+    for (size_t index = 0U; index < sizeof(routes) / sizeof(routes[0]); ++index) {
+        CHECK(mblink_mercedes_ecu_pack_route_protocol_mask(
+                  routes[index].tx, routes[index].rx, false) ==
+              routes[index].expected_mask);
+    }
+    return 0;
+}
+
 int main(void)
 {
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
+    if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
 }
