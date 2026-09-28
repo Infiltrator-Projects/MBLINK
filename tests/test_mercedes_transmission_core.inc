@@ -561,6 +561,9 @@ static int test_transport_formatter(void)
         MBLINK_MERCEDES_EGS53_TCM_A1_CAN_ID,
         payload, sizeof(payload), text, sizeof(text)));
     CHECK(strstr(text, "ATF 50.0 °C") != NULL);
+    CHECK(strstr(text, "clutch SLIP") != NULL);
+    CHECK(strstr(text, "selector D") != NULL);
+    CHECK(strstr(text, "program COMFORT") != NULL);
     CHECK(strstr(text, "drive-shaft torque 350 Nm") != NULL);
 
     memset(payload, 0, sizeof(payload));
@@ -575,6 +578,18 @@ static int test_transport_formatter(void)
     CHECK(strstr(text, "display Drive") != NULL);
     CHECK(strstr(text, "program Upshift recommendation") != NULL);
     CHECK(strstr(text, "torque-loss 10.00 Nm") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 3U, 13U, 2400U);
+    put_bits(payload, 38U, 2U, 1U);
+    put_bits(payload, 56U, 2U, 1U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        MBLINK_MERCEDES_GS_218_CAN_ID,
+        payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "program KOMFORT") != NULL);
+    CHECK(strstr(text, "torque-request 100.00 Nm") != NULL);
+    CHECK(strstr(text, "error-state OK") != NULL);
 
     memset(payload, 0, sizeof(payload));
     put_bits(payload, 0U, 8U, 100U);

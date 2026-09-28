@@ -960,6 +960,58 @@ static void egs52_gs418_display_text(
     snprintf(buffer, buffer_size, "0x%02X", (unsigned int)fallback);
 }
 
+
+static const char *egs52_enum_name(
+    uint32_t can_id, const char *signal_name,
+    const uint8_t *payload, size_t payload_length)
+{
+    const size_t matches = mblink_mercedes_egs52_frame_match_count(can_id);
+    size_t match;
+    for (match = 0U; match < matches; ++match) {
+        const MblinkMercedesEgs52FrameDefinition *frame =
+            mblink_mercedes_egs52_frame_match_at(can_id, match);
+        const MblinkMercedesEgs52SignalDefinition *signal =
+            frame != NULL
+                ? mblink_mercedes_egs52_signal_find(frame, signal_name) : NULL;
+        MblinkMercedesEgs52DecodedSignal decoded;
+        if (signal != NULL &&
+            mblink_mercedes_egs52_decode_signal(
+                signal, payload, payload_length, &decoded) &&
+            decoded.enum_available) {
+            return decoded.enum_name;
+        }
+    }
+    return NULL;
+}
+
+static const char *egs53_enum_name(
+    uint32_t can_id, const char *signal_name,
+    const uint8_t *payload, size_t payload_length)
+{
+    const size_t matches = mblink_mercedes_egs53_frame_match_count(can_id);
+    size_t match;
+    for (match = 0U; match < matches; ++match) {
+        const MblinkMercedesEgs53FrameDefinition *frame =
+            mblink_mercedes_egs53_frame_match_at(can_id, match);
+        const MblinkMercedesEgs53SignalDefinition *signal =
+            frame != NULL
+                ? mblink_mercedes_egs53_signal_find(frame, signal_name) : NULL;
+        MblinkMercedesEgs53DecodedSignal decoded;
+        if (signal != NULL &&
+            mblink_mercedes_egs53_decode_signal(
+                signal, payload, payload_length, &decoded) &&
+            decoded.enum_available) {
+            return decoded.enum_name;
+        }
+    }
+    return NULL;
+}
+
+static const char *enum_or_unknown(const char *name)
+{
+    return name != NULL ? name : "UNKNOWN";
+}
+
 bool mblink_mercedes_transmission_format_can_frame(
     MblinkMercedesTransmissionFamily family,
     uint32_t can_id,
@@ -1000,14 +1052,20 @@ bool mblink_mercedes_transmission_format_can_frame(
     if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52) {
         if (can_id == MBLINK_MERCEDES_GS_218_CAN_ID) {
             MblinkMercedesGs218 d;
+            const char *program;
+            const char *error_state;
             if (!mblink_mercedes_transmission_decode_gs218(
                     payload, payload_length, &d)) return false;
+            program = egs52_enum_name(
+                can_id, "FPC_AAD", payload, payload_length);
+            error_state = egs52_enum_name(
+                can_id, "FEHLPRF_ST", payload, payload_length);
             count = snprintf(
                 buffer, buffer_size,
                 "EGS52 GS_218 · target %s · actual %s · TCC %s · "
                 "shift %s · manual %s · gearbox-ok %s · limp %s · "
-                "overtemp %s · kickdown %s · program %u · "
-                "torque-request raw %u · error-state %u/%u",
+                "overtemp %s · kickdown %s · program %s · "
+                "torque-request %.2f Nm · error-state %s/%u",
                 mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
                 mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
                 mblink_mercedes_transmission_tcc_name(d.torque_converter),
@@ -1017,9 +1075,9 @@ bool mblink_mercedes_transmission_format_can_frame(
                 d.limp_home ? "yes" : "no",
                 d.overtemperature ? "yes" : "no",
                 d.kickdown ? "yes" : "no",
-                (unsigned int)d.drive_program_code,
-                (unsigned int)d.requested_engine_torque_raw,
-                (unsigned int)d.error_check_state,
+                enum_or_unknown(program),
+                (double)d.requested_engine_torque_raw * 0.25 - 500.0,
+                enum_or_unknown(error_state),
                 (unsigned int)d.error_counter);
             return count >= 0 && (size_t)count < buffer_size;
         }
@@ -1030,11 +1088,12 @@ bool mblink_mercedes_transmission_format_can_frame(
             count = snprintf(
                 buffer, buffer_size,
                 "EGS52 GS_338 · output %u rpm · turbine %u rpm · "
-                "race-start %u · MIL %s · power-free-D %s · "
+                "race-start %s · MIL %s · power-free-D %s · "
                 "pilot-torque raw %u · starting-torque raw %u",
                 (unsigned int)d.output_speed_rpm,
                 (unsigned int)d.turbine_speed_rpm,
-                (unsigned int)d.race_start_state,
+                enum_or_unknown(egs52_enum_name(
+                    can_id, "RACE_START", payload, payload_length)),
                 d.mil_request ? "requested" : "off",
                 d.power_free_in_drive ? "yes" : "no",
                 (unsigned int)d.pilot_torque_raw,
@@ -1057,7 +1116,7 @@ bool mblink_mercedes_transmission_format_can_frame(
                 buffer, buffer_size,
                 "EGS52 GS_418 · display %s · program %s · "
                 "ATF %.1f °C · target %s · actual %s · selector %s · "
-                "AWD %s · FWD %s · CVT %s · mech %u · "
+                "AWD %s · FWD %s · CVT %s · mech %s · "
                 "kickdown %s · torque-loss %.2f Nm · wheel-factor raw %u",
                 display_text, program_text,
                 d.transmission_temperature_c,
@@ -1067,7 +1126,8 @@ bool mblink_mercedes_transmission_format_can_frame(
                 d.all_wheel_drive ? "yes" : "no",
                 d.front_wheel_drive ? "yes" : "no",
                 d.cvt ? "yes" : "no",
-                (unsigned int)d.mechanism_variant,
+                enum_or_unknown(egs52_enum_name(
+                    can_id, "MECH", payload, payload_length)),
                 d.kickdown ? "yes" : "no",
                 (double)d.torque_loss_raw * 0.25,
                 (unsigned int)d.wheel_torque_factor_raw);
@@ -1082,15 +1142,19 @@ bool mblink_mercedes_transmission_format_can_frame(
                     payload, payload_length, &d)) return false;
             count = snprintf(
                 buffer, buffer_size,
-                "EGS53 TCM_A1 · ATF %.1f °C · clutch %u · limp %s · "
-                "overtemp %s · selector %s · manual %s · program %u · "
+                "EGS53 TCM_A1 · ATF %.1f °C · clutch %s · limp %s · "
+                "overtemp %s · selector %s · manual %s · program %s · "
                 "drive-shaft torque %u Nm",
-                d.oil_temperature_c, (unsigned int)d.clutch_state,
+                d.oil_temperature_c,
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "Clutch_Stat", payload, payload_length)),
                 d.limp_home ? "yes" : "no",
                 d.overtemperature ? "yes" : "no",
-                mblink_mercedes_transmission_selector_name(d.selector_position_code),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TSL_Posn_TCM", payload, payload_length)),
                 d.manual_program_active ? "yes" : "no",
-                (unsigned int)d.drive_program_code,
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "VehDrvProg_TCM_V2", payload, payload_length)),
                 (unsigned int)d.drive_shaft_torque_nm);
             return count >= 0 && (size_t)count < buffer_size;
         }
@@ -1101,13 +1165,14 @@ bool mblink_mercedes_transmission_format_can_frame(
             count = snprintf(
                 buffer, buffer_size,
                 "EGS53 TCM_A2 · duty %.1f%% · turbine %u rpm · "
-                "desired slip %u rpm · MIL %s · CALID/CVN 0x%02X · error %u/%u",
+                "desired slip %u rpm · MIL %s · CALID/CVN 0x%02X · error %s/%u",
                 d.requested_current_duty_percent,
                 (unsigned int)d.turbine_rpm,
                 (unsigned int)d.desired_slip_rpm,
                 d.mil_request ? "requested" : "off",
                 (unsigned int)d.calid_cvn_data,
-                (unsigned int)d.error_check_state,
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TCM_ErrChk_Stat", payload, payload_length)),
                 (unsigned int)d.calid_cvn_error_counter);
             return count >= 0 && (size_t)count < buffer_size;
         }
@@ -1118,12 +1183,14 @@ bool mblink_mercedes_transmission_format_can_frame(
             count = snprintf(
                 buffer, buffer_size,
                 "EGS53 ENG_RQ1 · requested torque %.1f Nm · "
-                "requested engine %u rpm · intervention %u · downshift %u · "
+                "requested engine %u rpm · intervention %s · downshift %s · "
                 "sync %.2f s · start-enable %s · emergency-off %s",
                 d.requested_engine_torque_nm,
                 (unsigned int)d.requested_engine_rpm,
-                (unsigned int)d.intervention_mode,
-                (unsigned int)d.downshift_mode,
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "IntrvntnMd_TCM", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxDnShiftMd", payload, payload_length)),
                 d.engine_sync_time_s,
                 d.engine_start_enable_request ? "yes" : "no",
                 d.emergency_engine_off_request ? "yes" : "no");
@@ -1137,16 +1204,20 @@ bool mblink_mercedes_transmission_format_can_frame(
                 buffer, buffer_size,
                 "EGS53 ENG_RQ2 · target %s · actual %s · ratio %.2f · "
                 "engine/wheel ratio %.2f · loss %.2f Nm · "
-                "drive-style %u · transmission-style %u · mechanics %u · shift-style %u",
+                "drive-style %s · transmission-style %s · mechanics %s · shift-style %s",
                 mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
                 mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
                 d.transmission_ratio,
                 d.engine_to_wheel_torque_ratio,
                 d.transmission_torque_loss_nm,
-                (unsigned int)d.vehicle_drive_style,
-                (unsigned int)d.transmission_style,
-                (unsigned int)d.transmission_mechanics_style,
-                (unsigned int)d.transmission_shift_style);
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "VehDrvStyle", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxStyle", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxMechStyle", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxShiftStyle", payload, payload_length)));
             return count >= 0 && (size_t)count < buffer_size;
         }
         if (can_id == MBLINK_MERCEDES_EGS53_ENG_RQ3_CAN_ID) {
@@ -1155,8 +1226,9 @@ bool mblink_mercedes_transmission_format_can_frame(
                     payload, payload_length, &d)) return false;
             count = snprintf(
                 buffer, buffer_size,
-                "EGS53 ENG_RQ3 · max-acceleration state %u · wet clutch torque %.1f Nm",
-                (unsigned int)d.maximum_acceleration_state,
+                "EGS53 ENG_RQ3 · max-acceleration state %s · wet clutch torque %.1f Nm",
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "DrvAccelMax_Stat", payload, payload_length)),
                 d.wet_driveaway_clutch_torque_nm);
             return count >= 0 && (size_t)count < buffer_size;
         }
@@ -1166,12 +1238,15 @@ bool mblink_mercedes_transmission_format_can_frame(
                     payload, payload_length, &d)) return false;
             count = snprintf(
                 buffer, buffer_size,
-                "EGS53 SBW_RS_TCM · sender %u · starter lockout %s · "
-                "selector valve %u · selector request %u · sensor %.1f%%",
-                (unsigned int)d.message_transmitter_id,
+                "EGS53 SBW_RS_TCM · sender %s · starter lockout %s · "
+                "selector valve %s · selector request %s · sensor %.1f%%",
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "SBW_MsgTxmtId", payload, payload_length)),
                 d.starter_lockout ? "yes" : "no",
-                (unsigned int)d.selector_valve_position,
-                (unsigned int)d.selector_position_request,
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxSelVlvPosn", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TSL_Posn_Rq", payload, payload_length)),
                 d.selector_sensor_percent);
             return count >= 0 && (size_t)count < buffer_size;
         }
@@ -1181,15 +1256,21 @@ bool mblink_mercedes_transmission_format_can_frame(
                     payload, payload_length, &d)) return false;
             count = snprintf(
                 buffer, buffer_size,
-                "EGS53 TCM_DISP_RQ · position 0x%02X · program 0x%02X · "
-                "shift recommendation %u · SBW message %u · target display 0x%02X · "
-                "race-start display %u",
-                (unsigned int)d.display_position_code,
-                (unsigned int)d.display_program_code,
-                (unsigned int)d.shift_recommendation,
-                (unsigned int)d.shift_by_wire_message,
-                (unsigned int)d.target_gear_display_code,
-                (unsigned int)d.race_start_display_state);
+                "EGS53 TCM_DISP_RQ · position %s · program %s · "
+                "shift recommendation %s · SBW message %s · target display %s · "
+                "race-start display %s",
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxDrvPosn_Disp_Rq_TCM", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxDrvProg_Disp_Rq_TCM", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "TxShiftRcmmnd_Disp_Rq_TCM", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "SBW_Msg_Disp_Rq_TCM", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "Gr_Target_Disp_Rq", payload, payload_length)),
+                enum_or_unknown(egs53_enum_name(
+                    can_id, "RaceStMd_Disp_Rq_AMG", payload, payload_length)));
             return count >= 0 && (size_t)count < buffer_size;
         }
     }
