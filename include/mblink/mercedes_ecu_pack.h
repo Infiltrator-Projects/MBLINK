@@ -56,6 +56,8 @@ typedef struct MblinkMercedesEcuPack {
     uint32_t rx_can_id;
     bool extended_id;
     MblinkMercedesDiagnosticProtocol protocol;
+    bool protocol_authoritative;
+    bool observed_protocol_conflict;
     const char *session_command;
     const char *tester_present_command;
     const char *quit_command;
@@ -78,6 +80,14 @@ bool mblink_mercedes_ecu_pack_resolve(
 bool mblink_mercedes_ecu_pack_resolve_module(
     const MblinkMercedesModuleScanEntry *module,
     MblinkMercedesEcuPack *pack);
+
+#define MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK UINT8_C(0x01)
+#define MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK UINT8_C(0x02)
+
+uint8_t mblink_mercedes_ecu_pack_route_protocol_mask(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id);
 
 size_t mblink_mercedes_ecu_pack_alias_count(
     const MblinkMercedesEcuPack *pack);
