@@ -180,6 +180,26 @@ require(
     and "targetedRefresh" not in controller,
     "Apple manufacturer reads must not reuse legacy discovered PID lists",
 )
+require(
+    "Body control unit" not in model
+    and "resolvedMercedesModuleName(" in model,
+    "saved/offline modules must use the shared Mercedes ECU identity resolver",
+)
+require(
+    "KWP2000 / SAE OBD-II" not in model
+    and 'case 0: return "UDS"' in model
+    and 'case 1: return "KWP2000"' in model,
+    "Mercedes module protocol labels must stay separate from standard OBD-II",
+)
+require(
+    "Legislated OBD-II responders are intentionally not represented" in controller,
+    "standard OBD responders must not be synthesized into the Mercedes Modules inventory",
+)
+require(
+    '"controllerFamily"' in controller
+    and '"name"' in controller,
+    "saved VIN profiles must persist resolved Mercedes ECU identity",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
