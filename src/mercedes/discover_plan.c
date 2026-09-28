@@ -30,9 +30,9 @@
  *   TX = 0x602 + (slot * 8)
  *
  * Slots 0..46 therefore cover RX 0x480..0x4AE and TX 0x602..0x772.
- * Six source-backed 204/207/212 routes land exactly on this lattice.  The
- * 2026-09-03 C207 field capture independently observed five of the lattice
- * routes (0x602, 0x612, 0x632, 0x64A and 0x652) with their expected response
+ * Seven source-backed 204/207/212 routes land exactly on this lattice.  The
+ * 2026-09-03 C207 field capture independently observed six of the lattice
+ * routes (0x602, 0x60A, 0x612, 0x632, 0x64A and 0x652) with their expected response
  * identifiers. Two known Daimler routes sit outside it (0x607->0x587 and
  * 0x4E0->0x5FF).
  * The eight ISO 15765-4 physical OBD slots are appended so powertrain
