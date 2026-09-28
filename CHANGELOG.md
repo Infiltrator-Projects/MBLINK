@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.245 — 2026-09-28
+
+- Route every Apple module-discovery entry through one per-connection startup gate, including the retained legacy engine-probe completion path.
+- Prevent any future reuse of that legacy path from bypassing the 0.7.244 startup-only ECU-census invariant.
+
 ## 0.7.244 — 2026-09-28
 
 - Make Mercedes module census and saved-profile validation strictly startup-only: one module-identification pass per connection before live polling begins.

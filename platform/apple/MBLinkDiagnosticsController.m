@@ -61,6 +61,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 - (void)notifyDelegate;
 - (void)setStatus:(NSString *)status;
 - (void)markFlowFailure:(NSString *)status;
+- (void)beginStartupModuleDiscovery;
 - (void)beginMercedesProbe;
 - (void)beginCurrentMercedesProbeCommand;
 - (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
@@ -1210,11 +1211,16 @@ static bool MBLinkSimulatorResponder(
     (LinkDiagnosticsController *)controller
 {
     (void)controller;
+    [self beginStartupModuleDiscovery];
+}
+
+- (void)beginStartupModuleDiscovery
+{
     /*
      * Module identification and saved-profile validation are startup-only.
      * They may run once for each connection, before the live scheduler starts.
-     * A recovery, UI refresh or live sample must never turn the ECU census
-     * into recurring manufacturer work.
+     * Every path that can enter module discovery, including the legacy engine
+     * probe completion path, comes through this single gate.
      */
     if (_startupModuleDiscoveryStarted) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
@@ -3193,8 +3199,7 @@ static void MBLinkAppendManufacturerDefinition(
     MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
     if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
         [self updateMercedesProbeEvidenceSummary];
-        if ([self beginCachedVehicleProfileRefresh]) return;
-        [self beginMercedesModuleScan];
+        [self beginStartupModuleDiscovery];
         return;
     }
     if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
@@ -3221,7 +3226,7 @@ static void MBLinkAppendManufacturerDefinition(
             self.mercedesUDSFaultStatusText =
                 @"Engine probe unavailable; continuing multi-route Mercedes discovery";
             [self notifyDelegate];
-            [self beginMercedesModuleScan];
+            [self beginStartupModuleDiscovery];
             return;
         }
 
