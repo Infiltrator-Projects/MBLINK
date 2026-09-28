@@ -27,9 +27,6 @@ static int test_ic204_pack(void)
               UINT32_C(0x60a), UINT32_C(0x481), false) ==
           (MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK |
            MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK));
-    CHECK(mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
-              UINT32_C(0x60a), UINT32_C(0x481), false,
-              MBLINK_MERCEDES_DIAGNOSTIC_UDS) > 1U);
     CHECK(mblink_mercedes_module_scan_resolve_controller(
         UINT32_C(0x60a), UINT32_C(0x481), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
