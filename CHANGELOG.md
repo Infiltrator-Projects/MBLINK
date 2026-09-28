@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.249 — 2026-09-28
+
+- Correct IC_204 at 0x60A -> 0x481 to its source-backed HSCAN_UDS_500 / UDS diagnostic protocol instead of allowing the route to fall back to KWP2000.
+- Attach the existing nine documented IC_204 UDS reads to the instrument-cluster catalogue, while keeping them as documented factory reads rather than inventing live PID semantics.
+- Override stale cached KWP2000 protocol state for IC_204, preserve read-only discovery without an invented VIN DID, and add regression coverage for protocol selection, catalogue attachment and mixed-protocol fallback on still-unknown routes.
+
 ## 0.7.248 — 2026-09-28
 
 - Make the CI diagnostics reporter recover automatically when its previous tracking issue has been deleted instead of failing an otherwise-green release.
