@@ -110,6 +110,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly, nullable)
     NSString *manufacturerDataScanModuleIdentifier;
 
+/*
+ * Resolve saved/offline Mercedes ECU identity with the same catalogue used by
+ * live discovery. This performs no vehicle I/O.
+ */
+- (NSString *)resolvedMercedesModuleNameForRequestCANIdentifier:
+        (uint32_t)requestCANIdentifier
+    responseCANIdentifier:(uint32_t)responseCANIdentifier
+    extendedID:(BOOL)extendedID
+    protocol:(NSUInteger)protocol
+    identityText:(nullable NSString *)identityText
+    partNumber:(nullable NSString *)partNumber
+    softwareNumber:(nullable NSString *)softwareNumber
+    hardwareNumber:(nullable NSString *)hardwareNumber
+    NS_SWIFT_NAME(resolvedMercedesModuleName(requestCANIdentifier:responseCANIdentifier:extendedID:protocol:identityText:partNumber:softwareNumber:hardwareNumber:));
+
 /* Preserve MBLINK's established Swift spellings for inherited unit helpers. */
 - (double)displayValueForPID:(uint8_t)pid canonicalValue:(double)value
     NS_SWIFT_NAME(displayValue(pid:canonicalValue:));
