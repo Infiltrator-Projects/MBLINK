@@ -76,6 +76,10 @@ typedef struct MblinkMercedesTransmissionLive2130 {
     uint8_t actual_gear_code;
     bool target_gear_available;
     uint8_t target_gear_code;
+    bool tcc_status_available;
+    uint8_t tcc_status_code;
+    bool recognised_gear_available;
+    uint8_t recognised_gear_code;
     bool selector_position_available;
     uint8_t selector_position_code;
     bool drive_program_available;
@@ -464,6 +468,16 @@ MblinkMercedesTransmissionFamily
 mblink_mercedes_transmission_family_from_identity(const char *identity);
 
 /**
+ * Resolve the exact MBLINK controller-family key selected by ECU identity.
+ * This is deliberately separate from free-text identity parsing so an exact
+ * catalogue match (for example transmission-egs53) cannot be lost when the
+ * human-readable KWP identity string is numeric.
+ */
+MblinkMercedesTransmissionFamily
+mblink_mercedes_transmission_family_from_controller_family_key(
+    const char *controller_family_key);
+
+/**
  * Controller-family-scoped KWP2000 ReadDataByLocalIdentifier profile.
  *
  * Numeric local identifiers are not globally meaningful across Mercedes
@@ -493,6 +507,17 @@ const char *mblink_mercedes_transmission_family_name(
 const char *mblink_mercedes_transmission_actual_gear_name(uint8_t code);
 const char *mblink_mercedes_transmission_target_gear_name(uint8_t code);
 const char *mblink_mercedes_transmission_selector_name(uint8_t code);
+
+/* Vehicle-corroborated Siemens EGS53 KWP RLI 0x30 semantics. */
+const char *mblink_mercedes_transmission_egs53_rli30_tcc_state_name(
+    uint8_t code);
+const char *mblink_mercedes_transmission_egs53_rli30_selector_name(
+    uint8_t code);
+const char *mblink_mercedes_transmission_egs53_rli30_program_name(
+    uint8_t code);
+const char *mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(
+    uint8_t code);
+
 const char *mblink_mercedes_transmission_tcc_name(
     MblinkMercedesTorqueConverterState state);
 

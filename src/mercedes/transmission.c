@@ -89,6 +89,10 @@ bool mblink_mercedes_transmission_decode_live_2130(
         value.actual_gear_code = rich.actual_gear_code;
         value.target_gear_available = true;
         value.target_gear_code = rich.target_gear_code;
+        value.tcc_status_available = true;
+        value.tcc_status_code = rich.tcc_status;
+        value.recognised_gear_available = true;
+        value.recognised_gear_code = rich.recognised_gear;
         value.selector_position_available = true;
         value.selector_position_code = rich.selector_position;
         value.drive_program_available = true;
@@ -107,10 +111,54 @@ bool mblink_mercedes_transmission_decode_live_2130(
     return value.oil_temperature_available || value.actual_gear_available;
 }
 
+static bool decode_egs53_live_2130(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded)
+{
+    MblinkMercedesTransmissionLive2130 value;
+
+    /*
+     * Do not reuse the EGS52 decoder here. The 24-byte layout below is
+     * independently vehicle-corroborated by Siemens EGS53 A0034464310
+     * (HW 06.48 / SW 18.29.00). Keeping a dedicated decoder prevents a
+     * future EGS52 layout change from silently altering EGS53 semantics.
+     */
+    if (data == NULL || decoded == NULL || data_length != 24U)
+        return false;
+    if (data[6] > UINT8_C(6) ||
+        (data[10] & UINT8_C(0x0f)) > UINT8_C(14) ||
+        ((data[10] >> 4U) & UINT8_C(0x0f)) > UINT8_C(14)) {
+        return false;
+    }
+
+    memset(&value, 0, sizeof(value));
+    value.rich_layout = true;
+    value.tcc_status_available = true;
+    value.tcc_status_code = data[6];
+    value.selector_position_available = true;
+    value.selector_position_code = data[7];
+    value.drive_program_available = true;
+    value.drive_program_code = data[8];
+    value.recognised_gear_available = true;
+    value.recognised_gear_code = data[9];
+    value.actual_gear_available = true;
+    value.actual_gear_code = (uint8_t)(data[10] & UINT8_C(0x0f));
+    value.target_gear_available = true;
+    value.target_gear_code =
+        (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
+    value.oil_temperature_available = true;
+    value.oil_temperature_c = (double)data[11] - 50.0;
+
+    *decoded = value;
+    return true;
+}
+
 bool mblink_mercedes_transmission_family_uses_2130_actual_values(
     MblinkMercedesTransmissionFamily family)
 {
     return family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+           family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 ||
            family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
 }
 
@@ -125,8 +173,6 @@ bool mblink_mercedes_transmission_decode_live_2130_for_family(
         return false;
     }
 
-    /* Local identifier numbers are family-scoped. Select semantics
-     * from controller identity first, then validate response shape. */
     if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52) {
         if (data_length != 24U ||
             !mblink_mercedes_transmission_decode_live_2130(
@@ -135,6 +181,9 @@ bool mblink_mercedes_transmission_decode_live_2130_for_family(
         }
         return decoded->rich_layout;
     }
+
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53)
+        return decode_egs53_live_2130(data, data_length, decoded);
 
     if (data_length < 10U || data_length >= 24U ||
         !mblink_mercedes_transmission_decode_live_2130(
@@ -894,6 +943,13 @@ static const uint8_t k_kwp_egs52_ids[] = {
     UINT8_C(0xe8), UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
 };
 
+static const uint8_t k_kwp_egs53_ids[] = {
+    UINT8_C(0x30),
+    UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3),
+    UINT8_C(0xe4), UINT8_C(0xe5), UINT8_C(0xe6), UINT8_C(0xe7),
+    UINT8_C(0xe8), UINT8_C(0xe9), UINT8_C(0xea), UINT8_C(0xeb)
+};
+
 static const uint8_t k_kwp_vgs_nag2_ids[] = {
     UINT8_C(0x30),
     UINT8_C(0xe0), UINT8_C(0xe1), UINT8_C(0xe2), UINT8_C(0xe3),
@@ -965,6 +1021,23 @@ mblink_mercedes_transmission_family_from_identity(const char *identity)
     return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 }
 
+MblinkMercedesTransmissionFamily
+mblink_mercedes_transmission_family_from_controller_family_key(
+    const char *controller_family_key)
+{
+    if (controller_family_key == NULL || controller_family_key[0] == '\0')
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
+    if (strcmp(controller_family_key, "transmission-egs51") == 0)
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51;
+    if (strcmp(controller_family_key, "transmission-egs52") == 0)
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52;
+    if (strcmp(controller_family_key, "transmission-egs53") == 0)
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53;
+    if (strcmp(controller_family_key, "transmission-vgs-nag2") == 0)
+        return MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+    return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
+}
+
 static const uint8_t *kwp_ids_for_family(
     MblinkMercedesTransmissionFamily family, size_t *count)
 {
@@ -975,6 +1048,10 @@ static const uint8_t *kwp_ids_for_family(
         if (count != NULL)
             *count = INFILTRATR_ARRAY_LENGTH(k_kwp_egs52_ids);
         return k_kwp_egs52_ids;
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+        if (count != NULL)
+            *count = INFILTRATR_ARRAY_LENGTH(k_kwp_egs53_ids);
+        return k_kwp_egs53_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
         if (count != NULL)
             *count = INFILTRATR_ARRAY_LENGTH(k_kwp_vgs_nag2_ids);
@@ -985,7 +1062,6 @@ static const uint8_t *kwp_ids_for_family(
         return k_kwp_ultimate_nag52_ids;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
-    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
         if (count != NULL)
             *count = INFILTRATR_ARRAY_LENGTH(k_kwp_oem_metadata_ids);
         return k_kwp_oem_metadata_ids;
@@ -1054,6 +1130,9 @@ const char *mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
             return "Transmission hydraulics and solenoids / RLI 33";
         default: return NULL;
         }
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+        return id == UINT8_C(0x30)
+            ? "EGS53 transmission actual values / RLI 30" : NULL;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
         return id == UINT8_C(0x30)
             ? "Transmission actual values / compact RLI 30" : NULL;
@@ -1073,7 +1152,6 @@ const char *mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
         }
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
-    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G:
@@ -1091,6 +1169,8 @@ bool mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
     switch (family) {
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52:
         return id >= UINT8_C(0x30) && id <= UINT8_C(0x33);
+    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
+        return id == UINT8_C(0x30);
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
         return id == UINT8_C(0x30);
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52:
@@ -1101,7 +1181,6 @@ bool mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
                id == UINT8_C(0x31) || id == UINT8_C(0x32);
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51:
-    case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7228_CVT:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7240_DCT:
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G:
@@ -1207,6 +1286,70 @@ const char *mblink_mercedes_transmission_selector_name(uint8_t code)
     case 4U: return "D";
     case 7U: return "Unavailable";
     default: return "Intermediate";
+    }
+}
+
+const char *mblink_mercedes_transmission_egs53_rli30_tcc_state_name(
+    uint8_t code)
+{
+    switch (code) {
+    case 0U: return "Open";
+    case 1U: return "Open to slipping";
+    case 2U: return "Slipping to open";
+    case 3U: return "Slipping";
+    case 4U: return "Slipping to locked";
+    case 5U: return "Locked to slipping";
+    case 6U: return "Locked";
+    default: return NULL;
+    }
+}
+
+const char *mblink_mercedes_transmission_egs53_rli30_selector_name(
+    uint8_t code)
+{
+    switch (code) {
+    case 5U: return "D";
+    case 6U: return "N";
+    case 7U: return "R";
+    case 8U: return "P";
+    case 9U: return "+";
+    case 10U: return "-";
+    case 11U: return "N-D intermediate";
+    case 12U: return "R-N intermediate";
+    case 13U: return "P-R intermediate";
+    case 15U: return "Unavailable";
+    default: return NULL;
+    }
+}
+
+const char *mblink_mercedes_transmission_egs53_rli30_program_name(
+    uint8_t code)
+{
+    switch (code) {
+    case 0U: return "Sport";
+    case 1U: return "Comfort";
+    case 2U: return "Not defined";
+    case 3U: return "Unavailable";
+    default: return NULL;
+    }
+}
+
+const char *mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(
+    uint8_t code)
+{
+    switch (code) {
+    case 0U: return "Inactive";
+    case 1U: return "D1";
+    case 2U: return "D2";
+    case 3U: return "D3";
+    case 4U: return "D4";
+    case 5U: return "D5";
+    case 6U: return "R";
+    case 7U: return "R2";
+    case 23U: return "Wrong gear";
+    case 88U: return "Calculating";
+    case 255U: return "Unavailable";
+    default: return NULL;
     }
 }
 

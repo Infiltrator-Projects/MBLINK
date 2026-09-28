@@ -288,6 +288,15 @@ MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
         return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
     }
 
+    if (module->controller_family != NULL &&
+        module->controller_family->key != NULL) {
+        family =
+            mblink_mercedes_transmission_family_from_controller_family_key(
+                module->controller_family->key);
+        if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN)
+            return family;
+    }
+
     if (module->identity_available) {
         family = mblink_mercedes_transmission_family_from_identity(
             module->identity);
@@ -1933,6 +1942,10 @@ static void MBLinkAppendManufacturerDefinition(
               @"Current gear"],
             @[@"mercedes.transmission.target_gear", @"TARGET",
               @"Target gear"],
+            @[@"mercedes.transmission.tcc_state", @"TCC",
+              @"Torque converter clutch state"],
+            @[@"mercedes.transmission.recognised_gear", @"RECOG",
+              @"Recognised transmission gear"],
             @[@"mercedes.transmission.selector_position", @"SELECT",
               @"Selector position"],
             @[@"mercedes.transmission.drive_program", @"PROGRAM",
@@ -2274,17 +2287,68 @@ static void MBLinkAppendManufacturerDefinition(
         [values addObject:value];
     }
 
+    if (decoded.tcc_status_available &&
+        family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) {
+        const char *name =
+            mblink_mercedes_transmission_egs53_rli30_tcc_state_name(
+                decoded.tcc_status_code);
+        if (name != NULL) {
+            MBLinkTransmissionLiveValueSnapshot *value =
+                [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+            value.identifier = @"mercedes.transmission.tcc_state";
+            value.localIdentifier = UINT16_C(0x30);
+            value.shortName = @"TCC";
+            value.title = @"Torque converter clutch state";
+            value.suffix = @"";
+            value.formattedValue = MBLinkStringFromCString(name);
+            value.numericValueAvailable = NO;
+            value.rawHex = rli30.rawHex;
+            value.pollingEnabled = pollingEnabled;
+            value.qualityNote = quality;
+            [values addObject:value];
+        }
+    }
+
+    if (decoded.recognised_gear_available &&
+        family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) {
+        const char *name =
+            mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(
+                decoded.recognised_gear_code);
+        if (name != NULL) {
+            MBLinkTransmissionLiveValueSnapshot *value =
+                [[MBLinkTransmissionLiveValueSnapshot alloc] init];
+            value.identifier = @"mercedes.transmission.recognised_gear";
+            value.localIdentifier = UINT16_C(0x30);
+            value.shortName = @"RECOG";
+            value.title = @"Recognised transmission gear";
+            value.suffix = @"";
+            value.formattedValue = MBLinkStringFromCString(name);
+            value.numericValueAvailable = NO;
+            value.rawHex = rli30.rawHex;
+            value.pollingEnabled = pollingEnabled;
+            value.qualityNote = quality;
+            [values addObject:value];
+        }
+    }
+
     if (decoded.selector_position_available) {
         MBLinkTransmissionLiveValueSnapshot *value =
             [[MBLinkTransmissionLiveValueSnapshot alloc] init];
         value.identifier = @"mercedes.transmission.selector_position";
         value.localIdentifier = UINT16_C(0x30);
         value.shortName = @"SELECT";
-        value.title = @"Selector position code";
-        value.suffix = @" raw";
-        value.formattedValue = [NSString stringWithFormat:@"%u raw",
-            (unsigned int)decoded.selector_position_code];
-        value.numericValueAvailable = YES;
+        value.title = @"Selector position";
+        const char *selectorName =
+            family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53
+                ? mblink_mercedes_transmission_egs53_rli30_selector_name(
+                    decoded.selector_position_code)
+                : NULL;
+        value.suffix = selectorName != NULL ? @"" : @" raw";
+        value.formattedValue = selectorName != NULL
+            ? MBLinkStringFromCString(selectorName)
+            : [NSString stringWithFormat:@"%u raw",
+                (unsigned int)decoded.selector_position_code];
+        value.numericValueAvailable = selectorName == NULL;
         value.numericValue = (double)decoded.selector_position_code;
         value.rawHex = rli30.rawHex;
         value.pollingEnabled = pollingEnabled;
@@ -2298,11 +2362,18 @@ static void MBLinkAppendManufacturerDefinition(
         value.identifier = @"mercedes.transmission.drive_program";
         value.localIdentifier = UINT16_C(0x30);
         value.shortName = @"PROGRAM";
-        value.title = @"Transmission drive program code";
-        value.suffix = @" raw";
-        value.formattedValue = [NSString stringWithFormat:@"%u raw",
-            (unsigned int)decoded.drive_program_code];
-        value.numericValueAvailable = YES;
+        value.title = @"Transmission drive program";
+        const char *programName =
+            family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53
+                ? mblink_mercedes_transmission_egs53_rli30_program_name(
+                    decoded.drive_program_code)
+                : NULL;
+        value.suffix = programName != NULL ? @"" : @" raw";
+        value.formattedValue = programName != NULL
+            ? MBLinkStringFromCString(programName)
+            : [NSString stringWithFormat:@"%u raw",
+                (unsigned int)decoded.drive_program_code];
+        value.numericValueAvailable = programName == NULL;
         value.numericValue = (double)decoded.drive_program_code;
         value.rawHex = rli30.rawHex;
         value.pollingEnabled = pollingEnabled;

@@ -54,6 +54,8 @@ static int test_2130(void)
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52));
     CHECK(mblink_mercedes_transmission_family_uses_2130_actual_values(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2));
+    CHECK(mblink_mercedes_transmission_family_uses_2130_actual_values(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53));
     CHECK(!mblink_mercedes_transmission_family_uses_2130_actual_values(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN));
     CHECK(!mblink_mercedes_transmission_family_uses_2130_actual_values(
@@ -96,6 +98,38 @@ static int test_2130(void)
     CHECK(!mblink_mercedes_transmission_decode_live_2130_for_family(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52,
         rich, sizeof(rich), &live));
+
+    {
+        static const uint8_t egs53_capture[24] = {
+            0x00, 0x06, 0x00, 0x05, 0x09, 0x52, 0x03, 0x05,
+            0x01, 0x04, 0x44, 0x58, 0xff, 0xdb, 0xff, 0xdb,
+            0x06, 0x32, 0x00, 0x11, 0x80, 0x08, 0x00, 0x00
+        };
+        CHECK(mblink_mercedes_transmission_decode_live_2130_for_family(
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
+            egs53_capture, sizeof(egs53_capture), &live));
+        CHECK(live.rich_layout);
+        CHECK(live.oil_temperature_c == 38.0);
+        CHECK(live.actual_gear_code == 4U);
+        CHECK(live.target_gear_code == 4U);
+        CHECK(live.tcc_status_available && live.tcc_status_code == 3U);
+        CHECK(live.recognised_gear_available &&
+              live.recognised_gear_code == 4U);
+        CHECK(live.selector_position_code == 5U);
+        CHECK(live.drive_program_code == 1U);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_tcc_state_name(3U),
+            "Slipping") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_selector_name(5U),
+            "D") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_program_name(1U),
+            "Comfort") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(4U),
+            "D4") == 0);
+    }
 
     rich[6] = UINT8_C(0xff);
     CHECK(!mblink_mercedes_transmission_decode_live_2130(
@@ -337,7 +371,15 @@ static int test_kwp_records(void)
     CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52) == 10U);
     CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) == 12U);
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) == 13U);
+    CHECK(mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, 0U) == UINT8_C(0x30));
+    CHECK(mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, UINT8_C(0x30)));
+    CHECK(strcmp(
+        mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, UINT8_C(0x30)),
+        "EGS53 transmission actual values / RLI 30") == 0);
     CHECK(mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_7250_9G) == 0U);
 
@@ -540,6 +582,15 @@ static int test_family_names(void)
     CHECK(mblink_mercedes_transmission_family_from_identity(
         "Ultimate-NAG52") ==
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_ULTIMATE_NAG52);
+    CHECK(mblink_mercedes_transmission_family_from_controller_family_key(
+        "transmission-egs53") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53);
+    CHECK(mblink_mercedes_transmission_family_from_controller_family_key(
+        "transmission-egs52") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52);
+    CHECK(mblink_mercedes_transmission_family_from_controller_family_key(
+        "transmission-vgs-nag2") ==
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
     CHECK(mblink_mercedes_transmission_family_from_identity(
         "generic transmission") ==
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN);
