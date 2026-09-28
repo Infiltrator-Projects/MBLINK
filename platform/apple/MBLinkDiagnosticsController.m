@@ -1677,7 +1677,16 @@ static void MBLinkAppendManufacturerDefinition(
         const MblinkMercedesControllerDataProfileEntry *entry =
             mblink_mercedes_controller_data_profile_identifier_at(
                 profileKey, protocol, index);
-        if (entry == NULL || !entry->live) continue;
+        /*
+         * A positive response from one development vehicle is evidence that an
+         * identifier exists, not documentation of its semantics. PID Setup is
+         * restricted to source-corroborated live definitions only.
+         */
+        if (entry == NULL ||
+            !entry->live ||
+            entry->status != MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+            continue;
+        }
         MBLinkAppendManufacturerDefinition(
             values, seenWireKeys,
             MBLinkManufacturerStableKey(identifier, service, entry->identifier),

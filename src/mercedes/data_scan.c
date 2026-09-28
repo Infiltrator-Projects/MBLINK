@@ -78,7 +78,7 @@ static const MblinkMercedesControllerProfileAlias mblink_documented_controller_a
     {"pretensioner-rbtmfl204","RBTMFL_204"},{"pretensioner-rbtmfr204","RBTMFR_204"},{"camera-mfk","MPC212_X"},
     {"fuel-pump-fscu","FSCM212"},{"cluster-ic204","IC_204"},{"cluster-ic212","IC_212"},{"headunit-hu204","HU_204"},
     {"audio-ctrlc204","CTRLC_204"},{"display-dispc204","DISPC_204"},{"gateway-cgw212","CGW_212_X"},
-    {"eis-ezs212","EIS_212_X"},{"steering-mrm","MRM221"},{"steering-scm","SCCM_212_X"},
+    {"eis-ezs212","EIS_212_X"},{"steering-mrm","MRM221"},{"steering-sccm212","SCCM_212_X"},{"steering-scm","SCCM_212_X"},
     {"sam-front-212","SAMF_212"},{"sam-rear-212","SAMR_212"},{"climate-212","HVAC_212"},
     {"airmatic-ads212","ADS212"},{"distronic-dtr","DTR_212"},{"seat-driver-212","SEATD_212"},{"seat-passenger-204","SEATP_204"}
 };

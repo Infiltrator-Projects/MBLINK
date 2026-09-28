@@ -164,6 +164,10 @@ require(
     "manufacturer PID Setup must expose documented live values only",
 )
 require(
+    "entry->status != MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in controller,
+    "response-only raw identifiers must not become selectable live PIDs",
+)
+require(
     "runtimeCandidateIdentifiersForModule" not in controller
     and "mblink_mercedes_data_scan_begin_probe_identifiers" not in controller
     and "mblink_mercedes_data_scan_begin_probe_commands" not in controller
