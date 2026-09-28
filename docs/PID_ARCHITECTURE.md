@@ -90,6 +90,17 @@ Readings may issue the pack's safe documented read commands. PID Setup exposes
 only items the pack marks as advertised live data. This prevents the two
 surfaces from developing separate ideas of what a particular ECU supports.
 
+The diagnostic protocol follows the same ownership rule. A physical route is
+only discovery evidence because Mercedes reused request/response CAN IDs across
+controller generations; some exact routes are documented with both UDS and
+KWP2000 ECUs. Discovery may therefore make only the bounded protocol attempts
+supported by the route catalogue. Once ECU identity resolves a controller
+family with an authoritative pack, the pack's protocol and session metadata
+override stale route/profile state. MBLINK must not silently fall back to a
+different protocol after that point. A real response that conflicts with the
+resolved pack is an identity/evidence conflict and requires re-identification,
+not protocol guessing.
+
 ## Transmission example
 
 For the Mercedes gearbox-control route 0x7E1 -> 0x7E9, MBLINK already contains source-backed KWP2000 transmission knowledge.
@@ -191,6 +202,8 @@ A release satisfies this design only when all of the following are true:
 - Discovered/saved Mercedes modules appear below it as separate sections.
 - A module's Mercedes choices come from its resolved `MblinkMercedesEcuPack`, not merely its advertised SAE PIDs.
 - The ECU pack carries the friendly name, controller key, physical lookup route, protocol/session metadata and named data items as one controller-scoped view.
+- Route addresses alone never force a controller-family name or permanent protocol when the global catalogue contains multiple generations on that route.
+- After controller identity resolves an authoritative pack, that pack dictates UDS/KWP2000 and session behaviour; conflicting live evidence triggers re-identification rather than silent protocol fallback.
 - The known transmission module exposes the supported transmission live channels described above.
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery causes no manufacturer live-data request.
