@@ -147,6 +147,7 @@ add_library(mblink STATIC
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/module_scan.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
+    src/mercedes/ecu_pack.c
     src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c
     src/mercedes/egs51_lookup.c src/mercedes/egs52_lookup.c src/mercedes/egs53_lookup.c
     src/mercedes/mercedes_me_data_ids.c
@@ -341,6 +342,7 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-mercedes-module-scan tests/test_mercedes_module_scan.c)
     mblink_add_test(mblink-test-mercedes-vin-fallback tests/test_mercedes_vin_fallback.c)
     mblink_add_test(mblink-test-mercedes-data-scan tests/test_mercedes_data_scan.c)
+    mblink_add_test(mblink-test-mercedes-ecu-pack tests/test_mercedes_ecu_pack.c)
     mblink_add_test(mblink-test-mercedes-transmission tests/test_mercedes_transmission.c)
     mblink_add_test(mblink-test-mercedes-egs51-lookup tests/test_mercedes_egs51_lookup.c)
     mblink_add_test(mblink-test-mercedes-egs52-lookup tests/test_mercedes_egs52_lookup.c)
