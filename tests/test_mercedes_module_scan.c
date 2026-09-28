@@ -959,6 +959,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         MblinkMercedesModuleScanEntry routed;
 
 #define CHECK_ROUTE(TX, RX, NAME, MODULE_KEY, FAMILY_KEY, STATUS) do { \
+        const char *expected_family_key = (FAMILY_KEY); \
         memset(&routed, 0, sizeof(routed)); \
         routed.kind = MBLINK_MERCEDES_MODULE_OTHER; \
         routed.tx_can_id = UINT32_C(TX); \
@@ -969,9 +970,9 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(routed.definition->key, MODULE_KEY) == 0); \
         CHECK(strcmp(mblink_mercedes_module_scan_module_name(&routed), NAME) == 0); \
         CHECK(routed.identification_status == STATUS); \
-        if ((FAMILY_KEY) != NULL) { \
+        if (expected_family_key != NULL) { \
             CHECK(routed.controller_family != NULL); \
-            CHECK(strcmp(routed.controller_family->key, FAMILY_KEY) == 0); \
+            CHECK(strcmp(routed.controller_family->key, expected_family_key) == 0); \
         } \
     } while (0)
 
