@@ -236,6 +236,90 @@ void mblink_mercedes_module_scan_apply_route_identity(
         module->controller_family = controller_family;
 }
 
+static bool mblink_mercedes_module_scan_copy_identity_text(
+    char *destination,
+    size_t destination_capacity,
+    const char *source)
+{
+    size_t length;
+    if (destination == NULL || destination_capacity == 0U) return false;
+    destination[0] = '\0';
+    if (source == NULL || source[0] == '\0') return false;
+    length = strlen(source);
+    if (length >= destination_capacity) length = destination_capacity - 1U;
+    memcpy(destination, source, length);
+    destination[length] = '\0';
+    return length != 0U;
+}
+
+bool mblink_mercedes_module_scan_resolve_controller(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    const char *identity,
+    const char *spare_part_number,
+    const char *software_number,
+    const char *hardware_number,
+    MblinkMercedesModuleScanEntry *resolved)
+{
+    const MblinkMercedesModuleDefinition *identity_definition;
+
+    if (resolved == NULL) return false;
+    memset(resolved, 0, sizeof(*resolved));
+    resolved->tx_can_id = tx_can_id;
+    resolved->rx_can_id = rx_can_id;
+    resolved->extended_id = extended_id;
+    resolved->protocol = protocol;
+    resolved->kind = mblink_mercedes_module_scan_kind(tx_can_id, extended_id);
+    resolved->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
+    resolved->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
+
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x7e1) &&
+        rx_can_id == UINT32_C(0x7e9)) {
+        resolved->definition =
+            mblink_mercedes_module_definition_for_key("transmission-vgs");
+        resolved->kind = MBLINK_MERCEDES_MODULE_TRANSMISSION;
+        resolved->identification_status =
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+    }
+
+    mblink_mercedes_module_scan_apply_route_identity(resolved);
+
+    resolved->identity_available =
+        mblink_mercedes_module_scan_copy_identity_text(
+            resolved->identity, sizeof(resolved->identity), identity);
+    resolved->spare_part_number_available =
+        mblink_mercedes_module_scan_copy_identity_text(
+            resolved->spare_part_number, sizeof(resolved->spare_part_number),
+            spare_part_number);
+    resolved->software_number_available =
+        mblink_mercedes_module_scan_copy_identity_text(
+            resolved->software_number, sizeof(resolved->software_number),
+            software_number);
+    resolved->hardware_number_available =
+        mblink_mercedes_module_scan_copy_identity_text(
+            resolved->hardware_number, sizeof(resolved->hardware_number),
+            hardware_number);
+
+    if (resolved->identity_available) {
+        identity_definition =
+            mblink_mercedes_module_definition_for_identity(resolved->identity);
+        if (identity_definition != NULL) {
+            resolved->definition = identity_definition;
+            resolved->kind = identity_definition->kind;
+            resolved->identification_status = identity_definition->status;
+        }
+    }
+
+    mblink_mercedes_module_scan_classify_controller_family(resolved);
+
+    return resolved->definition != NULL ||
+        resolved->controller_family != NULL ||
+        resolved->kind != MBLINK_MERCEDES_MODULE_OTHER;
+}
+
 const char *mblink_mercedes_module_scan_module_name(
     const MblinkMercedesModuleScanEntry *module)
 {
