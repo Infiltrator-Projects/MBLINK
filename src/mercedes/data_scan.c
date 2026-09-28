@@ -253,7 +253,7 @@ static MblinkMercedesDataScanResult write_text(
 static void advance_identifier(MblinkMercedesDataScan *scan)
 {
     if (scan == NULL) return;
-    scan->current_no_response_retries = 0U;
+    scan->current_transient_retries = 0U;
     scan->attempted_count++;
 
     if (scan->identifier_list_active) {
@@ -442,7 +442,7 @@ static const MblinkMercedesControllerDataProfileEntry
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
     { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT16_C(0x2003), true,
+        UINT16_C(0x2003), false,
         "Observed raw DID 0x2003",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
@@ -457,7 +457,7 @@ static const MblinkMercedesControllerDataProfileEntry
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
     { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT16_C(0x2009), true,
+        UINT16_C(0x2009), false,
         "Observed raw DID 0x2009",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
@@ -517,7 +517,7 @@ static const MblinkMercedesControllerDataProfileEntry
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
     { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT16_C(0x20C0), true,
+        UINT16_C(0x20C0), false,
         "Observed raw DID 0x20C0",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
@@ -1137,7 +1137,38 @@ bool mblink_mercedes_data_identifier_is_runtime_refreshable(
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)
         return identifier != 0U && identifier <= UINT16_C(0x00ff);
 
-    return true;
+    /*
+     * UDS is deliberately deny-by-default for background polling. A positive
+     * read during discovery proves only that a DID is readable, not that it is
+     * a live signal. The road capture showed static identity/configuration DIDs
+     * on 0x602/0x480 being re-read every few seconds, while several ESP DIDs
+     * spent almost every cycle timing out. Keep those values available for
+     * explicit inspection without admitting them to the live scheduler.
+     */
+    if (protocol != MBLINK_MERCEDES_DIAGNOSTIC_UDS || extended_id)
+        return false;
+
+    /* CRD3 battery voltage is source-documented and runtime-changing. */
+    if (tx_can_id == UINT32_C(0x7e0) &&
+        rx_can_id == UINT32_C(0x7e8)) {
+        return identifier == UINT16_C(0x2007);
+    }
+
+    /*
+     * C207 ABR2XT vehicle evidence: these four records returned reliably and
+     * changed with vehicle operation. 0x2003, 0x2009 and 0x20C0 remain
+     * manual-only because the 2026-09-28 road capture showed them almost
+     * always timing out/state-gated.
+     */
+    if (tx_can_id == UINT32_C(0x632) &&
+        rx_can_id == UINT32_C(0x486)) {
+        return identifier == UINT16_C(0x2001) ||
+               identifier == UINT16_C(0x2004) ||
+               identifier == UINT16_C(0x2007) ||
+               identifier == UINT16_C(0x200d);
+    }
+
+    return false;
 }
 
 static MblinkMercedesDataScanResult initialise_scan(
@@ -1332,15 +1363,18 @@ static MblinkMercedesDataScanResult accept_adapter_step(
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
-static bool retry_known_identifier_after_no_response(
-    MblinkMercedesDataScan *scan)
+static bool retry_current_identifier_after_transient(
+    MblinkMercedesDataScan *scan,
+    bool require_known_positive)
 {
-    if (scan == NULL || !scan->identifier_list_active ||
-        !scan->identifier_list_retry_no_response ||
-        scan->current_no_response_retries >= 2U) {
+    if (scan == NULL || scan->current_transient_retries >= 2U)
+        return false;
+    if (require_known_positive &&
+        (!scan->identifier_list_active ||
+         !scan->identifier_list_retry_no_response)) {
         return false;
     }
-    scan->current_no_response_retries++;
+    scan->current_transient_retries++;
     return true;
 }
 
@@ -1359,7 +1393,7 @@ static void accept_uds_identifier(
          * One ELM timeout is therefore not evidence that the DID vanished.
          * Retry the same identifier twice before recording a miss.
          */
-        if (retry_known_identifier_after_no_response(scan)) return;
+        if (retry_current_identifier_after_transient(scan, true)) return;
         scan->no_response_count++;
         advance_identifier(scan);
         return;
@@ -1367,6 +1401,19 @@ static void accept_uds_identifier(
     if (mblink_elm327_can_decode_pdu(
             response, pdu, sizeof(pdu), &pdu_length) !=
         MBLINK_ELM327_CAN_RESULT_OK) {
+        scan->invalid_count++;
+        advance_identifier(scan);
+        return;
+    }
+    if (pdu_length >= 3U &&
+        pdu[0] == UINT8_C(0x62) &&
+        infiltratr_load_be16(pdu + 1U) != scan->current_identifier) {
+        /*
+         * The ELM can deliver a late positive response after the next command
+         * has already been written. Never associate that response with the
+         * current DID, and retry the current request before moving on.
+         */
+        if (retry_current_identifier_after_transient(scan, false)) return;
         scan->invalid_count++;
         advance_identifier(scan);
         return;
@@ -1400,7 +1447,7 @@ static void accept_kwp_identifier(
          * One ELM timeout is therefore not evidence that the DID vanished.
          * Retry the same identifier twice before recording a miss.
          */
-        if (retry_known_identifier_after_no_response(scan)) return;
+        if (retry_current_identifier_after_transient(scan, true)) return;
         scan->no_response_count++;
         advance_identifier(scan);
         return;
@@ -1408,6 +1455,14 @@ static void accept_kwp_identifier(
     if (mblink_elm327_can_decode_pdu(
             response, pdu, sizeof(pdu), &pdu_length) !=
         MBLINK_ELM327_CAN_RESULT_OK) {
+        scan->invalid_count++;
+        advance_identifier(scan);
+        return;
+    }
+    if (pdu_length >= 2U &&
+        pdu[0] == UINT8_C(0x61) &&
+        pdu[1] != (uint8_t)scan->current_identifier) {
+        if (retry_current_identifier_after_transient(scan, false)) return;
         scan->invalid_count++;
         advance_identifier(scan);
         return;
@@ -1426,13 +1481,46 @@ static void accept_kwp_identifier(
     advance_identifier(scan);
 }
 
-static void accept_kwp_ecu_identification(MblinkMercedesDataScan *scan,const MblinkElm327Response *response)
+static void accept_kwp_ecu_identification(
+    MblinkMercedesDataScan *scan,
+    const MblinkElm327Response *response)
 {
-    uint8_t pdu[MBLINK_MERCEDES_DATA_SCAN_PDU_CAPACITY];size_t length=0U;
-    if(response->result!=MBLINK_ELM327_RESULT_OK){if(retry_known_identifier_after_no_response(scan))return;scan->no_response_count++;advance_identifier(scan);return;}
-    if(mblink_elm327_can_decode_pdu(response,pdu,sizeof(pdu),&length)!=MBLINK_ELM327_CAN_RESULT_OK||length<2U){scan->invalid_count++;advance_identifier(scan);return;}
-    if(pdu[0]==0x5a&&pdu[1]==(uint8_t)scan->current_identifier)record_positive(scan,0x1a,scan->current_identifier,pdu+2U,length-2U);
-    else if(length>=3U&&pdu[0]==0x7f&&pdu[1]==0x1a)scan->negative_count++;else scan->invalid_count++;
+    uint8_t pdu[MBLINK_MERCEDES_DATA_SCAN_PDU_CAPACITY];
+    size_t length = 0U;
+
+    if (response->result != MBLINK_ELM327_RESULT_OK) {
+        if (retry_current_identifier_after_transient(scan, true)) return;
+        scan->no_response_count++;
+        advance_identifier(scan);
+        return;
+    }
+    if (mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &length) !=
+            MBLINK_ELM327_CAN_RESULT_OK ||
+        length < 2U) {
+        scan->invalid_count++;
+        advance_identifier(scan);
+        return;
+    }
+    if (pdu[0] == UINT8_C(0x5a) &&
+        pdu[1] != (uint8_t)scan->current_identifier) {
+        if (retry_current_identifier_after_transient(scan, false)) return;
+        scan->invalid_count++;
+        advance_identifier(scan);
+        return;
+    }
+    if (pdu[0] == UINT8_C(0x5a) &&
+        pdu[1] == (uint8_t)scan->current_identifier) {
+        record_positive(
+            scan, UINT8_C(0x1a), scan->current_identifier,
+            pdu + 2U, length - 2U);
+    } else if (length >= 3U &&
+               pdu[0] == UINT8_C(0x7f) &&
+               pdu[1] == UINT8_C(0x1a)) {
+        scan->negative_count++;
+    } else {
+        scan->invalid_count++;
+    }
     advance_identifier(scan);
 }
 

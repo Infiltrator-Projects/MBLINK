@@ -99,11 +99,12 @@ typedef struct MblinkMercedesDataScan {
     size_t identifier_count;
     size_t identifier_index;
     /*
-     * A refresh identifier is already proven to exist, so transient ELM
-     * NO DATA is retried twice before it is counted as a missed response.
-     * Retries do not advance the identifier or inflate attempted_count.
+     * Transient transport anomalies do not prove that the requested value is
+     * absent. Known-positive ELM NO DATA responses, and any stale positive
+     * response carrying a different identifier, are retried twice. Retries do
+     * not advance the identifier or inflate attempted_count.
      */
-    uint8_t current_no_response_retries;
+    uint8_t current_transient_retries;
     uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
     uint8_t services[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
     MblinkMercedesDataRecord records[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];

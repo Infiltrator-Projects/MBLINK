@@ -3075,10 +3075,10 @@ static void MBLinkAppendManufacturerDefinition(
     const BOOL fastCanRestore =
         scheduledLive && finishedModule != NULL &&
         !finishedModule->extended_id &&
-        finishedModule->tx_can_id == UINT32_C(0x7e1) &&
-        finishedModule->rx_can_id == UINT32_C(0x7e9) &&
-        mblink_mercedes_module_scan_entry_protocol(finishedModule) ==
-            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+        (mblink_mercedes_module_scan_entry_protocol(finishedModule) ==
+             MBLINK_MERCEDES_DIAGNOSTIC_UDS ||
+         mblink_mercedes_module_scan_entry_protocol(finishedModule) ==
+             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
 
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;

@@ -156,14 +156,14 @@ static int test_targeted_positive_identifier_refresh(void)
     CHECK(accept_command(&scan, "2158", response_no_data()) == 0);
     CHECK(scan.current_identifier == UINT16_C(0x58));
     CHECK(scan.no_response_count == 0U);
-    CHECK(scan.current_no_response_retries == 1U);
+    CHECK(scan.current_transient_retries == 1U);
     CHECK(accept_command(&scan, "2158", response_no_data()) == 0);
     CHECK(scan.current_identifier == UINT16_C(0x58));
     CHECK(scan.no_response_count == 0U);
-    CHECK(scan.current_no_response_retries == 2U);
+    CHECK(scan.current_transient_retries == 2U);
     CHECK(accept_command(
               &scan, "2158", response_ok("61580090556800")) == 0);
-    CHECK(scan.current_no_response_retries == 0U);
+    CHECK(scan.current_transient_retries == 0U);
     CHECK(scan.current_identifier == UINT16_C(0xe0));
     CHECK(accept_command(
               &scan, "21E0", response_ok("014\n0:61E000380406")) == 0);
@@ -228,7 +228,7 @@ static int test_source_candidate_identifier_probe(void)
     CHECK(accept_command(&scan, "2130", response_no_data()) == 0);
     CHECK(scan.current_identifier == UINT16_C(0x31));
     CHECK(scan.no_response_count == 1U);
-    CHECK(scan.current_no_response_retries == 0U);
+    CHECK(scan.current_transient_retries == 0U);
 
     CHECK(accept_command(&scan, "2131", response_no_data()) == 0);
     CHECK(scan.current_identifier == UINT16_C(0xe1));
@@ -275,6 +275,17 @@ static int test_c207_vehicle_verified_raw_positives(void)
      * session.  10 03 must never appear between route setup and TesterPresent. */
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_TESTER_PRESENT);
     CHECK(accept_command(&scan, "3E00", response_ok("7E00")) == 0);
+
+    /*
+     * The road capture contained a late 62 F154 response after 22 F155 was
+     * already on the wire. A stale positive for a different DID must never be
+     * consumed as the current value or advance the scan.
+     */
+    CHECK(accept_command(
+              &scan, "222001", response_ok("62200405110000")) == 0);
+    CHECK(scan.current_identifier == UINT16_C(0x2001));
+    CHECK(scan.current_transient_retries == 1U);
+    CHECK(scan.positive_count == 0U);
     CHECK(accept_command(
               &scan, "222001", response_ok("011\n0:622001061A06")) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
@@ -760,6 +771,15 @@ static int test_runtime_candidate_catalog(void)
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d));
     CHECK(entry != NULL && entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2003));
+    CHECK(entry != NULL && !entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2009));
+    CHECK(entry != NULL && !entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x20c0));
+    CHECK(entry != NULL && !entry->live);
+    entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2010));
     CHECK(entry != NULL && !entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
@@ -795,6 +815,46 @@ static int test_runtime_candidate_catalog(void)
     CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x652), UINT32_C(0x48a), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x06)));
+
+    /* Static identity/configuration reads are never background telemetry. */
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf100)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf111)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf151)));
+
+    /* Explicitly qualified runtime UDS routes remain available. */
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x7e0), UINT32_C(0x7e8), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001)));
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2004)));
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
+    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2003)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2009)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x632), UINT32_C(0x486), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x20c0)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x612), UINT32_C(0x482), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf100)));
 
     return 0;
 }
