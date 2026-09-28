@@ -898,28 +898,57 @@ static bool MBLinkSimulatorResponder(
                 &_mercedesModuleScan, index);
         if (module == NULL) continue;
 
+        MblinkMercedesModuleScanEntry resolvedModule = *module;
+        if (!module->extended_id &&
+            module->tx_can_id == UINT32_C(0x7e0) &&
+            module->rx_can_id == UINT32_C(0x7e8)) {
+            const char *identity =
+                module->identity_available ? module->identity :
+                (_mercedesProbe.ecu_system_name_available
+                    ? _mercedesProbe.ecu_system_name : NULL);
+            const char *part =
+                module->spare_part_number_available ? module->spare_part_number :
+                (_mercedesProbe.ecu_spare_part_number_available
+                    ? _mercedesProbe.ecu_spare_part_number : NULL);
+            const char *software =
+                module->software_number_available ? module->software_number :
+                (_mercedesProbe.ecu_software_number_available
+                    ? _mercedesProbe.ecu_software_number : NULL);
+            const char *hardware =
+                module->hardware_number_available ? module->hardware_number :
+                (_mercedesProbe.ecu_hardware_number_available
+                    ? _mercedesProbe.ecu_hardware_number : NULL);
+            (void)mblink_mercedes_module_scan_resolve_controller(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module),
+                identity, part, software, hardware,
+                &resolvedModule);
+        }
+
         MBLinkMercedesModuleSnapshot *snapshot =
             [[MBLinkMercedesModuleSnapshot alloc] init];
         snapshot.identifier = MBLinkMercedesModuleIdentifier(module);
         snapshot.name = MBLinkStringFromCString(
-            mblink_mercedes_module_scan_module_name(module));
+            mblink_mercedes_module_scan_module_name(&resolvedModule));
         snapshot.kind = MBLinkStringFromCString(
-            mblink_mercedes_module_kind_name(module->kind));
+            mblink_mercedes_module_kind_name(resolvedModule.kind));
         snapshot.protocolName = MBLinkStringFromCString(
             mblink_mercedes_diagnostic_protocol_name(
-                mblink_mercedes_module_scan_entry_protocol(module)));
+                mblink_mercedes_module_scan_entry_protocol(&resolvedModule)));
         snapshot.requestCANIdentifier = module->tx_can_id;
         snapshot.responseCANIdentifier = module->rx_can_id;
         snapshot.extendedID = module->extended_id;
-        snapshot.designation = module->definition != NULL &&
-                module->definition->component_designation != NULL
+        snapshot.designation = resolvedModule.definition != NULL &&
+                resolvedModule.definition->component_designation != NULL
             ? MBLinkStringFromCString(
-                module->definition->component_designation)
+                resolvedModule.definition->component_designation)
             : ([snapshot.name hasPrefix:@"Likely "]
                 ? @"Online candidate · not yet C207-confirmed" : @"");
-        snapshot.network = module->definition != NULL &&
-                module->definition->network != NULL
-            ? MBLinkStringFromCString(module->definition->network) : @"";
+        snapshot.network = resolvedModule.definition != NULL &&
+                resolvedModule.definition->network != NULL
+            ? MBLinkStringFromCString(resolvedModule.definition->network) : @"";
         snapshot.identityText = module->identity_available
             ? MBLinkStringFromCString(module->identity) : nil;
         snapshot.partNumber = module->spare_part_number_available
