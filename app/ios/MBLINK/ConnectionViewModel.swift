@@ -1377,28 +1377,39 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         tx: UInt32,
         rx: UInt32,
         extended: Bool,
-        kind: Int
+        kind: Int,
+        protocolValue: UInt,
+        identityText: String?,
+        partNumber: String?,
+        softwareNumber: String?,
+        hardwareNumber: String?
     ) -> String {
-        if !extended && tx == 0x7E0 && rx == 0x7E8 { return "Engine ECU" }
-        if !extended && tx == 0x7E1 && rx == 0x7E9 {
-            return "Transmission ECU / GS"
+        let resolved = controller.resolvedMercedesModuleName(
+            requestCANIdentifier: tx,
+            responseCANIdentifier: rx,
+            extendedID: extended,
+            protocol: protocolValue,
+            identityText: identityText,
+            partNumber: partNumber,
+            softwareNumber: softwareNumber,
+            hardwareNumber: hardwareNumber)
+        if !resolved.isEmpty && resolved != "Mercedes ECU" {
+            return resolved
         }
 
-        // Persisted module-kind values are useful even when the exact family
-        // identity has not been saved into the profile.
         switch kind {
-        case 1: return "Engine control unit"
-        case 2: return "Transmission control unit"
-        case 3: return "ABS / ESP control unit"
-        case 4: return "Airbag / restraint control unit"
-        case 5: return "Instrument cluster"
-        case 6: return "Body control unit"
-        case 7: return "Gateway control unit"
+        case 1: return "Unknown engine control unit"
+        case 2: return "Unknown transmission control unit"
+        case 3: return "Unknown ABS / ESP control unit"
+        case 4: return "Unknown restraint control unit"
+        case 5: return "Unknown instrument cluster"
+        case 6: return "Unknown Mercedes body controller"
+        case 7: return "Unknown Mercedes gateway"
         default:
             if extended {
-                return String(format: "Mercedes ECU 0x%08X", tx)
+                return String(format: "Unknown Mercedes ECU 0x%08X", tx)
             }
-            return String(format: "Mercedes ECU 0x%03X", tx)
+            return String(format: "Unknown Mercedes ECU 0x%03X", tx)
         }
     }
 
@@ -1457,9 +1468,22 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 seenResponderKeys.insert(responderKey)
                 support[moduleID] = pids
 
-                let offlineName = (saved["name"] as? String) ??
-                    offlineModuleName(
-                        tx: tx, rx: rx, extended: extended, kind: kind)
+                let identityText = saved["identity"] as? String
+                let partNumber = saved["sparePart"] as? String
+                let softwareNumber = saved["software"] as? String
+                let hardwareNumber = saved["hardware"] as? String
+                let protocolValue =
+                    (saved["protocol"] as? NSNumber)?.uintValue ?? 0
+                let offlineName = offlineModuleName(
+                    tx: tx,
+                    rx: rx,
+                    extended: extended,
+                    kind: kind,
+                    protocolValue: protocolValue,
+                    identityText: identityText,
+                    partNumber: partNumber,
+                    softwareNumber: softwareNumber,
+                    hardwareNumber: hardwareNumber)
                 modules.append(DiagnosticModule(
                     id: moduleID,
                     name: offlineName,
@@ -1471,10 +1495,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     requestCANIdentifier: tx,
                     responseCANIdentifier: rx,
                     extendedID: extended,
-                    identityText: saved["identity"] as? String,
-                    partNumber: saved["sparePart"] as? String,
-                    softwareNumber: saved["software"] as? String,
-                    hardwareNumber: saved["hardware"] as? String,
+                    identityText: identityText,
+                    partNumber: partNumber,
+                    softwareNumber: softwareNumber,
+                    hardwareNumber: hardwareNumber,
                     faultStatus: "Saved vehicle profile",
                     faultCount: 0,
                     faults: [],
@@ -1507,7 +1531,15 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             modules.append(DiagnosticModule(
                 id: moduleID,
                 name: offlineModuleName(
-                    tx: tx, rx: rx, extended: extended, kind: 0),
+                    tx: tx,
+                    rx: rx,
+                    extended: extended,
+                    kind: 0,
+                    protocolValue: 0,
+                    identityText: nil,
+                    partNumber: nil,
+                    softwareNumber: nil,
+                    hardwareNumber: nil),
                 designation: "Saved SAE OBD-II responder",
                 network: "Saved VIN profile",
                 kind: "saved",
