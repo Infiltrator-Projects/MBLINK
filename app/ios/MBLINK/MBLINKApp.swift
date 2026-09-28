@@ -1082,19 +1082,6 @@ private struct MBVehicleView: View {
                                     .foregroundStyle(MBBrand.muted)
                             }
 
-                            NavigationLink { MBPIDSetupView() } label: {
-                                HStack {
-                                    Label("PID Setup & Saved Vehicle",
-                                          systemImage: "list.bullet.rectangle.portrait.fill")
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .font(MBTypography.subheadlineBold)
-                                .foregroundStyle(MBBrand.silverBright)
-                                .padding(.vertical, 5)
-                            }
-                            .buttonStyle(.plain)
-
                             Text("Use the home-screen Connect button to identify the live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)

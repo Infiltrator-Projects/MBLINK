@@ -82,6 +82,14 @@ require(
     and "setStandardPIDSelection" not in factory_view,
     "Factory Readings must stay manual and must never change live PID selections",
 )
+vehicle_start = app.index("private struct MBVehicleView")
+vehicle_end = app.index("private struct MBModulesView", vehicle_start)
+vehicle_view = app[vehicle_start:vehicle_end]
+require(
+    "MBPIDSetupView" not in vehicle_view
+    and "PID Setup & Saved Vehicle" not in vehicle_view,
+    "Vehicle screen must not expose PID-selection controls",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
