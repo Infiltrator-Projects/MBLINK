@@ -8,7 +8,7 @@
     fprintf(stderr, "check failed: %s at %s:%d\n", #expr, __FILE__, __LINE__); \
     return 1; } } while (0)
 
-static void put_bits(uint8_t payload[8], unsigned int offset,
+static void put_bits(uint8_t *payload, unsigned int offset,
                      unsigned int length, uint32_t value)
 {
     unsigned int bit;
