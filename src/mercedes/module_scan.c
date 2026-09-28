@@ -1676,8 +1676,15 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
             if (module != NULL) {
                 scan->stage =
                     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
-            } else {
+            } else if (mblink_mercedes_module_scan_vin_command(scan) != NULL) {
                 mblink_mercedes_module_scan_enter_vin_fallback(scan);
+            } else {
+                /*
+                 * A source-backed UDS route can be known without any
+                 * source-backed VIN DID.  Do not invent a VIN request and do
+                 * not strand discovery in VIN_FALLBACK with no command.
+                 */
+                mblink_mercedes_module_scan_advance_candidate(scan);
             }
         }
         break;
