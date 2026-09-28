@@ -90,6 +90,119 @@ const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile
 const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_for_controller_family(const char*family,uint32_t tx,uint32_t rx,bool ext,MblinkMercedesDiagnosticProtocol protocol){if(family==NULL||family[0]=='\0')return NULL;for(size_t a=0U;a<INFILTRATR_ARRAY_LENGTH(mblink_documented_controller_aliases);++a){if(strcmp(mblink_documented_controller_aliases[a].family,family)!=0)continue;for(size_t i=0U;i<mblink_mercedes_documented_ecu_profile_count();++i){const MblinkMercedesDocumentedEcuProfile*p=&mblink_documented_profiles[i];if(strcmp(p->name,mblink_documented_controller_aliases[a].name)!=0)continue;if(p->route_available&&(p->tx_can_id!=tx||p->rx_can_id!=rx||p->extended_id!=ext))continue;if(p->protocol_known&&p->protocol!=protocol)continue;return p;}}return NULL;}
 size_t mblink_mercedes_documented_ecu_read_count(const MblinkMercedesDocumentedEcuProfile*p){return p!=NULL?p->read_count:0U;}
 const MblinkMercedesDocumentedRead *mblink_mercedes_documented_ecu_read_at(const MblinkMercedesDocumentedEcuProfile*p,size_t i){if(p==NULL||i>=p->read_count||p->read_offset+i>=INFILTRATR_ARRAY_LENGTH(mblink_documented_reads))return NULL;return &mblink_documented_reads[p->read_offset+i];}
+
+static bool mblink_mercedes_documented_route_read_seen_before(
+    uint32_t tx, uint32_t rx, bool ext,
+    MblinkMercedesDiagnosticProtocol protocol,
+    size_t profile_limit, size_t read_limit,
+    uint8_t service, uint16_t identifier)
+{
+    size_t profile_index;
+    for (profile_index = 0U; profile_index <= profile_limit; ++profile_index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            &mblink_documented_profiles[profile_index];
+        size_t max_read;
+        size_t read_index;
+
+        if (!profile->route_available ||
+            profile->tx_can_id != tx || profile->rx_can_id != rx ||
+            profile->extended_id != ext ||
+            (profile->protocol_known && profile->protocol != protocol)) {
+            continue;
+        }
+        max_read = profile_index == profile_limit
+            ? read_limit : profile->read_count;
+        if (max_read > profile->read_count) max_read = profile->read_count;
+        for (read_index = 0U; read_index < max_read; ++read_index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_ecu_read_at(profile, read_index);
+            if (read != NULL &&
+                read->service == service &&
+                read->identifier == identifier) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+size_t mblink_mercedes_documented_route_read_count(
+    uint32_t tx, uint32_t rx, bool ext,
+    MblinkMercedesDiagnosticProtocol protocol)
+{
+    size_t count = 0U;
+    size_t profile_index;
+
+    for (profile_index = 0U;
+         profile_index < mblink_mercedes_documented_ecu_profile_count();
+         ++profile_index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            &mblink_documented_profiles[profile_index];
+        size_t read_index;
+
+        if (!profile->route_available ||
+            profile->tx_can_id != tx || profile->rx_can_id != rx ||
+            profile->extended_id != ext ||
+            (profile->protocol_known && profile->protocol != protocol)) {
+            continue;
+        }
+        for (read_index = 0U; read_index < profile->read_count; ++read_index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_ecu_read_at(profile, read_index);
+            if (read == NULL ||
+                !mblink_mercedes_documented_read_is_safe(
+                    read->service, read->identifier)) {
+                continue;
+            }
+            if (!mblink_mercedes_documented_route_read_seen_before(
+                    tx, rx, ext, protocol,
+                    profile_index, read_index,
+                    read->service, read->identifier)) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+const MblinkMercedesDocumentedRead *mblink_mercedes_documented_route_read_at(
+    uint32_t tx, uint32_t rx, bool ext,
+    MblinkMercedesDiagnosticProtocol protocol, size_t wanted)
+{
+    size_t match = 0U;
+    size_t profile_index;
+
+    for (profile_index = 0U;
+         profile_index < mblink_mercedes_documented_ecu_profile_count();
+         ++profile_index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            &mblink_documented_profiles[profile_index];
+        size_t read_index;
+
+        if (!profile->route_available ||
+            profile->tx_can_id != tx || profile->rx_can_id != rx ||
+            profile->extended_id != ext ||
+            (profile->protocol_known && profile->protocol != protocol)) {
+            continue;
+        }
+        for (read_index = 0U; read_index < profile->read_count; ++read_index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_ecu_read_at(profile, read_index);
+            if (read == NULL ||
+                !mblink_mercedes_documented_read_is_safe(
+                    read->service, read->identifier) ||
+                mblink_mercedes_documented_route_read_seen_before(
+                    tx, rx, ext, protocol,
+                    profile_index, read_index,
+                    read->service, read->identifier)) {
+                continue;
+            }
+            if (match++ == wanted) return read;
+        }
+    }
+    return NULL;
+}
+
 const char *mblink_mercedes_documented_read_name(uint8_t s,uint16_t id){
  if(s==0x22){switch(id){case 0xf100:return"Active diagnostic information";case 0xf111:return"Mercedes hardware part number";case 0xf121:return"Mercedes software part number";case 0xf150:return"Hardware version";case 0xf151:return"Software version";case 0xf153:return"Boot software version";case 0xf154:return"Hardware supplier";case 0xf155:return"Software supplier";case 0xf15b:return"Programming fingerprint";case 0xf18c:return"ECU serial number";case 0xf187:return"Vehicle manufacturer spare part number";case 0xf188:return"Vehicle manufacturer ECU software number";case 0xf190:return"VIN original";case 0xf191:return"Vehicle manufacturer ECU hardware number";case 0xf197:return"System name";case 0xf1a0:return"VIN current";default:return NULL;}}
  if(s==0x1a){switch(id){case 0x86:return"DCS ECU identification";case 0x87:return"Vehicle manufacturer ECU identification";case 0x88:return"Vehicle manufacturer ECU software number";case 0x89:return"ECU software version / diagnostic variant";case 0x8a:return"System supplier identifier";case 0x8b:return"ECU manufacturing date";case 0x8c:return"ECU serial number";case 0x90:return"Vehicle identification number";case 0x97:return"System name or engine type";case 0x98:return"Repair shop / tester serial";case 0x99:return"Programming date";case 0x9a:return"Calibration repair-shop / equipment serial";case 0x9b:return"ECU installation date";case 0x9c:return"Calibration equipment software number";default:return NULL;}}

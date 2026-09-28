@@ -2030,6 +2030,49 @@ static void MBLinkAppendManufacturerDefinition(
         }
     }
 
+    /*
+     * If identity has not selected one controller generation yet, expose the
+     * de-duplicated safe read union for every documented controller that uses
+     * this exact route/protocol. Positive replies then become vehicle evidence;
+     * the route alone is never presented as proof of a particular generation.
+     */
+    if (documentedProfile == NULL) {
+        const size_t routeReadCount =
+            mblink_mercedes_documented_route_read_count(
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                protocol);
+        for (size_t index = 0U; index < routeReadCount; ++index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_route_read_at(
+                    module->tx_can_id, module->rx_can_id,
+                    module->extended_id, protocol, index);
+            if (read == NULL) continue;
+            const char *name =
+                mblink_mercedes_documented_read_name(
+                    read->service, read->identifier);
+            NSString *title = name != NULL
+                ? MBLinkStringFromCString(name)
+                : [NSString stringWithFormat:
+                    @"Documented route read %02X %04X",
+                    (unsigned int)read->service,
+                    (unsigned int)read->identifier];
+            MBLinkAppendManufacturerDefinition(
+                values, seenWireKeys,
+                MBLinkManufacturerStableKey(
+                    identifier, read->service, read->identifier),
+                read->service, read->identifier,
+                [NSString stringWithFormat:@"%02X %04X",
+                    (unsigned int)read->service,
+                    (unsigned int)read->identifier],
+                title,
+                [NSString stringWithFormat:
+                    @"%@ · exact-route candidate set",
+                    MBLinkStringFromCString(
+                        mblink_mercedes_documented_route_source())],
+                read->service == UINT8_C(0x21), NO);
+        }
+    }
+
     const char *profileKey = MBLinkMercedesDataProfileKeyForModule(module);
     const size_t profileCount =
         mblink_mercedes_controller_data_profile_identifier_count(
@@ -2481,9 +2524,15 @@ static void MBLinkAppendManufacturerDefinition(
     const size_t documentedControllerReadCount =
         mblink_mercedes_documented_ecu_read_count(
             documentedControllerProfile);
+    const size_t documentedRouteReadCount =
+        documentedControllerProfile == NULL
+            ? mblink_mercedes_documented_route_read_count(
+                module->tx_can_id, module->rx_can_id, module->extended_id,
+                mblink_mercedes_module_scan_entry_protocol(module))
+            : 0U;
     const BOOL profiledDocumentedModule =
-        documentedControllerProfile != NULL &&
-        documentedControllerReadCount != 0U;
+        documentedControllerReadCount != 0U ||
+        documentedRouteReadCount != 0U;
     const size_t routeEvidenceCount =
         mblink_mercedes_route_evidence_identifier_count(
             module->tx_can_id, module->rx_can_id, module->extended_id,
@@ -2657,12 +2706,24 @@ static void MBLinkAppendManufacturerDefinition(
             }
         }
 
-        if (profiledDocumentedModule) {
+        if (documentedControllerReadCount != 0U) {
             for (size_t index = 0U;
                  index < documentedControllerReadCount; ++index) {
                 const MblinkMercedesDocumentedRead *read =
                     mblink_mercedes_documented_ecu_read_at(
                         documentedControllerProfile, index);
+                if (read != NULL)
+                    APPEND_READ_COMMAND(read->service, read->identifier);
+            }
+        } else if (documentedRouteReadCount != 0U) {
+            for (size_t index = 0U;
+                 index < documentedRouteReadCount; ++index) {
+                const MblinkMercedesDocumentedRead *read =
+                    mblink_mercedes_documented_route_read_at(
+                        module->tx_can_id, module->rx_can_id,
+                        module->extended_id,
+                        mblink_mercedes_module_scan_entry_protocol(module),
+                        index);
                 if (read != NULL)
                     APPEND_READ_COMMAND(read->service, read->identifier);
             }

@@ -897,6 +897,59 @@ static int test_documented_global_ecu_catalog(void)
     CHECK(mblink_mercedes_documented_read_is_safe(0x22,0xf150));CHECK(mblink_mercedes_documented_read_is_safe(0x1a,0x86));CHECK(!mblink_mercedes_documented_read_is_safe(0x27,1));CHECK(!mblink_mercedes_documented_read_is_safe(0x31,1));
     return 0;
 }
+static int test_documented_route_read_union(void)
+{
+    const MblinkMercedesDocumentedRead *read;
+    bool saw_f100 = false;
+    bool saw_f150 = false;
+    bool saw_1a86 = false;
+
+    /*
+     * Exact-route fallback is global. It works even before a curated
+     * controller-family alias exists and de-duplicates reads shared by several
+     * generations on the same Mercedes diagnostic address.
+     */
+    CHECK(mblink_mercedes_documented_route_read_count(
+              0x602, 0x480, false,
+              MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 9U);
+    for (size_t i = 0U; i < mblink_mercedes_documented_route_read_count(
+             0x602, 0x480, false,
+             MBLINK_MERCEDES_DIAGNOSTIC_UDS); ++i) {
+        read = mblink_mercedes_documented_route_read_at(
+            0x602, 0x480, false,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS, i);
+        CHECK(read != NULL);
+        if (read->service == 0x22 && read->identifier == 0xf100)
+            saw_f100 = true;
+        if (read->service == 0x22 && read->identifier == 0xf150)
+            saw_f150 = true;
+    }
+    CHECK(saw_f100 && saw_f150);
+
+    CHECK(mblink_mercedes_documented_route_read_count(
+              0x7e1, 0x7e9, false,
+              MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) == 7U);
+    for (size_t i = 0U; i < mblink_mercedes_documented_route_read_count(
+             0x7e1, 0x7e9, false,
+             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000); ++i) {
+        read = mblink_mercedes_documented_route_read_at(
+            0x7e1, 0x7e9, false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, i);
+        CHECK(read != NULL);
+        if (read->service == 0x1a && read->identifier == 0x86)
+            saw_1a86 = true;
+    }
+    CHECK(saw_1a86);
+
+    CHECK(mblink_mercedes_documented_route_read_count(
+              0x7e0, 0x7e8, false,
+              MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 14U);
+    CHECK(mblink_mercedes_documented_route_read_at(
+              0x7e0, 0x7e8, false,
+              MBLINK_MERCEDES_DIAGNOSTIC_UDS, 14U) == NULL);
+    return 0;
+}
+
 static int test_documented_kwp_command_list(void)
 {
     MblinkMercedesDataScan scan;MblinkMercedesDataScanConfig config=mblink_mercedes_data_scan_default_config(0x7e1,0x7e9,false,MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,MBLINK_MERCEDES_MODULE_TRANSMISSION);
@@ -921,6 +974,7 @@ int main(void)
     if (test_runtime_candidate_catalog() != 0) return 1;
     if (test_20260903_transmission_capture_replay() != 0) return 1;
     if (test_documented_global_ecu_catalog() != 0) return 1;
+    if (test_documented_route_read_union() != 0) return 1;
     if (test_documented_kwp_command_list() != 0) return 1;
     puts("Mercedes manufacturer data scan tests passed");
     return 0;

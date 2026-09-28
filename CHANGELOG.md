@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.241 — 2026-09-28
+
+- Make the 1,319-profile global Mercedes ECU catalogue route-first as well as family-aware: every discovered exact TX/RX route can now supply its documented safe read-only command set even before ECU identity resolves one controller generation.
+- De-duplicate documented 0x22/0x21/0x1A reads across controller generations sharing a diagnostic route and filter them by the detected protocol; positive replies become vehicle evidence while route coincidence remains only candidate evidence.
+- Wire the route-wide catalogue into iOS Factory Data discovery and definition presentation, closing the gap where the database existed but only hand-mapped controller-family aliases could activate it.
+- Add regressions for the global route unions, including 0x602/0x480, 0x7E0/0x7E8 and 0x7E1/0x7E9.
+
 ## 0.7.240 — 2026-09-28
 
 - Add a global source-backed Mercedes ECU knowledge layer: 1,319 documented controller profiles, 1,107 explicit CAN routes and 4,355 simple read-only 0x22/0x21/0x1A references normalized from public Foxwell/Xentry-derived metadata.

@@ -31,3 +31,18 @@ The route/read layer is normalized from the public Foxwell/Xentry-derived Merced
 Detailed response-field semantics come from source-backed controller definitions. laravelcompany/ecudocs.com is GPL-3.0 and publishes ECU JSON definitions with request/reply templates and byte/bit field positions, scaling and enumerations. MBLINK embeds documented Daimler identity/metadata layouts and exposes their response positions through the portable C API. Controller-specific actual-value layouts are added only when a matching definition exists; otherwise the payload remains RAW instead of being guessed.
 
 The live ECU remains the strongest evidence of what one installed software revision actually supports. Public profiles define safe candidate reads; positive replies become vehicle evidence and unsupported/negative replies are not promoted into facts.
+
+
+### Route-first use of the global catalogue
+
+A discovered ECU no longer needs a hand-written MBLINK family alias before the
+global documented catalogue becomes useful. If exact ECU identity selects a
+documented controller profile, MBLINK uses that narrow profile. Otherwise it
+takes the de-duplicated union of safe read-only 0x22/0x21/0x1A commands from
+all documented controller generations published on the exact TX/RX route and
+detected protocol. Positive replies become vehicle evidence; route coincidence
+alone never upgrades a controller generation to fact.
+
+This applies to the whole generated catalogue (currently 1,319 profiles, 1,107
+with explicit routes and 4,355 source read references), not only the C207
+development vehicle.
