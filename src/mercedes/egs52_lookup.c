@@ -1649,12 +1649,104 @@ const MblinkMercedesEgs52FrameDefinition *mblink_mercedes_egs52_frame_at(size_t 
 size_t mblink_mercedes_egs52_frame_match_count(uint32_t id){size_t c=0U,i;for(i=0U;i<mblink_mercedes_egs52_frame_count();++i)if(defs[i].can_id==id)++c;return c;}
 const MblinkMercedesEgs52FrameDefinition *mblink_mercedes_egs52_frame_match_at(uint32_t id,size_t m){size_t c=0U,i;for(i=0U;i<mblink_mercedes_egs52_frame_count();++i){if(defs[i].can_id!=id)continue;if(c++==m)return &defs[i];}return NULL;}
 const MblinkMercedesEgs52SignalDefinition *mblink_mercedes_egs52_signal_find(const MblinkMercedesEgs52FrameDefinition *fr,const char *name){size_t i;if(fr==NULL||name==NULL||name[0]=='\0')return NULL;for(i=0U;i<fr->signal_count;++i)if(strcmp(fr->signals[i].name,name)==0)return &fr->signals[i];return NULL;}
+
+static bool egs52_display_code(
+    const char *signal_name, uint64_t raw,
+    const char **name, const char **description)
+{
+    if (name == NULL || description == NULL || signal_name == NULL)
+        return false;
+    *name = NULL;
+    *description = NULL;
+
+    if (strcmp(signal_name, "FSC") == 0) {
+        switch (raw) {
+        case 32U: *name="BLANK"; *description="blank"; return true;
+        case 49U: *name="1"; *description="Driving level 1"; return true;
+        case 50U: *name="2"; *description="Driving level 2"; return true;
+        case 51U: *name="3"; *description="Driving level 3"; return true;
+        case 52U: *name="4"; *description="Driving level 4"; return true;
+        case 53U: *name="5"; *description="Driving level 5"; return true;
+        case 54U: *name="6"; *description="Driving level 6"; return true;
+        case 55U: *name="7"; *description="Driving level 7"; return true;
+        case 65U: *name="A"; *description="Driving level A"; return true;
+        case 68U: *name="D"; *description="Drive"; return true;
+        case 70U: *name="F"; *description="Transmission fault"; return true;
+        case 78U: *name="N"; *description="Neutral"; return true;
+        case 80U: *name="P"; *description="Park"; return true;
+        case 82U: *name="R"; *description="Reverse"; return true;
+        case 255U: *name="SNV"; *description="Signal not available"; return true;
+        default: return false;
+        }
+    }
+
+    if (strcmp(signal_name, "FPC") == 0) {
+        switch (raw) {
+        case 2U: *name="C_MGFB_WT"; *description="C: activate parking brake"; return true;
+        case 3U: *name="C_MGSNN"; *description="C: move selector to N"; return true;
+        case 4U: *name="C_MGBB"; *description="C: apply brake"; return true;
+        case 6U: *name="C_MGGEA"; *description="C: select gear again"; return true;
+        case 7U: *name="C_MGZSN"; *description="C: select N to start"; return true;
+        case 10U: *name="A_MGFB_WT"; *description="A: activate parking brake"; return true;
+        case 11U: *name="A_MGSNN"; *description="A: move selector to N"; return true;
+        case 12U: *name="A_MGBB"; *description="A: apply brake"; return true;
+        case 14U: *name="A_MGGEA"; *description="A: select gear again"; return true;
+        case 15U: *name="A_MGZSN"; *description="A: select N to start"; return true;
+        case 18U: *name="S_MGFB_WT"; *description="S: activate parking brake"; return true;
+        case 19U: *name="S_MGSNN"; *description="S: move selector to N"; return true;
+        case 20U: *name="S_MGBB"; *description="S: apply brake"; return true;
+        case 22U: *name="S_MGGEA"; *description="S: select gear again"; return true;
+        case 23U: *name="S_MGZSN"; *description="S: select N to start"; return true;
+        case 24U: *name="HOCH"; *description="Upshift recommendation"; return true;
+        case 25U: *name="RUNTER"; *description="Downshift recommendation"; return true;
+        case 32U: *name="BLANK"; *description="blank"; return true;
+        case 64U: *name="BLANK_MGN"; *description="Select N"; return true;
+        case 65U: *name="A"; *description="A"; return true;
+        case 67U: *name="C"; *description="C"; return true;
+        case 70U: *name="F"; *description="Transmission fault"; return true;
+        case 77U: *name="M"; *description="M"; return true;
+        case 83U: *name="S"; *description="S"; return true;
+        case 87U: *name="W"; *description="W"; return true;
+        case 95U: *name="_"; *description="_"; return true;
+        case 96U: *name="BLANK_MGW"; *description="Check transmission/workshop"; return true;
+        case 97U: *name="A_MGN"; *description="A: select N"; return true;
+        case 99U: *name="C_MGN"; *description="C: select N"; return true;
+        case 109U: *name="M_MGN"; *description="M: select N"; return true;
+        case 115U: *name="S_MGN"; *description="S: select N"; return true;
+        case 119U: *name="W_MGN"; *description="W: select N"; return true;
+        case 127U: *name="__MGN"; *description="_: select N"; return true;
+        case 129U: *name="A_MGW"; *description="A: check transmission/workshop"; return true;
+        case 131U: *name="C_MGW"; *description="C: check transmission/workshop"; return true;
+        case 134U: *name="F_MGW"; *description="Transmission fault: workshop"; return true;
+        case 141U: *name="M_MGW"; *description="M: check transmission/workshop"; return true;
+        case 147U: *name="S_MGW"; *description="S: check transmission/workshop"; return true;
+        case 151U: *name="W_MGW"; *description="W: check transmission/workshop"; return true;
+        case 159U: *name="__MGW"; *description="_: check transmission/workshop"; return true;
+        case 255U: *name="SNV"; *description="Signal not available"; return true;
+        default: return false;
+        }
+    }
+    return false;
+}
+
 bool mblink_mercedes_egs52_decode_signal(const MblinkMercedesEgs52SignalDefinition *s,const uint8_t *p,size_t n,MblinkMercedesEgs52DecodedSignal *d)
 {
  MblinkMercedesEgs52DecodedSignal x;uint64_t r;size_t i;
  if(s==NULL||d==NULL)return false;
  if(s->masked){if(!masked(s,p,n,&r))return false;}else if(!plain(p,n,s->bit_offset,s->bit_length,&r))return false;
  memset(&x,0,sizeof(x));x.raw=r;x.unit=s->unit;
+
+ {
+  const char *display_name = NULL;
+  const char *display_description = NULL;
+  if (egs52_display_code(
+          s->name, r, &display_name, &display_description)) {
+   x.enum_available=true;
+   x.enum_name=display_name;
+   x.enum_description=display_description;
+   *d=x;return true;
+  }
+ }
 
  /*
   * EGS52 read semantics from can_egs52.cpp and its unambiguous setters.
