@@ -2492,7 +2492,15 @@ bool mblink_mercedes_egs53_decode_signal(const MblinkMercedesEgs53SignalDefiniti
  MblinkMercedesEgs53DecodedSignal x;uint64_t r;size_t i;
  if(s==NULL||d==NULL)return false;
  if(s->masked){if(!masked(s,p,n,&r))return false;}else if(!plain(p,n,s->bit_offset,s->bit_length,&r))return false;
- memset(&x,0,sizeof(x));x.raw=r;
+ memset(&x,0,sizeof(x));x.raw=r;x.unit=s->unit;
+
+ /* EGS53 temperature getters explicitly reject 0xFF as unavailable. */
+ if ((strcmp(s->name,"EngCoolTemp")==0 ||
+      strcmp(s->name,"EngOilTemp")==0 ||
+      strcmp(s->name,"IntkAirTemp")==0) && r==UINT64_C(255)) {
+  x.unavailable=true;*d=x;return true;
+ }
+
  switch(s->type){
  case MBLINK_MERCEDES_EGS53_SIGNAL_BOOL:x.boolean_available=true;x.boolean_value=r!=0U;break;
  case MBLINK_MERCEDES_EGS53_SIGNAL_NUMBER:x.physical_available=true;x.physical_value=(double)r*s->multiplier+s->offset;break;
