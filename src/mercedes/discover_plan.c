@@ -130,6 +130,14 @@ static const MblinkMercedesKnownRoute mercedes_known_routes[] = {
         false,
         "transmission-vgs", "GS / VGS / EGS transmission control",
         "Mercedes CAN definition names D_RQ_GS 0x7E1 as KWP2000 diagnostic request to gearbox control and D_RS_GS 0x7E9 as its response; 0x7E9 independently observed on the 2026-09-03 C207 field capture"
+    },
+    {
+        UINT32_C(0x60a), UINT32_C(0x481),
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        MBLINK_MERCEDES_VIN_PROBE_NONE,
+        false,
+        "instrument-cluster", "IC_204",
+        "CaesarSuite IC_204 compatibility and cluster evidence identifies HSCAN_UDS_500 / UDS; the C207 route catalogue and field evidence identify 0x60A -> 0x481 as IC_204"
     }
 };
 
