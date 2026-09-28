@@ -153,6 +153,9 @@ typedef struct MblinkMercedesModuleScan {
     uint32_t candidate_rx;
     bool candidate_extended;
     bool candidate_route_locked;
+    MblinkMercedesDiagnosticProtocol candidate_protocol;
+    uint8_t candidate_protocol_mask;
+    uint8_t candidate_protocol_attempted_mask;
     size_t vin_probe_index;
     /* First positive VIN from a physically filtered, matching VIN request. */
     char vin[LINK_OBD2_VIN_LENGTH + 1U];
