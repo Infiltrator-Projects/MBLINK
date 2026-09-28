@@ -168,6 +168,27 @@ require(
     "response-only raw identifiers must not become selectable live PIDs",
 )
 require(
+    "mblink.manufacturer.pidCatalogueByVehicle.v2" in model
+    and "mblink.manufacturer.pidCatalogueByVehicle.v1" not in model,
+    "legacy manufacturer PID catalogue caches must not survive the source-backed policy change",
+)
+require(
+    "let documentedDefinitions = controller.documentedDataDefinitions(" in model
+    and "if !documentedDefinitions.isEmpty {" in model
+    and "else if controller.isActive {" in model
+    and "let sanitized = selected.intersection(allowedStableKeys)" in model,
+    "resolved manufacturer catalogues must be authoritative and stale selections must be pruned",
+)
+saved_marker_start = model.index("private func writeSavedPIDCatalogueRegressionMarker()")
+saved_marker_end = model.index("#endif", saved_marker_start)
+saved_marker = model[saved_marker_start:saved_marker_end]
+require(
+    "manufacturerPIDCatalogueItems(" in saved_marker
+    and "espCount == 0" in saved_marker
+    and "controller.documentedDataDefinitions(" not in saved_marker,
+    "saved-profile regression must validate the selectable live catalogue, including an empty ESP catalogue",
+)
+require(
     "runtimeCandidateIdentifiersForModule" not in controller
     and "mblink_mercedes_data_scan_begin_probe_identifiers" not in controller
     and "mblink_mercedes_data_scan_begin_probe_commands" not in controller

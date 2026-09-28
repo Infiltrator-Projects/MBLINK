@@ -5,6 +5,8 @@
 - Publish the completed documented ECU PID catalogue wiring and corrected SCCM_212 family aliasing from the post-0.7.246 mainline work.
 - Keep response-only Mercedes identifiers out of selectable live PID setup unless their semantics are source-corroborated.
 - Correct the iOS simulated-flow release gate so the deliberately empty ESP selectable catalogue is required to remain empty instead of being misreported as a failed live-ready state.
+- Treat a resolved ECU's current source-backed definitions as authoritative even when the selectable live set is empty, and move manufacturer catalogue caching to a fresh namespace so old response-only entries cannot reappear after relaunch.
+- Prune saved manufacturer selections that no longer exist in the authoritative catalogue and make the cold-launch regression measure the same selectable catalogue shown by PID Setup.
 
 ## 0.7.246 — 2026-09-28
 

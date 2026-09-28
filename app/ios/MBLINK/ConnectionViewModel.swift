@@ -233,7 +233,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let manufacturerSelectionDefaultsKey =
         "mblink.manufacturer.pidSelectionsByVehicle.v1"
     private static let manufacturerCatalogueDefaultsKey =
-        "mblink.manufacturer.pidCatalogueByVehicle.v1"
+        "mblink.manufacturer.pidCatalogueByVehicle.v2"
     private static let standardSelectionControllerIdentifier = "standard-obd"
     private static let standardSelectionMigrationDefaultsKey =
         "mblink.standard.pidSelectionsGlobalMigrated.v1"
@@ -506,10 +506,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
-        let liveDefinitions = controller.documentedDataDefinitions(
-            forModuleIdentifier: moduleID).filter { $0.isLive }
+        let documentedDefinitions = controller.documentedDataDefinitions(
+            forModuleIdentifier: moduleID)
+        let liveDefinitions = documentedDefinitions.filter { $0.isLive }
         let definitions: [[String: Any]]
-        if !liveDefinitions.isEmpty {
+        if !documentedDefinitions.isEmpty {
+            // A resolved ECU profile is authoritative even when it deliberately
+            // exposes zero live PIDs. Persist that empty result so a previously
+            // cached response-only identifier cannot reappear after relaunch.
             definitions = liveDefinitions.map { definition in
                 [
                     "id": definition.stableKey,
@@ -521,11 +525,30 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 ]
             }
             cacheManufacturerCatalogue(definitions, moduleID: moduleID)
+        } else if controller.isActive {
+            // Never let an unresolved live ECU inherit an offline cache.
+            definitions = []
         } else {
+            // Offline profiles can reuse only the current cache namespace,
+            // which is populated from source-backed live definitions above.
             definitions = cachedManufacturerCatalogue(moduleID: moduleID)
         }
 
-        let selected = manufacturerSelectionSet(moduleID: moduleID)
+        var selected = manufacturerSelectionSet(moduleID: moduleID)
+        if !documentedDefinitions.isEmpty {
+            let allowedStableKeys = Set(definitions.compactMap { value -> String? in
+                guard let storedStableKey = value["id"] as? String else {
+                    return nil
+                }
+                return canonicalManufacturerStableKey(storedStableKey)
+            })
+            let sanitized = selected.intersection(allowedStableKeys)
+            if sanitized != selected {
+                storeManufacturerSelection(sanitized, moduleID: moduleID)
+                selected = sanitized
+            }
+        }
+
         return definitions.compactMap { value in
             guard let storedStableKey = value["id"] as? String,
                   let serviceNumber = value["service"] as? NSNumber,
@@ -1944,16 +1967,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func writeSavedPIDCatalogueRegressionMarker() {
-        let transmissionCount = controller.documentedDataDefinitions(
-            forModuleIdentifier: Self.ciTransmissionModuleID).count
-        let espCount = controller.documentedDataDefinitions(
-            forModuleIdentifier: Self.ciESPModuleID).count
-        let orcCount = controller.documentedDataDefinitions(
-            forModuleIdentifier: Self.ciORCModuleID).count
+        let transmissionCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciTransmissionModuleID).count
+        let espCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciESPModuleID).count
+        let orcCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciORCModuleID).count
         let displaySelectionVerified = verifySingleDisplaySelection()
         let ready = !isActive && selectedVehicleVIN?.count == 17 &&
             pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
-            espCount > 0 && orcCount > 0 && displaySelectionVerified
+            espCount == 0 && orcCount > 0 && displaySelectionVerified
         let marker = "state=\(ready ? "ready" : "failed")\n" +
             "active=\(isActive)\n" +
             "selected_vin=\(selectedVehicleVIN ?? "")\n" +
