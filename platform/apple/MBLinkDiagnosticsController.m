@@ -8,6 +8,7 @@
 #import "mblink/mercedes_probe.h"
 #import "mblink/mercedes_module_scan.h"
 #import "mblink/mercedes_data_scan.h"
+#import "mblink/mercedes_ecu_pack.h"
 #import "mblink/mercedes_documented_ecus.h"
 #import "mblink/mercedes_transmission.h"
 #import "mblink/uds_dtc.h"
@@ -1543,159 +1544,64 @@ static void MBLinkAppendManufacturerDefinition(
     MblinkMercedesModuleScanEntry cachedModule;
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:identifier];
+    MblinkMercedesEcuPack pack;
+
     if (module == NULL &&
         [self populateCachedModuleEntry:&cachedModule
                           forIdentifier:identifier]) {
         module = &cachedModule;
     }
-    if (module == NULL) return @[];
+    if (module == NULL ||
+        !mblink_mercedes_ecu_pack_resolve_module(module, &pack)) {
+        return @[];
+    }
 
     NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values =
         [[NSMutableArray alloc] init];
     NSMutableSet<NSString *> *seenWireKeys = [[NSMutableSet alloc] init];
-    const MblinkMercedesDiagnosticProtocol protocol =
-        mblink_mercedes_module_scan_entry_protocol(module);
-    const uint8_t service =
-        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
-            ? UINT8_C(0x21) : UINT8_C(0x22);
+    const size_t itemCount =
+        mblink_mercedes_ecu_pack_data_item_count(&pack);
 
-    if (service == UINT8_C(0x21) &&
-        MBLinkTransmissionModuleSupportsCanonical2130(module)) {
-        NSArray<NSArray<NSString *> *> *signals = @[
-            @[@"mercedes.transmission.oil_temperature", @"ATF",
-              @"Transmission oil temperature"],
-            @[@"mercedes.transmission.actual_gear", @"GEAR",
-              @"Current gear"],
-            @[@"mercedes.transmission.target_gear", @"TARGET",
-              @"Target gear"],
-            @[@"mercedes.transmission.tcc_state", @"TCC",
-              @"Torque converter clutch state"],
-            @[@"mercedes.transmission.recognised_gear", @"RECOG",
-              @"Recognised transmission gear"],
-            @[@"mercedes.transmission.selector_position", @"SELECT",
-              @"Selector position"],
-            @[@"mercedes.transmission.drive_program", @"PROGRAM",
-              @"Transmission drive program"]
-        ];
-        BOOL first = YES;
-        for (NSArray<NSString *> *signal in signals) {
-            MBLinkAppendManufacturerDefinition(
-                values, seenWireKeys, signal[0], UINT8_C(0x21),
-                UINT16_C(0x30), signal[1], signal[2],
-                @"Mercedes GS KWP 21 30 · portable MBLINK decoder",
-                YES, !first);
-            first = NO;
-        }
-    }
-
-    if (MBLinkMercedesModuleIsTransmissionController(module) &&
-        protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) {
-        const MblinkMercedesTransmissionFamily family =
-            MBLinkTransmissionFamilyForModule(module);
-        const size_t count =
-            mblink_mercedes_transmission_kwp_read_identifier_count_for_family(
-                family);
-        for (size_t index = 0U; index < count; ++index) {
-            const uint8_t localID =
-                mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
-                    family, index);
-            if (!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
-                    family, localID)) {
-                continue;
-            }
-            const char *name =
-                mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
-                    family, localID);
-            NSString *title = name != NULL
-                ? MBLinkStringFromCString(name)
-                : [NSString stringWithFormat:@"Transmission actual values 0x%02X",
-                    (unsigned int)localID];
-            MBLinkAppendManufacturerDefinition(
-                values, seenWireKeys,
-                MBLinkManufacturerStableKey(
-                    identifier, UINT8_C(0x21), (uint16_t)localID),
-                UINT8_C(0x21), (uint16_t)localID,
-                [NSString stringWithFormat:@"RLI %02X",
-                    (unsigned int)localID],
-                title,
-                [NSString stringWithFormat:
-                    @"Mercedes transmission %@ family catalogue",
-                    MBLinkStringFromCString(
-                        mblink_mercedes_transmission_family_name(family))],
-                YES, NO);
-        }
-    }
-
-    const MblinkMercedesDocumentedEcuProfile *documentedProfile = NULL;
-    if (module->controller_family != NULL &&
-        module->controller_family->key != NULL) {
-        documentedProfile =
-            mblink_mercedes_documented_ecu_profile_for_controller_family(
-                module->controller_family->key,
-                module->tx_can_id, module->rx_can_id, module->extended_id,
-                protocol);
-    }
-    if (documentedProfile != NULL) {
-        const size_t documentedCount =
-            mblink_mercedes_documented_ecu_read_count(documentedProfile);
-        for (size_t index = 0U; index < documentedCount; ++index) {
-            const MblinkMercedesDocumentedRead *read =
-                mblink_mercedes_documented_ecu_read_at(
-                    documentedProfile, index);
-            if (read == NULL) continue;
-            const char *name =
-                mblink_mercedes_documented_read_name(
-                    read->service, read->identifier);
-            NSString *title = name != NULL
-                ? MBLinkStringFromCString(name)
-                : [NSString stringWithFormat:
-                    @"Documented %@ read 0x%04X",
-                    read->service == UINT8_C(0x22) ? @"UDS" : @"KWP",
-                    (unsigned int)read->identifier];
-            MBLinkAppendManufacturerDefinition(
-                values, seenWireKeys,
-                MBLinkManufacturerStableKey(
-                    identifier, read->service, read->identifier),
-                read->service, read->identifier,
-                [NSString stringWithFormat:@"%02X %04X",
-                    (unsigned int)read->service,
-                    (unsigned int)read->identifier],
-                title,
-                [NSString stringWithFormat:@"%@ · %@",
-                    MBLinkStringFromCString(
-                        mblink_mercedes_documented_route_source()),
-                    MBLinkStringFromCString(documentedProfile->name)],
-                read->service == UINT8_C(0x21), NO);
-        }
-    }
-
-    const char *profileKey = MBLinkMercedesDataProfileKeyForModule(module);
-    const size_t profileCount =
-        mblink_mercedes_controller_data_profile_identifier_count(
-            profileKey, protocol);
-    for (size_t index = 0U; index < profileCount; ++index) {
-        const MblinkMercedesControllerDataProfileEntry *entry =
-            mblink_mercedes_controller_data_profile_identifier_at(
-                profileKey, protocol, index);
-        /*
-         * A positive response from one development vehicle is evidence that an
-         * identifier exists, not documentation of its semantics. PID Setup is
-         * restricted to source-corroborated live definitions only.
-         */
-        if (entry == NULL ||
-            !entry->live ||
-            entry->status != MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+    for (size_t index = 0U; index < itemCount; ++index) {
+        MblinkMercedesEcuDataItem item;
+        if (!mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item) ||
+            !item.advertised) {
             continue;
         }
+
+        NSString *stableKey = item.stable_key != NULL
+            ? MBLinkStringFromCString(item.stable_key)
+            : MBLinkManufacturerStableKey(
+                identifier, item.service, item.identifier);
+        NSString *shortName = item.short_name != NULL
+            ? MBLinkStringFromCString(item.short_name)
+            : [NSString stringWithFormat:@"%02X %04X",
+                (unsigned int)item.service,
+                (unsigned int)item.identifier];
+        NSString *title = item.name != NULL && item.name[0] != '\0'
+            ? MBLinkStringFromCString(item.name)
+            : [NSString stringWithFormat:@"Documented %@ read 0x%04X",
+                item.service == UINT8_C(0x22) ? @"UDS" : @"KWP",
+                (unsigned int)item.identifier];
+        NSString *provenance = item.provenance != NULL &&
+                               item.provenance[0] != '\0'
+            ? MBLinkStringFromCString(item.provenance)
+            : @"MBLINK ECU definition pack";
+        if (pack.ecu_name != NULL && pack.ecu_name[0] != '\0') {
+            provenance = [NSString stringWithFormat:@"%@ · %@",
+                provenance, MBLinkStringFromCString(pack.ecu_name)];
+        }
+
         MBLinkAppendManufacturerDefinition(
             values, seenWireKeys,
-            MBLinkManufacturerStableKey(identifier, service, entry->identifier),
-            service, entry->identifier,
-            [NSString stringWithFormat:@"%02X %04X",
-                (unsigned int)service, (unsigned int)entry->identifier],
-            MBLinkStringFromCString(entry->name),
-            MBLinkStringFromCString(entry->provenance),
-            YES, NO);
+            stableKey,
+            item.service,
+            item.identifier,
+            shortName,
+            title,
+            provenance,
+            item.live,
+            item.allow_duplicate_wire);
     }
 
     [values sortUsingComparator:^NSComparisonResult(
