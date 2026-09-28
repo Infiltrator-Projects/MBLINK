@@ -186,6 +186,22 @@ const char *mblink_mercedes_module_scan_module_name(const MblinkMercedesModuleSc
 void mblink_mercedes_module_scan_apply_route_identity(
     MblinkMercedesModuleScanEntry *module);
 
+/*
+ * Resolve a Mercedes controller from its diagnostic route plus whatever
+ * read-only identity evidence is already known. This is the common lookup used
+ * by live discovery and saved VIN profiles; it never probes the vehicle.
+ */
+bool mblink_mercedes_module_scan_resolve_controller(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    const char *identity,
+    const char *spare_part_number,
+    const char *software_number,
+    const char *hardware_number,
+    MblinkMercedesModuleScanEntry *resolved);
+
 MblinkMercedesModuleKind mblink_mercedes_module_scan_kind(uint32_t tx_can_id, bool extended_id);
 
 bool mblink_mercedes_module_scan_write_command(const char *command, char *buffer, size_t buffer_size, size_t *written);
