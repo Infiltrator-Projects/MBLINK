@@ -108,8 +108,11 @@ written catalogue and selection records must use the canonical identifier.
 
 ## Polling and scheduler behaviour
 
-PID Setup is the single control for both polling and display membership.
-An enabled measurement appears in Dashboard, Graphs and Table; disabling it
+PID Setup is the single control for both polling and display membership. The
+main-screen PID Setup tile is the only navigation entry point to that control;
+Vehicle, Modules, Live Data, Dashboard, Table and Graphs must never link back
+into PID Setup. An enabled measurement appears in Dashboard, Graphs and Table;
+disabling it
 removes it from all three even when old samples remain. There is no separate
 dashboard selection or favourite requirement. All enabled channels appear,
 without a four-graph limit. Channels awaiting data remain visible with their
@@ -164,6 +167,7 @@ A release satisfies this design only when all of the following are true:
 - Unknown modules are not assigned invented PID meanings.
 - Opening PID Setup does not launch a brute-force scan.
 - PID Setup is the only UI that can enable or disable live channels.
+- The main-screen PID Setup tile is the only navigation entry point to PID Setup.
 - Factory Readings read/refresh/rescan operations never alter live selections.
 - No starter-reading or module-wide polling enable shortcut exists.
 - LINK remains the sole scheduler/transport owner for shared generic and manufacturer jobs.

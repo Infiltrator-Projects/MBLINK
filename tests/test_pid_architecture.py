@@ -62,6 +62,16 @@ require(
     "PID Setup must not have a second starter-reading enable surface",
 )
 require(
+    app.count("MBPIDSetupView()") == 1
+    and 'MBHomeTile("PID Setup"' in app,
+    "the main-screen PID Setup tile must be the only route into PID selection",
+)
+require(
+    "MBMeasurementStartPanel" not in app
+    and "MBPIDModuleSetupView" not in app,
+    "no secondary PID-selection helper view may exist",
+)
+require(
     "setManufacturerLivePollingEnabled" not in apple_api
     and "manufacturerLivePollingEnabledForModuleIdentifier" not in apple_api
     and "setManufacturerLivePollingEnabled" not in controller,
@@ -110,7 +120,6 @@ live_end = app.index("private struct MBDataTableView", live_start)
 live_view = app[live_start:live_end]
 require(
     "MBPIDSetupView" not in live_view
-    and "MBMeasurementStartPanel" not in live_view
     and "Choose PIDs" not in live_view,
     "Live Data must only display live data and must not expose PID selection",
 )

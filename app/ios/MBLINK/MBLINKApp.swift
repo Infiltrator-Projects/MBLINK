@@ -597,9 +597,6 @@ private struct MBCommandCentreView: View {
 
     private var supportingTools: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if connection.isReady && connection.configuredPollingCount == 0 {
-                MBMeasurementStartPanel()
-            }
             MBSectionHeader(title: "Tools", kicker: "Measurements, records and settings")
             LinkDiagnosticGrid {
                 MBHomeTile("PID Setup", "OBD first, then documented data for each discovered module", "switch.2") { MBPIDSetupView() }
@@ -843,32 +840,6 @@ private struct MBPIDSetupView: View {
     }
 }
 
-private struct MBMeasurementStartPanel: View {
-    @EnvironmentObject private var connection: ConnectionViewModel
-
-    var body: some View {
-        MBPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Start with live measurements", systemImage: "waveform.path.ecg")
-                    .font(MBTypography.headline)
-                    .foregroundStyle(MBBrand.silverBright)
-                Text(connection.pidConfigurationVehicleVIN == nil
-                     ? "Connect and wait for the vehicle VIN before choosing measurements."
-                     : "PID Setup is the only place that turns live measurements on or off. ON means poll and display it; OFF means do neither.")
-                    .font(MBTypography.subheadline)
-                    .foregroundStyle(MBBrand.silver)
-                    .fixedSize(horizontal: false, vertical: true)
-                NavigationLink {
-                    MBPIDSetupView()
-                } label: {
-                    Label("Choose measurements individually", systemImage: "switch.2")
-                        .font(MBTypography.subheadlineBold)
-                }
-            }
-        }
-    }
-}
-
 private struct MBPIDCatalogueSection: View {
     @EnvironmentObject private var connection: ConnectionViewModel
     let title: String
@@ -1003,15 +974,6 @@ private struct MBPIDCatalogueSection: View {
                 .tint(MBBrand.silverBright)
         }
         .padding(.vertical, 4)
-    }
-}
-
-private struct MBPIDModuleSetupView: View {
-    @EnvironmentObject private var connection: ConnectionViewModel
-    let moduleID: String
-
-    var body: some View {
-        MBPIDSetupView()
     }
 }
 
@@ -1230,26 +1192,12 @@ private struct MBModulesView: View {
                                      : "No saved controller map is loaded.")
                                     .font(MBTypography.subheadline)
                                     .foregroundStyle(MBBrand.silver)
-                                if !connection.isActive {
-                                    NavigationLink {
-                                        MBPIDSetupView()
-                                    } label: {
-                                        Label("Load a saved VIN profile",
-                                              systemImage: "car.badge.gearshape")
-                                            .font(MBTypography.subheadlineBold)
-                                            .foregroundStyle(MBBrand.silverBright)
-                                    }
-                                }
                             }
                         }
                     } else {
                         ForEach(modules) { module in
                             NavigationLink {
-                                if connection.diagnosticModule(id: module.id) != nil {
-                                    MBModuleDetailView(moduleID: module.id)
-                                } else {
-                                    MBPIDModuleSetupView(moduleID: module.id)
-                                }
+                                MBModuleDetailView(moduleID: module.id)
                             } label: {
                                 moduleCard(module)
                             }
@@ -1394,6 +1342,7 @@ private struct MBModuleDetailView: View {
 
     private var module: DiagnosticModule? {
         connection.diagnosticModule(id: moduleID)
+            ?? connection.pidConfigurationModule(id: moduleID)
     }
 
     private var manufacturerValues: [MercedesModuleDataValue] {
@@ -2345,12 +2294,7 @@ private struct MBDataTableView: View {
                     MBPanel {
                         VStack(spacing: 0) {
                         if sorted.isEmpty {
-                            NavigationLink {
-                                MBPIDSetupView()
-                            } label: {
-                                Label("Choose measurements to populate this table", systemImage: "switch.2")
-                                    .font(MBTypography.subheadlineBold)
-                            }
+                            Text("No live measurements are enabled.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
@@ -2429,7 +2373,11 @@ private struct MBDashboardView: View {
                         }
                     }
                     if displayed.isEmpty {
-                        MBMeasurementStartPanel()
+                        MBPanel {
+                            Text("No live measurements are enabled.")
+                                .font(MBTypography.subheadline)
+                                .foregroundStyle(MBBrand.silver)
+                        }
                     } else {
                         LazyVGrid(columns: mbDashboardColumns, spacing: 12) {
                             ForEach(displayed) { parameter in
@@ -2676,7 +2624,7 @@ private struct MBGraphsView: View {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if graphed.isEmpty {
                         MBPanel {
-                            Text("Enable measurements in PID Setup to show them in Dashboard, Graphs and Table.")
+                            Text("No live measurements are enabled.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
                         }
