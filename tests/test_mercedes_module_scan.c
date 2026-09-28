@@ -1025,6 +1025,9 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK_ROUTE(0x632, 0x486, "ABR2XT brake/ESP controller",
                     "esp", "esp-abr2xt",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+        CHECK_ROUTE(0x64a, 0x489, "ORC_212 restraint controller",
+                    "restraints-orc", "restraints-orc212",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x652, 0x48a, "HU_204 head unit",
                     "audio-headunit", "headunit-hu204",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
@@ -1064,6 +1067,9 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 { UINT32_C(0x622), UINT32_C(0x484),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
                   "SCCM_212 steering-column controller" },
+                { UINT32_C(0x64a), UINT32_C(0x489),
+                  MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+                  "ORC_212 restraint controller" },
                 { UINT32_C(0x652), UINT32_C(0x48a),
                   MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
                   "HU_204 head unit" }
