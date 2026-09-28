@@ -1010,17 +1010,17 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         } \
     } while (0)
 
-        CHECK_ROUTE(0x602, 0x480, "Central gateway (CGW)",
-                    "central-gateway", NULL,
-                    MBLINK_MERCEDES_DEFINITION_CANDIDATE);
+        CHECK_ROUTE(0x602, 0x480, "CGW_212 central gateway",
+                    "central-gateway", "gateway-cgw212",
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x60a, 0x481, "IC_204 instrument cluster",
                     "instrument-cluster", "cluster-ic204",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x612, 0x482, "EIS/EZS_212 ignition controller",
                     "eis-ezs", "eis-ezs212",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
-        CHECK_ROUTE(0x622, 0x484, "SCCM/SCM steering-column controller",
-                    "steering-column", "steering-scm",
+        CHECK_ROUTE(0x622, 0x484, "SCCM_212 steering-column controller",
+                    "steering-column", "steering-sccm212",
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
         CHECK_ROUTE(0x632, 0x486, "ABR2XT brake/ESP controller",
                     "esp", "esp-abr2xt",
@@ -1057,7 +1057,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             } saved_routes[] = {
                 { UINT32_C(0x602), UINT32_C(0x480),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "Central gateway (CGW)" },
+                  "CGW_212 central gateway" },
                 { UINT32_C(0x60a), UINT32_C(0x481),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
                   "IC_204 instrument cluster" },
@@ -1066,7 +1066,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   "EIS/EZS_212 ignition controller" },
                 { UINT32_C(0x622), UINT32_C(0x484),
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-                  "SCCM/SCM steering-column controller" },
+                  "SCCM_212 steering-column controller" },
                 { UINT32_C(0x652), UINT32_C(0x48a),
                   MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
                   "HU_204 head unit" }
