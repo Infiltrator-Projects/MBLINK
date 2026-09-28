@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.251 — 2026-09-29
+
+- Make the resolved Mercedes ECU definition pack authoritative for UDS/KWP2000 communication once controller identity is known; stale or route-level protocol guesses can no longer override a positively resolved family.
+- Treat physical routes as discovery hints rather than controller identity. Reused addresses may carry different ECU generations/protocols, so route-only family guesses are rejected when their documented protocol conflicts with the responding ECU.
+- For unresolved routes, try only documented alternate protocol variants and only during bounded discovery; once a pack resolves, all later reads, DTC work, PID Setup and Factory Readings use the pack's protocol.
+- Add regression coverage for IC_204 protocol authority, reused 0x60A -> 0x481 UDS/KWP variants, cached-profile correction and protocol-safe discovery, while removing redundant route-profile counting/shortcut code.
+
 ## 0.7.250 — 2026-09-28
 
 - Introduce a unified Mercedes ECU definition pack that presents controller key, friendly ECU/module names, component/network, physical TX/RX lookup, resolved protocol/session metadata, aliases, named data items, evidence status and field metadata through one API.
