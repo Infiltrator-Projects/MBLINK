@@ -359,7 +359,35 @@ bool mblink_mercedes_egs51_decode_signal(const MblinkMercedesEgs51SignalDefiniti
  MblinkMercedesEgs51DecodedSignal x;uint64_t r;size_t i;
  if(s==NULL||d==NULL)return false;
  if(s->masked){if(!masked(s,p,n,&r))return false;}else if(!plain(p,n,s->bit_offset,s->bit_length,&r))return false;
- memset(&x,0,sizeof(x));x.raw=r;
+ memset(&x,0,sizeof(x));x.raw=r;x.unit=s->unit;
+
+ /*
+  * EGS51 read semantics from the same upstream revision as can_data.txt.
+  * Keep these family-local: EGS52/53 use different encodings.
+  */
+ if ((strcmp(s->name,"T_MOT")==0 || strcmp(s->name,"T_OEL")==0 ||
+      strcmp(s->name,"T_LUFT")==0) && r==UINT64_C(255)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if ((strcmp(s->name,"DHR")==0 || strcmp(s->name,"DHL")==0) &&
+     r==UINT64_C(0x3fff)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if ((strcmp(s->name,"IND_TORQUE")==0 || strcmp(s->name,"MIN_TORQUE")==0 ||
+      strcmp(s->name,"MAX_TORQUE")==0 || strcmp(s->name,"M_ESP")==0) &&
+     r==UINT64_C(255)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if (strcmp(s->name,"T_MOT")==0 || strcmp(s->name,"T_OEL")==0 ||
+     strcmp(s->name,"T_LUFT")==0) {
+  x.physical_available=true;x.physical_value=(double)r-40.0;x.unit="°C";
+  *d=x;return true;
+ }
+ if (strcmp(s->name,"VB")==0) {
+  x.physical_available=true;x.physical_value=(double)r*0.868;
+  x.unit="µL/250ms";*d=x;return true;
+ }
+
  switch(s->type){
  case MBLINK_MERCEDES_EGS51_SIGNAL_BOOL:x.boolean_available=true;x.boolean_value=r!=0U;break;
  case MBLINK_MERCEDES_EGS51_SIGNAL_NUMBER:x.physical_available=true;x.physical_value=(double)r*s->multiplier+s->offset;break;

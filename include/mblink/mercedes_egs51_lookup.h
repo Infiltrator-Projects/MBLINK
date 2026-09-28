@@ -28,7 +28,8 @@ typedef struct MblinkMercedesEgs51FrameDefinition {
  const MblinkMercedesEgs51SignalDefinition *signals; size_t signal_count;
 } MblinkMercedesEgs51FrameDefinition;
 typedef struct MblinkMercedesEgs51DecodedSignal {
- uint64_t raw; bool boolean_available; bool boolean_value;
+ uint64_t raw; bool unavailable; const char *unit;
+ bool boolean_available; bool boolean_value;
  bool physical_available; double physical_value;
  bool enum_available; const char *enum_name; const char *enum_description;
  bool char_available; char char_value;
