@@ -11,15 +11,16 @@
 static void put_bits(uint8_t payload[8], unsigned int offset,
                      unsigned int length, uint32_t value)
 {
-    for (unsigned int bit = 0U; bit < length; ++bit) {
+    unsigned int bit;
+    for (bit = 0U; bit < length; ++bit) {
         const unsigned int absolute = offset + bit;
-        const unsigned int byte_index = absolute / 8U;
-        const unsigned int bit_index = absolute % 8U;
-        const uint8_t mask = (uint8_t)(UINT8_C(1) << bit_index);
-        if ((value & (UINT32_C(1) << bit)) != 0U)
-            payload[byte_index] |= mask;
+        const unsigned int from_msb = length - 1U - bit;
+        const uint8_t mask =
+            (uint8_t)(UINT8_C(1) << (7U - (absolute % 8U)));
+        if ((value & (UINT32_C(1) << from_msb)) != 0U)
+            payload[absolute / 8U] |= mask;
         else
-            payload[byte_index] &= (uint8_t)~mask;
+            payload[absolute / 8U] &= (uint8_t)~mask;
     }
 }
 
@@ -142,12 +143,22 @@ static int test_egs51_gs218(void)
     uint8_t payload[6] = {0};
     MblinkMercedesEgs51Gs218 decoded;
 
-    payload[0] = UINT8_C(100); /* 50 torque units */
-    payload[1] = UINT8_C(0xF4); /* automatic, OK, P/N, garage, start, torque req */
-    payload[2] = UINT8_C(0x43); /* target 3, actual 4 */
-    payload[3] = UINT8_C(0xFC); /* closed, large, limp, shifting, kickdown, FWD */
-    payload[4] = UINT8_C(0x55);
-    payload[5] = UINT8_C(0xA0);
+    put_bits(payload, 0U, 8U, 100U); /* 50 torque units */
+    put_bits(payload, 10U, 1U, 1U); /* gearbox program OK */
+    put_bits(payload, 12U, 1U, 1U); /* P/N */
+    put_bits(payload, 13U, 1U, 1U); /* garage shift */
+    put_bits(payload, 14U, 1U, 1U); /* start enabled */
+    put_bits(payload, 15U, 1U, 1U); /* torque request enabled */
+    put_bits(payload, 16U, 4U, 3U); /* target gear 3 */
+    put_bits(payload, 20U, 4U, 4U); /* actual gear 4 */
+    put_bits(payload, 26U, 1U, 1U); /* TCC closed */
+    put_bits(payload, 27U, 1U, 1U); /* large gearbox */
+    put_bits(payload, 28U, 1U, 1U); /* limp-home */
+    put_bits(payload, 29U, 1U, 1U); /* shifting */
+    put_bits(payload, 30U, 1U, 1U); /* kickdown */
+    put_bits(payload, 31U, 1U, 1U); /* front-wheel drive */
+    put_bits(payload, 32U, 8U, UINT32_C(0x55));
+    put_bits(payload, 44U, 4U, UINT32_C(0x0a));
 
     CHECK(mblink_mercedes_transmission_decode_egs51_gs218(
         payload, sizeof(payload), &decoded));

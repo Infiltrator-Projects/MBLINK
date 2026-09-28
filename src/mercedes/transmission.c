@@ -8,12 +8,32 @@
 #include <stdio.h>
 #include <string.h>
 
-static uint32_t extract_bits(uint64_t value, unsigned int offset,
-                             unsigned int length)
+static uint32_t extract_can_bits(
+    const uint8_t *payload, size_t payload_length,
+    unsigned int offset, unsigned int length)
 {
-    const uint64_t mask = length == 64U
-        ? UINT64_MAX : ((UINT64_C(1) << length) - UINT64_C(1));
-    return (uint32_t)((value >> offset) & mask);
+    uint32_t value = 0U;
+    unsigned int bit;
+
+    /*
+     * The source Mercedes CAN matrices number bits in ECU/wire order:
+     * bit 0 is the most-significant bit of payload byte 0.  The upstream
+     * generated C++ reverses these bytes only to fit little-endian uint64_t
+     * bitfields before putting them back on the CAN wire.  MBLINK receives
+     * ordinary CAN bytes, so decode the documented wire layout directly.
+     */
+    if (payload == NULL || length == 0U || length > 32U ||
+        (size_t)offset + (size_t)length > payload_length * 8U) {
+        return 0U;
+    }
+
+    for (bit = 0U; bit < length; ++bit) {
+        const size_t source = (size_t)offset + bit;
+        const uint8_t one = (uint8_t)(
+            (payload[source / 8U] >> (7U - (source % 8U))) & UINT8_C(1));
+        value = (value << 1U) | one;
+    }
+    return value;
 }
 
 static MblinkMercedesTorqueConverterState tcc_state(
@@ -199,7 +219,6 @@ bool mblink_mercedes_transmission_decode_egs51_gs218(
     MblinkMercedesEgs51Gs218 *decoded)
 {
     MblinkMercedesEgs51Gs218 value;
-    uint64_t raw;
     bool slipping;
     bool open;
     bool closed;
@@ -208,31 +227,27 @@ bool mblink_mercedes_transmission_decode_egs51_gs218(
         return false;
     memset(&value, 0, sizeof(value));
 
-    raw = 0U;
-    for (size_t index = 0U; index < 6U; ++index)
-        raw |= ((uint64_t)payload[index]) << (index * 8U);
-
     value.torque_request = (double)payload[0] * 0.5;
-    value.automatic_transmission = extract_bits(raw, 8U, 1U) == 0U;
-    value.gearbox_program_ok = extract_bits(raw, 10U, 1U) != 0U;
-    value.off_road = extract_bits(raw, 11U, 1U) != 0U;
-    value.park_or_neutral = extract_bits(raw, 12U, 1U) != 0U;
-    value.garage_shift = extract_bits(raw, 13U, 1U) != 0U;
-    value.start_enabled = extract_bits(raw, 14U, 1U) != 0U;
-    value.torque_request_enabled = extract_bits(raw, 15U, 1U) != 0U;
-    value.target_gear_code = (uint8_t)extract_bits(raw, 16U, 4U);
-    value.actual_gear_code = (uint8_t)extract_bits(raw, 20U, 4U);
-    slipping = extract_bits(raw, 24U, 1U) != 0U;
-    open = extract_bits(raw, 25U, 1U) != 0U;
-    closed = extract_bits(raw, 26U, 1U) != 0U;
+    value.automatic_transmission = extract_can_bits(payload, payload_length, 8U, 1U) == 0U;
+    value.gearbox_program_ok = extract_can_bits(payload, payload_length, 10U, 1U) != 0U;
+    value.off_road = extract_can_bits(payload, payload_length, 11U, 1U) != 0U;
+    value.park_or_neutral = extract_can_bits(payload, payload_length, 12U, 1U) != 0U;
+    value.garage_shift = extract_can_bits(payload, payload_length, 13U, 1U) != 0U;
+    value.start_enabled = extract_can_bits(payload, payload_length, 14U, 1U) != 0U;
+    value.torque_request_enabled = extract_can_bits(payload, payload_length, 15U, 1U) != 0U;
+    value.target_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 16U, 4U);
+    value.actual_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 20U, 4U);
+    slipping = extract_can_bits(payload, payload_length, 24U, 1U) != 0U;
+    open = extract_can_bits(payload, payload_length, 25U, 1U) != 0U;
+    closed = extract_can_bits(payload, payload_length, 26U, 1U) != 0U;
     value.torque_converter = tcc_state(slipping, open, closed);
-    value.large_gearbox = extract_bits(raw, 27U, 1U) != 0U;
-    value.limp_home = extract_bits(raw, 28U, 1U) != 0U;
-    value.shifting = extract_bits(raw, 29U, 1U) != 0U;
-    value.kickdown = extract_bits(raw, 30U, 1U) != 0U;
-    value.front_wheel_drive = extract_bits(raw, 31U, 1U) != 0U;
+    value.large_gearbox = extract_can_bits(payload, payload_length, 27U, 1U) != 0U;
+    value.limp_home = extract_can_bits(payload, payload_length, 28U, 1U) != 0U;
+    value.shifting = extract_can_bits(payload, payload_length, 29U, 1U) != 0U;
+    value.kickdown = extract_can_bits(payload, payload_length, 30U, 1U) != 0U;
+    value.front_wheel_drive = extract_can_bits(payload, payload_length, 31U, 1U) != 0U;
     value.tcc_torque_multiplier_raw = payload[4];
-    value.error_counter = (uint8_t)extract_bits(raw, 44U, 4U);
+    value.error_counter = (uint8_t)extract_can_bits(payload, payload_length, 44U, 4U);
 
     *decoded = value;
     return true;
@@ -244,7 +259,6 @@ bool mblink_mercedes_transmission_decode_gs218(
     MblinkMercedesGs218 *decoded)
 {
     MblinkMercedesGs218 value;
-    uint64_t raw;
     bool slipping;
     bool open;
     bool closed;
@@ -252,42 +266,41 @@ bool mblink_mercedes_transmission_decode_gs218(
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.engine_torque_toggle = extract_bits(raw, 0U, 1U) != 0U;
-    value.engine_torque_request_min = extract_bits(raw, 1U, 1U) != 0U;
-    value.engine_torque_request_max = extract_bits(raw, 2U, 1U) != 0U;
+    value.engine_torque_toggle = extract_can_bits(payload, payload_length, 0U, 1U) != 0U;
+    value.engine_torque_request_min = extract_can_bits(payload, payload_length, 1U, 1U) != 0U;
+    value.engine_torque_request_max = extract_can_bits(payload, payload_length, 2U, 1U) != 0U;
     value.requested_engine_torque_raw =
-        (uint16_t)extract_bits(raw, 3U, 13U);
-    value.target_gear_code = (uint8_t)extract_bits(raw, 16U, 4U);
-    value.actual_gear_code = (uint8_t)extract_bits(raw, 20U, 4U);
-    slipping = extract_bits(raw, 24U, 1U) != 0U;
-    open = extract_bits(raw, 25U, 1U) != 0U;
-    closed = extract_bits(raw, 26U, 1U) != 0U;
+        (uint16_t)extract_can_bits(payload, payload_length, 3U, 13U);
+    value.target_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 16U, 4U);
+    value.actual_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 20U, 4U);
+    slipping = extract_can_bits(payload, payload_length, 24U, 1U) != 0U;
+    open = extract_can_bits(payload, payload_length, 25U, 1U) != 0U;
+    closed = extract_can_bits(payload, payload_length, 26U, 1U) != 0U;
     value.torque_converter = tcc_state(slipping, open, closed);
-    value.off_road_gear = extract_bits(raw, 27U, 1U) != 0U;
-    value.basic_shift_program_ok = extract_bits(raw, 28U, 1U) != 0U;
-    value.driving_resistance_high = extract_bits(raw, 29U, 1U) != 0U;
-    value.shifting = extract_bits(raw, 30U, 1U) != 0U;
-    value.manual_shift_mode = extract_bits(raw, 31U, 1U) != 0U;
-    value.gearbox_ok = extract_bits(raw, 32U, 1U) != 0U;
-    value.start_bang = extract_bits(raw, 33U, 1U) != 0U;
-    value.start_enabled = extract_bits(raw, 34U, 1U) != 0U;
-    value.limp_home = extract_bits(raw, 35U, 1U) != 0U;
-    value.overtemperature = extract_bits(raw, 36U, 1U) != 0U;
-    value.kickdown = extract_bits(raw, 37U, 1U) != 0U;
-    value.drive_program_code = (uint8_t)extract_bits(raw, 38U, 2U);
-    value.engine_torque_parity = extract_bits(raw, 40U, 1U) != 0U;
-    value.drivetrain_control_1 = extract_bits(raw, 41U, 1U) != 0U;
-    value.drivetrain_control_0 = extract_bits(raw, 42U, 1U) != 0U;
-    value.converter_unloaded = extract_bits(raw, 45U, 1U) != 0U;
+    value.off_road_gear = extract_can_bits(payload, payload_length, 27U, 1U) != 0U;
+    value.basic_shift_program_ok = extract_can_bits(payload, payload_length, 28U, 1U) != 0U;
+    value.driving_resistance_high = extract_can_bits(payload, payload_length, 29U, 1U) != 0U;
+    value.shifting = extract_can_bits(payload, payload_length, 30U, 1U) != 0U;
+    value.manual_shift_mode = extract_can_bits(payload, payload_length, 31U, 1U) != 0U;
+    value.gearbox_ok = extract_can_bits(payload, payload_length, 32U, 1U) != 0U;
+    value.start_bang = extract_can_bits(payload, payload_length, 33U, 1U) != 0U;
+    value.start_enabled = extract_can_bits(payload, payload_length, 34U, 1U) != 0U;
+    value.limp_home = extract_can_bits(payload, payload_length, 35U, 1U) != 0U;
+    value.overtemperature = extract_can_bits(payload, payload_length, 36U, 1U) != 0U;
+    value.kickdown = extract_can_bits(payload, payload_length, 37U, 1U) != 0U;
+    value.drive_program_code = (uint8_t)extract_can_bits(payload, payload_length, 38U, 2U);
+    value.engine_torque_parity = extract_can_bits(payload, payload_length, 40U, 1U) != 0U;
+    value.drivetrain_control_1 = extract_can_bits(payload, payload_length, 41U, 1U) != 0U;
+    value.drivetrain_control_0 = extract_can_bits(payload, payload_length, 42U, 1U) != 0U;
+    value.converter_unloaded = extract_can_bits(payload, payload_length, 45U, 1U) != 0U;
     value.emergency_engine_off_confirm =
-        extract_bits(raw, 46U, 1U) != 0U;
-    value.emergency_engine_off = extract_bits(raw, 47U, 1U) != 0U;
-    value.creep_or_calid_raw = (uint8_t)extract_bits(raw, 48U, 8U);
-    value.error_check_state = (uint8_t)extract_bits(raw, 56U, 2U);
-    value.calid_cvn_active = extract_bits(raw, 58U, 1U) != 0U;
-    value.error_counter = (uint8_t)extract_bits(raw, 59U, 5U);
+        extract_can_bits(payload, payload_length, 46U, 1U) != 0U;
+    value.emergency_engine_off = extract_can_bits(payload, payload_length, 47U, 1U) != 0U;
+    value.creep_or_calid_raw = (uint8_t)extract_can_bits(payload, payload_length, 48U, 8U);
+    value.error_check_state = (uint8_t)extract_can_bits(payload, payload_length, 56U, 2U);
+    value.calid_cvn_active = extract_can_bits(payload, payload_length, 58U, 1U) != 0U;
+    value.error_counter = (uint8_t)extract_can_bits(payload, payload_length, 59U, 5U);
 
     *decoded = value;
     return true;
@@ -299,12 +312,10 @@ bool mblink_mercedes_transmission_decode_gs338(
     MblinkMercedesGs338 *decoded)
 {
     MblinkMercedesGs338 value;
-    uint64_t raw;
 
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
     /*
      * The source EGS52 implementation assigns NTURBINE directly in rpm before
@@ -312,16 +323,16 @@ bool mblink_mercedes_transmission_decode_gs338(
      * unidentified raw value. NAB is documented as transmission output speed,
      * with FFFF used on families that do not provide it.
      */
-    value.output_speed_rpm = (uint16_t)extract_bits(raw, 0U, 16U);
-    value.mil_request = extract_bits(raw, 16U, 1U) != 0U;
-    value.nak_parity = extract_bits(raw, 17U, 1U) != 0U;
-    value.nak_toggle = extract_bits(raw, 18U, 1U) != 0U;
-    value.power_free_in_drive = extract_bits(raw, 19U, 1U) != 0U;
-    value.race_start_state = (uint8_t)extract_bits(raw, 20U, 2U);
-    value.pilot_torque_raw = (uint16_t)extract_bits(raw, 22U, 10U);
+    value.output_speed_rpm = (uint16_t)extract_can_bits(payload, payload_length, 0U, 16U);
+    value.mil_request = extract_can_bits(payload, payload_length, 16U, 1U) != 0U;
+    value.nak_parity = extract_can_bits(payload, payload_length, 17U, 1U) != 0U;
+    value.nak_toggle = extract_can_bits(payload, payload_length, 18U, 1U) != 0U;
+    value.power_free_in_drive = extract_can_bits(payload, payload_length, 19U, 1U) != 0U;
+    value.race_start_state = (uint8_t)extract_can_bits(payload, payload_length, 20U, 2U);
+    value.pilot_torque_raw = (uint16_t)extract_can_bits(payload, payload_length, 22U, 10U);
     value.starting_area_torque_raw =
-        (uint16_t)extract_bits(raw, 32U, 16U);
-    value.turbine_speed_rpm = (uint16_t)extract_bits(raw, 48U, 16U);
+        (uint16_t)extract_can_bits(payload, payload_length, 32U, 16U);
+    value.turbine_speed_rpm = (uint16_t)extract_can_bits(payload, payload_length, 48U, 16U);
 
     *decoded = value;
     return true;
@@ -333,37 +344,35 @@ bool mblink_mercedes_transmission_decode_gs418(
     MblinkMercedesGs418 *decoded)
 {
     MblinkMercedesGs418 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.display_position_code = (uint8_t)extract_bits(raw, 0U, 8U);
-    value.drive_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
+    value.display_position_code = (uint8_t)extract_can_bits(payload, payload_length, 0U, 8U);
+    value.drive_program_code = (uint8_t)extract_can_bits(payload, payload_length, 8U, 8U);
     value.transmission_temperature_raw =
-        (uint8_t)extract_bits(raw, 16U, 8U);
+        (uint8_t)extract_can_bits(payload, payload_length, 16U, 8U);
     /*
      * The reverse-engineered EGS52 transmitter stores MAX(temp,-50)+50 in
      * T_GET, independently corroborating the Mercedes raw-minus-50 convention.
      */
     value.transmission_temperature_c =
         (double)value.transmission_temperature_raw - 50.0;
-    value.all_wheel_drive = extract_bits(raw, 24U, 1U) != 0U;
-    value.front_wheel_drive = extract_bits(raw, 25U, 1U) != 0U;
-    value.shifting = extract_bits(raw, 26U, 1U) != 0U;
-    value.cvt = extract_bits(raw, 27U, 1U) != 0U;
-    value.mechanism_variant = (uint8_t)extract_bits(raw, 28U, 2U);
-    value.brake_required = extract_bits(raw, 30U, 1U) != 0U;
-    value.kickdown = extract_bits(raw, 31U, 1U) != 0U;
-    value.target_gear_code = (uint8_t)extract_bits(raw, 32U, 4U);
-    value.actual_gear_code = (uint8_t)extract_bits(raw, 36U, 4U);
-    value.torque_loss_raw = (uint8_t)extract_bits(raw, 40U, 8U);
-    value.wheel_torque_parity = extract_bits(raw, 48U, 1U) != 0U;
-    value.wheel_torque_toggle = extract_bits(raw, 49U, 1U) != 0U;
-    value.selector_position_code = (uint8_t)extract_bits(raw, 50U, 3U);
+    value.all_wheel_drive = extract_can_bits(payload, payload_length, 24U, 1U) != 0U;
+    value.front_wheel_drive = extract_can_bits(payload, payload_length, 25U, 1U) != 0U;
+    value.shifting = extract_can_bits(payload, payload_length, 26U, 1U) != 0U;
+    value.cvt = extract_can_bits(payload, payload_length, 27U, 1U) != 0U;
+    value.mechanism_variant = (uint8_t)extract_can_bits(payload, payload_length, 28U, 2U);
+    value.brake_required = extract_can_bits(payload, payload_length, 30U, 1U) != 0U;
+    value.kickdown = extract_can_bits(payload, payload_length, 31U, 1U) != 0U;
+    value.target_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 32U, 4U);
+    value.actual_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 36U, 4U);
+    value.torque_loss_raw = (uint8_t)extract_can_bits(payload, payload_length, 40U, 8U);
+    value.wheel_torque_parity = extract_can_bits(payload, payload_length, 48U, 1U) != 0U;
+    value.wheel_torque_toggle = extract_can_bits(payload, payload_length, 49U, 1U) != 0U;
+    value.selector_position_code = (uint8_t)extract_can_bits(payload, payload_length, 50U, 3U);
     value.wheel_torque_factor_raw =
-        (uint16_t)extract_bits(raw, 53U, 11U);
+        (uint16_t)extract_can_bits(payload, payload_length, 53U, 11U);
 
     *decoded = value;
     return true;
@@ -508,25 +517,23 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_a1(
     MblinkMercedesEgs53TcmA1 *decoded)
 {
     MblinkMercedesEgs53TcmA1 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.oil_temperature_c = (double)extract_bits(raw, 0U, 8U) - 50.0;
-    value.tcc_no_load = extract_bits(raw, 8U, 1U) != 0U;
-    value.clutch_state = (uint8_t)extract_bits(raw, 9U, 3U);
-    value.limp_home = extract_bits(raw, 12U, 1U) != 0U;
-    value.basic_shift_program_ok = extract_bits(raw, 13U, 1U) != 0U;
-    value.driving_resistance_high = extract_bits(raw, 14U, 1U) != 0U;
-    value.overtemperature = extract_bits(raw, 15U, 1U) != 0U;
-    value.off_road_active = extract_bits(raw, 16U, 1U) != 0U;
-    value.selector_position_code = (uint8_t)extract_bits(raw, 17U, 3U);
-    value.manual_program_active = extract_bits(raw, 20U, 1U) != 0U;
-    value.drive_program_code = (uint8_t)extract_bits(raw, 21U, 3U);
-    value.start_brake_request = extract_bits(raw, 24U, 1U) != 0U;
-    value.drive_shaft_torque_nm = (uint16_t)extract_bits(raw, 32U, 16U);
+    value.oil_temperature_c = (double)extract_can_bits(payload, payload_length, 0U, 8U) - 50.0;
+    value.tcc_no_load = extract_can_bits(payload, payload_length, 8U, 1U) != 0U;
+    value.clutch_state = (uint8_t)extract_can_bits(payload, payload_length, 9U, 3U);
+    value.limp_home = extract_can_bits(payload, payload_length, 12U, 1U) != 0U;
+    value.basic_shift_program_ok = extract_can_bits(payload, payload_length, 13U, 1U) != 0U;
+    value.driving_resistance_high = extract_can_bits(payload, payload_length, 14U, 1U) != 0U;
+    value.overtemperature = extract_can_bits(payload, payload_length, 15U, 1U) != 0U;
+    value.off_road_active = extract_can_bits(payload, payload_length, 16U, 1U) != 0U;
+    value.selector_position_code = (uint8_t)extract_can_bits(payload, payload_length, 17U, 3U);
+    value.manual_program_active = extract_can_bits(payload, payload_length, 20U, 1U) != 0U;
+    value.drive_program_code = (uint8_t)extract_can_bits(payload, payload_length, 21U, 3U);
+    value.start_brake_request = extract_can_bits(payload, payload_length, 24U, 1U) != 0U;
+    value.drive_shaft_torque_nm = (uint16_t)extract_can_bits(payload, payload_length, 32U, 16U);
 
     *decoded = value;
     return true;
@@ -538,21 +545,19 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_a2(
     MblinkMercedesEgs53TcmA2 *decoded)
 {
     MblinkMercedesEgs53TcmA2 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
     value.requested_current_duty_percent =
-        (double)extract_bits(raw, 0U, 8U) * 0.5;
-    value.turbine_rpm = (uint16_t)extract_bits(raw, 18U, 14U);
-    value.mil_request = extract_bits(raw, 32U, 1U) != 0U;
-    value.desired_slip_rpm = (uint16_t)extract_bits(raw, 34U, 14U);
-    value.calid_cvn_data = (uint8_t)extract_bits(raw, 48U, 8U);
-    value.error_check_state = (uint8_t)extract_bits(raw, 56U, 2U);
-    value.calid_cvn_active = extract_bits(raw, 58U, 1U) != 0U;
-    value.calid_cvn_error_counter = (uint8_t)extract_bits(raw, 59U, 5U);
+        (double)extract_can_bits(payload, payload_length, 0U, 8U) * 0.5;
+    value.turbine_rpm = (uint16_t)extract_can_bits(payload, payload_length, 18U, 14U);
+    value.mil_request = extract_can_bits(payload, payload_length, 32U, 1U) != 0U;
+    value.desired_slip_rpm = (uint16_t)extract_can_bits(payload, payload_length, 34U, 14U);
+    value.calid_cvn_data = (uint8_t)extract_can_bits(payload, payload_length, 48U, 8U);
+    value.error_check_state = (uint8_t)extract_can_bits(payload, payload_length, 56U, 2U);
+    value.calid_cvn_active = extract_can_bits(payload, payload_length, 58U, 1U) != 0U;
+    value.calid_cvn_error_counter = (uint8_t)extract_can_bits(payload, payload_length, 59U, 5U);
 
     *decoded = value;
     return true;
@@ -564,27 +569,25 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq1(
     MblinkMercedesEgs53EngRq1 *decoded)
 {
     MblinkMercedesEgs53EngRq1 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.torque_request_min = extract_bits(raw, 0U, 1U) != 0U;
-    value.torque_request_max = extract_bits(raw, 1U, 1U) != 0U;
+    value.torque_request_min = extract_can_bits(payload, payload_length, 0U, 1U) != 0U;
+    value.torque_request_max = extract_can_bits(payload, payload_length, 1U, 1U) != 0U;
     value.requested_engine_torque_nm =
-        (double)extract_bits(raw, 3U, 13U) * 0.25 - 500.0;
-    value.intervention_mode = (uint8_t)extract_bits(raw, 16U, 2U);
-    value.downshift_mode = (uint8_t)extract_bits(raw, 18U, 3U);
+        (double)extract_can_bits(payload, payload_length, 3U, 13U) * 0.25 - 500.0;
+    value.intervention_mode = (uint8_t)extract_can_bits(payload, payload_length, 16U, 2U);
+    value.downshift_mode = (uint8_t)extract_can_bits(payload, payload_length, 18U, 3U);
     value.engine_sync_time_s =
-        (double)extract_bits(raw, 24U, 8U) * 0.02;
-    value.stop_start_enable_request = extract_bits(raw, 32U, 1U) != 0U;
-    value.requested_engine_rpm = (uint16_t)extract_bits(raw, 34U, 14U);
-    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
-    value.engine_start_enable_request = extract_bits(raw, 52U, 1U) != 0U;
-    value.emergency_engine_off_request = extract_bits(raw, 53U, 1U) != 0U;
-    value.jump_start_active = extract_bits(raw, 54U, 1U) != 0U;
-    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+        (double)extract_can_bits(payload, payload_length, 24U, 8U) * 0.02;
+    value.stop_start_enable_request = extract_can_bits(payload, payload_length, 32U, 1U) != 0U;
+    value.requested_engine_rpm = (uint16_t)extract_can_bits(payload, payload_length, 34U, 14U);
+    value.message_counter = (uint8_t)extract_can_bits(payload, payload_length, 48U, 4U);
+    value.engine_start_enable_request = extract_can_bits(payload, payload_length, 52U, 1U) != 0U;
+    value.emergency_engine_off_request = extract_can_bits(payload, payload_length, 53U, 1U) != 0U;
+    value.jump_start_active = extract_can_bits(payload, payload_length, 54U, 1U) != 0U;
+    value.crc = (uint8_t)extract_can_bits(payload, payload_length, 56U, 8U);
 
     *decoded = value;
     return true;
@@ -596,28 +599,26 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq2(
     MblinkMercedesEgs53EngRq2 *decoded)
 {
     MblinkMercedesEgs53EngRq2 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.target_gear_code = (uint8_t)extract_bits(raw, 0U, 4U);
-    value.actual_gear_code = (uint8_t)extract_bits(raw, 4U, 4U);
+    value.target_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 0U, 4U);
+    value.actual_gear_code = (uint8_t)extract_can_bits(payload, payload_length, 4U, 4U);
     value.transmission_ratio =
-        (double)extract_bits(raw, 8U, 8U) * 0.02;
+        (double)extract_can_bits(payload, payload_length, 8U, 8U) * 0.02;
     value.engine_to_wheel_torque_ratio =
-        (double)extract_bits(raw, 18U, 14U) * 0.01;
+        (double)extract_can_bits(payload, payload_length, 18U, 14U) * 0.01;
     value.transmission_torque_loss_nm =
-        (double)extract_bits(raw, 32U, 8U) * 0.25;
-    value.vehicle_drive_style = (uint8_t)extract_bits(raw, 40U, 2U);
-    value.transmission_style = (uint8_t)extract_bits(raw, 42U, 2U);
+        (double)extract_can_bits(payload, payload_length, 32U, 8U) * 0.25;
+    value.vehicle_drive_style = (uint8_t)extract_can_bits(payload, payload_length, 40U, 2U);
+    value.transmission_style = (uint8_t)extract_can_bits(payload, payload_length, 42U, 2U);
     value.transmission_mechanics_style =
-        (uint8_t)extract_bits(raw, 44U, 2U);
+        (uint8_t)extract_can_bits(payload, payload_length, 44U, 2U);
     value.transmission_shift_style =
-        (uint8_t)extract_bits(raw, 46U, 2U);
-    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
-    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+        (uint8_t)extract_can_bits(payload, payload_length, 46U, 2U);
+    value.message_counter = (uint8_t)extract_can_bits(payload, payload_length, 48U, 4U);
+    value.crc = (uint8_t)extract_can_bits(payload, payload_length, 56U, 8U);
 
     *decoded = value;
     return true;
@@ -629,18 +630,16 @@ bool mblink_mercedes_transmission_decode_egs53_eng_rq3(
     MblinkMercedesEgs53EngRq3 *decoded)
 {
     MblinkMercedesEgs53EngRq3 value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
     value.maximum_acceleration_state =
-        (uint8_t)extract_bits(raw, 1U, 2U);
+        (uint8_t)extract_can_bits(payload, payload_length, 1U, 2U);
     value.wet_driveaway_clutch_torque_nm =
-        (double)extract_bits(raw, 3U, 13U) * 0.25 - 500.0;
-    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
-    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+        (double)extract_can_bits(payload, payload_length, 3U, 13U) * 0.25 - 500.0;
+    value.message_counter = (uint8_t)extract_can_bits(payload, payload_length, 48U, 4U);
+    value.crc = (uint8_t)extract_can_bits(payload, payload_length, 56U, 8U);
 
     *decoded = value;
     return true;
@@ -652,20 +651,18 @@ bool mblink_mercedes_transmission_decode_egs53_sbw_rs_tcm(
     MblinkMercedesEgs53SbwRsTcm *decoded)
 {
     MblinkMercedesEgs53SbwRsTcm value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.message_transmitter_id = (uint8_t)extract_bits(raw, 0U, 2U);
-    value.starter_lockout = extract_bits(raw, 7U, 1U) != 0U;
-    value.selector_valve_position = (uint8_t)extract_bits(raw, 8U, 4U);
-    value.selector_position_request = (uint8_t)extract_bits(raw, 12U, 4U);
+    value.message_transmitter_id = (uint8_t)extract_can_bits(payload, payload_length, 0U, 2U);
+    value.starter_lockout = extract_can_bits(payload, payload_length, 7U, 1U) != 0U;
+    value.selector_valve_position = (uint8_t)extract_can_bits(payload, payload_length, 8U, 4U);
+    value.selector_position_request = (uint8_t)extract_can_bits(payload, payload_length, 12U, 4U);
     value.selector_sensor_percent =
-        (double)extract_bits(raw, 16U, 8U) * 0.4;
-    value.message_counter = (uint8_t)extract_bits(raw, 48U, 4U);
-    value.crc = (uint8_t)extract_bits(raw, 56U, 8U);
+        (double)extract_can_bits(payload, payload_length, 16U, 8U) * 0.4;
+    value.message_counter = (uint8_t)extract_can_bits(payload, payload_length, 48U, 4U);
+    value.crc = (uint8_t)extract_can_bits(payload, payload_length, 56U, 8U);
 
     *decoded = value;
     return true;
@@ -677,23 +674,21 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
     MblinkMercedesEgs53TcmDisplayRequest *decoded)
 {
     MblinkMercedesEgs53TcmDisplayRequest value;
-    uint64_t raw;
     if (payload == NULL || decoded == NULL || payload_length != 8U)
         return false;
     memset(&value, 0, sizeof(value));
-    raw = infiltratr_load_le64(payload);
 
-    value.display_position_code = (uint8_t)extract_bits(raw, 0U, 8U);
-    value.display_program_code = (uint8_t)extract_bits(raw, 8U, 8U);
-    value.shift_by_wire_beep_request = extract_bits(raw, 16U, 1U) != 0U;
-    value.shift_recommendation = (uint8_t)extract_bits(raw, 17U, 2U);
-    value.shift_by_wire_message = (uint8_t)extract_bits(raw, 21U, 3U);
-    value.selector_lock_2_display = (uint8_t)extract_bits(raw, 24U, 4U);
-    value.selector_lock_1_display = (uint8_t)extract_bits(raw, 28U, 4U);
-    value.selector_lock_4_display = (uint8_t)extract_bits(raw, 32U, 4U);
-    value.selector_lock_3_display = (uint8_t)extract_bits(raw, 36U, 4U);
-    value.target_gear_display_code = (uint8_t)extract_bits(raw, 40U, 8U);
-    value.race_start_display_state = (uint8_t)extract_bits(raw, 48U, 3U);
+    value.display_position_code = (uint8_t)extract_can_bits(payload, payload_length, 0U, 8U);
+    value.display_program_code = (uint8_t)extract_can_bits(payload, payload_length, 8U, 8U);
+    value.shift_by_wire_beep_request = extract_can_bits(payload, payload_length, 16U, 1U) != 0U;
+    value.shift_recommendation = (uint8_t)extract_can_bits(payload, payload_length, 17U, 2U);
+    value.shift_by_wire_message = (uint8_t)extract_can_bits(payload, payload_length, 21U, 3U);
+    value.selector_lock_2_display = (uint8_t)extract_can_bits(payload, payload_length, 24U, 4U);
+    value.selector_lock_1_display = (uint8_t)extract_can_bits(payload, payload_length, 28U, 4U);
+    value.selector_lock_4_display = (uint8_t)extract_can_bits(payload, payload_length, 32U, 4U);
+    value.selector_lock_3_display = (uint8_t)extract_can_bits(payload, payload_length, 36U, 4U);
+    value.target_gear_display_code = (uint8_t)extract_can_bits(payload, payload_length, 40U, 8U);
+    value.race_start_display_state = (uint8_t)extract_can_bits(payload, payload_length, 48U, 3U);
 
     *decoded = value;
     return true;
