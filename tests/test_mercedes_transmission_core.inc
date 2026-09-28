@@ -564,6 +564,19 @@ static int test_transport_formatter(void)
     CHECK(strstr(text, "drive-shaft torque 350 Nm") != NULL);
 
     memset(payload, 0, sizeof(payload));
+    payload[0] = UINT8_C(0x44);
+    payload[1] = UINT8_C(24);
+    payload[2] = UINT8_C(88);
+    put_bits(payload, 40U, 8U, UINT32_C(40));
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        MBLINK_MERCEDES_GS_418_CAN_ID,
+        payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "display Drive") != NULL);
+    CHECK(strstr(text, "program Upshift recommendation") != NULL);
+    CHECK(strstr(text, "torque-loss 10.00 Nm") != NULL);
+
+    memset(payload, 0, sizeof(payload));
     put_bits(payload, 0U, 8U, 100U);
     CHECK(mblink_mercedes_transmission_format_can_frame(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,

@@ -923,6 +923,43 @@ static bool format_egs53_lookup_frame(
     return wrote;
 }
 
+
+static void egs52_gs418_display_text(
+    const uint8_t *payload, size_t payload_length,
+    const char *signal_name, uint8_t fallback,
+    char *buffer, size_t buffer_size)
+{
+    const MblinkMercedesEgs52FrameDefinition *frame =
+        mblink_mercedes_egs52_frame_match_at(
+            MBLINK_MERCEDES_GS_418_CAN_ID, 0U);
+    const MblinkMercedesEgs52SignalDefinition *signal =
+        frame != NULL
+            ? mblink_mercedes_egs52_signal_find(frame, signal_name) : NULL;
+    MblinkMercedesEgs52DecodedSignal decoded;
+
+    if (buffer == NULL || buffer_size == 0U) return;
+    buffer[0] = '\0';
+    if (signal != NULL &&
+        mblink_mercedes_egs52_decode_signal(
+            signal, payload, payload_length, &decoded)) {
+        if (decoded.enum_available) {
+            const char *text =
+                decoded.enum_description != NULL &&
+                decoded.enum_description[0] != '\0'
+                    ? decoded.enum_description : decoded.enum_name;
+            snprintf(buffer, buffer_size, "%s", text != NULL ? text : "");
+            return;
+        }
+        if (decoded.char_available &&
+            (unsigned char)decoded.char_value >= 32U &&
+            (unsigned char)decoded.char_value <= 126U) {
+            snprintf(buffer, buffer_size, "%c", decoded.char_value);
+            return;
+        }
+    }
+    snprintf(buffer, buffer_size, "0x%02X", (unsigned int)fallback);
+}
+
 bool mblink_mercedes_transmission_format_can_frame(
     MblinkMercedesTransmissionFamily family,
     uint32_t can_id,
@@ -1006,16 +1043,23 @@ bool mblink_mercedes_transmission_format_can_frame(
         }
         if (can_id == MBLINK_MERCEDES_GS_418_CAN_ID) {
             MblinkMercedesGs418 d;
+            char display_text[96];
+            char program_text[128];
             if (!mblink_mercedes_transmission_decode_gs418(
                     payload, payload_length, &d)) return false;
+            egs52_gs418_display_text(
+                payload, payload_length, "FSC", d.display_position_code,
+                display_text, sizeof(display_text));
+            egs52_gs418_display_text(
+                payload, payload_length, "FPC", d.drive_program_code,
+                program_text, sizeof(program_text));
             count = snprintf(
                 buffer, buffer_size,
-                "EGS52 GS_418 · display 0x%02X · program 0x%02X · "
+                "EGS52 GS_418 · display %s · program %s · "
                 "ATF %.1f °C · target %s · actual %s · selector %s · "
                 "AWD %s · FWD %s · CVT %s · mech %u · "
-                "kickdown %s · torque-loss raw %u · wheel-factor raw %u",
-                (unsigned int)d.display_position_code,
-                (unsigned int)d.drive_program_code,
+                "kickdown %s · torque-loss %.2f Nm · wheel-factor raw %u",
+                display_text, program_text,
                 d.transmission_temperature_c,
                 mblink_mercedes_transmission_target_gear_name(d.target_gear_code),
                 mblink_mercedes_transmission_actual_gear_name(d.actual_gear_code),
@@ -1025,7 +1069,7 @@ bool mblink_mercedes_transmission_format_can_frame(
                 d.cvt ? "yes" : "no",
                 (unsigned int)d.mechanism_variant,
                 d.kickdown ? "yes" : "no",
-                (unsigned int)d.torque_loss_raw,
+                (double)d.torque_loss_raw * 0.25,
                 (unsigned int)d.wheel_torque_factor_raw);
             return count >= 0 && (size_t)count < buffer_size;
         }
