@@ -105,6 +105,15 @@ require(
     and "PID configuration" not in modules_view,
     "Modules screen must remain ECU inventory only and must not expose PID setup",
 )
+live_start = app.index("private struct MBLiveDataView")
+live_end = app.index("private struct MBDataTableView", live_start)
+live_view = app[live_start:live_end]
+require(
+    "MBPIDSetupView" not in live_view
+    and "MBMeasurementStartPanel" not in live_view
+    and "Choose PIDs" not in live_view,
+    "Live Data must only display live data and must not expose PID selection",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(

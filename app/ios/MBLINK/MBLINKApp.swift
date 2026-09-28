@@ -589,7 +589,7 @@ private struct MBCommandCentreView: View {
             MBHomeTile("Vehicle", "VIN, saved profile and decoded identity", "car.side.fill") { MBVehicleView() }
             MBHomeTile("Modules", "Control units, identities and module data", "square.stack.3d.up.fill") { MBModulesView() }
             MBHomeTile("Faults", "Stored and active diagnostic trouble codes", "exclamationmark.triangle.fill") { MBFaultsView() }
-            MBHomeTile("Live Data", "Select and view current measurements", "waveform.path.ecg") { MBLiveDataView() }
+            MBHomeTile("Live Data", "View current measurements", "waveform.path.ecg") { MBLiveDataView() }
             MBHomeTile("Factory Readings", "Read actual Mercedes responses by control unit", "engine.combustion.fill") { MBFactoryReadingsView() }
             MBHomeTile("OBD", "Standard OBD-II / EOBD diagnostics", "cpu") { MBStandardOBDView() }
         }
@@ -2104,10 +2104,6 @@ private struct MBLiveDataView: View {
                         title: "Live data",
                         kicker: "Choose a control unit")
 
-                    if connection.configuredPollingCount == 0 {
-                        MBMeasurementStartPanel()
-                    }
-
                     LinkDiagnosticGrid {
                 MBHomeTile("Dashboard", "Selected values at a glance", "gauge.with.dots.needle.67percent") {
                     MBDashboardView()
@@ -2120,9 +2116,6 @@ private struct MBLiveDataView: View {
                 }
                 MBHomeTile("Factory Readings", "Captured Mercedes values and raw responses", "engine.combustion.fill") {
                     MBFactoryReadingsView()
-                }
-                MBHomeTile("Choose PIDs", "Control what the adapter polls", "switch.2") {
-                    MBPIDSetupView()
                 }
             }
 
