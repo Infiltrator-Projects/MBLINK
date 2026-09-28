@@ -148,6 +148,7 @@ add_library(mblink STATIC
     src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/module_scan.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
     src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c
+    src/mercedes/egs51_lookup.c src/mercedes/egs52_lookup.c src/mercedes/egs53_lookup.c
     src/mercedes/mercedes_me_data_ids.c
     src/mercedes/mercedes_me_diaglogic.c
     src/mercedes/mercedes_me_whisper.c)
@@ -341,6 +342,9 @@ if(BUILD_TESTING)
     mblink_add_test(mblink-test-mercedes-vin-fallback tests/test_mercedes_vin_fallback.c)
     mblink_add_test(mblink-test-mercedes-data-scan tests/test_mercedes_data_scan.c)
     mblink_add_test(mblink-test-mercedes-transmission tests/test_mercedes_transmission.c)
+    mblink_add_test(mblink-test-mercedes-egs51-lookup tests/test_mercedes_egs51_lookup.c)
+    mblink_add_test(mblink-test-mercedes-egs52-lookup tests/test_mercedes_egs52_lookup.c)
+    mblink_add_test(mblink-test-mercedes-egs53-lookup tests/test_mercedes_egs53_lookup.c)
     mblink_add_test(mblink-test-mercedes-trace-replay tests/test_mercedes_trace_replay.c)
     mblink_add_test(mblink-test-c207-obd-flow-replay tests/test_c207_obd_flow_replay.c)
     mblink_add_test(mblink-test-linux-session-trace tests/test_linux_session_trace.c)
