@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_transmission.h"
 #include "mblink/mercedes_module_catalog.h"
+#include "mblink/mercedes_egs51_lookup.h"
+#include "mblink/mercedes_egs52_lookup.h"
+#include "mblink/mercedes_egs53_lookup.h"
 
 #include "infiltratr/core.h"
 #include "infiltratr/endian.h"
@@ -695,6 +698,231 @@ bool mblink_mercedes_transmission_decode_egs53_tcm_display_request(
 }
 
 
+
+static bool append_lookup_text(
+    char *buffer, size_t buffer_size, size_t *used, const char *text)
+{
+    const size_t length = text != NULL ? strlen(text) : 0U;
+    if (buffer == NULL || used == NULL || text == NULL ||
+        *used >= buffer_size) return false;
+    if (length >= buffer_size - *used) {
+        if (buffer_size - *used > 4U) {
+            memcpy(buffer + *used, " ...", 4U);
+            *used += 4U;
+            buffer[*used] = '\0';
+        }
+        return false;
+    }
+    memcpy(buffer + *used, text, length + 1U);
+    *used += length;
+    return true;
+}
+
+static bool format_egs51_lookup_frame(
+    uint32_t can_id, const uint8_t *payload, size_t payload_length,
+    char *buffer, size_t buffer_size)
+{
+    const size_t match_count = mblink_mercedes_egs51_frame_match_count(can_id);
+    size_t used = 0U;
+    size_t match;
+    bool wrote = false;
+    char piece[192];
+
+    if (match_count == 0U) return false;
+    buffer[0] = '\0';
+
+    for (match = 0U; match < match_count; ++match) {
+        const MblinkMercedesEgs51FrameDefinition *frame =
+            mblink_mercedes_egs51_frame_match_at(can_id, match);
+        size_t signal_index;
+        if (frame == NULL) continue;
+        snprintf(piece, sizeof(piece), "%sEGS51 %s/%s",
+                 wrote ? " || " : "", frame->ecu, frame->name);
+        if (!append_lookup_text(buffer, buffer_size, &used, piece)) return true;
+        wrote = true;
+
+        for (signal_index = 0U; signal_index < frame->signal_count;
+             ++signal_index) {
+            const MblinkMercedesEgs51SignalDefinition *signal =
+                &frame->signals[signal_index];
+            MblinkMercedesEgs51DecodedSignal value;
+            if (signal->type == MBLINK_MERCEDES_EGS51_SIGNAL_ISO_TP ||
+                !mblink_mercedes_egs51_decode_signal(
+                    signal, payload, payload_length, &value)) continue;
+            if (value.unavailable) {
+                snprintf(piece, sizeof(piece), " · %s=SNA", signal->name);
+            } else if (value.enum_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.enum_name);
+            } else if (value.boolean_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.boolean_value ? "yes" : "no");
+            } else if (value.char_available) {
+                snprintf(piece, sizeof(piece), " · %s='%c'",
+                         signal->name, value.char_value);
+            } else if (value.physical_available) {
+                snprintf(piece, sizeof(piece), " · %s=%.6g%s%s",
+                         signal->name, value.physical_value,
+                         value.unit != NULL && value.unit[0] != '\0' ? " " : "",
+                         value.unit != NULL ? value.unit : "");
+            } else {
+                snprintf(piece, sizeof(piece), " · %s=0x%llX",
+                         signal->name, (unsigned long long)value.raw);
+            }
+            if (!append_lookup_text(buffer, buffer_size, &used, piece))
+                return true;
+        }
+    }
+    return wrote;
+}
+
+static bool format_egs52_lookup_frame(
+    uint32_t can_id, const uint8_t *payload, size_t payload_length,
+    char *buffer, size_t buffer_size)
+{
+    const size_t match_count = mblink_mercedes_egs52_frame_match_count(can_id);
+    size_t used = 0U;
+    size_t match;
+    bool wrote = false;
+    char piece[192];
+
+    if (match_count == 0U) return false;
+    buffer[0] = '\0';
+
+    for (match = 0U; match < match_count; ++match) {
+        const MblinkMercedesEgs52FrameDefinition *frame =
+            mblink_mercedes_egs52_frame_match_at(can_id, match);
+        size_t signal_index;
+        if (frame == NULL) continue;
+        snprintf(piece, sizeof(piece), "%sEGS52 %s/%s",
+                 wrote ? " || " : "", frame->ecu, frame->name);
+        if (!append_lookup_text(buffer, buffer_size, &used, piece)) return true;
+        wrote = true;
+
+        for (signal_index = 0U; signal_index < frame->signal_count;
+             ++signal_index) {
+            const MblinkMercedesEgs52SignalDefinition *signal =
+                &frame->signals[signal_index];
+            MblinkMercedesEgs52DecodedSignal value;
+            if (signal->type == MBLINK_MERCEDES_EGS52_SIGNAL_ISO_TP ||
+                !mblink_mercedes_egs52_decode_signal(
+                    signal, payload, payload_length, &value)) continue;
+            if (value.unavailable) {
+                snprintf(piece, sizeof(piece), " · %s=SNA", signal->name);
+            } else if (value.enum_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.enum_name);
+            } else if (value.boolean_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.boolean_value ? "yes" : "no");
+            } else if (value.char_available) {
+                snprintf(piece, sizeof(piece), " · %s='%c'",
+                         signal->name, value.char_value);
+            } else if (value.physical_available) {
+                snprintf(piece, sizeof(piece), " · %s=%.6g%s%s",
+                         signal->name, value.physical_value,
+                         value.unit != NULL && value.unit[0] != '\0' ? " " : "",
+                         value.unit != NULL ? value.unit : "");
+            } else {
+                snprintf(piece, sizeof(piece), " · %s=0x%llX",
+                         signal->name, (unsigned long long)value.raw);
+            }
+            if (!append_lookup_text(buffer, buffer_size, &used, piece))
+                return true;
+        }
+    }
+    return wrote;
+}
+
+static bool egs53_wheel_signal_unavailable(
+    const MblinkMercedesEgs53FrameDefinition *frame,
+    const char *signal_name,
+    const uint8_t *payload, size_t payload_length)
+{
+    const char *direction_name = NULL;
+    const MblinkMercedesEgs53SignalDefinition *direction;
+    MblinkMercedesEgs53DecodedSignal decoded;
+
+    if (frame == NULL || signal_name == NULL ||
+        strcmp(frame->name, "WHL_STAT2") != 0) return false;
+    if (strcmp(signal_name, "WhlRPM_FL") == 0)
+        direction_name = "WhlDir_FL_Stat";
+    else if (strcmp(signal_name, "WhlRPM_FR") == 0)
+        direction_name = "WhlDir_FR_Stat";
+    else if (strcmp(signal_name, "WhlRPM_RL") == 0)
+        direction_name = "WhlDir_RL_Stat";
+    else if (strcmp(signal_name, "WhlRPM_RR") == 0)
+        direction_name = "WhlDir_RR_Stat";
+    if (direction_name == NULL) return false;
+
+    direction = mblink_mercedes_egs53_signal_find(frame, direction_name);
+    if (direction == NULL ||
+        !mblink_mercedes_egs53_decode_signal(
+            direction, payload, payload_length, &decoded) ||
+        !decoded.enum_available) return false;
+    return strcmp(decoded.enum_name, "SNA") == 0;
+}
+
+static bool format_egs53_lookup_frame(
+    uint32_t can_id, const uint8_t *payload, size_t payload_length,
+    char *buffer, size_t buffer_size)
+{
+    const size_t match_count = mblink_mercedes_egs53_frame_match_count(can_id);
+    size_t used = 0U;
+    size_t match;
+    bool wrote = false;
+    char piece[192];
+
+    if (match_count == 0U) return false;
+    buffer[0] = '\0';
+
+    for (match = 0U; match < match_count; ++match) {
+        const MblinkMercedesEgs53FrameDefinition *frame =
+            mblink_mercedes_egs53_frame_match_at(can_id, match);
+        size_t signal_index;
+        if (frame == NULL) continue;
+        snprintf(piece, sizeof(piece), "%sEGS53 %s/%s",
+                 wrote ? " || " : "", frame->ecu, frame->name);
+        if (!append_lookup_text(buffer, buffer_size, &used, piece)) return true;
+        wrote = true;
+
+        for (signal_index = 0U; signal_index < frame->signal_count;
+             ++signal_index) {
+            const MblinkMercedesEgs53SignalDefinition *signal =
+                &frame->signals[signal_index];
+            MblinkMercedesEgs53DecodedSignal value;
+            if (signal->type == MBLINK_MERCEDES_EGS53_SIGNAL_ISO_TP ||
+                !mblink_mercedes_egs53_decode_signal(
+                    signal, payload, payload_length, &value)) continue;
+            if (value.unavailable ||
+                egs53_wheel_signal_unavailable(
+                    frame, signal->name, payload, payload_length)) {
+                snprintf(piece, sizeof(piece), " · %s=SNA", signal->name);
+            } else if (value.enum_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.enum_name);
+            } else if (value.boolean_available) {
+                snprintf(piece, sizeof(piece), " · %s=%s",
+                         signal->name, value.boolean_value ? "yes" : "no");
+            } else if (value.char_available) {
+                snprintf(piece, sizeof(piece), " · %s='%c'",
+                         signal->name, value.char_value);
+            } else if (value.physical_available) {
+                snprintf(piece, sizeof(piece), " · %s=%.6g%s%s",
+                         signal->name, value.physical_value,
+                         value.unit != NULL && value.unit[0] != '\0' ? " " : "",
+                         value.unit != NULL ? value.unit : "");
+            } else {
+                snprintf(piece, sizeof(piece), " · %s=0x%llX",
+                         signal->name, (unsigned long long)value.raw);
+            }
+            if (!append_lookup_text(buffer, buffer_size, &used, piece))
+                return true;
+        }
+    }
+    return wrote;
+}
+
 bool mblink_mercedes_transmission_format_can_frame(
     MblinkMercedesTransmissionFamily family,
     uint32_t can_id,
@@ -921,6 +1149,16 @@ bool mblink_mercedes_transmission_format_can_frame(
             return count >= 0 && (size_t)count < buffer_size;
         }
     }
+
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51)
+        return format_egs51_lookup_frame(
+            can_id, payload, payload_length, buffer, buffer_size);
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52)
+        return format_egs52_lookup_frame(
+            can_id, payload, payload_length, buffer, buffer_size);
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53)
+        return format_egs53_lookup_frame(
+            can_id, payload, payload_length, buffer, buffer_size);
 
     return false;
 }

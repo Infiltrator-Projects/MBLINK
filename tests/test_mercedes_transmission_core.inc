@@ -563,6 +563,27 @@ static int test_transport_formatter(void)
     CHECK(strstr(text, "ATF 50.0 °C") != NULL);
     CHECK(strstr(text, "drive-shaft torque 350 Nm") != NULL);
 
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 0U, 8U, 100U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,
+        UINT32_C(0x608), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "T_MOT=60 °C") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 3U, 13U, 2400U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        UINT32_C(0x312), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "M_STA=100 Nm") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 0U, 8U, 100U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
+        UINT32_C(0x30d), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "EngCoolTemp=60 °C") != NULL);
+
     CHECK(!mblink_mercedes_transmission_format_can_frame(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,
         UINT32_C(0x7ff), payload, sizeof(payload), text, sizeof(text)));
