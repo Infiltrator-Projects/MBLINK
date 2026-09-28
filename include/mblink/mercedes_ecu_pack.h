@@ -89,6 +89,12 @@ uint8_t mblink_mercedes_ecu_pack_route_protocol_mask(
     uint32_t rx_can_id,
     bool extended_id);
 
+size_t mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol);
+
 size_t mblink_mercedes_ecu_pack_alias_count(
     const MblinkMercedesEcuPack *pack);
 const char *mblink_mercedes_ecu_pack_alias_at(
