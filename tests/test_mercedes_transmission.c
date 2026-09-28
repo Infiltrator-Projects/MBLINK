@@ -294,9 +294,9 @@ static int test_identity_first_n93_mixed_protocol(void)
     memset(&scan, 0, sizeof(scan));
     scan.scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
     scan.dtc_index = MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
-    scan.full_target_index = 1U; /* 0x60A -> 0x481 in the N93 lattice. */
-    scan.candidate_tx = UINT32_C(0x60a);
-    scan.candidate_rx = UINT32_C(0x481);
+    scan.full_target_index = 3U; /* 0x61A -> 0x483 remains unclassified. */
+    scan.candidate_tx = UINT32_C(0x61a);
+    scan.candidate_rx = UINT32_C(0x483);
     scan.candidate_extended = false;
     scan.candidate_route_locked = true;
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
@@ -321,8 +321,8 @@ static int test_identity_first_n93_mixed_protocol(void)
     CHECK(mblink_mercedes_module_scan_accept(&scan, &gateway_miss) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.module_count == 0U);
-    CHECK(scan.candidate_tx == UINT32_C(0x612));
-    CHECK(scan.candidate_rx == UINT32_C(0x482));
+    CHECK(scan.candidate_tx == UINT32_C(0x622));
+    CHECK(scan.candidate_rx == UINT32_C(0x484));
     return 0;
 }
 
