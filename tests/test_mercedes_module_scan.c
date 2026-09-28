@@ -844,6 +844,20 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             stale_ic204.tx_can_id = UINT32_C(0x60a);
             stale_ic204.rx_can_id = UINT32_C(0x481);
             stale_ic204.protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+
+            /* Route alone is ambiguous and must preserve the observed KWP. */
+            CHECK(mblink_mercedes_module_scan_entry_protocol(&stale_ic204) ==
+                  MBLINK_MERCEDES_DIAGNOSTIC_KWP2000);
+
+            /* Once IC_204 is identified, its pack overrides the stale value. */
+            stale_ic204.definition =
+                mblink_mercedes_module_definition_for_key(
+                    "instrument-cluster");
+            stale_ic204.controller_family =
+                mblink_mercedes_controller_family_definition_for_key(
+                    "cluster-ic204");
+            CHECK(stale_ic204.definition != NULL);
+            CHECK(stale_ic204.controller_family != NULL);
             CHECK(mblink_mercedes_module_scan_entry_protocol(&stale_ic204) ==
                   MBLINK_MERCEDES_DIAGNOSTIC_UDS);
         }
