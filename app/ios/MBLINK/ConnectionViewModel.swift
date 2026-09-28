@@ -1373,6 +1373,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return parameters
     }
 
+    private func offlineMercedesProtocolName(_ protocolValue: UInt) -> String {
+        switch protocolValue {
+        case 0: return "UDS"
+        case 1: return "KWP2000"
+        default: return "Mercedes diagnostic protocol"
+        }
+    }
+
     private func offlineModuleName(
         tx: UInt32,
         rx: UInt32,
@@ -1490,8 +1498,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     designation: "Saved vehicle controller",
                     network: "Saved VIN profile",
                     kind: offlineName.lowercased(),
-                    protocolName: (saved["protocolName"] as? String) ??
-                        (tx == 0x7E1 ? "KWP2000 / SAE OBD-II" : "Saved diagnostic route"),
+                    protocolName: offlineMercedesProtocolName(protocolValue),
                     requestCANIdentifier: tx,
                     responseCANIdentifier: rx,
                     extendedID: extended,
