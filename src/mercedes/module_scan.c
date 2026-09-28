@@ -102,54 +102,43 @@ typedef struct MblinkMercedesResearchRouteIdentity {
     uint32_t tx_can_id;
     uint32_t rx_can_id;
     const char *module_key;
-    const char *controller_family_key;
     MblinkMercedesDefinitionStatus status;
 } MblinkMercedesResearchRouteIdentity;
 
 /*
- * Exact route identities recovered from the 2026-09 C207 capture and
- * cross-checked against public Mercedes diagnostic evidence. CANHunter is a
- * standing semantic source for Mercedes request IDs, but it is not used alone
- * where Mercedes reuses an address across model families. Stronger
- * model-specific traces win when available.
+ * Exact route-to-module identities recovered from the 2026-09 C207 capture and
+ * cross-checked against public Mercedes diagnostic evidence.  A route is enough
+ * to identify the broad module position, but not a controller generation:
+ * Mercedes reuses these addresses across families and, in several cases,
+ * across UDS and KWP2000.  Controller-family identity must come from ECU
+ * identity/part/software evidence and then resolves an ECU pack.
  *
  * Source: https://github.com/OSUSecLab/CANHunter
  * Dataset: Data/CAN_Bus_Commands/Mercedes.json
  */
 static const MblinkMercedesResearchRouteIdentity
 mblink_mercedes_research_route_identities[] = {
-    { UINT32_C(0x602), UINT32_C(0x480),
-      "central-gateway", "gateway-cgw212",
+    { UINT32_C(0x602), UINT32_C(0x480), "central-gateway",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x60a), UINT32_C(0x481),
-      "instrument-cluster", "cluster-ic204",
+    { UINT32_C(0x60a), UINT32_C(0x481), "instrument-cluster",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x612), UINT32_C(0x482),
-      "eis-ezs", "eis-ezs212",
+    { UINT32_C(0x612), UINT32_C(0x482), "eis-ezs",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x622), UINT32_C(0x484),
-      "steering-column", "steering-sccm212",
+    { UINT32_C(0x622), UINT32_C(0x484), "steering-column",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x632), UINT32_C(0x486),
-      "esp", "esp-abr2xt",
+    { UINT32_C(0x632), UINT32_C(0x486), "esp",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x64a), UINT32_C(0x489),
-      "restraints-orc", "restraints-orc212",
+    { UINT32_C(0x64a), UINT32_C(0x489), "restraints-orc",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x652), UINT32_C(0x48a),
-      "audio-headunit", "headunit-hu204",
+    { UINT32_C(0x652), UINT32_C(0x48a), "audio-headunit",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x6a2), UINT32_C(0x494),
-      "multifunction-camera", "camera-mfk",
+    { UINT32_C(0x6a2), UINT32_C(0x494), "multifunction-camera",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x6ba), UINT32_C(0x497),
-      "belt-pretensioner-left", "pretensioner-rbtmfl204",
+    { UINT32_C(0x6ba), UINT32_C(0x497), "belt-pretensioner-left",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x6c2), UINT32_C(0x498),
-      "belt-pretensioner-right", "pretensioner-rbtmfr204",
+    { UINT32_C(0x6c2), UINT32_C(0x498), "belt-pretensioner-right",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED },
-    { UINT32_C(0x6fa), UINT32_C(0x49f),
-      "fuel-pump", "fuel-pump-fscu",
+    { UINT32_C(0x6fa), UINT32_C(0x49f), "fuel-pump",
       MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED }
 };
 
@@ -188,53 +177,11 @@ mblink_mercedes_research_route_definition(
         : NULL;
 }
 
-static const MblinkMercedesControllerFamilyDefinition *
-mblink_mercedes_research_route_controller_family(
-    const MblinkMercedesModuleScanEntry *module)
-{
-    const MblinkMercedesResearchRouteIdentity *identity;
-    const MblinkMercedesControllerFamilyDefinition *family;
-    MblinkMercedesEcuPack pack;
-
-    if (module == NULL) return NULL;
-    identity = mblink_mercedes_research_route_identity(
-        module->tx_can_id, module->rx_can_id, module->extended_id);
-    if (identity == NULL || identity->controller_family_key == NULL)
-        return NULL;
-
-    family = mblink_mercedes_controller_family_definition_for_key(
-        identity->controller_family_key);
-    if (family == NULL) return NULL;
-
-    /*
-     * A route may be reused by different controller generations.  Route-level
-     * family evidence is accepted only when it is compatible with the protocol
-     * actually observed for this ECU.  Example: 0x60A -> 0x481 is documented
-     * for UDS IC_204 and KWP2000 KI221; a KWP responder must not be relabelled
-     * IC_204 merely because the CAN addresses match Shannon's C207 capture.
-     */
-    if (mblink_mercedes_ecu_pack_route_profile_count_for_protocol(
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            module->protocol) != 1U) {
-        return NULL;
-    }
-    if (mblink_mercedes_ecu_pack_resolve(
-            identity->module_key, identity->controller_family_key,
-            module->tx_can_id, module->rx_can_id, module->extended_id,
-            module->protocol, &pack) &&
-        pack.protocol_authoritative &&
-        pack.protocol != module->protocol) {
-        return NULL;
-    }
-    return family;
-}
-
 void mblink_mercedes_module_scan_apply_route_identity(
     MblinkMercedesModuleScanEntry *module)
 {
     const MblinkMercedesResearchRouteIdentity *identity;
     const MblinkMercedesModuleDefinition *definition;
-    const MblinkMercedesControllerFamilyDefinition *controller_family;
 
     if (module == NULL) return;
     identity = mblink_mercedes_research_route_identity(
@@ -255,11 +202,6 @@ void mblink_mercedes_module_scan_apply_route_identity(
     }
     if (module->identification_status < identity->status)
         module->identification_status = identity->status;
-
-    controller_family =
-        mblink_mercedes_research_route_controller_family(module);
-    if (module->controller_family == NULL && controller_family != NULL)
-        module->controller_family = controller_family;
 }
 
 static bool mblink_mercedes_module_scan_copy_identity_text(
@@ -352,16 +294,12 @@ const char *mblink_mercedes_module_scan_module_name(
 {
     const MblinkMercedesKnownRoute *known_route;
     const MblinkMercedesModuleDefinition *route_definition;
-    const MblinkMercedesControllerFamilyDefinition *route_family;
 
     if (module == NULL) return "Mercedes ECU";
     if (module->controller_family != NULL)
         return module->controller_family->display_name;
     if (module->definition != NULL) return module->definition->display_name;
 
-    route_family =
-        mblink_mercedes_research_route_controller_family(module);
-    if (route_family != NULL) return route_family->display_name;
     route_definition = mblink_mercedes_research_route_definition(module);
     if (route_definition != NULL) return route_definition->display_name;
 
