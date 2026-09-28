@@ -8,6 +8,7 @@
  * generic discovery/transport machinery; this file remains Mercedes-specific.
  */
 #include "mblink/mercedes_module_scan.h"
+#include "mblink/mercedes_ecu_pack.h"
 
 #include "infiltratr/core.h"
 
@@ -192,13 +193,35 @@ mblink_mercedes_research_route_controller_family(
     const MblinkMercedesModuleScanEntry *module)
 {
     const MblinkMercedesResearchRouteIdentity *identity;
+    const MblinkMercedesControllerFamilyDefinition *family;
+    MblinkMercedesEcuPack pack;
+
     if (module == NULL) return NULL;
     identity = mblink_mercedes_research_route_identity(
         module->tx_can_id, module->rx_can_id, module->extended_id);
-    return identity != NULL && identity->controller_family_key != NULL
-        ? mblink_mercedes_controller_family_definition_for_key(
-              identity->controller_family_key)
-        : NULL;
+    if (identity == NULL || identity->controller_family_key == NULL)
+        return NULL;
+
+    family = mblink_mercedes_controller_family_definition_for_key(
+        identity->controller_family_key);
+    if (family == NULL) return NULL;
+
+    /*
+     * A route may be reused by different controller generations.  Route-level
+     * family evidence is accepted only when it is compatible with the protocol
+     * actually observed for this ECU.  Example: 0x60A -> 0x481 is documented
+     * for UDS IC_204 and KWP2000 KI221; a KWP responder must not be relabelled
+     * IC_204 merely because the CAN addresses match Shannon's C207 capture.
+     */
+    if (mblink_mercedes_ecu_pack_resolve(
+            identity->module_key, identity->controller_family_key,
+            module->tx_can_id, module->rx_can_id, module->extended_id,
+            module->protocol, &pack) &&
+        pack.protocol_authoritative &&
+        pack.protocol != module->protocol) {
+        return NULL;
+    }
+    return family;
 }
 
 void mblink_mercedes_module_scan_apply_route_identity(
@@ -229,10 +252,7 @@ void mblink_mercedes_module_scan_apply_route_identity(
         module->identification_status = identity->status;
 
     controller_family =
-        identity->controller_family_key != NULL
-        ? mblink_mercedes_controller_family_definition_for_key(
-              identity->controller_family_key)
-        : NULL;
+        mblink_mercedes_research_route_controller_family(module);
     if (module->controller_family == NULL && controller_family != NULL)
         module->controller_family = controller_family;
 }
@@ -315,6 +335,7 @@ bool mblink_mercedes_module_scan_resolve_controller(
     }
 
     mblink_mercedes_module_scan_classify_controller_family(resolved);
+    resolved->protocol = mblink_mercedes_module_scan_entry_protocol(resolved);
 
     return resolved->definition != NULL ||
         resolved->controller_family != NULL ||
