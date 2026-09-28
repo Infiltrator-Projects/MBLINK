@@ -1531,28 +1531,42 @@ private struct MBModuleDetailView: View {
     private func moduleIdentityPanel(_ module: DiagnosticModule) -> some View {
         MBPanel {
             VStack(spacing: 4) {
+                /*
+                 * Keep the control-unit identity schema stable for every ECU.
+                 * A missing value is evidence too: it means this scan did not
+                 * obtain that field, rather than the field silently vanishing
+                 * from the UI.  When an ECU does report identification data
+                 * (for example the captured EGS53 1A87/1A86 responses), show
+                 * every decoded value verbatim.
+                 */
                 MBInfoRow(label: "CAN route", value: module.addressText)
                 MBInfoRow(label: "Protocol", value: module.protocolName)
-                if !module.designation.isEmpty {
-                    MBInfoRow(label: "Designation", value: module.designation)
-                }
-                if !module.network.isEmpty {
-                    MBInfoRow(label: "Network", value: module.network)
-                }
-                if let identity = module.identityText {
-                    MBInfoRow(label: "Identity", value: identity)
-                }
-                if let part = module.partNumber {
-                    MBInfoRow(label: "Part number", value: part)
-                }
-                if let software = module.softwareNumber {
-                    MBInfoRow(label: "Software", value: software)
-                }
-                if let hardware = module.hardwareNumber {
-                    MBInfoRow(label: "Hardware", value: hardware)
-                }
+                MBInfoRow(
+                    label: "Designation",
+                    value: moduleIdentityValue(module.designation))
+                MBInfoRow(
+                    label: "Network",
+                    value: moduleIdentityValue(module.network))
+                MBInfoRow(
+                    label: "ECU identity",
+                    value: moduleIdentityValue(module.identityText))
+                MBInfoRow(
+                    label: "Part number",
+                    value: moduleIdentityValue(module.partNumber))
+                MBInfoRow(
+                    label: "Software version",
+                    value: moduleIdentityValue(module.softwareNumber))
+                MBInfoRow(
+                    label: "Hardware version",
+                    value: moduleIdentityValue(module.hardwareNumber))
             }
         }
+    }
+
+    private func moduleIdentityValue(_ value: String?) -> String {
+        guard let value else { return "N/A" }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "N/A" : trimmed
     }
 
     @ViewBuilder

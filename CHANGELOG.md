@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.239 — 2026-09-28
+
+- Keep a fixed control-unit identity panel for every discovered ECU: CAN route, protocol, designation, network, ECU identity, part number, software version and hardware version are always visible.
+- Show `N/A` when an ECU did not report an identity field instead of hiding that row, so missing evidence is explicit and module detail layouts remain directly comparable.
+- Preserve every decoded value when the ECU does report it; the captured EGS53 therefore exposes its KWP identity, Mercedes part number, software version and hardware version together in the module detail view.
+
 ## 0.7.238 — 2026-09-28
 
 - Replace the C207 capture's presentation-only "Likely" ECU hints with structured route identities that feed the real module catalogue, module kind, controller family, component designation and saved VIN profile.
