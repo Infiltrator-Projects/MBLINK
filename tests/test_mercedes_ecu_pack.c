@@ -419,6 +419,88 @@ static int test_exact_204_controller_family_resolution(void)
     return 0;
 }
 
+static int test_all_c207_exact_profile_reads_reach_pid_setup(void)
+{
+    static const struct {
+        const char *controller_key;
+        uint32_t tx;
+        uint32_t rx;
+        MblinkMercedesDiagnosticProtocol protocol;
+        size_t expected_profile_reads;
+    } cases[] = {
+        { "gateway-cgw204", UINT32_C(0x602), UINT32_C(0x480),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "cluster-ic204", UINT32_C(0x60a), UINT32_C(0x481),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "eis-ezs204", UINT32_C(0x612), UINT32_C(0x482),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "steering-sccm204", UINT32_C(0x622), UINT32_C(0x484),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 2U },
+        { "esp-abr2xt", UINT32_C(0x632), UINT32_C(0x486),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 8U },
+        { "restraints-orc212", UINT32_C(0x64a), UINT32_C(0x489),
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, 5U },
+        { "headunit-hu204", UINT32_C(0x652), UINT32_C(0x48a),
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, 8U },
+        { "camera-mfk", UINT32_C(0x6a2), UINT32_C(0x494),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "pretensioner-rbtmfl204", UINT32_C(0x6ba), UINT32_C(0x497),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "pretensioner-rbtmfr204", UINT32_C(0x6c2), UINT32_C(0x498),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 9U },
+        { "fuel-pump-fscu", UINT32_C(0x6fa), UINT32_C(0x49f),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 10U },
+        { "engine-crd3", UINT32_C(0x7e0), UINT32_C(0x7e8),
+          MBLINK_MERCEDES_DIAGNOSTIC_UDS, 6U },
+        { "transmission-egs53", UINT32_C(0x7e1), UINT32_C(0x7e9),
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, 4U }
+    };
+
+    for (size_t case_index = 0U;
+         case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
+        MblinkMercedesEcuPack pack;
+        CHECK(mblink_mercedes_ecu_pack_resolve(
+            NULL, cases[case_index].controller_key,
+            cases[case_index].tx, cases[case_index].rx, false,
+            cases[case_index].protocol, &pack));
+        CHECK(pack.documented_profile != NULL);
+        CHECK(mblink_mercedes_documented_ecu_read_count(
+                  pack.documented_profile) ==
+              cases[case_index].expected_profile_reads);
+
+        for (size_t read_index = 0U;
+             read_index < mblink_mercedes_documented_ecu_read_count(
+                 pack.documented_profile);
+             ++read_index) {
+            const MblinkMercedesDocumentedRead *read =
+                mblink_mercedes_documented_ecu_read_at(
+                    pack.documented_profile, read_index);
+            bool found_selectable = false;
+            CHECK(read != NULL);
+            CHECK(mblink_mercedes_documented_read_is_safe(
+                read->service, read->identifier));
+
+            for (size_t item_index = 0U;
+                 item_index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+                 ++item_index) {
+                MblinkMercedesEcuDataItem item;
+                CHECK(mblink_mercedes_ecu_pack_data_item_at(
+                    &pack, item_index, &item));
+                if (item.service == read->service &&
+                    item.identifier == read->identifier &&
+                    item.status ==
+                        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
+                    item.live && item.advertised) {
+                    found_selectable = true;
+                    break;
+                }
+            }
+            CHECK(found_selectable);
+        }
+    }
+    return 0;
+}
+
 static int test_20260928_capture_routes_under_new_engine(void)
 {
     static const struct {
@@ -492,6 +574,7 @@ int main(void)
     if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
     if (test_generated_cbf_controller_pid_catalogues() != 0) return 1;
     if (test_exact_204_controller_family_resolution() != 0) return 1;
+    if (test_all_c207_exact_profile_reads_reach_pid_setup() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
