@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.252 — 2026-09-29
+
+- Complete the remaining source-backed EGS51/EGS52 pedal semantics: the documented 0..250 pedal scale is now presented as 0..100%, while out-of-range values are treated as unavailable instead of plausible percentages.
+- Add family-local EGS52 derived TCC request semantics with the upstream open-over-slip precedence available to stateful callers, while keeping the individual open/slip request bits visible in passive frame output.
+- Surface EGS52 ESP and cruise torque intervention states alongside their already-decoded torque demands in Nm.
+- Normalize the EGS53 TCC request enum into None/Open/Slipping/Unavailable while retaining the original source enum.
+- Add regression coverage for pedal scaling/range validation, EGS52 TCC precedence, ESP/cruise derived states and EGS53 TCC normalization.
+
 ## 0.7.251 — 2026-09-29
 
 - Make the resolved Mercedes ECU definition pack authoritative for UDS/KWP2000 communication once controller identity is known; stale or route-level protocol guesses can no longer override a positively resolved family.
