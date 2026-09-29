@@ -175,13 +175,17 @@ NS_ASSUME_NONNULL_BEGIN
     NS_SWIFT_NAME(loadSavedVehicleProfileForPIDConfiguration(vin:));
 
 /**
- * Select exact manufacturer wire identifiers for periodic polling.
- * Empty is the default and means no manufacturer live polling for this module.
+ * Select exact manufacturer read commands for periodic polling.
+ *
+ * Each NSNumber packs service in bits 16..23 and identifier in bits 0..15.
+ * Keeping both fields is required for KWP controllers that mix 0x1A and 0x21
+ * reads. Empty is the default and means no manufacturer polling for this
+ * module.
  */
 - (NSArray<NSNumber *> *)
-    manufacturerLivePollingIdentifiersForModuleIdentifier:(NSString *)identifier;
-- (void)setManufacturerLivePollingIdentifiers:(NSArray<NSNumber *> *)identifiers
-                           forModuleIdentifier:(NSString *)identifier;
+    manufacturerLivePollingCommandsForModuleIdentifier:(NSString *)identifier;
+- (void)setManufacturerLivePollingCommands:(NSArray<NSNumber *> *)commands
+                        forModuleIdentifier:(NSString *)identifier;
 
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
                      responderCANIdentifier:(uint32_t)responderCANIdentifier
