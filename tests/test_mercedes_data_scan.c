@@ -824,7 +824,7 @@ static int test_runtime_candidate_catalog(void)
     entry = mblink_mercedes_controller_data_profile_find(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
-    CHECK(entry != NULL && entry->live);
+    CHECK(entry != NULL && !entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
         "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0005));
@@ -854,6 +854,12 @@ static int test_runtime_candidate_catalog(void)
     CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x652), UINT32_C(0x48a), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x06)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x58)));
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x11)));
 
     /* Static identity/configuration reads are never background telemetry. */
     CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
