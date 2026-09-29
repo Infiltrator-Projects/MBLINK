@@ -734,6 +734,32 @@ static int test_runtime_candidate_catalog(void)
     size_t index;
     bool live = false;
 
+    /*
+     * Public Vediamo CBF Data services are catalogue facts. They must exist
+     * even before any vehicle has answered the DID.
+     */
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 11U);
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 16U);
+    CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+        "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 5U);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT16_C(0xD243));
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT16_C(0x0220));
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    entry = mblink_mercedes_controller_data_profile_find(
+        "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT16_C(0x000B));
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+
     CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 0U);
 
