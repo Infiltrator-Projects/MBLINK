@@ -376,7 +376,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         const uint8_t local_id =
             mblink_mercedes_transmission_kwp_read_identifier_at_for_family(
                 pack_transmission_family(pack), index);
-        const bool live =
+        const bool previously_classified_live =
             mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
                 pack_transmission_family(pack), local_id);
         item->service = UINT8_C(0x21);
@@ -384,13 +384,19 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->name =
             mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
                 pack_transmission_family(pack), local_id);
-        item->kind = live ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
-                          : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
+        item->kind = previously_classified_live
+            ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
+            : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
         item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         family = pack_transmission_family(pack);
         item->provenance = mblink_mercedes_transmission_family_name(family);
-        item->live = live;
-        item->advertised = live;
+        /*
+         * PID Setup is currently the complete documented read catalogue.
+         * Do not hide a valid family-owned KWP record merely because an older
+         * presentation layer classified it as static/non-live.
+         */
+        item->live = true;
+        item->advertised = true;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
@@ -420,8 +426,13 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         }
         item->status = entry->status;
         item->provenance = entry->provenance;
+        /*
+         * At this stage PID Setup is the complete source-backed controller
+         * read catalogue. Historical live/static classification must not
+         * suppress a documented Data service. Capture-only observations remain
+         * excluded because they do not establish semantics.
+         */
         item->live =
-            entry->live &&
             entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         item->advertised = item->live;
         item->field_count =
@@ -452,14 +463,15 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
             item->provenance = mblink_mercedes_documented_route_source();
             /*
-             * A documented diagnostic read is not automatically a PID/actual
-             * value. Identity, configuration and other manual records remain
-             * available to Factory Readings, but PID Setup contains only
-             * online-documented actual/live values explicitly classified as
-             * such by the exact ECU definition pack.
+             * Catalogue-completion phase: every safe read documented for the
+             * exact controller profile is selectable in PID Setup. Keep the
+             * semantic kind (identification vs documented-read) so a later UI
+             * pass can group/curate without losing catalogue completeness.
              */
-            item->live = false;
-            item->advertised = false;
+            item->live =
+                mblink_mercedes_documented_read_is_safe(
+                    read->service, read->identifier);
+            item->advertised = item->live;
         }
         item->field_count =
             mblink_mercedes_documented_field_count(
