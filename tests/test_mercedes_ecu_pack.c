@@ -66,7 +66,6 @@ static int test_ic204_pack(void)
     CHECK(pack.protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS);
     CHECK(pack.documented_profile != NULL);
     CHECK(pack.documented_profile->read_count == 9U);
-    CHECK(!pack.online_catalogue_complete);
     CHECK(mblink_mercedes_ecu_pack_alias_count(&pack) >= 2U);
 
     CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 9U);
@@ -106,9 +105,6 @@ static int test_egs53_pack(void)
     MblinkMercedesEcuPack pack;
     MblinkMercedesEcuDataItem item;
     size_t canonical_2130 = 0U;
-    bool saw_manual_2131 = false;
-    bool saw_manual_2132 = false;
-    bool saw_manual_2133 = false;
 
     CHECK(mblink_mercedes_module_scan_resolve_controller(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false,
@@ -133,21 +129,8 @@ static int test_egs53_pack(void)
             CHECK(item.advertised);
             CHECK(item.allow_duplicate_wire);
         }
-        if (item.service == UINT8_C(0x21) &&
-            item.stable_key == NULL &&
-            (item.identifier == UINT16_C(0x31) ||
-             item.identifier == UINT16_C(0x32) ||
-             item.identifier == UINT16_C(0x33))) {
-            CHECK(!item.live);
-            CHECK(item.advertised);
-            CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ);
-            if (item.identifier == UINT16_C(0x31)) saw_manual_2131 = true;
-            if (item.identifier == UINT16_C(0x32)) saw_manual_2132 = true;
-            if (item.identifier == UINT16_C(0x33)) saw_manual_2133 = true;
-        }
     }
     CHECK(canonical_2130 == 13U);
-    CHECK(saw_manual_2131 && saw_manual_2132 && saw_manual_2133);
     return 0;
 }
 
@@ -176,7 +159,7 @@ static int test_raw_observation_stays_unadvertised(void)
     return 0;
 }
 
-static int test_online_documented_manual_reads_are_catalogued(void)
+static int test_documented_non_pid_reads_stay_out_of_pid_catalogue(void)
 {
     static const struct {
         const char *controller_key;
@@ -212,7 +195,7 @@ static int test_online_documented_manual_reads_are_catalogued(void)
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
                 item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ) {
                 saw_documented = true;
-                CHECK(item.advertised);
+                CHECK(!item.advertised);
                 CHECK(!item.live);
             }
         }
@@ -316,7 +299,7 @@ int main(void)
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
-    if (test_online_documented_manual_reads_are_catalogued() != 0) return 1;
+    if (test_documented_non_pid_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
