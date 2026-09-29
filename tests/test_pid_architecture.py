@@ -238,6 +238,12 @@ require(
     "PID Setup must distinguish an incomplete online source catalogue from a genuine zero-PID ECU and keep manual reads non-pollable",
 )
 require(
+    "manufacturerPIDCatalogueComplete" in model
+    and "DOCUMENTED · SOURCE PARTIAL" in app
+    and "online_catalogue_complete" in ecu_pack_api,
+    "partial online ECU research must be explicit instead of masquerading as complete capability coverage",
+)
+require(
     "Legislated OBD-II responders are intentionally not represented" in controller,
     "standard OBD responders must not be synthesized into the Mercedes Modules inventory",
 )
