@@ -511,14 +511,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let definitions: [[String: Any]]
         if !documentedDefinitions.isEmpty {
             /*
-             * iPhone PID Setup is a documentation catalogue exactly like the
-             * SAE section. If the exact identified ECU's online documentation
-             * defines an actual-value/PID, it appears here whether or not this
-             * particular vehicle has answered it yet.
-             *
-             * Identity, coding, DTC and other non-PID diagnostic records are
-             * excluded by the ECU definition pack before they reach this API.
-             * Vehicle captures never create catalogue entries.
+             * Catalogue-completion phase: PID Setup exposes every safe,
+             * read-only item documented for the exact identified controller,
+             * regardless of whether it is fast-changing, rarely changing or
+             * identity/configuration data. Semantic kind is retained so a
+             * later UI pass can group/curate the catalogue without losing it.
+             * Vehicle captures alone never create catalogue entries.
              */
             definitions = documentedDefinitions.map { definition in
                 [
