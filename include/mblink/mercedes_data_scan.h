@@ -149,6 +149,7 @@ size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
 typedef struct MblinkMercedesControllerDataProfileEntry {
     const char *profile_key;
     MblinkMercedesDiagnosticProtocol protocol;
+    uint8_t service;
     uint16_t identifier;
     /*
      * Historical/source classification of this controller Data service.
@@ -188,6 +189,12 @@ const MblinkMercedesControllerDataProfileEntry *
 mblink_mercedes_controller_data_profile_find(
     const char *profile_key,
     MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier);
+const MblinkMercedesControllerDataProfileEntry *
+mblink_mercedes_controller_data_profile_find_service(
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint8_t service,
     uint16_t identifier);
 
 /**
