@@ -39,6 +39,13 @@ static uint32_t extract_can_bits(
     return value;
 }
 
+static int16_t signed_raw16(uint16_t raw)
+{
+    if ((raw & UINT16_C(0x8000)) == 0U)
+        return (int16_t)raw;
+    return (int16_t)(-((int32_t)(UINT16_MAX - raw) + 1));
+}
+
 static MblinkMercedesTorqueConverterState tcc_state(
     bool slipping, bool open, bool closed)
 {
@@ -120,6 +127,20 @@ bool mblink_mercedes_transmission_decode_live_2130(
         value.selector_position_code = rich.selector_position;
         value.drive_program_available = true;
         value.drive_program_code = rich.drive_program;
+        value.tcc_delta_speed_available = true;
+        value.tcc_delta_speed_raw = rich.tcc_delta_speed_raw;
+        value.tcc_speed_available = true;
+        value.tcc_speed_raw = rich.tcc_speed_raw;
+        value.tcc_pressure_available = true;
+        value.tcc_pressure_raw = rich.tcc_pressure_raw;
+        value.engine_torque_available = true;
+        value.engine_torque_signed_raw =
+            signed_raw16(rich.engine_torque_raw);
+        value.converter_torque_available = true;
+        value.converter_torque_signed_raw =
+            signed_raw16(rich.converter_torque_raw);
+        value.output_speed_available = true;
+        value.output_speed_raw = rich.output_speed_raw;
     } else {
         MblinkMercedesTransmission2130 compact;
         if (!mblink_mercedes_transmission_decode_2130(
@@ -172,6 +193,20 @@ static bool decode_egs53_live_2130(
         (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
     value.oil_temperature_available = true;
     value.oil_temperature_c = (double)data[11] - 50.0;
+    value.tcc_delta_speed_available = true;
+    value.tcc_delta_speed_raw = infiltratr_load_be16(&data[0]);
+    value.tcc_speed_available = true;
+    value.tcc_speed_raw = infiltratr_load_be16(&data[2]);
+    value.tcc_pressure_available = true;
+    value.tcc_pressure_raw = infiltratr_load_be16(&data[4]);
+    value.engine_torque_available = true;
+    value.engine_torque_signed_raw =
+        signed_raw16(infiltratr_load_be16(&data[12]));
+    value.converter_torque_available = true;
+    value.converter_torque_signed_raw =
+        signed_raw16(infiltratr_load_be16(&data[14]));
+    value.output_speed_available = true;
+    value.output_speed_raw = infiltratr_load_be16(&data[16]);
 
     *decoded = value;
     return true;
