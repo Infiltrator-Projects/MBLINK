@@ -151,10 +151,10 @@ typedef struct MblinkMercedesControllerDataProfileEntry {
     MblinkMercedesDiagnosticProtocol protocol;
     uint16_t identifier;
     /*
-     * PID Setup catalogue membership for this documented controller Data
-     * source. A source-backed Data service remains selectable for monitoring
-     * even if it changes rarely or appears static in a capture. This is not a
-     * runtime-response/pollability test.
+     * Historical/source classification of this controller Data service.
+     * During catalogue completion, source-backed safe reads are selectable in
+     * PID Setup regardless of this flag; preserve it as semantic metadata for
+     * later grouping/curation. It is never a runtime-response/pollability test.
      */
     bool live;
     const char *name;
