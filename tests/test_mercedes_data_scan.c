@@ -841,16 +841,19 @@ static int test_runtime_candidate_catalog(void)
     CHECK(entry != NULL && entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2003));
-    CHECK(entry != NULL && !entry->live);
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2009));
-    CHECK(entry != NULL && !entry->live);
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x20c0));
     CHECK(entry != NULL && !entry->live);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2010));
-    CHECK(entry != NULL && !entry->live);
+    CHECK(entry != NULL && entry->live &&
+          entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
