@@ -203,6 +203,84 @@ const MblinkMercedesDocumentedRead *mblink_mercedes_documented_route_read_at(
     return NULL;
 }
 
+static bool mblink_mercedes_documented_normalize_control_command(
+    const char *source,
+    char command[5])
+{
+    const char *cursor = source;
+    size_t index;
+
+    if (command == NULL) return false;
+    command[0] = '\0';
+    if (cursor == NULL) return false;
+    if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X'))
+        cursor += 2;
+    if (strlen(cursor) != 4U) return false;
+
+    for (index = 0U; index < 4U; ++index) {
+        const char value = cursor[index];
+        const bool digit = value >= '0' && value <= '9';
+        const bool upper = value >= 'A' && value <= 'F';
+        const bool lower = value >= 'a' && value <= 'f';
+        if (!digit && !upper && !lower) return false;
+        command[index] = lower ? (char)(value - 'a' + 'A') : value;
+    }
+    command[4] = '\0';
+    return true;
+}
+
+bool mblink_mercedes_documented_route_control_command(
+    uint32_t tx, uint32_t rx, bool ext,
+    MblinkMercedesDiagnosticProtocol protocol, bool quit_session,
+    char *buffer, size_t buffer_size)
+{
+    const size_t count =
+        mblink_mercedes_documented_ecu_profile_count_for_route(tx, rx, ext);
+    bool found = false;
+    char resolved[5] = {0};
+
+    if (buffer == NULL || buffer_size < sizeof(resolved)) {
+        if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
+        return false;
+    }
+    buffer[0] = '\0';
+
+    /*
+     * Physical Mercedes routes are reused by several controller generations.
+     * Session control is automatic only when all matching profiles for the
+     * observed protocol agree. This prevents a route coincidence from choosing
+     * another generation's diagnostic state machine.
+     */
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            mblink_mercedes_documented_ecu_profile_at_for_route(
+                tx, rx, ext, index);
+        const char *source;
+        char candidate[5];
+
+        if (profile == NULL ||
+            (profile->protocol_known && profile->protocol != protocol)) {
+            continue;
+        }
+        source = quit_session
+            ? profile->quit_command : profile->session_command;
+        if (!mblink_mercedes_documented_normalize_control_command(
+                source, candidate)) {
+            continue;
+        }
+        if (!found) {
+            memcpy(resolved, candidate, sizeof(resolved));
+            found = true;
+        } else if (strcmp(resolved, candidate) != 0) {
+            return false;
+        }
+    }
+
+    if (!found) return false;
+    memcpy(buffer, resolved, sizeof(resolved));
+    return true;
+}
+
 const char *mblink_mercedes_documented_read_name(uint8_t s,uint16_t id){
  if(s==0x22){switch(id){case 0xf100:return"Active diagnostic information";case 0xf111:return"Mercedes hardware part number";case 0xf121:return"Mercedes software part number";case 0xf150:return"Hardware version";case 0xf151:return"Software version";case 0xf153:return"Boot software version";case 0xf154:return"Hardware supplier";case 0xf155:return"Software supplier";case 0xf15b:return"Programming fingerprint";case 0xf18c:return"ECU serial number";case 0xf187:return"Vehicle manufacturer spare part number";case 0xf188:return"Vehicle manufacturer ECU software number";case 0xf190:return"VIN original";case 0xf191:return"Vehicle manufacturer ECU hardware number";case 0xf197:return"System name";case 0xf1a0:return"VIN current";default:return NULL;}}
  if(s==0x1a){switch(id){case 0x86:return"DCS ECU identification";case 0x87:return"Vehicle manufacturer ECU identification";case 0x88:return"Vehicle manufacturer ECU software number";case 0x89:return"ECU software version / diagnostic variant";case 0x8a:return"System supplier identifier";case 0x8b:return"ECU manufacturing date";case 0x8c:return"ECU serial number";case 0x90:return"Vehicle identification number";case 0x97:return"System name or engine type";case 0x98:return"Repair shop / tester serial";case 0x99:return"Programming date";case 0x9a:return"Calibration repair-shop / equipment serial";case 0x9b:return"ECU installation date";case 0x9c:return"Calibration equipment software number";default:return NULL;}}
@@ -250,6 +328,20 @@ static MblinkMercedesDataScanResult write_text(
     return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
 }
 
+static void finish_identifier_scan(MblinkMercedesDataScan *scan)
+{
+    char quit_command[5];
+
+    if (scan == NULL) return;
+    scan->stage =
+        mblink_mercedes_documented_route_control_command(
+            scan->config.tx_can_id, scan->config.rx_can_id,
+            scan->config.extended_id, scan->config.protocol, true,
+            quit_command, sizeof(quit_command))
+            ? MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION
+            : MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+}
+
 static void advance_identifier(MblinkMercedesDataScan *scan)
 {
     if (scan == NULL) return;
@@ -259,7 +351,7 @@ static void advance_identifier(MblinkMercedesDataScan *scan)
     if (scan->identifier_list_active) {
         scan->identifier_index++;
         if (scan->identifier_index >= scan->identifier_count) {
-            scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+            finish_identifier_scan(scan);
             return;
         }
         scan->current_identifier =
@@ -269,7 +361,7 @@ static void advance_identifier(MblinkMercedesDataScan *scan)
     }
 
     if (scan->current_identifier >= scan->config.last_identifier) {
-        scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+        finish_identifier_scan(scan);
         return;
     }
     scan->current_identifier++;
@@ -345,6 +437,8 @@ const char *mblink_mercedes_data_scan_stage_name(
         return "tester-present";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER:
         return "read-identifier";
+    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION:
+        return "quit-session";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_FAILED: return "failed";
     }
@@ -1337,8 +1431,16 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
         }
         *written = strlen(buffer);
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
-    case MBLINK_MERCEDES_DATA_SCAN_STAGE_EXTENDED_SESSION:
-        return write_text("1003", buffer, buffer_size, written);
+    case MBLINK_MERCEDES_DATA_SCAN_STAGE_EXTENDED_SESSION: {
+        char session_command[5];
+        return write_text(
+            mblink_mercedes_documented_route_control_command(
+                scan->config.tx_can_id, scan->config.rx_can_id,
+                scan->config.extended_id, scan->config.protocol, false,
+                session_command, sizeof(session_command))
+                ? session_command : "1003",
+            buffer, buffer_size, written);
+    }
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_TESTER_PRESENT:
         return write_text(
             scan->config.protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
@@ -1351,6 +1453,16 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
         else return MBLINK_MERCEDES_DATA_SCAN_RESULT_FAILED_STATE;
         if(count<0||(size_t)count>=sizeof(command))return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
         return write_text(command,buffer,buffer_size,written);
+    }
+    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION: {
+        char quit_command[5];
+        if (!mblink_mercedes_documented_route_control_command(
+                scan->config.tx_can_id, scan->config.rx_can_id,
+                scan->config.extended_id, scan->config.protocol, true,
+                quit_command, sizeof(quit_command))) {
+            return MBLINK_MERCEDES_DATA_SCAN_RESULT_FAILED_STATE;
+        }
+        return write_text(quit_command, buffer, buffer_size, written);
     }
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE:
         if (buffer_size != 0U) buffer[0] = '\0';
@@ -1590,6 +1702,15 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_accept(
         return scan->stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE
             ? MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE
             : MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
+    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION:
+        /*
+         * Teardown is best-effort: a controller is allowed to return to normal
+         * operation without acknowledging its default/quit-session command.
+         * Do not keep retransmitting the command and accidentally hold an
+         * infotainment ECU such as HU_204 in diagnostics.
+         */
+        scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+        return MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE:
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_FAILED:
