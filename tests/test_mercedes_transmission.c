@@ -205,7 +205,13 @@ static int idscan_finish_saved_transmission(MblinkMercedesModuleScan *scan)
         MBLINK_ELM327_RESULT_OK, "7E01", false);
     MblinkElm327Response faults = idscan_response(
         MBLINK_ELM327_RESULT_OK, "5800", false);
-    CHECK(idscan_send_ok(scan, "ATST20") == 0);
+    if (scan->stage ==
+        MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT) {
+        CHECK(idscan_send_ok(scan, "ATST20") == 0);
+    } else {
+        CHECK(scan->stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+    }
     CHECK(idscan_send_response(scan, "3E01", &present) == 0);
     CHECK(mblink_mercedes_module_scan_command(
               scan, command, sizeof(command), &written) ==
