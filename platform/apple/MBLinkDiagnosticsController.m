@@ -1843,6 +1843,73 @@ static void MBLinkAppendManufacturerDefinition(
         [values addObject:value];
     }
 
+#define APPEND_RLI30_UNSIGNED(KEY, SHORT, TITLE, AVAILABLE, FIELD) do { \
+        if ((AVAILABLE)) { \
+            MBLinkTransmissionLiveValueSnapshot *value = \
+                [[MBLinkTransmissionLiveValueSnapshot alloc] init]; \
+            value.identifier = (KEY); \
+            value.localIdentifier = UINT16_C(0x30); \
+            value.shortName = (SHORT); \
+            value.title = (TITLE); \
+            value.suffix = @" raw"; \
+            value.formattedValue = [NSString stringWithFormat:@"%u raw", \
+                (unsigned int)(FIELD)]; \
+            value.numericValueAvailable = YES; \
+            value.numericValue = (double)(FIELD); \
+            value.rawHex = rli30.rawHex; \
+            value.qualityNote = quality; \
+            [values addObject:value]; \
+        } \
+    } while (0)
+
+#define APPEND_RLI30_SIGNED(KEY, SHORT, TITLE, AVAILABLE, FIELD) do { \
+        if ((AVAILABLE)) { \
+            MBLinkTransmissionLiveValueSnapshot *value = \
+                [[MBLinkTransmissionLiveValueSnapshot alloc] init]; \
+            value.identifier = (KEY); \
+            value.localIdentifier = UINT16_C(0x30); \
+            value.shortName = (SHORT); \
+            value.title = (TITLE); \
+            value.suffix = @" signed raw"; \
+            value.formattedValue = [NSString stringWithFormat:@"%d signed raw", \
+                (int)(FIELD)]; \
+            value.numericValueAvailable = YES; \
+            value.numericValue = (double)(FIELD); \
+            value.rawHex = rli30.rawHex; \
+            value.qualityNote = quality; \
+            [values addObject:value]; \
+        } \
+    } while (0)
+
+    APPEND_RLI30_UNSIGNED(
+        @"mercedes.transmission.tcc_delta_speed_raw", @"TCC Δ",
+        @"Torque converter delta speed",
+        decoded.tcc_delta_speed_available, decoded.tcc_delta_speed_raw);
+    APPEND_RLI30_UNSIGNED(
+        @"mercedes.transmission.tcc_speed_raw", @"TCC SPD",
+        @"Torque converter speed",
+        decoded.tcc_speed_available, decoded.tcc_speed_raw);
+    APPEND_RLI30_UNSIGNED(
+        @"mercedes.transmission.tcc_pressure_raw", @"TCC P",
+        @"Torque converter pressure",
+        decoded.tcc_pressure_available, decoded.tcc_pressure_raw);
+    APPEND_RLI30_SIGNED(
+        @"mercedes.transmission.engine_torque_signed_raw", @"ENG TQ",
+        @"Engine torque",
+        decoded.engine_torque_available, decoded.engine_torque_signed_raw);
+    APPEND_RLI30_SIGNED(
+        @"mercedes.transmission.converter_torque_signed_raw", @"CONV TQ",
+        @"Converter torque",
+        decoded.converter_torque_available,
+        decoded.converter_torque_signed_raw);
+    APPEND_RLI30_UNSIGNED(
+        @"mercedes.transmission.output_speed_raw", @"OUT SPD",
+        @"Transmission output speed",
+        decoded.output_speed_available, decoded.output_speed_raw);
+
+#undef APPEND_RLI30_SIGNED
+#undef APPEND_RLI30_UNSIGNED
+
     return [values copy];
 }
 
