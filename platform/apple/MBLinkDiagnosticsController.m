@@ -1600,6 +1600,27 @@ static void MBLinkAppendManufacturerDefinition(
     return [values copy];
 }
 
+- (BOOL)manufacturerPIDCatalogueCompleteForModuleIdentifier:
+    (NSString *)identifier
+{
+    if (identifier.length == 0U) return NO;
+    MblinkMercedesModuleScanEntry cachedModule;
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    MblinkMercedesEcuPack pack;
+
+    if (module == NULL &&
+        [self populateCachedModuleEntry:&cachedModule
+                          forIdentifier:identifier]) {
+        module = &cachedModule;
+    }
+    if (module == NULL ||
+        !mblink_mercedes_ecu_pack_resolve_module(module, &pack)) {
+        return NO;
+    }
+    return pack.online_catalogue_complete ? YES : NO;
+}
+
 - (NSArray<NSNumber *> *)documentedLiveIdentifiersForModuleIdentifier:
     (NSString *)identifier
 {
