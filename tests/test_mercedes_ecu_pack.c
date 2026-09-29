@@ -68,14 +68,22 @@ static int test_ic204_pack(void)
     CHECK(pack.documented_profile->read_count == 9U);
     CHECK(mblink_mercedes_ecu_pack_alias_count(&pack) >= 2U);
 
-    CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 9U);
+    /*
+     * IC_204 owns 62 source-generated CBF Data DIDs plus the nine documented
+     * identification/manual reads from the global controller catalogue.
+     */
+    CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 71U);
     for (size_t index = 0U;
          index < mblink_mercedes_ecu_pack_data_item_count(&pack);
          ++index) {
         CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
-        CHECK(!item.live);
-        CHECK(!item.advertised);
-        if (item.advertised) ++advertised;
+        if (item.live) {
+            CHECK(item.advertised);
+            CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE);
+            ++advertised;
+        } else {
+            CHECK(!item.advertised);
+        }
         if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0xf111)) {
             saw_f111 = true;
@@ -94,7 +102,7 @@ static int test_ic204_pack(void)
             CHECK(strcmp(field->name, "Hardware version year") == 0);
         }
     }
-    CHECK(advertised == 0U);
+    CHECK(advertised == 62U);
     CHECK(saw_f111 && saw_f150);
     return 0;
 }
