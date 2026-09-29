@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mblink/mercedes_module_scan.h"
+#include "mblink/mercedes_ecu_pack.h"
 
 /* Internal parser exercised here with the exact captured KWP identification
  * payload so this regression proves the vehicle evidence is classified. */
