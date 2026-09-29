@@ -668,11 +668,34 @@ static const MblinkMercedesControllerDataProfileEntry
 
     {
         "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT8_C(0x22), UINT16_C(0x1001), true,
+        "SCN / calibration identification",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "CaesarSuite CRD3.CBF analysis · DT_SCN_Lesen · UDS 22 10 01"
+    },
+    {
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x1002), true,
         "Explicit variant-coding data (30 bytes)",
         MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
         "CaesarSuite CRD3.CBF J2534 trace · "
         "DT_RVC_CRD3_explizit_restricted_30Byte · positive 62 10 02 response"
+    },
+    {
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT8_C(0x22), UINT16_C(0xF804), true,
+        "Calibration identification",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "CaesarSuite CRD3.CBF analysis · "
+        "DT_STO_ID_Calibration_Identification · UDS 22 F8 04"
+    },
+    {
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT8_C(0x22), UINT16_C(0xF806), true,
+        "Calibration verification number",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "CaesarSuite CRD3.CBF analysis · "
+        "DT_STO_ID_Calibration_Verification_Number · UDS 22 F8 06"
     },
     {
         "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
