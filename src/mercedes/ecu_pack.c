@@ -217,14 +217,6 @@ bool mblink_mercedes_ecu_pack_resolve(
             controller->key, pack->protocol) != 0U
             ? controller->key : NULL;
 
-    /*
-     * The current public source imports prove individual reads, sessions and
-     * identities, but they do not claim an exhaustive actual-value dictionary
-     * for an exact Mercedes controller family. Keep this false until a family
-     * has a reviewed source manifest that proves complete coverage.
-     */
-    pack->online_catalogue_complete = false;
-
     return pack->key != NULL || pack->documented_profile != NULL;
 }
 
@@ -398,12 +390,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         family = pack_transmission_family(pack);
         item->provenance = mblink_mercedes_transmission_family_name(family);
         item->live = live;
-        /*
-         * 21 31/32/33 are source-backed manual GS records. They belong in the
-         * ECU catalogue even though only 21 30 is qualified for continuous
-         * polling.
-         */
-        item->advertised = true;
+        item->advertised = live;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
@@ -423,26 +410,17 @@ bool mblink_mercedes_ecu_pack_data_item_at(
                 ? UINT8_C(0x21) : UINT8_C(0x22);
         item->identifier = entry->identifier;
         item->name = entry->name;
-        if (entry->status ==
-            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
-            item->kind = entry->live
+        item->kind =
+            entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
+            entry->live
                 ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
-                : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
-            item->advertised = true;
-        } else {
-            /*
-             * Vehicle-positive observations are evidence only. A capture can
-             * corroborate an online definition, but can never create a PID
-             * catalogue entry by itself.
-             */
-            item->kind = MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
-            item->advertised = false;
-        }
+                : MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
         item->status = entry->status;
         item->provenance = entry->provenance;
         item->live =
             entry->live &&
             entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+        item->advertised = item->live;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
@@ -471,19 +449,14 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
             item->provenance = mblink_mercedes_documented_route_source();
             /*
-             * PID Setup is the source catalogue, not a synonym for the
-             * recurring-poll scheduler.  Every non-identification read that
-             * the online ECU profile documents is advertised so the user can
-             * see the complete source-backed record set for the identified
-             * controller.  Only definitions independently classified as live
-             * are pollable.  Identification/configuration records remain in
-             * Factory Readings and never masquerade as PIDs.
-             *
-             * Vehicle-capture-only observations are emitted by the
-             * controller-data profile path above and remain unadvertised.
+             * A documented diagnostic read is not automatically a PID/actual
+             * value. Identity, configuration and other manual records remain
+             * available to Factory Readings, but PID Setup contains only
+             * online-documented actual/live values explicitly classified as
+             * such by the exact ECU definition pack.
              */
             item->live = false;
-            item->advertised = !identification;
+            item->advertised = false;
         }
         item->field_count =
             mblink_mercedes_documented_field_count(
