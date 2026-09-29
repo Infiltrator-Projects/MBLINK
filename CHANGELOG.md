@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.255 — 2026-09-30
+
+- Populate PID Setup from both exact controller-data sources and exact Foxwell/Xentry read profiles: every safe source-backed readable item for the identified controller is selectable during the current catalogue-completion phase, without filtering slow-changing, static-looking, identification or configuration values.
+- Import and pin exact W204 Vediamo CBF Data services for CGW_204, EIS_204, IC_204, SCCM_204, ORC_204, HU_204 and FSCM212, alongside the existing ABR2XT, CGW_212 and MPC212 sources, preserving each diagnostic service with its identifier.
+- Separate ORC_204 from ORC_212 on the reused restraint route so controller identity selects the correct catalogue rather than route coincidence.
+- Expand the exact CRD3 catalogue with independently documented CRD3.CBF reads 0x1001, 0x1002, 0xF804, 0xF806 and 0x2007 while retaining its exact global documented profile reads.
+- Preserve EGS53 as its own family: expose its documented KWP profile, family-owned read identifiers and individually selectable 0x21/0x30 actual-value signals without borrowing EGS52 or VGS/NAG2 records.
+- Add whole-C207 completeness regressions across all 13 captured controller routes, proving every exact-profile safe read and every source-corroborated controller-data entry reaches PID Setup while capture-only unknown observations remain unadvertised.
+- Remove temporary source-discovery probes after confirming the remaining RBTM/CRD3/EGS53 CBF binaries are not present in the pinned W204 archive; no neighbouring-controller data is substituted for unavailable exact definitions.
+
 ## 0.7.254 — 2026-09-30
 
 - Complete the current Mercedes controller-catalogue population pass by exposing every safe source-backed read from the exact identified ECU profile in PID Setup, without filtering slow-changing, static-looking, identification or configuration reads during this completeness phase.
