@@ -61,15 +61,7 @@ jobs:
           done
 
           # Known parser control from the independent CaesarSuite interpretation.
-          grep -F 
-      - name: Upload extracted source facts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: mercedes-cbf-source-facts
-          path: cbf-facts/
-          if-no-files-found: error
-          retention-days: 30
-EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
+          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
             cbf-facts/eis_204-direct-uds22.tsv >/dev/null
 
           echo "=== Direct UDS 0x22 source facts ==="
