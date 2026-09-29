@@ -854,15 +854,7 @@ private struct MBPIDCatalogueSection: View {
     }
 
     private var catalogueCountText: String {
-        guard let moduleID else { return "\(items.count) AVAILABLE" }
-        let complete = connection.manufacturerPIDCatalogueComplete(
-            moduleID: moduleID)
-        if items.isEmpty {
-            return complete ? "0 ONLINE DOCUMENTED" : "ONLINE SOURCE INCOMPLETE"
-        }
-        return complete
-            ? "\(items.count) ONLINE DOCUMENTED"
-            : "\(items.count) DOCUMENTED · SOURCE PARTIAL"
+        "\(items.count) AVAILABLE"
     }
 
     var body: some View {
@@ -915,7 +907,7 @@ private struct MBPIDCatalogueSection: View {
                     if items.isEmpty {
                         Text(moduleID == nil
                              ? "No standard Mode 01 definitions are compiled."
-                             : "The online PID/data dictionary for this identified ECU is not complete yet. MBLINK is not claiming that the ECU has zero PIDs.")
+                             : "No documented PIDs are currently defined for this ECU.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -942,9 +934,7 @@ private struct MBPIDCatalogueSection: View {
                     Text(item.codeText)
                         .font(MBTypography.caption2.monospaced())
                         .foregroundStyle(MBBrand.muted)
-                    Text(item.source == .standard
-                         ? "SAE"
-                         : (item.pollable ? "DOCUMENTED LIVE" : "DOCUMENTED READ"))
+                    Text(item.source == .standard ? "SAE" : "DOCUMENTED")
                         .font(MBTypography.caption2Bold)
                         .foregroundStyle(
                             item.source == .standard
@@ -968,30 +958,24 @@ private struct MBPIDCatalogueSection: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            if item.pollable {
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { item.pollingEnabled },
-                        set: { enabled in
-                            if let moduleID {
-                                connection.setManufacturerPIDSelection(
-                                    enabled,
-                                    moduleID: moduleID,
-                                    stableKey: item.id)
-                            } else {
-                                connection.setStandardPIDSelection(
-                                    enabled,
-                                    stableKey: item.id)
-                            }
-                        }))
-                    .labelsHidden()
-                    .tint(MBBrand.silverBright)
-            } else {
-                Text("READ ONLY")
-                    .font(MBTypography.caption2Bold)
-                    .foregroundStyle(MBBrand.muted)
-            }
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { item.pollingEnabled },
+                    set: { enabled in
+                        if let moduleID {
+                            connection.setManufacturerPIDSelection(
+                                enabled,
+                                moduleID: moduleID,
+                                stableKey: item.id)
+                        } else {
+                            connection.setStandardPIDSelection(
+                                enabled,
+                                stableKey: item.id)
+                        }
+                    }))
+                .labelsHidden()
+                .tint(MBBrand.silverBright)
         }
         .padding(.vertical, 4)
     }
