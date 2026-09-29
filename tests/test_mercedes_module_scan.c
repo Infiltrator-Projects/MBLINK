@@ -116,8 +116,93 @@ static int accept_identity_metadata(
     return 0;
 }
 
+static int test_documented_session_teardown(void)
+{
+    MblinkMercedesModuleScan scan;
+    MblinkElm327Response no_data =
+        response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
+    char command[32];
+    size_t written = 0U;
+
+    /*
+     * HU_204/COMAND is a KWP2000 ECU. The public controller profile uses
+     * 10 92 to enter diagnostics and 10 81 to leave it. A connected scan must
+     * not leave the head unit in diagnostic mode, because that suppresses its
+     * normal audio operation.
+     */
+    memset(&scan, 0, sizeof(scan));
+    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
+    scan.candidate_tx = UINT32_C(0x652);
+    scan.candidate_rx = UINT32_C(0x48a);
+    scan.candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    scan.candidate_protocol_mask = MBLINK_MERCEDES_ECU_PROTOCOL_KWP2000_MASK;
+    scan.module_count = 1U;
+    scan.modules[0].tx_can_id = UINT32_C(0x652);
+    scan.modules[0].rx_can_id = UINT32_C(0x48a);
+    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION;
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1092") == 0);
+
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
+    mblink_mercedes_module_scan_advance_candidate(&scan);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1081") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.candidate_tx == UINT32_C(0x653));
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
+
+    /* UDS controllers return to the default 10 01 session. */
+    memset(&scan, 0, sizeof(scan));
+    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
+    scan.candidate_tx = UINT32_C(0x612);
+    scan.candidate_rx = UINT32_C(0x482);
+    scan.candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    scan.candidate_protocol_mask = MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK;
+    scan.module_count = 1U;
+    scan.modules[0].tx_can_id = UINT32_C(0x612);
+    scan.modules[0].rx_can_id = UINT32_C(0x482);
+    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE;
+    mblink_mercedes_module_scan_advance_candidate(&scan);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1001") == 0);
+
+    /* Cached/DTC passes must perform the same HU_204 teardown. */
+    memset(&scan, 0, sizeof(scan));
+    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_CACHED;
+    scan.module_count = 1U;
+    scan.dtc_index = 0U;
+    scan.modules[0].tx_can_id = UINT32_C(0x652);
+    scan.modules[0].rx_can_id = UINT32_C(0x48a);
+    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION;
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1081") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
+
+    return 0;
+}
+
 int main(void)
 {
+    if (test_documented_session_teardown() != 0) return 1;
     MblinkMercedesModuleScan scan;
     char command[32];
     size_t written = 0U;
