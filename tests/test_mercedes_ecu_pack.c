@@ -66,6 +66,7 @@ static int test_ic204_pack(void)
     CHECK(pack.protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS);
     CHECK(pack.documented_profile != NULL);
     CHECK(pack.documented_profile->read_count == 9U);
+    CHECK(!pack.online_catalogue_complete);
     CHECK(mblink_mercedes_ecu_pack_alias_count(&pack) >= 2U);
 
     CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 9U);
