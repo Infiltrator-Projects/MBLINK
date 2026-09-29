@@ -872,20 +872,25 @@ static int test_runtime_candidate_catalog(void)
         UINT32_C(0x602), UINT32_C(0x480), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf151)));
 
-    /* Explicitly qualified runtime UDS routes remain available. */
+    /*
+     * Runtime manufacturer polling is source-qualified, not capture-qualified.
+     * CRD3 0x2007 has online semantics; the ABR2XT DIDs below are retained
+     * only as raw vehicle evidence until equivalent exact-family online
+     * documentation is imported.
+     */
     CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x7e0), UINT32_C(0x7e8), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x632), UINT32_C(0x486), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001)));
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x632), UINT32_C(0x486), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2004)));
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x632), UINT32_C(0x486), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
+    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
         UINT32_C(0x632), UINT32_C(0x486), false,
         MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d)));
     CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
