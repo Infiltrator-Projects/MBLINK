@@ -462,7 +462,19 @@ static int test_late_transmission_preserves_module_map(void)
     CHECK(idscan_send_ok(&scan, "ATST20") == 0);
     CHECK(idscan_send_response(&scan, "3E01", &no_data) == 0);
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+    {
+        char command[32];
+        size_t written = 0U;
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1081") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    }
     CHECK(!scan.modules[1].identity_available);
     CHECK(scan.modules[1].controller_family == NULL);
     CHECK(memcmp(&captured, &scan.modules[0], sizeof(captured)) == 0);
@@ -475,7 +487,19 @@ static int test_late_transmission_preserves_module_map(void)
     CHECK(scan.module_count == 3U && scan.dtc_index == 1U);
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ;
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+    {
+        char command[32];
+        size_t written = 0U;
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1081") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    }
     CHECK(scan.modules[2].dtcs.count == 1U);
     return 0;
 }
