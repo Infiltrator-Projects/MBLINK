@@ -87,7 +87,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
                                                liveOnly:(BOOL)liveOnly
                                    candidateIdentifiers:
             (nullable NSArray<NSNumber *> *)candidateIdentifiers;
-- (NSArray<NSNumber *> *)documentedLiveIdentifiersForModuleIdentifier:
+- (NSArray<NSNumber *> *)documentedPIDIdentifiersForModuleIdentifier:
     (NSString *)identifier;
 - (void)updateScheduledManufacturerLiveJob;
 - (void)beginScheduledTransmissionLiveJob;
@@ -1407,7 +1407,7 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
     }
 
     NSArray<NSNumber *> *documented = MBLinkFilterIdentifiersBySelection(
-        [self documentedLiveIdentifiersForModuleIdentifier:moduleIdentifier],
+        [self documentedPIDIdentifiersForModuleIdentifier:moduleIdentifier],
         selected);
     if (documented.count == 0U) {
         _scheduledManufacturerJobActive = NO;
@@ -1600,14 +1600,19 @@ static void MBLinkAppendManufacturerDefinition(
     return [values copy];
 }
 
-- (NSArray<NSNumber *> *)documentedLiveIdentifiersForModuleIdentifier:
+- (NSArray<NSNumber *> *)documentedPIDIdentifiersForModuleIdentifier:
     (NSString *)identifier
 {
+    /*
+     * iPhone follows the same rule as Standard OBD: documentation defines the
+     * catalogue. Every manufacturer PID returned by the exact ECU pack is a
+     * valid user selection regardless of whether this particular vehicle has
+     * answered it before. Runtime NO DATA never changes catalogue membership.
+     */
     NSMutableOrderedSet<NSNumber *> *identifiers =
         [[NSMutableOrderedSet alloc] init];
     for (MBLinkManufacturerPIDDefinitionSnapshot *definition in
          [self documentedDataDefinitionsForModuleIdentifier:identifier]) {
-        if (!definition.live) continue;
         [identifiers addObject:@(definition.identifier)];
     }
     return [[identifiers array] sortedArrayUsingSelector:@selector(compare:)];
@@ -2050,8 +2055,9 @@ static void MBLinkAppendManufacturerDefinition(
 
     if (candidateIdentifiers.count != 0U) {
         /*
-         * Live polling receives only identifiers already selected from the
-         * identified ECU's documented live catalogue.
+         * iPhone polling receives only identifiers the user selected from
+         * the exact identified ECU's documented PID catalogue. No second
+         * support/pollability gate is applied here.
          */
         uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t identifierCount = 0U;
@@ -2128,7 +2134,7 @@ static void MBLinkAppendManufacturerDefinition(
         (void)[_shared completeManufacturerExtensionRestoringAdapter:
             scheduled ? NO : YES];
         self.manufacturerDataScanStatusText =
-            @"No selected documented live Mercedes identifiers remain for this module";
+            @"No selected documented Mercedes PIDs remain for this module";
         self.manufacturerDataScanModuleIdentifier = nil;
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
