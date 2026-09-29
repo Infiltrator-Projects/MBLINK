@@ -854,10 +854,15 @@ private struct MBPIDCatalogueSection: View {
     }
 
     private var catalogueCountText: String {
-        guard moduleID != nil else { return "\(items.count) AVAILABLE" }
-        return items.isEmpty
-            ? "ONLINE SOURCE INCOMPLETE"
-            : "\(items.count) ONLINE DOCUMENTED"
+        guard let moduleID else { return "\(items.count) AVAILABLE" }
+        let complete = connection.manufacturerPIDCatalogueComplete(
+            moduleID: moduleID)
+        if items.isEmpty {
+            return complete ? "0 ONLINE DOCUMENTED" : "ONLINE SOURCE INCOMPLETE"
+        }
+        return complete
+            ? "\(items.count) ONLINE DOCUMENTED"
+            : "\(items.count) DOCUMENTED · SOURCE PARTIAL"
     }
 
     var body: some View {
