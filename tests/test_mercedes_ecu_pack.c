@@ -232,6 +232,58 @@ static int test_online_identification_reads_stay_out_of_pid_catalogue(void)
     return 0;
 }
 
+static int test_documented_pid_catalogue_does_not_depend_on_vehicle_response(void)
+{
+    static const struct {
+        const char *module_key;
+        const char *controller_key;
+        uint32_t tx;
+        uint32_t rx;
+        uint16_t expected_identifier;
+    } cases[] = {
+        { "gateway", "gateway-cgw212",
+          UINT32_C(0x602), UINT32_C(0x480), UINT16_C(0xd243) },
+        { "camera", "camera-mfk",
+          UINT32_C(0x6a2), UINT32_C(0x494), UINT16_C(0x0220) },
+        { "fuel-pump", "fuel-pump-fscu",
+          UINT32_C(0x6fa), UINT32_C(0x49f), UINT16_C(0x000b) }
+    };
+
+    /*
+     * No vehicle response is supplied to this test. Resolving the exact ECU
+     * definition alone must publish its documented PIDs, just as standard OBD
+     * PID definitions exist independently of a particular car's response.
+     */
+    for (size_t case_index = 0U;
+         case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
+        MblinkMercedesEcuPack pack;
+        MblinkMercedesEcuDataItem item;
+        bool found = false;
+
+        CHECK(mblink_mercedes_ecu_pack_resolve(
+            cases[case_index].module_key,
+            cases[case_index].controller_key,
+            cases[case_index].tx, cases[case_index].rx, false,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS, &pack));
+
+        for (size_t index = 0U;
+             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             ++index) {
+            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+            if (item.service == UINT8_C(0x22) &&
+                item.identifier == cases[case_index].expected_identifier &&
+                item.status ==
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+                found = true;
+                CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE);
+                CHECK(item.advertised);
+            }
+        }
+        CHECK(found);
+    }
+    return 0;
+}
+
 static int test_20260928_capture_routes_under_new_engine(void)
 {
     static const struct {
@@ -301,6 +353,7 @@ int main(void)
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
     if (test_documented_non_pid_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
+    if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
