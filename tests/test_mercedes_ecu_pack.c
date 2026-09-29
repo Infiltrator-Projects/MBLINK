@@ -73,6 +73,8 @@ static int test_ic204_pack(void)
          index < mblink_mercedes_ecu_pack_data_item_count(&pack);
          ++index) {
         CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+        CHECK(!item.live);
+        CHECK(!item.advertised);
         if (item.advertised) ++advertised;
         if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0xf111)) {
@@ -92,7 +94,7 @@ static int test_ic204_pack(void)
             CHECK(strcmp(field->name, "Hardware version year") == 0);
         }
     }
-    CHECK(advertised == 9U);
+    CHECK(advertised == 0U);
     CHECK(saw_f111 && saw_f150);
     return 0;
 }
