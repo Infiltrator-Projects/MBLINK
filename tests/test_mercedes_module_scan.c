@@ -705,6 +705,14 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1001") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         CHECK(send_ok(&scan, "ATSP6") == 0);
         CHECK(send_ok(&scan, "ATSH64A") == 0);
@@ -737,8 +745,16 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 response(MBLINK_ELM327_RESULT_OK, "5801D6AA20", false);
             CHECK(mblink_mercedes_module_scan_accept(
                       &scan, &kwp_dtcs) ==
-                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         }
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1081") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
 
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
         CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 3U);
