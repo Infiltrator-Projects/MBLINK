@@ -75,7 +75,7 @@ typedef struct MblinkMercedesControllerProfileAlias { const char *family; const 
 static const MblinkMercedesControllerProfileAlias mblink_documented_controller_aliases[] = {
     {"engine-crd3","CRD3"},
     {"transmission-egs51","EGS51"},{"transmission-egs52","EGS52"},{"transmission-egs53","EGS53"},{"transmission-vgs-nag2","VGSNAG2"},
-    {"esp-abr2xt","ABR2XT_X"},{"esp-esp212","ESP212_X"},{"restraints-orc212","ORC_212_X"},
+    {"esp-abr2xt","ABR2XT_X"},{"esp-esp212","ESP212_X"},{"restraints-orc204","ORC_204"},{"restraints-orc212","ORC_212_X"},
     {"pretensioner-rbtmfl204","RBTMFL_204"},{"pretensioner-rbtmfr204","RBTMFR_204"},{"camera-mfk","MPC212"},
     {"fuel-pump-fscu","FSCM212"},{"cluster-ic204","IC_204"},{"cluster-ic212","IC_212"},{"headunit-hu204","HU_204"},
     {"audio-ctrlc204","CTRLC_204"},{"display-dispc204","DISPC_204"},{"gateway-cgw204","CGW_204"},{"gateway-cgw212","CGW_212_X"},
