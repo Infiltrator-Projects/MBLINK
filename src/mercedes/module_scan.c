@@ -548,89 +548,16 @@ mblink_mercedes_module_scan_known_entry_route(
         ? route : NULL;
 }
 
-static bool mblink_mercedes_module_scan_normalize_control_command(
-    const char *source,
-    char command[5])
-{
-    const char *cursor = source;
-    size_t index;
-
-    if (command == NULL) return false;
-    command[0] = '\0';
-    if (cursor == NULL) return false;
-    if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X'))
-        cursor += 2;
-    if (strlen(cursor) != 4U) return false;
-
-    for (index = 0U; index < 4U; ++index) {
-        const char value = cursor[index];
-        const bool digit = value >= '0' && value <= '9';
-        const bool upper = value >= 'A' && value <= 'F';
-        const bool lower = value >= 'a' && value <= 'f';
-        if (!digit && !upper && !lower) return false;
-        command[index] = lower ? (char)(value - 'a' + 'A') : value;
-    }
-    command[4] = '\0';
-    return true;
-}
-
-static bool mblink_mercedes_module_scan_route_control_command(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id,
-    MblinkMercedesDiagnosticProtocol protocol,
-    bool quit,
-    char command[5])
-{
-    const size_t count =
-        mblink_mercedes_documented_ecu_profile_count_for_route(
-            tx_can_id, rx_can_id, extended_id);
-    bool found = false;
-    char candidate[5];
-
-    if (command == NULL) return false;
-    command[0] = '\0';
-
-    /*
-     * Several controller generations can share one physical route. Automatic
-     * session control is allowed only when every usable profile for the
-     * observed protocol agrees on the same simple two-byte command.
-     */
-    for (size_t index = 0U; index < count; ++index) {
-        const MblinkMercedesDocumentedEcuProfile *profile =
-            mblink_mercedes_documented_ecu_profile_at_for_route(
-                tx_can_id, rx_can_id, extended_id, index);
-        const char *source;
-
-        if (profile == NULL ||
-            (profile->protocol_known && profile->protocol != protocol)) {
-            continue;
-        }
-        source = quit ? profile->quit_command : profile->session_command;
-        if (!mblink_mercedes_module_scan_normalize_control_command(
-                source, candidate)) {
-            continue;
-        }
-        if (!found) {
-            memcpy(command, candidate, sizeof(candidate));
-            found = true;
-        } else if (strcmp(command, candidate) != 0) {
-            command[0] = '\0';
-            return false;
-        }
-    }
-    return found;
-}
-
 static bool mblink_mercedes_module_scan_candidate_control_command(
     const MblinkMercedesModuleScan *scan,
     bool quit,
     char command[5])
 {
     if (scan == NULL) return false;
-    return mblink_mercedes_module_scan_route_control_command(
+    return mblink_mercedes_documented_route_control_command(
         scan->candidate_tx, scan->candidate_rx, scan->candidate_extended,
-        mblink_mercedes_module_scan_candidate_protocol(scan), quit, command);
+        mblink_mercedes_module_scan_candidate_protocol(scan), quit,
+        command, 5U);
 }
 
 static bool mblink_mercedes_module_scan_entry_control_command(
@@ -639,9 +566,10 @@ static bool mblink_mercedes_module_scan_entry_control_command(
     char command[5])
 {
     if (module == NULL) return false;
-    return mblink_mercedes_module_scan_route_control_command(
+    return mblink_mercedes_documented_route_control_command(
         module->tx_can_id, module->rx_can_id, module->extended_id,
-        mblink_mercedes_module_scan_entry_protocol(module), quit, command);
+        mblink_mercedes_module_scan_entry_protocol(module), quit,
+        command, 5U);
 }
 
 MblinkMercedesDiagnosticProtocol
