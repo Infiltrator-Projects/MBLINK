@@ -148,6 +148,13 @@ static int test_identity_first_kwp_transmission(void)
         CHECK(strstr(scan.modules[0].identity, "S08 V02 D51") != NULL);
         CHECK(strcmp(scan.modules[0].software_number, "44.02.00") == 0);
     }
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    {
+        MblinkElm327Response no_reply =
+            idscan_response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
+        CHECK(idscan_send_response(&scan, "1081", &no_reply) == 0);
+    }
     CHECK(scan.candidate_tx == UINT32_C(0x7e2));
     return 0;
 }
