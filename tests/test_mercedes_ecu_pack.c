@@ -486,6 +486,8 @@ static int test_all_c207_exact_profile_reads_reach_pid_setup(void)
           MBLINK_MERCEDES_DIAGNOSTIC_UDS, 2U },
         { "esp-abr2xt", UINT32_C(0x632), UINT32_C(0x486),
           MBLINK_MERCEDES_DIAGNOSTIC_UDS, 8U },
+        { "restraints-orc204", UINT32_C(0x64a), UINT32_C(0x489),
+          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, 5U },
         { "restraints-orc212", UINT32_C(0x64a), UINT32_C(0x489),
           MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, 5U },
         { "headunit-hu204", UINT32_C(0x652), UINT32_C(0x48a),
