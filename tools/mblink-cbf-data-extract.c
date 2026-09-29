@@ -2,8 +2,9 @@
 /*
  * Extract read-only Mercedes Vediamo CBF diagnostic facts.
  *
- * This tool intentionally emits only direct executable UDS ReadDataByIdentifier
- * Data services (22 xxxx). It does not import routines, IO control, coding,
+ * This tool intentionally emits only direct executable read-only Data services:
+ * UDS ReadDataByIdentifier (22 xxxx) and KWP2000 ReadDataByLocalIdentifier /
+ * ReadECUIdentification (21 xx / 1A xx). It does not import routines, IO control, coding,
  * security access, writes, or inferred semantics.
  */
 #include <errno.h>
@@ -359,7 +360,7 @@ static void emit_c_string(const char *value)
     putchar('"');
 }
 
-static int emit_direct_uds22(
+static int emit_direct_read_data(
     const uint8_t *data,
     size_t size,
     const char *profile_key,
@@ -373,6 +374,9 @@ static int emit_direct_uds22(
     bool *seen = NULL;
     const bool c_profile =
         profile_key != NULL && source_name != NULL;
+    const size_t identifiers_per_service = (size_t)UINT16_MAX + (size_t)1U;
+    const size_t seen_count =
+        ((size_t)UINT8_MAX + (size_t)1U) * identifiers_per_service;
 
     if (!parse_cff_header(&reader, &cff)) {
         fprintf(stderr, "invalid or unsupported CBF header\n");
@@ -386,13 +390,13 @@ static int emit_direct_uds22(
     }
 
     if (c_profile) {
-        seen = calloc(UINT16_MAX + (size_t)1U, sizeof(*seen));
+        seen = calloc(seen_count, sizeof(*seen));
         if (seen == NULL) {
-            fprintf(stderr, "failed to allocate DID deduplication table\n");
+            fprintf(stderr, "failed to allocate read-key deduplication table\n");
             return 2;
         }
     } else {
-        puts("ecu\tdid\tqualifier\tclient_access\tsecurity_access");
+        puts("ecu\tservice\tidentifier\tqualifier\tclient_access\tsecurity_access");
     }
 
     for (ecu_index = 0; ecu_index < cff.ecu_count; ++ecu_index) {
@@ -433,7 +437,9 @@ static int emit_direct_uds22(
             uint64_t service_base;
             DiagService service;
             uint64_t request_base;
-            uint16_t did;
+            uint8_t wire_service;
+            uint16_t identifier;
+            MblinkMercedesDiagnosticProtocol_UNUSED;
 
             if (entry + UINT64_C(14) > size || !seek_to(&reader, entry)) {
                 free(seen);
@@ -453,35 +459,54 @@ static int emit_direct_uds22(
                 return 2;
             }
 
-            /* Caesar service class 5 is Data. Keep only direct UDS 0x22 reads. */
+            /* Caesar service class 5 is Data. Keep only direct safe reads. */
             if (service.type != 5U || service.executable == 0U ||
-                service.request_count != 3)
+                service.request_count <= 0) {
                 continue;
+            }
 
             if (!add_relative_offset(
                     service_base, service.request_offset,
                     size, &request_base) ||
                 request_base > (uint64_t)size ||
-                UINT64_C(3) > (uint64_t)size - request_base) {
+                (uint64_t)(uint16_t)service.request_count >
+                    (uint64_t)size - request_base) {
                 free(seen);
                 return 2;
             }
-            if (data[(size_t)request_base] != UINT8_C(0x22))
-                continue;
 
-            did = (uint16_t)(
-                (uint16_t)data[(size_t)request_base + 1U] << 8U) |
-                (uint16_t)data[(size_t)request_base + 2U];
+            wire_service = data[(size_t)request_base];
+            if (wire_service == UINT8_C(0x22) &&
+                service.request_count == 3) {
+                identifier = (uint16_t)(
+                    (uint16_t)data[(size_t)request_base + 1U] << 8U) |
+                    (uint16_t)data[(size_t)request_base + 2U];
+            } else if ((wire_service == UINT8_C(0x21) ||
+                        wire_service == UINT8_C(0x1a)) &&
+                       service.request_count == 2) {
+                identifier = (uint16_t)data[(size_t)request_base + 1U];
+            } else {
+                continue;
+            }
 
             if (c_profile) {
-                if (seen[did]) continue;
-                seen[did] = true;
+                const size_t seen_index =
+                    (size_t)wire_service * identifiers_per_service +
+                    (size_t)identifier;
+                if (seen[seen_index]) continue;
+                seen[seen_index] = true;
+
                 fputs("    { ", stdout);
                 emit_c_string(profile_key);
-                fputs(", MBLINK_MERCEDES_DIAGNOSTIC_UDS,\n"
-                      "        UINT16_C(0x", stdout);
-                printf("%04" PRIX16, did);
-                fputs("), true, ", stdout);
+                fputs(", ", stdout);
+                if (wire_service == UINT8_C(0x22)) {
+                    fputs("MBLINK_MERCEDES_DIAGNOSTIC_UDS,\n        ", stdout);
+                } else {
+                    fputs("MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,\n        ", stdout);
+                }
+                printf("UINT8_C(0x%02" PRIX8 "), UINT16_C(0x%04" PRIX16
+                       "), true, ",
+                    wire_service, identifier);
                 emit_c_string(service.qualifier);
                 fputs(",\n"
                       "        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,\n"
@@ -490,9 +515,11 @@ static int emit_direct_uds22(
                     char provenance[1024];
                     const int written = snprintf(
                         provenance, sizeof(provenance),
-                        "Mercedes Vediamo %s · CBF Data service %s",
+                        "Mercedes Vediamo %s · CBF Data service %s · %02" PRIX8
+                        " %04" PRIX16,
                         source_name,
-                        service.qualifier != NULL ? service.qualifier : "");
+                        service.qualifier != NULL ? service.qualifier : "",
+                        wire_service, identifier);
                     if (written < 0 ||
                         (size_t)written >= sizeof(provenance)) {
                         fprintf(stderr, "CBF provenance text is too long\n");
@@ -503,8 +530,9 @@ static int emit_direct_uds22(
                 }
                 fputs(" },\n", stdout);
             } else {
-                printf("%s\t%04" PRIX16 "\t%s\t%" PRIu16 "\t%" PRIu16 "\n",
-                    ecu.qualifier, did, service.qualifier,
+                printf("%s\t%02" PRIX8 "\t%04" PRIX16 "\t%s\t%" PRIu16
+                       "\t%" PRIu16 "\n",
+                    ecu.qualifier, wire_service, identifier, service.qualifier,
                     service.client_access, service.security_access);
             }
             ++emitted;
@@ -512,7 +540,7 @@ static int emit_direct_uds22(
     }
 
     free(seen);
-    fprintf(stderr, "direct_uds22_rows=%u\n", emitted);
+    fprintf(stderr, "direct_read_rows=%u\n", emitted);
     return 0;
 }
 
@@ -546,7 +574,7 @@ int main(int argc, char **argv)
         return 66;
     }
 
-    result = emit_direct_uds22(
+    result = emit_direct_read_data(
         data, size, profile_key, source_name);
     free(data);
     return result;
