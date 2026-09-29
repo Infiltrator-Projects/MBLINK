@@ -103,6 +103,20 @@ static bool seek_to(Reader *reader, uint64_t offset)
     return true;
 }
 
+static bool add_relative_offset(
+    uint64_t base, int32_t relative, size_t limit, uint64_t *absolute)
+{
+    int64_t resolved;
+
+    if (absolute == NULL || base > (uint64_t)INT64_MAX)
+        return false;
+    resolved = (int64_t)base + (int64_t)relative;
+    if (resolved < 0 || (uint64_t)resolved > (uint64_t)limit)
+        return false;
+    *absolute = (uint64_t)resolved;
+    return true;
+}
+
 static bool next_flag(uint32_t *flags)
 {
     bool set;
@@ -237,13 +251,16 @@ static bool parse_ecu_header(
     header->diag_entry_size = read_flag_i32(reader, &flags, 0);
     (void)read_flag_i32(reader, &flags, 0);
 
-    if (!reader->ok || diag_relative < 0 || header->diag_count < 0 ||
+    if (!reader->ok || header->diag_count < 0 ||
         header->diag_entry_size < 14) return false;
-    if ((uint64_t)(uint32_t)diag_relative + data_base > UINT32_MAX)
-        return false;
-
-    header->diag_block =
-        (uint32_t)((uint64_t)(uint32_t)diag_relative + data_base);
+    {
+        uint64_t diag_block;
+        if (!add_relative_offset(
+                data_base, diag_relative, reader->size, &diag_block) ||
+            diag_block > UINT32_MAX)
+            return false;
+        header->diag_block = (uint32_t)diag_block;
+    }
     return header->qualifier != NULL;
 }
 
@@ -378,22 +395,24 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
             (void)read_i32(&reader); /* entry size */
             (void)read_u32(&reader); /* CRC */
             (void)read_u16(&reader); /* config */
-            if (!reader.ok || service_relative < 0) return 2;
-
-            service_base = (uint64_t)ecu.diag_block +
-                (uint64_t)(uint32_t)service_relative;
-            if (service_base > UINT32_MAX ||
+            if (!reader.ok ||
+                !add_relative_offset(
+                    (uint64_t)ecu.diag_block, service_relative,
+                    size, &service_base) ||
+                service_base > UINT32_MAX ||
                 !parse_service(&reader, (uint32_t)service_base, &service))
                 return 2;
 
             /* Caesar service class 5 is Data. Keep only direct UDS 0x22 reads. */
             if (service.type != 5U || service.executable == 0U ||
-                service.request_count != 3 || service.request_offset < 0)
+                service.request_count != 3)
                 continue;
 
-            request_base = service_base +
-                (uint64_t)(uint32_t)service.request_offset;
-            if (request_base + 3U > size) return 2;
+            if (!add_relative_offset(
+                    service_base, service.request_offset,
+                    size, &request_base) ||
+                request_base > (uint64_t)size - 3U)
+                return 2;
             if (data[(size_t)request_base] != UINT8_C(0x22))
                 continue;
 
