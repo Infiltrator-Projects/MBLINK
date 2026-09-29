@@ -185,8 +185,8 @@ require(
 require(
     "mblink_mercedes_documented_read_is_safe(" in ecu_pack
     and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
-    and "item->advertised = item->live" in ecu_pack
-    and "item->advertised = false" in ecu_pack,
+    and "MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED" in ecu_pack
+    and "item->advertised = item->live" in ecu_pack,
     "PID Setup must expose every safe source-backed exact-controller read while capture-only raw evidence stays out",
 )
 require(
