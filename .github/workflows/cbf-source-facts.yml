@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'tools/mblink-cbf-data-extract.c'
+      - 'src/mercedes/data_scan.c'
       - '.github/workflows/cbf-source-facts.yml'
 
 permissions:
