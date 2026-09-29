@@ -440,20 +440,29 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->name =
             mblink_mercedes_documented_read_name(
                 read->service, read->identifier);
-        item->kind = is_identification_read(
-                read->service, read->identifier)
-            ? MBLINK_MERCEDES_ECU_DATA_IDENTIFICATION
-            : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
-        item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
-        item->provenance = mblink_mercedes_documented_route_source();
-        /*
-         * The diagnostic service describes how a value is read, not whether
-         * it is a live measurement.  Static identification/configuration reads
-         * stay available to Factory Readings, but PID Setup must only expose
-         * the family/controller live definitions emitted earlier in this pack.
-         */
-        item->live = false;
-        item->advertised = false;
+        {
+            const bool identification = is_identification_read(
+                read->service, read->identifier);
+            item->kind = identification
+                ? MBLINK_MERCEDES_ECU_DATA_IDENTIFICATION
+                : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
+            item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
+            item->provenance = mblink_mercedes_documented_route_source();
+            /*
+             * PID Setup is the source catalogue, not a synonym for the
+             * recurring-poll scheduler.  Every non-identification read that
+             * the online ECU profile documents is advertised so the user can
+             * see the complete source-backed record set for the identified
+             * controller.  Only definitions independently classified as live
+             * are pollable.  Identification/configuration records remain in
+             * Factory Readings and never masquerade as PIDs.
+             *
+             * Vehicle-capture-only observations are emitted by the
+             * controller-data profile path above and remain unadvertised.
+             */
+            item->live = false;
+            item->advertised = !identification;
+        }
         item->field_count =
             mblink_mercedes_documented_field_count(
                 read->service, read->identifier);
