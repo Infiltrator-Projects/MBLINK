@@ -776,9 +776,13 @@ static int test_runtime_candidate_catalog(void)
         "audio-headunit", "HU_204", NULL, NULL),
         "headunit-hu204") == 0);
 
+    /*
+     * ABR2XT.cbf contributes 18 unique documented Data DIDs. Seven additional
+     * DIDs remain vehicle-observed raw evidence, so the merged profile owns 25
+     * unique wire identifiers without letting the capture define semantics.
+     */
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS) ==
-        sizeof(esp_ids) / sizeof(esp_ids[0]));
+        "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 25U);
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) ==
         sizeof(orc_ids) / sizeof(orc_ids[0]));
