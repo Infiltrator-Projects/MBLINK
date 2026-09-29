@@ -59,7 +59,7 @@ Each module section is populated from the narrowest documented knowledge justifi
 
 The UI must not populate a Mercedes module merely with SAE Mode 01 PIDs advertised by the same CAN responder. Mercedes manufacturer data is a separate diagnostic namespace and must be presented from the Mercedes catalogue.
 
-Unknown or unresolved modules may still appear in the module list. They must not be assigned invented semantics. Only source-backed or exact-route-proven read-only channels may be offered until better identification exists.
+Unknown or unresolved modules may still appear in the module list. They must not be assigned invented semantics. PID Setup does not use route guesses or vehicle captures to manufacture a catalogue: a manufacturer definition appears only when an online source documents it for the identified ECU/controller family.
 
 ## ECU definition packs
 
@@ -79,16 +79,26 @@ The pack is the canonical controller-scoped diagnostic view. It carries:
 - each data item's service, identifier, real name, live/read-only
   classification, evidence status, provenance and decoded field metadata
 
-A pack may contain documented identification/configuration reads that are not
-live measurements. It may also retain vehicle-verified raw identifiers whose
+A pack may contain online-documented identification/configuration reads that are
+not live measurements. It may also retain vehicle-verified raw identifiers whose
 semantics are still unknown. Those raw observations remain explicitly
-`raw-observed` and are never advertised as selectable live PIDs until
-independent semantic evidence promotes them.
+`raw-observed` and never enter the PID catalogue merely because a vehicle
+answered them. Captures may validate an online definition; they do not create
+one.
 
 Factory Readings and PID Setup must both consume this same pack. Factory
-Readings may issue the pack's safe documented read commands. PID Setup exposes
-only items the pack marks as advertised live data. This prevents the two
-surfaces from developing separate ideas of what a particular ECU supports.
+Readings may issue the pack's safe documented read commands. PID Setup is the
+visible online-source data catalogue for the exact identified ECU: it shows
+every source-backed non-identification data record MBLINK has imported for that
+controller, not merely the records currently classified for continuous polling.
+A source-backed record that is not proven suitable for continuous polling is
+shown as a documented read without an enable toggle. Identification and coding
+records remain in Factory Readings rather than masquerading as PIDs.
+
+"0 available" is an authoritative statement only when source coverage for that
+exact ECU is explicitly known to be complete. Until MBLINK tracks that
+completeness, an empty manufacturer catalogue must be presented as an incomplete
+online source catalogue, never as proof that the ECU has no PIDs.
 
 The diagnostic protocol follows the same ownership rule. A physical route is
 only discovery evidence because Mercedes reused request/response CAN IDs across
@@ -151,9 +161,12 @@ written catalogue and selection records must use the canonical identifier.
 PID Setup is the single control for both polling and display membership. The
 main-screen PID Setup tile is the only navigation entry point to that control;
 Vehicle, Modules, Live Data, Dashboard, Table and Graphs must never link back
-into PID Setup. Manufacturer PID rows come only from the source-backed catalogue
-for the specifically identified ECU/controller family. Route-wide unions,
-response-driven candidate discovery and brute-force PID scans are not allowed.
+into PID Setup. Manufacturer PID rows come only from the online source-backed catalogue
+for the specifically identified ECU/controller family. The catalogue contains
+all imported online-documented non-identification reads; only rows independently
+classified as live/pollable can be enabled for recurring polling. Route-wide
+unions, response-driven candidate discovery and brute-force PID scans are not
+allowed.
 An enabled measurement appears in Dashboard, Graphs and Table;
 disabling it
 removes it from all three even when old samples remain. There is no separate
@@ -180,9 +193,9 @@ A successful discovery pass answers: "What modules are here?"
 
 Identification answers: "What controller/family is this, and what documented knowledge can MBLINK safely associate with it?"
 
-The catalogue answers: "What live-data channels can MBLINK offer for this identified module?"
+The catalogue answers: "What data records do the online sources document for this exact identified module?"
 
-Polling answers: "Which of those channels did the user actually ask MBLINK to read continuously?"
+Polling answers: "Which of those documented records are live/pollable, and which of those did the user explicitly ask MBLINK to read continuously?"
 
 Those four questions must remain separate in code and UI.
 
@@ -190,9 +203,15 @@ Those four questions must remain separate in code and UI.
 
 MBLINK is read-first and deny-by-default for write/clear operations.
 
-No manufacturer-specific signal may receive a friendly name or engineering unit based only on a guess from a CAN address. Unknown positive identifiers remain raw until their meaning/scaling is supported by source or vehicle evidence.
+No manufacturer-specific signal may receive a friendly name, engineering unit,
+or PID-catalogue membership based only on a CAN address or a positive vehicle
+response. Unknown positive identifiers remain raw evidence until an online
+source supplies the applicable meaning/scaling for the identified ECU.
 
-Exact-route vehicle-positive evidence may justify re-reading a safe read-only identifier even when controller-family identification is incomplete, but the UI must describe the evidence honestly.
+Exact-route vehicle-positive evidence may justify retaining/re-reading a safe
+raw observation for diagnostics, but it never promotes that observation into
+PID Setup. Online documentation is the source of catalogue membership; captures
+are corroboration.
 
 ## Acceptance criteria
 
@@ -214,8 +233,11 @@ A release satisfies this design only when all of the following are true:
 - Opening PID Setup does not launch a brute-force scan.
 - PID Setup is the only UI that can enable or disable live channels.
 - The main-screen PID Setup tile is the only navigation entry point to PID Setup.
-- Manufacturer PID Setup contains only documented live values for an identified ECU/controller family.
-- Live polling reads selected documented identifiers directly; it never probes candidate identifiers.
+- Manufacturer PID Setup contains all and only online-documented non-identification data records for the identified ECU/controller family.
+- Online-documented records not proven suitable for continuous polling are visible as read-only catalogue entries and cannot be selected.
+- A zero manufacturer count is never shown as an authoritative ECU capability result unless exact-family online-source coverage is explicitly marked complete.
+- Vehicle-capture-only identifiers never become PID catalogue entries.
+- Live polling reads selected documented live identifiers directly; it never probes candidate identifiers.
 - Factory Readings re-reads documented commands for the identified ECU and never scans a PID range.
 - No route-wide fallback catalogue is exposed when ECU identity is unresolved.
 - Factory Readings read/refresh/rescan operations never alter live selections.
