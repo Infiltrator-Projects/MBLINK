@@ -339,13 +339,40 @@ static uint8_t *read_file(const char *path, size_t *size_out)
     return buffer;
 }
 
-static int emit_direct_uds22(const uint8_t *data, size_t size)
+static void emit_c_string(const char *value)
+{
+    const unsigned char *cursor =
+        (const unsigned char *)(value != NULL ? value : "");
+
+    putchar('"');
+    while (*cursor != 0U) {
+        const unsigned char ch = *cursor++;
+        if (ch == (unsigned char)'"' || ch == (unsigned char)'\\') {
+            putchar('\\');
+            putchar((int)ch);
+        } else if (ch >= UINT8_C(0x20) && ch <= UINT8_C(0x7e)) {
+            putchar((int)ch);
+        } else {
+            printf("\\%03o", (unsigned int)ch);
+        }
+    }
+    putchar('"');
+}
+
+static int emit_direct_uds22(
+    const uint8_t *data,
+    size_t size,
+    const char *profile_key,
+    const char *source_name)
 {
     Reader reader = { data, size, 0U, true };
     CffHeader cff;
     uint64_t ecu_table;
     int32_t ecu_index;
     unsigned int emitted = 0U;
+    bool *seen = NULL;
+    const bool c_profile =
+        profile_key != NULL && source_name != NULL;
 
     if (!parse_cff_header(&reader, &cff)) {
         fprintf(stderr, "invalid or unsupported CBF header\n");
@@ -358,26 +385,41 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
         return 2;
     }
 
-    puts("ecu\tdid\tqualifier\tclient_access\tsecurity_access");
+    if (c_profile) {
+        seen = calloc(UINT16_MAX + (size_t)1U, sizeof(*seen));
+        if (seen == NULL) {
+            fprintf(stderr, "failed to allocate DID deduplication table\n");
+            return 2;
+        }
+    } else {
+        puts("ecu\tdid\tqualifier\tclient_access\tsecurity_access");
+    }
 
     for (ecu_index = 0; ecu_index < cff.ecu_count; ++ecu_index) {
         EcuHeader ecu;
-        uint64_t table_entry = ecu_table + (uint64_t)(uint32_t)ecu_index * 4U;
+        uint64_t table_entry =
+            ecu_table + (uint64_t)(uint32_t)ecu_index * UINT64_C(4);
         int32_t ecu_relative;
         int32_t service_index;
 
-        if (!seek_to(&reader, table_entry)) return 2;
+        if (!seek_to(&reader, table_entry)) {
+            free(seen);
+            return 2;
+        }
         ecu_relative = read_i32(&reader);
         {
             uint64_t ecu_base;
             if (!reader.ok ||
                 !add_relative_offset(
                     ecu_table, ecu_relative, size, &ecu_base) ||
-                ecu_base > UINT32_MAX)
+                ecu_base > UINT32_MAX) {
+                free(seen);
                 return 2;
+            }
             if (!parse_ecu_header(
                     &reader, (uint32_t)ecu_base, &cff, &ecu)) {
                 fprintf(stderr, "failed to parse ECU %" PRId32 "\n", ecu_index);
+                free(seen);
                 return 2;
             }
         }
@@ -393,8 +435,10 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
             uint64_t request_base;
             uint16_t did;
 
-            if (entry + 14U > size || !seek_to(&reader, entry))
+            if (entry + UINT64_C(14) > size || !seek_to(&reader, entry)) {
+                free(seen);
                 return 2;
+            }
             service_relative = read_i32(&reader);
             (void)read_i32(&reader); /* entry size */
             (void)read_u32(&reader); /* CRC */
@@ -404,8 +448,10 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
                     (uint64_t)ecu.diag_block, service_relative,
                     size, &service_base) ||
                 service_base > UINT32_MAX ||
-                !parse_service(&reader, (uint32_t)service_base, &service))
+                !parse_service(&reader, (uint32_t)service_base, &service)) {
+                free(seen);
                 return 2;
+            }
 
             /* Caesar service class 5 is Data. Keep only direct UDS 0x22 reads. */
             if (service.type != 5U || service.executable == 0U ||
@@ -416,20 +462,56 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
                     service_base, service.request_offset,
                     size, &request_base) ||
                 request_base > (uint64_t)size ||
-                UINT64_C(3) > (uint64_t)size - request_base)
+                UINT64_C(3) > (uint64_t)size - request_base) {
+                free(seen);
                 return 2;
+            }
             if (data[(size_t)request_base] != UINT8_C(0x22))
                 continue;
 
-            did = (uint16_t)((uint16_t)data[(size_t)request_base + 1U] << 8U) |
+            did = (uint16_t)(
+                (uint16_t)data[(size_t)request_base + 1U] << 8U) |
                 (uint16_t)data[(size_t)request_base + 2U];
-            printf("%s\t%04" PRIX16 "\t%s\t%" PRIu16 "\t%" PRIu16 "\n",
-                ecu.qualifier, did, service.qualifier,
-                service.client_access, service.security_access);
-            emitted++;
+
+            if (c_profile) {
+                if (seen[did]) continue;
+                seen[did] = true;
+                fputs("    { ", stdout);
+                emit_c_string(profile_key);
+                fputs(", MBLINK_MERCEDES_DIAGNOSTIC_UDS,\n"
+                      "        UINT16_C(0x", stdout);
+                printf("%04" PRIX16, did);
+                fputs("), true, ", stdout);
+                emit_c_string(service.qualifier);
+                fputs(",\n"
+                      "        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,\n"
+                      "        ", stdout);
+                {
+                    char provenance[1024];
+                    const int written = snprintf(
+                        provenance, sizeof(provenance),
+                        "Mercedes Vediamo %s · CBF Data service %s",
+                        source_name,
+                        service.qualifier != NULL ? service.qualifier : "");
+                    if (written < 0 ||
+                        (size_t)written >= sizeof(provenance)) {
+                        fprintf(stderr, "CBF provenance text is too long\n");
+                        free(seen);
+                        return 2;
+                    }
+                    emit_c_string(provenance);
+                }
+                fputs(" },\n", stdout);
+            } else {
+                printf("%s\t%04" PRIX16 "\t%s\t%" PRIu16 "\t%" PRIu16 "\n",
+                    ecu.qualifier, did, service.qualifier,
+                    service.client_access, service.security_access);
+            }
+            ++emitted;
         }
     }
 
+    free(seen);
     fprintf(stderr, "direct_uds22_rows=%u\n", emitted);
     return 0;
 }
@@ -439,20 +521,33 @@ int main(int argc, char **argv)
     uint8_t *data;
     size_t size = 0U;
     int result;
+    const char *profile_key = NULL;
+    const char *source_name = NULL;
+    const char *path = NULL;
 
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s FILE.cbf\n", argv[0]);
+    if (argc == 2) {
+        path = argv[1];
+    } else if (argc == 5 && strcmp(argv[1], "--profile") == 0) {
+        profile_key = argv[2];
+        source_name = argv[3];
+        path = argv[4];
+    } else {
+        fprintf(stderr,
+            "usage: %s FILE.cbf\n"
+            "       %s --profile PROFILE_KEY SOURCE_NAME FILE.cbf\n",
+            argv[0], argv[0]);
         return 64;
     }
 
-    data = read_file(argv[1], &size);
+    data = read_file(path, &size);
     if (data == NULL) {
         fprintf(stderr, "failed to read %s: %s\n",
-            argv[1], strerror(errno));
+            path, strerror(errno));
         return 66;
     }
 
-    result = emit_direct_uds22(data, size);
+    result = emit_direct_uds22(
+        data, size, profile_key, source_name);
     free(data);
     return result;
 }
