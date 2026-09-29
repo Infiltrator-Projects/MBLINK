@@ -170,38 +170,37 @@ require(
     "PID catalogue must come from the identified ECU profile, not route fallbacks",
 )
 require(
-    ".filter { $0.isLive }" not in model
-    and '"pollable": definition.isLive' in model
-    and "$0.pollable && selected.contains($0.id)" in model,
-    "manufacturer PID Setup must show every online-documented ECU read while polling only live definitions",
+    "pollable" not in model
+    and "pollable" not in app
+    and "documentedDefinitions.map" in model
+    and ".filter { selected.contains($0.id) }" in model,
+    "iPhone PID Setup must be documentation-driven with no separate pollable gate",
 )
 require(
     "!item.advertised" in documented_defs
-    and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
-    and "item->advertised = !identification" in ecu_pack,
-    "online-documented non-identification reads must be catalogued while response-only raw identifiers stay hidden",
+    and "item->advertised = item->live" in ecu_pack
+    and "item->advertised = false" in ecu_pack,
+    "PID Setup must expose only ECU-pack definitions classified as documented actual values; generic diagnostic reads and raw capture evidence stay out",
 )
 require(
-    "mblink.manufacturer.pidCatalogueByVehicle.v3" in model
-    and "mblink.manufacturer.pidCatalogueByVehicle.v2" not in model,
-    "legacy live-only manufacturer PID catalogue caches must not survive the all-online-source policy change",
+    "mblink.manufacturer.pidCatalogueByVehicle.v4" in model
+    and "mblink.manufacturer.pidCatalogueByVehicle.v3" not in model,
+    "legacy pollable/read-only manufacturer PID catalogue caches must not survive the documented-PID policy change",
 )
 require(
     "let documentedDefinitions = controller.documentedDataDefinitions(" in model
     and "if !documentedDefinitions.isEmpty {" in model
     and "else if controller.isActive {" in model
-    and "let sanitized = selected.intersection(allowedStableKeys)" in model,
-    "resolved manufacturer catalogues must be authoritative and stale selections must be pruned",
+    and "let sanitized = selected.intersection(documentedStableKeys)" in model,
+    "the exact identified ECU's documented PID catalogue must be authoritative and stale selections must be pruned",
 )
 saved_marker_start = model.index("private func writeSavedPIDCatalogueRegressionMarker()")
 saved_marker_end = model.index("#endif", saved_marker_start)
 saved_marker = model[saved_marker_start:saved_marker_end]
 require(
     "manufacturerPIDCatalogueItems(" in saved_marker
-    and "espCount == 0" not in saved_marker
-    and "orcCount > 0" in saved_marker
     and "controller.documentedDataDefinitions(" not in saved_marker,
-    "saved-profile regression must never encode zero ESP PIDs as an authoritative result and must retain online-documented ORC reads",
+    "saved-profile regression must consume the same cached documented PID catalogue as live PID Setup",
 )
 require(
     "runtimeCandidateIdentifiersForModule" not in controller
@@ -232,16 +231,17 @@ require(
     "Mercedes module protocol labels must stay separate from standard OBD-II",
 )
 require(
-    "ONLINE SOURCE INCOMPLETE" in app
-    and "MBLINK is not claiming that the ECU has zero PIDs." in app
-    and "if item.pollable" in app,
-    "PID Setup must distinguish an incomplete online source catalogue from a genuine zero-PID ECU and keep manual reads non-pollable",
+    "ONLINE SOURCE INCOMPLETE" not in app
+    and "SOURCE PARTIAL" not in app
+    and "READ ONLY" not in app
+    and "manufacturerPIDCatalogueComplete" not in model
+    and "online_catalogue_complete" not in ecu_pack_api,
+    "iPhone PID Setup must not invent source-completeness or pollability states",
 )
 require(
-    "manufacturerPIDCatalogueComplete" in model
-    and "DOCUMENTED · SOURCE PARTIAL" in app
-    and "online_catalogue_complete" in ecu_pack_api,
-    "partial online ECU research must be explicit instead of masquerading as complete capability coverage",
+    'item.source == .standard ? "SAE" : "DOCUMENTED"' in app
+    and "No documented PIDs are currently defined for this ECU." in app,
+    "manufacturer PID rows must represent documented PIDs, independent of whether this vehicle has answered them",
 )
 require(
     "Legislated OBD-II responders are intentionally not represented" in controller,
