@@ -1965,7 +1965,7 @@ bool mblink_mercedes_data_record_format_known_for_route(
                 "ATF %.1f °C · actual %s · target %s · "
                 "TCC state %u · TCC Δspeed %u · TCC speed %u · "
                 "TCC pressure raw %u · output speed raw %u · "
-                "engine torque raw %u · converter torque raw %u · "
+                "engine torque signed raw %d · converter torque signed raw %d · "
                 "selector 0x%02X · program 0x%02X · "
                 "kickdown %s · emergency %s · ASR %s · "
                 "solenoids 12/45=%s 2/3=%s 3/4=%s",
@@ -1979,8 +1979,8 @@ bool mblink_mercedes_data_record_format_known_for_route(
                 (unsigned int)decoded.tcc_speed_raw,
                 (unsigned int)decoded.tcc_pressure_raw,
                 (unsigned int)decoded.output_speed_raw,
-                (unsigned int)decoded.engine_torque_raw,
-                (unsigned int)decoded.converter_torque_raw,
+                (int)decoded.engine_torque_signed_raw,
+                (int)decoded.converter_torque_signed_raw,
                 (unsigned int)decoded.selector_position,
                 (unsigned int)decoded.drive_program,
                 decoded.kickdown ? "yes" : "no",
