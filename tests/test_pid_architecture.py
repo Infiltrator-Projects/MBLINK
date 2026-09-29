@@ -178,9 +178,18 @@ require(
 )
 require(
     "documentedLiveIdentifiersForModuleIdentifier" not in controller
-    and "documentedPIDIdentifiersForModuleIdentifier" in controller
+    and "documentedPIDCommandsForModuleIdentifier" in controller
     and "if (!definition.live) continue;" not in controller,
-    "iPhone polling must attempt every selected documented PID without a hidden live/pollable gate",
+    "iPhone polling must attempt every selected documented read without a hidden live/pollable gate",
+)
+require(
+    "MBLinkManufacturerCommandToken" in controller
+    and "MBLinkDecodeManufacturerCommandToken" in controller
+    and "mblink_mercedes_data_scan_begin_documented_commands" in controller
+    and "mblink_mercedes_data_scan_begin_identifiers(" not in controller
+    and "UInt32($0.service) << 16 | UInt32($0.identifier)" in model
+    and "setManufacturerLivePollingCommands" in model,
+    "manufacturer polling must preserve service plus identifier so KWP 1A and 21 reads cannot collapse to the wrong wire command",
 )
 require(
     "mblink_mercedes_documented_read_is_safe(" in ecu_pack
