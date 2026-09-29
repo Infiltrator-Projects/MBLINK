@@ -24,7 +24,19 @@ static const MblinkMercedesCanonicalTransmissionSignal
     { "mercedes.transmission.selector_position", "SELECT",
       "Selector position" },
     { "mercedes.transmission.drive_program", "PROGRAM",
-      "Transmission drive program" }
+      "Transmission drive program" },
+    { "mercedes.transmission.tcc_delta_speed_raw", "TCC Δ",
+      "Torque converter delta speed (raw)" },
+    { "mercedes.transmission.tcc_speed_raw", "TCC SPD",
+      "Torque converter speed (raw)" },
+    { "mercedes.transmission.tcc_pressure_raw", "TCC P",
+      "Torque converter pressure (raw)" },
+    { "mercedes.transmission.engine_torque_signed_raw", "ENG TQ",
+      "Engine torque (signed raw)" },
+    { "mercedes.transmission.converter_torque_signed_raw", "CONV TQ",
+      "Converter torque (signed raw)" },
+    { "mercedes.transmission.output_speed_raw", "OUT SPD",
+      "Transmission output speed (raw)" }
 };
 
 static bool pack_is_transmission_controller(
@@ -285,11 +297,20 @@ static size_t canonical_signal_count(const MblinkMercedesEcuPack *pack)
 {
     const MblinkMercedesTransmissionFamily family =
         pack_transmission_family(pack);
-    return pack != NULL &&
-           pack->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-           mblink_mercedes_transmission_family_uses_2130_actual_values(family)
+    if (pack == NULL ||
+        pack->protocol != MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 ||
+        !mblink_mercedes_transmission_family_uses_2130_actual_values(family)) {
+        return 0U;
+    }
+    /*
+     * The compact VGS/NAG2 21 30 shape only exposes the seven common fields.
+     * The 24-byte EGS52/EGS53 shape also carries the six raw speed/pressure/
+     * torque fields that the 2026-09-29 driving capture independently varied.
+     */
+    return family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+           family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53
         ? sizeof(canonical_2130_signals) / sizeof(canonical_2130_signals[0])
-        : 0U;
+        : 7U;
 }
 
 static size_t transmission_item_count(const MblinkMercedesEcuPack *pack)
