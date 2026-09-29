@@ -366,6 +366,14 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(mblink_mercedes_module_scan_module_name(
                      &scan.modules[1]),
                  "Transmission control unit (VGS / EGS)") == 0);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1081") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.candidate_tx == UINT32_C(0x7e2));
     CHECK(scan.stage ==
           MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
