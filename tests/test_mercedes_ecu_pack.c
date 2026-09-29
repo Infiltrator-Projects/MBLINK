@@ -172,6 +172,54 @@ static int test_raw_observation_stays_unadvertised(void)
     return 0;
 }
 
+static int test_orc204_and_orc212_keep_separate_exact_catalogues(void)
+{
+    static const struct {
+        const char *controller_key;
+        const char *identity;
+        const char *profile_name;
+    } cases[] = {
+        { "restraints-orc204", "ORC_204", "ORC_204" },
+        { "restraints-orc212", "ORC_212", "ORC_212_X" }
+    };
+
+    for (size_t case_index = 0U;
+         case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
+        MblinkMercedesModuleScanEntry module;
+        MblinkMercedesEcuPack pack;
+        size_t selectable = 0U;
+
+        CHECK(mblink_mercedes_module_scan_resolve_controller(
+            UINT32_C(0x64a), UINT32_C(0x489), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            cases[case_index].identity, NULL, NULL, NULL, &module));
+        CHECK(module.controller_family != NULL);
+        CHECK(strcmp(module.controller_family->key,
+                     cases[case_index].controller_key) == 0);
+        CHECK(mblink_mercedes_ecu_pack_resolve_module(&module, &pack));
+        CHECK(pack.documented_profile != NULL);
+        CHECK(strcmp(pack.documented_profile->name,
+                     cases[case_index].profile_name) == 0);
+        CHECK(mblink_mercedes_documented_ecu_read_count(
+                  pack.documented_profile) == 5U);
+
+        for (size_t item_index = 0U;
+             item_index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             ++item_index) {
+            MblinkMercedesEcuDataItem item;
+            CHECK(mblink_mercedes_ecu_pack_data_item_at(
+                &pack, item_index, &item));
+            if (item.status ==
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
+                item.advertised && item.live) {
+                ++selectable;
+            }
+        }
+        CHECK(selectable >= 5U);
+    }
+    return 0;
+}
+
 static int test_documented_reads_are_selectable_in_pid_catalogue(void)
 {
     static const struct {
@@ -568,6 +616,7 @@ int main(void)
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
+    if (test_orc204_and_orc212_keep_separate_exact_catalogues() != 0) return 1;
     if (test_documented_reads_are_selectable_in_pid_catalogue() != 0) return 1;
     if (test_documented_identification_reads_are_selectable() != 0) return 1;
     if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
