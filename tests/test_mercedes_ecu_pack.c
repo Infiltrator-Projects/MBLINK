@@ -130,7 +130,7 @@ static int test_egs53_pack(void)
             CHECK(item.allow_duplicate_wire);
         }
     }
-    CHECK(canonical_2130 == 7U);
+    CHECK(canonical_2130 == 13U);
     return 0;
 }
 
