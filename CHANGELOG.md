@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.253 — 2026-09-29
+
+- Make the iPhone Mercedes PID catalogue purely documentation-driven: exact-ECU online actual-value definitions determine catalogue membership, while vehicle response, NO DATA, capture-only observations, and desktop scanner repeatability never add, remove or hide a PID.
+- Remove the temporary pollable/live-only/partial-catalogue gates, keep identity/configuration/session/DTC records out of PID Setup, and retain capture-only identifiers as raw diagnostic evidence rather than invented live values.
+- Import source-backed Vediamo CBF actual-value services for CGW_212, MPC212 and FSCM212 so documented gateway, camera and fuel-pump data is visible even before a particular vehicle answers it.
+- Complete EGS53 RLI 0x30 live presentation for source-validated speeds, pressure and signed 16-bit engine/converter torque, eliminating the 0xFFxx-to-65k unsigned wrap while preserving raw evidence.
+- Restore explicit UDS/KWP diagnostic-session teardown after Mercedes identification and manufacturer reads, including HU_204/COMAND and EGS paths, while avoiding redundant identity probes on resolved cached reconnects.
+- Align cold-launch/simulator acceptance with the documentation-only catalogue contract: a resolved ESP or ORC is valid with zero selectable PIDs when no online actual-value definition exists, while saved vehicle/module state and user selections must still restore correctly.
+
 ## 0.7.252 — 2026-09-29
 
 - Complete the remaining source-backed EGS51/EGS52 pedal semantics: the documented 0..250 pedal scale is now presented as 0..100%, while out-of-range values are treated as unavailable instead of plausible percentages.
