@@ -69,10 +69,11 @@ static int test_ic204_pack(void)
     CHECK(mblink_mercedes_ecu_pack_alias_count(&pack) >= 2U);
 
     /*
-     * IC_204 owns 62 source-generated CBF Data DIDs plus the nine documented
-     * identification/manual reads from the global controller catalogue.
+     * Exact W204 IC_204.cbf contributes 50 unique service+identifier Data
+     * reads after variant duplicates are collapsed. The global exact profile
+     * contributes nine additional documented safe reads.
      */
-    CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 71U);
+    CHECK(mblink_mercedes_ecu_pack_data_item_count(&pack) == 59U);
     for (size_t index = 0U;
          index < mblink_mercedes_ecu_pack_data_item_count(&pack);
          ++index) {
@@ -103,7 +104,7 @@ static int test_ic204_pack(void)
             CHECK(strcmp(field->name, "Hardware version year") == 0);
         }
     }
-    CHECK(advertised == 71U);
+    CHECK(advertised == 59U);
     CHECK(saw_f111 && saw_f150);
     return 0;
 }
@@ -410,16 +411,35 @@ static int test_generated_cbf_controller_pid_catalogues(void)
 {
     static const struct {
         const char *profile_key;
+        MblinkMercedesDiagnosticProtocol protocol;
         size_t expected_count;
+        uint8_t sample_service;
         uint16_t sample_identifier;
     } cases[] = {
-        { "eis-ezs204", 9U, UINT16_C(0x0228) },
-        /* 18 CBF-defined DIDs plus seven remaining raw observations. */
-        { "esp-abr2xt", 25U, UINT16_C(0x2001) },
-        { "gateway-cgw212", 11U, UINT16_C(0xd243) },
-        { "cluster-ic204", 62U, UINT16_C(0x0001) },
-        { "camera-mfk", 16U, UINT16_C(0x0220) },
-        { "fuel-pump-fscu", 6U, UINT16_C(0x000b) }
+        { "gateway-cgw204", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          11U, UINT8_C(0x22), UINT16_C(0x0026) },
+        { "eis-ezs204", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          9U, UINT8_C(0x22), UINT16_C(0x0228) },
+        { "cluster-ic204", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          50U, UINT8_C(0x22), UINT16_C(0x0402) },
+        { "steering-sccm204", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          4U, UINT8_C(0x22), UINT16_C(0x0163) },
+        { "restraints-orc204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+          27U, UINT8_C(0x21), UINT16_C(0x0001) },
+        { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+          24U, UINT8_C(0x21), UINT16_C(0x0006) },
+        { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          6U, UINT8_C(0x22), UINT16_C(0x000a) },
+        /*
+         * ABR2XT has 18 exact CBF reads plus seven unique vehicle-observed raw
+         * identifiers retained in the same controller profile.
+         */
+        { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          25U, UINT8_C(0x22), UINT16_C(0x2001) },
+        { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          11U, UINT8_C(0x22), UINT16_C(0xd243) },
+        { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+          16U, UINT8_C(0x22), UINT16_C(0x0220) }
     };
 
     for (size_t index = 0U;
@@ -427,14 +447,15 @@ static int test_generated_cbf_controller_pid_catalogues(void)
         const MblinkMercedesControllerDataProfileEntry *entry;
         CHECK(mblink_mercedes_controller_data_profile_identifier_count(
                   cases[index].profile_key,
-                  MBLINK_MERCEDES_DIAGNOSTIC_UDS) ==
+                  cases[index].protocol) ==
               cases[index].expected_count);
-        entry = mblink_mercedes_controller_data_profile_find(
+        entry = mblink_mercedes_controller_data_profile_find_service(
             cases[index].profile_key,
-            MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+            cases[index].protocol,
+            cases[index].sample_service,
             cases[index].sample_identifier);
         CHECK(entry != NULL);
-        CHECK(entry->live);
+        CHECK(entry->service == cases[index].sample_service);
         CHECK(entry->status ==
             MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     }
