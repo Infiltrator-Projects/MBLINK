@@ -159,6 +159,79 @@ static int test_raw_observation_stays_unadvertised(void)
     return 0;
 }
 
+static int test_online_documented_manual_reads_are_catalogued(void)
+{
+    static const struct {
+        const char *controller_key;
+        uint32_t tx;
+        uint32_t rx;
+        uint16_t documented_identifier;
+    } cases[] = {
+        { "restraints-orc212", UINT32_C(0x64a), UINT32_C(0x489),
+          UINT16_C(0x58) },
+        { "headunit-hu204", UINT32_C(0x652), UINT32_C(0x48a),
+          UINT16_C(0xe1) }
+    };
+
+    for (size_t case_index = 0U;
+         case_index < sizeof(cases) / sizeof(cases[0]);
+         ++case_index) {
+        MblinkMercedesEcuPack pack;
+        MblinkMercedesEcuDataItem item;
+        bool saw_documented = false;
+
+        CHECK(mblink_mercedes_ecu_pack_resolve(
+            NULL, cases[case_index].controller_key,
+            cases[case_index].tx, cases[case_index].rx, false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+
+        for (size_t index = 0U;
+             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             ++index) {
+            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+            if (item.service == UINT8_C(0x21) &&
+                item.identifier == cases[case_index].documented_identifier &&
+                item.status ==
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
+                item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ) {
+                saw_documented = true;
+                CHECK(item.advertised);
+                CHECK(!item.live);
+            }
+        }
+        CHECK(saw_documented);
+    }
+    return 0;
+}
+
+static int test_online_identification_reads_stay_out_of_pid_catalogue(void)
+{
+    MblinkMercedesEcuPack pack;
+    MblinkMercedesEcuDataItem item;
+    bool saw_identity = false;
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        NULL, "headunit-hu204",
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+
+    for (size_t index = 0U;
+         index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+         ++index) {
+        CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+        if (item.service == UINT8_C(0x1a) &&
+            item.identifier == UINT16_C(0x87) &&
+            item.status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+            saw_identity = true;
+            CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_IDENTIFICATION);
+            CHECK(!item.advertised);
+            CHECK(!item.live);
+        }
+    }
+    CHECK(saw_identity);
+    return 0;
+}
+
 static int test_20260928_capture_routes_under_new_engine(void)
 {
     static const struct {
@@ -226,6 +299,8 @@ int main(void)
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
+    if (test_online_documented_manual_reads_are_catalogued() != 0) return 1;
+    if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
