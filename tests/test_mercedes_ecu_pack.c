@@ -232,7 +232,7 @@ static int test_online_identification_reads_stay_out_of_pid_catalogue(void)
     return 0;
 }
 
-static int test_cbf_documented_reads_do_not_masquerade_as_pids(void)
+static int test_documented_controller_data_stays_selectable_in_pid_setup(void)
 {
     static const struct {
         const char *module_key;
@@ -251,6 +251,12 @@ static int test_cbf_documented_reads_do_not_masquerade_as_pids(void)
           UINT32_C(0x6fa), UINT32_C(0x49f), UINT16_C(0x001c) }
     };
 
+    /*
+     * These source-backed controller Data services are deliberately selectable
+     * in PID Setup even when a value changes rarely or appears static in one
+     * capture. Monitoring membership comes from the exact controller
+     * definition, never from whether this particular vehicle has responded.
+     */
     for (size_t case_index = 0U;
          case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
         MblinkMercedesEcuPack pack;
@@ -272,10 +278,9 @@ static int test_cbf_documented_reads_do_not_masquerade_as_pids(void)
                 item.status ==
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
                 found = true;
-                CHECK(item.kind ==
-                    MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ);
-                CHECK(!item.live);
-                CHECK(!item.advertised);
+                CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE);
+                CHECK(item.live);
+                CHECK(item.advertised);
             }
         }
         CHECK(found);
@@ -404,7 +409,7 @@ int main(void)
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
     if (test_documented_non_pid_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
-    if (test_cbf_documented_reads_do_not_masquerade_as_pids() != 0) return 1;
+    if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
     if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
