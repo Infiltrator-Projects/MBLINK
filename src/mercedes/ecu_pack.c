@@ -425,8 +425,14 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
         item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         item->provenance = mblink_mercedes_documented_route_source();
-        item->live = read->service == UINT8_C(0x21);
-        item->advertised = true;
+        /*
+         * The diagnostic service describes how a value is read, not whether
+         * it is a live measurement.  Static identification/configuration reads
+         * stay available to Factory Readings, but PID Setup must only expose
+         * the family/controller live definitions emitted earlier in this pack.
+         */
+        item->live = false;
+        item->advertised = false;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 read->service, read->identifier);
