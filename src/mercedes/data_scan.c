@@ -668,6 +668,14 @@ static const MblinkMercedesControllerDataProfileEntry
 
     {
         "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        UINT8_C(0x22), UINT16_C(0x1002), true,
+        "Explicit variant-coding data (30 bytes)",
+        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+        "CaesarSuite CRD3.CBF J2534 trace · "
+        "DT_RVC_CRD3_explizit_restricted_30Byte · positive 62 10 02 response"
+    },
+    {
+        "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x2007), true, "Battery voltage",
         MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
         "CaesarSuite CRD3 DT_2007 documents DID 0x2007 and its scaling; "
