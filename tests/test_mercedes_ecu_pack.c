@@ -340,6 +340,66 @@ static int test_documented_pid_catalogue_does_not_depend_on_vehicle_response(voi
     return 0;
 }
 
+static int test_generated_cbf_controller_pid_catalogues(void)
+{
+    static const struct {
+        const char *profile_key;
+        size_t expected_count;
+        uint16_t sample_identifier;
+    } cases[] = {
+        { "eis-ezs204", 9U, UINT16_C(0x0228) },
+        { "esp-abr2xt", 18U, UINT16_C(0x2001) },
+        { "gateway-cgw212", 11U, UINT16_C(0xd243) },
+        { "cluster-ic204", 62U, UINT16_C(0x0001) },
+        { "camera-mfk", 16U, UINT16_C(0x0220) },
+        { "fuel-pump-fscu", 6U, UINT16_C(0x000b) }
+    };
+
+    for (size_t index = 0U;
+         index < sizeof(cases) / sizeof(cases[0]); ++index) {
+        const MblinkMercedesControllerDataProfileEntry *entry;
+        CHECK(mblink_mercedes_controller_data_profile_identifier_count(
+                  cases[index].profile_key,
+                  MBLINK_MERCEDES_DIAGNOSTIC_UDS) ==
+              cases[index].expected_count);
+        entry = mblink_mercedes_controller_data_profile_find(
+            cases[index].profile_key,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+            cases[index].sample_identifier);
+        CHECK(entry != NULL);
+        CHECK(entry->live);
+        CHECK(entry->status ==
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
+    }
+    return 0;
+}
+
+static int test_exact_204_controller_family_resolution(void)
+{
+    const char *profile;
+
+    profile = mblink_mercedes_data_profile_key_for_controller(
+        "eis-ezs", "EIS_204", NULL, NULL);
+    CHECK(profile != NULL);
+    CHECK(strcmp(profile, "eis-ezs204") == 0);
+
+    profile = mblink_mercedes_data_profile_key_for_controller(
+        "central-gateway", "CGW_204", NULL, NULL);
+    CHECK(profile != NULL);
+    CHECK(strcmp(profile, "gateway-cgw204") == 0);
+
+    profile = mblink_mercedes_data_profile_key_for_controller(
+        "steering-column", "SCCM_204", NULL, NULL);
+    CHECK(profile != NULL);
+    CHECK(strcmp(profile, "steering-sccm204") == 0);
+
+    profile = mblink_mercedes_data_profile_key_for_controller(
+        "instrument-cluster", "IC_204", NULL, NULL);
+    CHECK(profile != NULL);
+    CHECK(strcmp(profile, "cluster-ic204") == 0);
+    return 0;
+}
+
 static int test_20260928_capture_routes_under_new_engine(void)
 {
     static const struct {
@@ -411,6 +471,8 @@ int main(void)
     if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
     if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
     if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
+    if (test_generated_cbf_controller_pid_catalogues() != 0) return 1;
+    if (test_exact_204_controller_family_resolution() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
