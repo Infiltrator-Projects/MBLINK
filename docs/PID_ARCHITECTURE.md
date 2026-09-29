@@ -79,26 +79,21 @@ The pack is the canonical controller-scoped diagnostic view. It carries:
 - each data item's service, identifier, real name, live/read-only
   classification, evidence status, provenance and decoded field metadata
 
-A pack may contain online-documented identification/configuration reads that are
-not live measurements. It may also retain vehicle-verified raw identifiers whose
-semantics are still unknown. Those raw observations remain explicitly
-`raw-observed` and never enter the PID catalogue merely because a vehicle
-answered them. Captures may validate an online definition; they do not create
-one.
+A pack may also contain online-documented identity, configuration, coding,
+session and DTC records. Those are diagnostic records, not PIDs, and therefore
+do not appear in PID Setup. Vehicle-verified raw identifiers whose semantics are
+still unknown remain explicitly `raw-observed` and also stay out of PID Setup.
+Captures can corroborate an online definition; they never create a PID.
 
-Factory Readings and PID Setup must both consume this same pack. Factory
-Readings may issue the pack's safe documented read commands. PID Setup is the
-visible online-source data catalogue for the exact identified ECU: it shows
-every source-backed non-identification data record MBLINK has imported for that
-controller, not merely the records currently classified for continuous polling.
-A source-backed record that is not proven suitable for continuous polling is
-shown as a documented read without an enable toggle. Identification and coding
-records remain in Factory Readings rather than masquerading as PIDs.
+Factory Readings and PID Setup consume the same exact-ECU pack for different
+purposes. Factory Readings may use the pack's documented diagnostic commands.
+PID Setup contains all and only the actual-value/PID definitions that online
+documentation assigns to the identified ECU/controller family.
 
-"0 available" is an authoritative statement only when source coverage for that
-exact ECU is explicitly known to be complete. Until MBLINK tracks that
-completeness, an empty manufacturer catalogue must be presented as an incomplete
-online source catalogue, never as proof that the ECU has no PIDs.
+The iPhone catalogue is documentation-driven in the same way as the Standard
+OBD catalogue. A documented PID remains visible whether or not this particular
+vehicle has answered it yet. Vehicle response, NO DATA, previous samples and
+runtime probing never add, remove or hide catalogue entries.
 
 The diagnostic protocol follows the same ownership rule. A physical route is
 only discovery evidence because Mercedes reused request/response CAN IDs across
@@ -161,12 +156,12 @@ written catalogue and selection records must use the canonical identifier.
 PID Setup is the single control for both polling and display membership. The
 main-screen PID Setup tile is the only navigation entry point to that control;
 Vehicle, Modules, Live Data, Dashboard, Table and Graphs must never link back
-into PID Setup. Manufacturer PID rows come only from the online source-backed catalogue
-for the specifically identified ECU/controller family. The catalogue contains
-all imported online-documented non-identification reads; only rows independently
-classified as live/pollable can be enabled for recurring polling. Route-wide
-unions, response-driven candidate discovery and brute-force PID scans are not
-allowed.
+into PID Setup. Manufacturer PID rows come only from the online source-backed actual-value/PID
+catalogue for the specifically identified ECU/controller family. Every
+documented PID is selectable on iPhone. Whether the connected vehicle responds
+to it is runtime state, not catalogue membership. Route-wide unions,
+response-driven candidate discovery and brute-force PID scans are not allowed
+to manufacture iPhone PID definitions.
 An enabled measurement appears in Dashboard, Graphs and Table;
 disabling it
 removes it from all three even when old samples remain. There is no separate
@@ -193,9 +188,11 @@ A successful discovery pass answers: "What modules are here?"
 
 Identification answers: "What controller/family is this, and what documented knowledge can MBLINK safely associate with it?"
 
-The catalogue answers: "What data records do the online sources document for this exact identified module?"
+The catalogue answers: "Which actual-value/PID definitions do the online sources document for this exact identified module?"
 
-Polling answers: "Which of those documented records are live/pollable, and which of those did the user explicitly ask MBLINK to read continuously?"
+Selection answers: "Which documented PIDs did the user ask MBLINK to read?"
+
+Runtime answers: "Which selected documented PIDs did this particular ECU answer, and what values did it return?"
 
 Those four questions must remain separate in code and UI.
 
@@ -233,11 +230,14 @@ A release satisfies this design only when all of the following are true:
 - Opening PID Setup does not launch a brute-force scan.
 - PID Setup is the only UI that can enable or disable live channels.
 - The main-screen PID Setup tile is the only navigation entry point to PID Setup.
-- Manufacturer PID Setup contains all and only online-documented non-identification data records for the identified ECU/controller family.
-- Online-documented records not proven suitable for continuous polling are visible as read-only catalogue entries and cannot be selected.
-- A zero manufacturer count is never shown as an authoritative ECU capability result unless exact-family online-source coverage is explicitly marked complete.
+- Manufacturer PID Setup contains all and only online-documented actual-value/PID definitions for the identified ECU/controller family.
+- Every documented manufacturer PID is visible and selectable on iPhone even before the connected ECU has answered it.
+- Identity, coding, configuration, session and DTC records never masquerade as PIDs.
 - Vehicle-capture-only identifiers never become PID catalogue entries.
-- Live polling reads selected documented live identifiers directly; it never probes candidate identifiers.
+- A NO DATA or unsupported response changes runtime status only; it never removes a documented PID from PID Setup.
+- iPhone PID Setup has no separate pollable/read-only/source-completeness gate.
+- Linux/Windows deep-scanner policy may classify safe/manual/repeatable probing separately, but that scanner state never changes shared PID documentation or iPhone catalogue membership.
+- Live polling reads only the documented PIDs the user selected; it never probes candidate identifiers to create new PIDs.
 - Factory Readings re-reads documented commands for the identified ECU and never scans a PID range.
 - No route-wide fallback catalogue is exposed when ECU identity is unresolved.
 - Factory Readings read/refresh/rescan operations never alter live selections.
