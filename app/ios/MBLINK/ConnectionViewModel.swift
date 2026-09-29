@@ -773,12 +773,21 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private func applyManufacturerPollingSelection(moduleID: String) {
         let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
         let selected = manufacturerSelectionSet(moduleID: moduleID)
-        let wireIdentifiers = Set(
+        /*
+         * Keep service + identifier together. KWP controller catalogues mix
+         * 0x1A and 0x21 reads, so reducing a selection to the identifier alone
+         * can send the wrong command. Multiple signal stable keys that share
+         * one wire command still collapse here to a single scheduled request.
+         */
+        let wireCommands = Set(
             catalogue
                 .filter { selected.contains($0.id) }
-                .map { NSNumber(value: $0.identifier) })
-        controller.setManufacturerLivePollingIdentifiers(
-            Array(wireIdentifiers),
+                .map {
+                    NSNumber(value:
+                        UInt32($0.service) << 16 | UInt32($0.identifier))
+                })
+        controller.setManufacturerLivePollingCommands(
+            Array(wireCommands),
             forModuleIdentifier: moduleID)
     }
 
