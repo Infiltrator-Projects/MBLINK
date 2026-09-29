@@ -84,6 +84,7 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return "discover-spare-part";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION: return "discover-quit-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return "initialise-29-bit-can";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return "29-bit-headers-off";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL: return "fault-set-protocol";
@@ -92,6 +93,7 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION: return "fault-extended-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE: return "validate-saved-module";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return "read-module-faults";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION: return "fault-quit-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED: return "failed";
     }
@@ -546,6 +548,102 @@ mblink_mercedes_module_scan_known_entry_route(
         ? route : NULL;
 }
 
+static bool mblink_mercedes_module_scan_normalize_control_command(
+    const char *source,
+    char command[5])
+{
+    const char *cursor = source;
+    size_t index;
+
+    if (command == NULL) return false;
+    command[0] = '\0';
+    if (cursor == NULL) return false;
+    if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X'))
+        cursor += 2;
+    if (strlen(cursor) != 4U) return false;
+
+    for (index = 0U; index < 4U; ++index) {
+        const char value = cursor[index];
+        const bool digit = value >= '0' && value <= '9';
+        const bool upper = value >= 'A' && value <= 'F';
+        const bool lower = value >= 'a' && value <= 'f';
+        if (!digit && !upper && !lower) return false;
+        command[index] = lower ? (char)(value - 'a' + 'A') : value;
+    }
+    command[4] = '\0';
+    return true;
+}
+
+static bool mblink_mercedes_module_scan_route_control_command(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol,
+    bool quit,
+    char command[5])
+{
+    const size_t count =
+        mblink_mercedes_documented_ecu_profile_count_for_route(
+            tx_can_id, rx_can_id, extended_id);
+    bool found = false;
+    char candidate[5];
+
+    if (command == NULL) return false;
+    command[0] = '\0';
+
+    /*
+     * Several controller generations can share one physical route. Automatic
+     * session control is allowed only when every usable profile for the
+     * observed protocol agrees on the same simple two-byte command.
+     */
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesDocumentedEcuProfile *profile =
+            mblink_mercedes_documented_ecu_profile_at_for_route(
+                tx_can_id, rx_can_id, extended_id, index);
+        const char *source;
+
+        if (profile == NULL ||
+            (profile->protocol_known && profile->protocol != protocol)) {
+            continue;
+        }
+        source = quit ? profile->quit_command : profile->session_command;
+        if (!mblink_mercedes_module_scan_normalize_control_command(
+                source, candidate)) {
+            continue;
+        }
+        if (!found) {
+            memcpy(command, candidate, sizeof(candidate));
+            found = true;
+        } else if (strcmp(command, candidate) != 0) {
+            command[0] = '\0';
+            return false;
+        }
+    }
+    return found;
+}
+
+static bool mblink_mercedes_module_scan_candidate_control_command(
+    const MblinkMercedesModuleScan *scan,
+    bool quit,
+    char command[5])
+{
+    if (scan == NULL) return false;
+    return mblink_mercedes_module_scan_route_control_command(
+        scan->candidate_tx, scan->candidate_rx, scan->candidate_extended,
+        mblink_mercedes_module_scan_candidate_protocol(scan), quit, command);
+}
+
+static bool mblink_mercedes_module_scan_entry_control_command(
+    const MblinkMercedesModuleScanEntry *module,
+    bool quit,
+    char command[5])
+{
+    if (module == NULL) return false;
+    return mblink_mercedes_module_scan_route_control_command(
+        module->tx_can_id, module->rx_can_id, module->extended_id,
+        mblink_mercedes_module_scan_entry_protocol(module), quit, command);
+}
+
 MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
     const MblinkMercedesModuleScan *scan)
@@ -716,7 +814,26 @@ void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan
 void mblink_mercedes_module_scan_advance_candidate(
     MblinkMercedesModuleScan *scan)
 {
+    char quit_command[5];
+
     if (scan == NULL) return;
+
+    /*
+     * A Mercedes ECU can change externally visible behaviour while a
+     * diagnostic session is active. Always send the documented route-specific
+     * quit/default-session command after a responding ECU before moving on.
+     * HU_204/COMAND on 0x652 -> 0x48A is KWP2000 and explicitly requires
+     * 10 81; leaving it in diagnostics suppresses normal audio operation.
+     */
+    if (scan->stage !=
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION &&
+        mblink_mercedes_module_scan_find_candidate(scan) != NULL &&
+        mblink_mercedes_module_scan_candidate_control_command(
+            scan, true, quit_command)) {
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION;
+        return;
+    }
 
     /*
      * The production cascade allows 1050 ms. ELM327 ATST tops out at 0xFF
@@ -1341,10 +1458,12 @@ uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
         return UINT64_C(4000);
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION:
         return UINT64_C(4000);
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_READ: return UINT64_C(5000);
     default: return UINT64_C(4000);
@@ -1354,6 +1473,7 @@ uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *
 MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const MblinkMercedesModuleScan *scan, char *buffer, size_t buffer_size, size_t *written)
 {
     const MblinkMercedesModuleScanEntry *module;
+    char control_command[5];
     if (scan == NULL || buffer == NULL || written == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
 #define WRITE(cmd) (mblink_mercedes_module_scan_write_command((cmd), buffer, buffer_size, written) ? MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL)
     switch (scan->stage) {
@@ -1383,7 +1503,10 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_MASK: return WRITE("ATCM000");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_LOCK_HEADERS_OFF: return WRITE("ATH0");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_RECEIVE: return mblink_elm327_can_format_receive_address_command(scan->candidate_rx, scan->candidate_extended, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION: return WRITE("1003");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
+        return mblink_mercedes_module_scan_candidate_control_command(
+                   scan, false, control_command)
+            ? WRITE(control_command) : WRITE("1003");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT:
         return WRITE(mblink_mercedes_module_scan_candidate_protocol(scan) ==
                          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
@@ -1404,7 +1527,13 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
         return WRITE(mblink_mercedes_module_scan_entry_protocol(module) ==
                          MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
                      ? "1802FF00" : "1902FF");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION: return WRITE("1003");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
+        if (scan->dtc_index >= scan->module_count)
+            return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
+        module = &scan->modules[scan->dtc_index];
+        return mblink_mercedes_module_scan_entry_control_command(
+                   module, false, control_command)
+            ? WRITE(control_command) : WRITE("1003");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
         if (scan->dtc_index >= scan->module_count)
             return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
@@ -1424,6 +1553,11 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return WRITE("22F187");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return WRITE("22F188");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
+        return mblink_mercedes_module_scan_candidate_control_command(
+                   scan, true, control_command)
+            ? WRITE(control_command)
+            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL:
         if (scan->dtc_index >= scan->module_count) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
         module = &scan->modules[scan->dtc_index]; return WRITE(module->extended_id ? "ATSP7" : "ATSP6");
@@ -1433,6 +1567,14 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE:
         if (scan->dtc_index >= scan->module_count) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
         module = &scan->modules[scan->dtc_index]; return mblink_elm327_can_format_receive_address_command(module->rx_can_id, module->extended_id, buffer, buffer_size) == MBLINK_ELM327_CAN_RESULT_OK ? (*written = strlen(buffer), MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK) : MBLINK_MERCEDES_MODULE_SCAN_RESULT_BUFFER_TOO_SMALL;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION:
+        if (scan->dtc_index >= scan->module_count)
+            return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
+        module = &scan->modules[scan->dtc_index];
+        return mblink_mercedes_module_scan_entry_control_command(
+                   module, true, control_command)
+            ? WRITE(control_command)
+            : MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_FAILED: if (buffer_size != 0U) buffer[0] = '\0'; *written = 0U; return MBLINK_MERCEDES_MODULE_SCAN_RESULT_FAILED_STATE;
     }
