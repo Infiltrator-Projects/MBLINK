@@ -118,6 +118,18 @@ static int test_2130(void)
               live.recognised_gear_code == 4U);
         CHECK(live.selector_position_code == 5U);
         CHECK(live.drive_program_code == 1U);
+        CHECK(live.tcc_delta_speed_available &&
+              live.tcc_delta_speed_raw == UINT16_C(0x0006));
+        CHECK(live.tcc_speed_available &&
+              live.tcc_speed_raw == UINT16_C(0x0005));
+        CHECK(live.tcc_pressure_available &&
+              live.tcc_pressure_raw == UINT16_C(0x0952));
+        CHECK(live.engine_torque_available &&
+              live.engine_torque_signed_raw == INT16_C(-37));
+        CHECK(live.converter_torque_available &&
+              live.converter_torque_signed_raw == INT16_C(-37));
+        CHECK(live.output_speed_available &&
+              live.output_speed_raw == UINT16_C(0x0632));
         CHECK(strcmp(
             mblink_mercedes_transmission_egs53_rli30_tcc_state_name(3U),
             "Slipping") == 0);
@@ -309,6 +321,8 @@ static int test_kwp_records(void)
     rli30[0] = 0x01; rli30[1] = 0x02;
     rli30[10] = UINT8_C(0x54);
     rli30[11] = UINT8_C(100);
+    rli30[12] = UINT8_C(0xff); rli30[13] = UINT8_C(0xcd); /* -51 */
+    rli30[14] = UINT8_C(0x00); rli30[15] = UINT8_C(0xad); /* +173 */
     rli30[16] = 0x12; rli30[17] = 0x34;
     rli30[18] = UINT8_C(0xE1);
     rli30[19] = UINT8_C(0x3F);
@@ -321,6 +335,10 @@ static int test_kwp_records(void)
     CHECK(d30.actual_gear_code == 4U);
     CHECK(d30.target_gear_code == 5U);
     CHECK(d30.atf_temperature_c == 50.0);
+    CHECK(d30.engine_torque_raw == UINT16_C(0xffcd));
+    CHECK(d30.engine_torque_signed_raw == INT16_C(-51));
+    CHECK(d30.converter_torque_raw == UINT16_C(0x00ad));
+    CHECK(d30.converter_torque_signed_raw == INT16_C(173));
     CHECK(d30.output_speed_raw == UINT16_C(0x1234));
     CHECK(d30.kickdown);
     CHECK(d30.solenoid_1245);
