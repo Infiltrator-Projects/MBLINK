@@ -36,12 +36,14 @@ def extract_candidates(document: dict[str, Any]) -> list[dict[str, Any]]:
                 "service": service.get("short_name"),
                 "did": f"0x{did:04X}",
                 "request_prefix": compact,
-                "status": "source-backed-candidate",
-                "automatic_polling": False,
+                "status": "source-documented",
                 "decode_ready": False,
                 "policy_note": (
-                    "ODX proves a described request identity, not vehicle "
-                    "support, response scaling or safe automatic polling."
+                    "Exact ECU documentation establishes catalogue membership. "
+                    "Vehicle response is runtime evidence and never decides "
+                    "whether the documented item exists. Importers must still "
+                    "separate actual-value/data services from identity, coding, "
+                    "DTC and control services before exposing a PID."
                 ),
             })
     return candidates
@@ -64,8 +66,9 @@ def main() -> int:
         "source_file": document.get("source_file"),
         "source_odxtools_version": document.get("odxtools_version"),
         "policy": {
-            "automatic_polling": False,
-            "promotion_requires_vehicle_verification": True,
+            "catalogue_membership": "exact-controller-documentation",
+            "vehicle_verification_required": False,
+            "desktop_scanner_runtime_policy": "separate",
         },
         "candidates": extract_candidates(document),
     }
