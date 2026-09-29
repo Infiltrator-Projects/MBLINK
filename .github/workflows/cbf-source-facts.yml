@@ -9,7 +9,7 @@ on:
       - '.github/workflows/cbf-source-facts.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   extract:
@@ -86,7 +86,12 @@ jobs:
           import re
           import sys
 
-          source = pathlib.Path("src/mercedes/data_scan.c").read_text(encoding="utf-8")
+          source = (
+              pathlib.Path("src/mercedes/data_scan.c").read_text(encoding="utf-8")
+              + "\n"
+              + pathlib.Path("src/mercedes/cbf_controller_data.inc").read_text(
+                  encoding="utf-8")
+          )
           facts_dir = pathlib.Path("cbf-facts")
           advertised = []
           for chunk in source.split("},"):
@@ -128,6 +133,51 @@ jobs:
               f"verified_cbf_backed_advertised_dids={len(advertised)} "
               f"across_sources={len(cache)}")
           PY
+
+      - name: Generate exact-controller PID datasource include
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=src/mercedes/cbf_controller_data.inc
+          {
+            echo '/* SPDX-License-Identifier: GPL-3.0-or-later */'
+            echo '/*'
+            echo ' * GENERATED FILE - do not hand-edit.'
+            echo ' * Source: immutable public Mercedes Vediamo CBF Data services.'
+            echo ' * Every emitted direct executable UDS 0x22 Data service is a'
+            echo ' * PID Setup monitoring source for its exact controller family.'
+            echo ' */'
+            echo
+
+            /tmp/mblink-cbf-data-extract --profile               eis-ezs204 eis_204.cbf /tmp/eis_204.cbf
+            /tmp/mblink-cbf-data-extract --profile               esp-abr2xt ABR2XT.cbf /tmp/ABR2XT.cbf
+            /tmp/mblink-cbf-data-extract --profile               gateway-cgw212 CGW_212.cbf /tmp/CGW_212.cbf
+            /tmp/mblink-cbf-data-extract --profile               cluster-ic204 IC_204.cbf /tmp/IC_204.cbf
+            /tmp/mblink-cbf-data-extract --profile               camera-mfk MPC212.cbf /tmp/MPC212.cbf
+            /tmp/mblink-cbf-data-extract --profile               fuel-pump-fscu fscm212.cbf /tmp/fscm212.cbf
+          } > "$output"
+
+          test -s "$output"
+          grep -F '"eis-ezs204"' "$output" >/dev/null
+          grep -F '"cluster-ic204"' "$output" >/dev/null
+          grep -F '"esp-abr2xt"' "$output" >/dev/null
+          grep -F '"camera-mfk"' "$output" >/dev/null
+          grep -F '"fuel-pump-fscu"' "$output" >/dev/null
+
+      - name: Commit regenerated controller PID datasource
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add src/mercedes/cbf_controller_data.inc
+          if git diff --cached --quiet; then
+            echo "Controller PID datasource already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Regenerate Mercedes CBF controller PID datasources"
+          git push origin HEAD:main
 
       - name: Upload extracted source facts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
