@@ -167,6 +167,15 @@ NS_ASSUME_NONNULL_BEGIN
     documentedDataDefinitionsForModuleIdentifier:(NSString *)identifier;
 
 /**
+ * Whether the exact identified ECU's online data dictionary has been reviewed
+ * as exhaustive. False means the visible documented rows are only partial
+ * source coverage and must never be presented as the ECU's full capability.
+ */
+- (BOOL)manufacturerPIDCatalogueCompleteForModuleIdentifier:
+    (NSString *)identifier
+    NS_SWIFT_NAME(manufacturerPIDCatalogueComplete(moduleIdentifier:));
+
+/**
  * Load one saved VIN's Mercedes module evidence for offline PID setup.
  * This changes only the metadata source used by the chooser; it never starts
  * a transport session or sends a diagnostic request.
