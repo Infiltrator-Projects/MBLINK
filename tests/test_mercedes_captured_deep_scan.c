@@ -337,6 +337,10 @@ static int replay_captured_kwp_module_faults(void)
                      "Driver seat-belt buckle") != NULL);
     }
 
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(accept_expected_response(&scan, "1081", &no_data) == 0);
+
     /* The following source-corroborated route returned a valid empty list. */
     CHECK(scan.candidate_tx == UINT32_C(0x652));
     CHECK(scan.candidate_rx == UINT32_C(0x48a));
@@ -351,6 +355,13 @@ static int replay_captured_kwp_module_faults(void)
     CHECK(scan.modules[head_unit_index].dtc_result ==
           MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
     CHECK(scan.modules[head_unit_index].kwp_dtcs.count == 0U);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    /*
+     * This is the exact COMAND regression: the adapter remains connected, but
+     * HU_204 must receive 10 81 so normal audio can resume.
+     */
+    CHECK(accept_expected_response(&scan, "1081", &no_data) == 0);
     CHECK(mblink_mercedes_module_scan_total_dtc_count(&scan) == 1U);
     return 0;
 }
