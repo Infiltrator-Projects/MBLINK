@@ -84,6 +84,18 @@ typedef struct MblinkMercedesTransmissionLive2130 {
     uint8_t selector_position_code;
     bool drive_program_available;
     uint8_t drive_program_code;
+    bool tcc_delta_speed_available;
+    uint16_t tcc_delta_speed_raw;
+    bool tcc_speed_available;
+    uint16_t tcc_speed_raw;
+    bool tcc_pressure_available;
+    uint16_t tcc_pressure_raw;
+    bool engine_torque_available;
+    int16_t engine_torque_signed_raw;
+    bool converter_torque_available;
+    int16_t converter_torque_signed_raw;
+    bool output_speed_available;
+    uint16_t output_speed_raw;
 } MblinkMercedesTransmissionLive2130;
 
 /* EGS51 / early 722.6: six-byte GS_218h broadcast. */
