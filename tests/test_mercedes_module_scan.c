@@ -318,6 +318,14 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(scan.modules[0].software_number, "6519020001") == 0);
     CHECK(scan.modules[0].hardware_number_available);
     CHECK(strcmp(scan.modules[0].hardware_number, "6519040001") == 0);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1001") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
     CHECK(send_ok(&scan, "ATSH7E1") == 0);
     CHECK(send_ok(&scan, "ATCRA7E9") == 0);
