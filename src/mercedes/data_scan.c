@@ -691,8 +691,8 @@ static const MblinkMercedesControllerDataProfileEntry
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
     { "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        UINT16_C(0x0058), true,
-        "Observed raw local record 0x58",
+        UINT16_C(0x0058), false,
+        "Observed static raw local record 0x58",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
     { "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
@@ -942,7 +942,7 @@ static const MblinkMercedesRouteEvidenceEntry route_evidence[] = {
     { UINT32_C(0x64a), UINT32_C(0x489),
       false, MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
       MBLINK_MERCEDES_MODULE_RESTRAINTS, UINT16_C(0x0058),
-      true, k_20260903_field_evidence_provenance },
+      false, k_20260903_field_evidence_provenance },
     { UINT32_C(0x64a), UINT32_C(0x489),
       false, MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
       MBLINK_MERCEDES_MODULE_RESTRAINTS, UINT16_C(0x59),
@@ -1222,14 +1222,16 @@ bool mblink_mercedes_data_identifier_is_runtime_refreshable(
         return false;
     }
 
-    if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-        identifier >= UINT16_C(0x00e0) &&
-        identifier <= UINT16_C(0x00eb)) {
-        return false;
-    }
-
+    /*
+     * Other Mercedes KWP local identifiers are readable/manual data until a
+     * controller-specific live definition proves otherwise. The 2026-09-29
+     * driving capture showed ORC 21 58 returning the exact same payload 78
+     * times (with another 64 timeouts), so a positive KWP read is not enough
+     * evidence to schedule it as telemetry. EGS 21 30 is explicitly admitted
+     * above; everything else stays manual-only.
+     */
     if (protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000)
-        return identifier != 0U && identifier <= UINT16_C(0x00ff);
+        return false;
 
     /*
      * UDS is deliberately deny-by-default for background polling. A positive
