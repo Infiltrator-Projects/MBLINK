@@ -217,6 +217,14 @@ bool mblink_mercedes_ecu_pack_resolve(
             controller->key, pack->protocol) != 0U
             ? controller->key : NULL;
 
+    /*
+     * The current public source imports prove individual reads, sessions and
+     * identities, but they do not claim an exhaustive actual-value dictionary
+     * for an exact Mercedes controller family. Keep this false until a family
+     * has a reviewed source manifest that proves complete coverage.
+     */
+    pack->online_catalogue_complete = false;
+
     return pack->key != NULL || pack->documented_profile != NULL;
 }
 
