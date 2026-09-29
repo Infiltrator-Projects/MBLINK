@@ -214,9 +214,13 @@ static int replay_captured_negative_tester_present(void)
     CHECK(accept_expected_response(&scan, "1802FF00", &no_data) == 0);
     CHECK(scan.modules[0].dtc_result == MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE);
     /*
-     * KWP GS routes deliberately skip UDS F197/F187/F188/F191 identity reads;
-     * the source-backed route classification already establishes transmission.
+     * KWP GS routes deliberately skip UDS F197/F187/F188/F191 identity reads,
+     * but they must explicitly leave the documented KWP diagnostic session
+     * before discovery continues.
      */
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(accept_expected_response(&scan, "1081", &no_data) == 0);
     CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
     return 0;
 }
