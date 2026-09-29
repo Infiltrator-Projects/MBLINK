@@ -398,7 +398,12 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         family = pack_transmission_family(pack);
         item->provenance = mblink_mercedes_transmission_family_name(family);
         item->live = live;
-        item->advertised = live;
+        /*
+         * 21 31/32/33 are source-backed manual GS records. They belong in the
+         * ECU catalogue even though only 21 30 is qualified for continuous
+         * polling.
+         */
+        item->advertised = true;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
@@ -418,15 +423,24 @@ bool mblink_mercedes_ecu_pack_data_item_at(
                 ? UINT8_C(0x21) : UINT8_C(0x22);
         item->identifier = entry->identifier;
         item->name = entry->name;
-        item->kind =
-            entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-            entry->live
+        if (entry->status ==
+            MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+            item->kind = entry->live
                 ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
-                : MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
+                : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
+            item->advertised = true;
+        } else {
+            /*
+             * Vehicle-positive observations are evidence only. A capture can
+             * corroborate an online definition, but can never create a PID
+             * catalogue entry by itself.
+             */
+            item->kind = MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
+            item->advertised = false;
+        }
         item->status = entry->status;
         item->provenance = entry->provenance;
-        item->live = entry->live;
-        item->advertised =
+        item->live =
             entry->live &&
             entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         item->field_count =
