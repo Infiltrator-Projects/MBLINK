@@ -436,7 +436,11 @@ bool mblink_mercedes_transmission_decode_kwp_rli30(
     value.target_gear_code = (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
     value.atf_temperature_c = (double)data[11] - 50.0;
     value.engine_torque_raw = infiltratr_load_be16(&data[12]);
+    value.engine_torque_signed_raw =
+        signed_raw16(value.engine_torque_raw);
     value.converter_torque_raw = infiltratr_load_be16(&data[14]);
+    value.converter_torque_signed_raw =
+        signed_raw16(value.converter_torque_raw);
     value.output_speed_raw = infiltratr_load_be16(&data[16]);
 
     value.kickdown = (data[18] & UINT8_C(0x01)) != 0U;
