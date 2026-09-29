@@ -411,9 +411,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             mblink_mercedes_controller_data_profile_identifier_at(
                 pack->controller_data_profile_key, pack->protocol, index);
         if (entry == NULL) return false;
-        item->service =
-            pack->protocol == MBLINK_MERCEDES_DIAGNOSTIC_KWP2000
-                ? UINT8_C(0x21) : UINT8_C(0x22);
+        item->service = entry->service;
         item->identifier = entry->identifier;
         item->name = entry->name;
         if (entry->status ==
