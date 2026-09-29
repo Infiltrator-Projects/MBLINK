@@ -470,6 +470,10 @@ static int test_full_rli30_numeric_prefers_full_layout(void)
     record.data[9] = UINT8_C(0x01);
     record.data[10] = UINT8_C(0x54); /* target 5, actual 4 */
     record.data[11] = UINT8_C(0x64); /* 50 C */
+    record.data[12] = UINT8_C(0xff);
+    record.data[13] = UINT8_C(0xdb); /* captured -37 signed raw */
+    record.data[14] = UINT8_C(0xff);
+    record.data[15] = UINT8_C(0xdb); /* captured -37 signed raw */
 
     CHECK(mblink_mercedes_data_record_decode_known_numeric_for_route(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false,
@@ -478,6 +482,18 @@ static int test_full_rli30_numeric_prefers_full_layout(void)
     CHECK(value == 50.0);
     CHECK(strcmp(name, "Transmission oil temperature") == 0);
     CHECK(strcmp(unit, "°C") == 0);
+    {
+        char structured[512];
+        const char *structured_name = NULL;
+        CHECK(mblink_mercedes_data_record_format_known_for_route(
+            UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+            MBLINK_MERCEDES_MODULE_TRANSMISSION,
+            &record, structured, sizeof(structured), &structured_name));
+        CHECK(strcmp(structured_name, "Transmission actual values") == 0);
+        CHECK(strstr(structured, "engine torque signed raw -37") != NULL);
+        CHECK(strstr(structured, "converter torque signed raw -37") != NULL);
+        CHECK(strstr(structured, "65499") == NULL);
+    }
     return 0;
 }
 
