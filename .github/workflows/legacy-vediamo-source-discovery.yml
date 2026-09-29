@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/vediamo-download /tmp/vediamo-db exact-facts
-          link='https://mega.nz/#!gJMiyabT!wH2VNRjXB4eQ4sgBDaOgFfGhTZ2c8oHGRcW3_FPX2uk'
+          link='https://mega.nz/file/gJMiyabT#wH2VNRjXB4eQ4sgBDaOgFfGhTZ2c8oHGRcW3_FPX2uk'
           megadl --no-progress --path /tmp/vediamo-download "$link"
           archive="$(find /tmp/vediamo-download -maxdepth 1 -type f -print -quit)"
           test -n "$archive"
