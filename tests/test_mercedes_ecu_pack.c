@@ -426,8 +426,9 @@ static int test_generated_cbf_controller_pid_catalogues(void)
           4U, UINT8_C(0x22), UINT16_C(0x0163) },
         { "restraints-orc204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
           27U, UINT8_C(0x21), UINT16_C(0x0001) },
+        /* 24 HU_204.cbf reads plus captured raw 0x02. */
         { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-          24U, UINT8_C(0x21), UINT16_C(0x0006) },
+          25U, UINT8_C(0x21), UINT16_C(0x0006) },
         { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
           6U, UINT8_C(0x22), UINT16_C(0x000a) },
         /*
