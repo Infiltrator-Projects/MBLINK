@@ -410,11 +410,14 @@ bool mblink_mercedes_ecu_pack_data_item_at(
                 ? UINT8_C(0x21) : UINT8_C(0x22);
         item->identifier = entry->identifier;
         item->name = entry->name;
-        item->kind =
-            entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-            entry->live
+        if (entry->status ==
+                MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+            item->kind = entry->live
                 ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
-                : MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
+                : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
+        } else {
+            item->kind = MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED;
+        }
         item->status = entry->status;
         item->provenance = entry->provenance;
         item->live =
