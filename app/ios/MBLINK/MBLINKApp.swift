@@ -853,6 +853,13 @@ private struct MBPIDCatalogueSection: View {
         items.filter(\.pollingEnabled).count
     }
 
+    private var catalogueCountText: String {
+        guard moduleID != nil else { return "\(items.count) AVAILABLE" }
+        return items.isEmpty
+            ? "ONLINE SOURCE INCOMPLETE"
+            : "\(items.count) ONLINE DOCUMENTED"
+    }
+
     var body: some View {
         MBPanel {
             VStack(alignment: .leading, spacing: 10) {
@@ -885,9 +892,10 @@ private struct MBPIDCatalogueSection: View {
                                     selectedCount == 0
                                         ? MBBrand.muted
                                         : MBBrand.success)
-                            Text("\(items.count) AVAILABLE")
+                            Text(catalogueCountText)
                                 .font(MBTypography.caption2)
                                 .foregroundStyle(MBBrand.muted)
+                                .multilineTextAlignment(.trailing)
                             Image(systemName:
                                 expanded ? "chevron.up" : "chevron.down")
                                 .foregroundStyle(MBBrand.muted)
@@ -902,7 +910,7 @@ private struct MBPIDCatalogueSection: View {
                     if items.isEmpty {
                         Text(moduleID == nil
                              ? "No standard Mode 01 definitions are compiled."
-                             : "No source-backed live-data definitions are mapped to this identified controller yet.")
+                             : "The online PID/data dictionary for this identified ECU is not complete yet. MBLINK is not claiming that the ECU has zero PIDs.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -929,7 +937,9 @@ private struct MBPIDCatalogueSection: View {
                     Text(item.codeText)
                         .font(MBTypography.caption2.monospaced())
                         .foregroundStyle(MBBrand.muted)
-                    Text(item.source == .standard ? "SAE" : "DOCUMENTED")
+                    Text(item.source == .standard
+                         ? "SAE"
+                         : (item.pollable ? "DOCUMENTED LIVE" : "DOCUMENTED READ"))
                         .font(MBTypography.caption2Bold)
                         .foregroundStyle(
                             item.source == .standard
@@ -953,24 +963,30 @@ private struct MBPIDCatalogueSection: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Toggle(
-                "",
-                isOn: Binding(
-                    get: { item.pollingEnabled },
-                    set: { enabled in
-                        if let moduleID {
-                            connection.setManufacturerPIDSelection(
-                                enabled,
-                                moduleID: moduleID,
-                                stableKey: item.id)
-                        } else {
-                            connection.setStandardPIDSelection(
-                                enabled,
-                                stableKey: item.id)
-                        }
-                    }))
-                .labelsHidden()
-                .tint(MBBrand.silverBright)
+            if item.pollable {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { item.pollingEnabled },
+                        set: { enabled in
+                            if let moduleID {
+                                connection.setManufacturerPIDSelection(
+                                    enabled,
+                                    moduleID: moduleID,
+                                    stableKey: item.id)
+                            } else {
+                                connection.setStandardPIDSelection(
+                                    enabled,
+                                    stableKey: item.id)
+                            }
+                        }))
+                    .labelsHidden()
+                    .tint(MBBrand.silverBright)
+            } else {
+                Text("READ ONLY")
+                    .font(MBTypography.caption2Bold)
+                    .foregroundStyle(MBBrand.muted)
+            }
         }
         .padding(.vertical, 4)
     }
