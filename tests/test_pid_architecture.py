@@ -170,19 +170,21 @@ require(
     "PID catalogue must come from the identified ECU profile, not route fallbacks",
 )
 require(
-    ".filter { $0.isLive }" in model,
-    "manufacturer PID Setup must expose documented live values only",
+    ".filter { $0.isLive }" not in model
+    and '"pollable": definition.isLive' in model
+    and "$0.pollable && selected.contains($0.id)" in model,
+    "manufacturer PID Setup must show every online-documented ECU read while polling only live definitions",
 )
 require(
     "!item.advertised" in documented_defs
     and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
-    and "item->advertised" in ecu_pack,
-    "response-only raw identifiers must not become selectable live PIDs",
+    and "item->advertised = !identification" in ecu_pack,
+    "online-documented non-identification reads must be catalogued while response-only raw identifiers stay hidden",
 )
 require(
-    "mblink.manufacturer.pidCatalogueByVehicle.v2" in model
-    and "mblink.manufacturer.pidCatalogueByVehicle.v1" not in model,
-    "legacy manufacturer PID catalogue caches must not survive the source-backed policy change",
+    "mblink.manufacturer.pidCatalogueByVehicle.v3" in model
+    and "mblink.manufacturer.pidCatalogueByVehicle.v2" not in model,
+    "legacy live-only manufacturer PID catalogue caches must not survive the all-online-source policy change",
 )
 require(
     "let documentedDefinitions = controller.documentedDataDefinitions(" in model
@@ -196,9 +198,10 @@ saved_marker_end = model.index("#endif", saved_marker_start)
 saved_marker = model[saved_marker_start:saved_marker_end]
 require(
     "manufacturerPIDCatalogueItems(" in saved_marker
-    and "espCount == 0" in saved_marker
+    and "espCount == 0" not in saved_marker
+    and "orcCount > 0" in saved_marker
     and "controller.documentedDataDefinitions(" not in saved_marker,
-    "saved-profile regression must validate the selectable live catalogue, including an empty ESP catalogue",
+    "saved-profile regression must never encode zero ESP PIDs as an authoritative result and must retain online-documented ORC reads",
 )
 require(
     "runtimeCandidateIdentifiersForModule" not in controller
@@ -227,6 +230,12 @@ require(
     and 'case 0: return "UDS"' in model
     and 'case 1: return "KWP2000"' in model,
     "Mercedes module protocol labels must stay separate from standard OBD-II",
+)
+require(
+    "ONLINE SOURCE INCOMPLETE" in app
+    and "MBLINK is not claiming that the ECU has zero PIDs." in app
+    and "if item.pollable" in app,
+    "PID Setup must distinguish an incomplete online source catalogue from a genuine zero-PID ECU and keep manual reads non-pollable",
 )
 require(
     "Legislated OBD-II responders are intentionally not represented" in controller,
