@@ -60,6 +60,20 @@ const MblinkMercedesDocumentedRead *mblink_mercedes_documented_route_read_at(
     uint32_t tx_can_id, uint32_t rx_can_id, bool extended_id,
     MblinkMercedesDiagnosticProtocol protocol, size_t index);
 
+/**
+ * Resolve an unambiguous documented diagnostic-session control command for an
+ * exact route/protocol. When several controller generations share the route,
+ * every matching profile must agree on the same simple two-byte command.
+ *
+ * Set quit_session=false for the profile's session-entry command and true for
+ * its normal/default-session exit command. The command is returned as four
+ * uppercase hex characters without a 0x prefix.
+ */
+bool mblink_mercedes_documented_route_control_command(
+    uint32_t tx_can_id, uint32_t rx_can_id, bool extended_id,
+    MblinkMercedesDiagnosticProtocol protocol, bool quit_session,
+    char *buffer, size_t buffer_size);
+
 const char *mblink_mercedes_documented_read_name(uint8_t service,uint16_t identifier);
 bool mblink_mercedes_documented_read_is_safe(uint8_t service,uint16_t identifier);
 size_t mblink_mercedes_documented_field_count(uint8_t service,uint16_t identifier);
