@@ -66,6 +66,12 @@ typedef struct MblinkMercedesEcuPack {
     const MblinkMercedesControllerFamilyDefinition *controller_family;
     const MblinkMercedesDocumentedEcuProfile *documented_profile;
     const char *controller_data_profile_key;
+    /*
+     * True only after the exact controller family's online data dictionary has
+     * been exhaustively imported and reviewed. A non-zero partial catalogue
+     * must never be confused with complete ECU capability coverage.
+     */
+    bool online_catalogue_complete;
 } MblinkMercedesEcuPack;
 
 bool mblink_mercedes_ecu_pack_resolve(
