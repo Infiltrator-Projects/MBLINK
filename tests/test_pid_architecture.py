@@ -183,10 +183,11 @@ require(
     "iPhone polling must attempt every selected documented PID without a hidden live/pollable gate",
 )
 require(
-    "!item.advertised" in documented_defs
+    "mblink_mercedes_documented_read_is_safe(" in ecu_pack
+    and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
     and "item->advertised = item->live" in ecu_pack
     and "item->advertised = false" in ecu_pack,
-    "PID Setup must expose only ECU-pack definitions classified as documented actual values; generic diagnostic reads and raw capture evidence stay out",
+    "PID Setup must expose every safe source-backed exact-controller read while capture-only raw evidence stays out",
 )
 require(
     "mblink.manufacturer.pidCatalogueByVehicle.v4" in model
