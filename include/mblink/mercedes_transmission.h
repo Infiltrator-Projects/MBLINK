@@ -203,7 +203,9 @@ typedef struct MblinkMercedesKwpRli30 {
     uint8_t target_gear_code;
     double atf_temperature_c;
     uint16_t engine_torque_raw;
+    int16_t engine_torque_signed_raw;
     uint16_t converter_torque_raw;
+    int16_t converter_torque_signed_raw;
     uint16_t output_speed_raw;
     bool kickdown;
     bool start_enable;
