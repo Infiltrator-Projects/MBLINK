@@ -1,0 +1,72 @@
+name: Mercedes CBF Source Facts
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/mblink-cbf-data-extract.c'
+      - '.github/workflows/cbf-source-facts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build strict CBF fact extractor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 \
+             -Wstrict-prototypes -Wmissing-prototypes -Werror \
+             tools/mblink-cbf-data-extract.c -o /tmp/mblink-cbf-data-extract
+
+      - name: Fetch immutable public Mercedes CBF evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          upstream=7b745016e1d46f1c6a0b55c1b30eeb0cc1426f42
+          base="https://raw.githubusercontent.com/Matrix-aas/mercedes-mcp/${upstream}/cbf"
+          curl --fail --location --silent --show-error "${base}/eis_204.cbf" -o /tmp/eis_204.cbf
+          curl --fail --location --silent --show-error "${base}/ABR2XT.cbf" -o /tmp/ABR2XT.cbf
+          test "$(git hash-object /tmp/eis_204.cbf)" = "221798fb947c3ab6db5c9f07f03cc45dc5c716f4"
+          test "$(git hash-object /tmp/ABR2XT.cbf)" = "b0e1dbf1a947055c76ced61534ebf944c0139c2f"
+
+      - name: Extract direct read-only UDS facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cbf-facts
+          /tmp/mblink-cbf-data-extract /tmp/eis_204.cbf \
+            > cbf-facts/eis_204-direct-uds22.tsv \
+            2> cbf-facts/eis_204-summary.txt
+          /tmp/mblink-cbf-data-extract /tmp/ABR2XT.cbf \
+            > cbf-facts/abr2xt-direct-uds22.tsv \
+            2> cbf-facts/abr2xt-summary.txt
+
+          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
+            cbf-facts/eis_204-direct-uds22.tsv >/dev/null
+          test "$(wc -l < cbf-facts/abr2xt-direct-uds22.tsv)" -gt 1
+
+          echo "=== Parser control ==="
+          cat cbf-facts/eis_204-summary.txt
+          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
+            cbf-facts/eis_204-direct-uds22.tsv
+          echo "=== ABR2XT summary ==="
+          cat cbf-facts/abr2xt-summary.txt
+          echo "unique_dids=$(tail -n +2 cbf-facts/abr2xt-direct-uds22.tsv | cut -f2 | sort -u | wc -l)"
+          echo "=== Captured C207 DID matches ==="
+          awk -F '\t' 'NR == 1 || $2 ~ /^(2001|2003|2004|2007|2009|200A|200D|200F|2010|2014|20C0)$/' \
+            cbf-facts/abr2xt-direct-uds22.tsv
+
+      - name: Upload extracted source facts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mercedes-cbf-source-facts
+          path: cbf-facts/
+          if-no-files-found: error
+          retention-days: 30
