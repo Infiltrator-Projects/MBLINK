@@ -51,6 +51,29 @@ static int accept_command(
             mblink_mercedes_data_scan_accept(scan, &response);
         CHECK(result == MBLINK_MERCEDES_DATA_SCAN_RESULT_OK ||
               result == MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
+
+        /*
+         * Most tests care about the data operation rather than the cleanup
+         * handshake. Transparently complete a documented route teardown here,
+         * while the dedicated HU_204 regression below checks the exact 10 81.
+         */
+        if (scan->stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION) {
+            char quit_command[32];
+            char documented[5];
+            size_t quit_written = 0U;
+            MblinkElm327Response no_reply = response_no_data();
+            CHECK(mblink_mercedes_documented_route_control_command(
+                scan->config.tx_can_id, scan->config.rx_can_id,
+                scan->config.extended_id, scan->config.protocol, true,
+                documented, sizeof(documented)));
+            CHECK(mblink_mercedes_data_scan_command(
+                scan, quit_command, sizeof(quit_command), &quit_written) ==
+                MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+            CHECK(strcmp(quit_command, documented) == 0);
+            CHECK(quit_written == strlen(documented));
+            CHECK(mblink_mercedes_data_scan_accept(scan, &no_reply) ==
+                MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
+        }
     }
     return 0;
 }
@@ -1025,8 +1048,75 @@ static int test_documented_kwp_command_list(void)
     return 0;
 }
 
+static int test_hu204_factory_reading_session_teardown(void)
+{
+    MblinkMercedesDataScan scan;
+    MblinkMercedesDataScanConfig config =
+        mblink_mercedes_data_scan_default_config(
+            UINT32_C(0x652), UINT32_C(0x48a), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+            MBLINK_MERCEDES_MODULE_BODY);
+    const uint16_t identifier = UINT16_C(0x01);
+    MblinkElm327Response ok = response_ok("OK");
+    MblinkElm327Response no_reply = response_no_data();
+    char command[32];
+    char control[5];
+    size_t written = 0U;
+
+    CHECK(mblink_mercedes_documented_route_control_command(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, false,
+        control, sizeof(control)));
+    CHECK(strcmp(control, "1092") == 0);
+    CHECK(mblink_mercedes_documented_route_control_command(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, true,
+        control, sizeof(control)));
+    CHECK(strcmp(control, "1081") == 0);
+
+    CHECK(mblink_mercedes_data_scan_begin_identifiers(
+              &scan, &config, &identifier, 1U) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(accept_command(&scan, "ATSP6", ok) == 0);
+    CHECK(accept_command(&scan, "ATH0", ok) == 0);
+    CHECK(accept_command(&scan, "ATCAF1", ok) == 0);
+    CHECK(accept_command(&scan, "ATCFC1", ok) == 0);
+    CHECK(accept_command(&scan, "ATST64", ok) == 0);
+    CHECK(accept_command(&scan, "ATSH652", ok) == 0);
+    CHECK(accept_command(&scan, "ATCRA48A", ok) == 0);
+    CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
+
+    /*
+     * Bypass accept_command for the final value so the intermediate teardown
+     * state is visible. The read completes, then HU_204 must be told 10 81
+     * before MBLINK considers the operation complete. No acknowledgement is
+     * required; COMAND is free to resume normal audio while the adapter stays
+     * connected.
+     */
+    CHECK(mblink_mercedes_data_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "2101") == 0);
+    {
+        MblinkElm327Response value =
+            response_ok("7F2178\n012\n0:610110102210");
+        CHECK(mblink_mercedes_data_scan_accept(&scan, &value) ==
+              MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    }
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION);
+    CHECK(mblink_mercedes_data_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "1081") == 0);
+    CHECK(mblink_mercedes_data_scan_accept(&scan, &no_reply) ==
+          MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
+    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
+    return 0;
+}
+
 int main(void)
 {
+    if (test_hu204_factory_reading_session_teardown() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
