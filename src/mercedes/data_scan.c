@@ -1251,19 +1251,14 @@ bool mblink_mercedes_data_identifier_is_runtime_refreshable(
     }
 
     /*
-     * C207 ABR2XT vehicle evidence: these four records returned reliably and
-     * changed with vehicle operation. 0x2003, 0x2009 and 0x20C0 remain
-     * manual-only because the 2026-09-28 road capture showed them almost
-     * always timing out/state-gated.
+     * Capture-only ABR2XT observations deliberately do not qualify a DID for
+     * recurring telemetry.  A road capture can corroborate an online
+     * definition, but it cannot create one.  Add ABR polling here only after
+     * the exact-family online source catalogue supplies the DID semantics.
      */
-    if (tx_can_id == UINT32_C(0x632) &&
-        rx_can_id == UINT32_C(0x486)) {
-        return identifier == UINT16_C(0x2001) ||
-               identifier == UINT16_C(0x2004) ||
-               identifier == UINT16_C(0x2007) ||
-               identifier == UINT16_C(0x200d);
-    }
-
+    (void)tx_can_id;
+    (void)rx_can_id;
+    (void)identifier;
     return false;
 }
 
