@@ -368,14 +368,18 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
 
         if (!seek_to(&reader, table_entry)) return 2;
         ecu_relative = read_i32(&reader);
-        if (!reader.ok || ecu_relative < 0 ||
-            (uint64_t)(uint32_t)ecu_relative + ecu_table > UINT32_MAX)
-            return 2;
-        if (!parse_ecu_header(&reader,
-                (uint32_t)(ecu_table + (uint64_t)(uint32_t)ecu_relative),
-                &cff, &ecu)) {
-            fprintf(stderr, "failed to parse ECU %" PRId32 "\n", ecu_index);
-            return 2;
+        {
+            uint64_t ecu_base;
+            if (!reader.ok ||
+                !add_relative_offset(
+                    ecu_table, ecu_relative, size, &ecu_base) ||
+                ecu_base > UINT32_MAX)
+                return 2;
+            if (!parse_ecu_header(
+                    &reader, (uint32_t)ecu_base, &cff, &ecu)) {
+                fprintf(stderr, "failed to parse ECU %" PRId32 "\n", ecu_index);
+                return 2;
+            }
         }
 
         for (service_index = 0; service_index < ecu.diag_count;
@@ -411,7 +415,8 @@ static int emit_direct_uds22(const uint8_t *data, size_t size)
             if (!add_relative_offset(
                     service_base, service.request_offset,
                     size, &request_base) ||
-                request_base > (uint64_t)size - 3U)
+                request_base > (uint64_t)size ||
+                UINT64_C(3) > (uint64_t)size - request_base)
                 return 2;
             if (data[(size_t)request_base] != UINT8_C(0x22))
                 continue;
