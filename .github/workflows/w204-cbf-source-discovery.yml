@@ -64,12 +64,12 @@ jobs:
               echo "::error::Missing $wanted in W204 archive"
               exit 1
             fi
-            sha256sum "$file" | tee "cbf-facts/\${source_name}.sha256"
+            sha256sum "$file" | tee "cbf-facts/${source_name}.sha256"
             /tmp/mblink-cbf-data-extract "$file" \
-              > "cbf-facts/\${source_name}-direct-uds22.tsv"
+              > "cbf-facts/${source_name}-direct-uds22.tsv"
             /tmp/mblink-cbf-data-extract --profile \
               "$profile" "$source_name" "$file" \
-              > "cbf-facts/\${source_name}-profile.inc"
+              > "cbf-facts/${source_name}-profile.inc"
           }
 
           extract_one gateway-cgw204 CGW_204.cbf CGW_204.cbf
