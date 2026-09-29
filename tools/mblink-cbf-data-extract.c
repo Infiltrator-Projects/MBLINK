@@ -439,7 +439,6 @@ static int emit_direct_read_data(
             uint64_t request_base;
             uint8_t wire_service;
             uint16_t identifier;
-            MblinkMercedesDiagnosticProtocol_UNUSED;
 
             if (entry + UINT64_C(14) > size || !seek_to(&reader, entry)) {
                 free(seen);
