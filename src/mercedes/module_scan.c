@@ -2735,11 +2735,16 @@ mblink_mercedes_module_scan_accept(
         scan->stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE &&
         scan->dtc_index < scan->module_count &&
         mblink_mercedes_module_scan_is_kwp_transmission(
-            &scan->modules[scan->dtc_index])) {
+            &scan->modules[scan->dtc_index]) &&
+        scan->modules[scan->dtc_index].controller_family == NULL) {
         scan->vin_probe_index = 0U;
-        /* These extra reads fill missing metadata without replacing a saved
-         * family label with an unresolved numeric KWP tuple. All raw replies
-         * still reach the shared recorder before this parser runs. */
+        /*
+         * Re-probe KWP identity only when the saved transmission is still
+         * unresolved. Once a VIN profile has already resolved EGS53/EGS52/etc,
+         * repeating 1A87/1A86/1A89 on every reconnect adds NO DATA delays and
+         * can disturb the transient diagnostic-session state without adding
+         * identity evidence.
+         */
         scan->kwp_identity_captured =
             scan->modules[scan->dtc_index].identity_available;
         scan->stage =
