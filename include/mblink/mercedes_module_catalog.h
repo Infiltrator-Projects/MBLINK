@@ -490,6 +490,11 @@ mblink_mercedes_controller_family_definition_at(size_t index)
           "Generic brake/stability family only; requires further identity refinement",
           "Broad ESP/ABS/BAS names retained only as fallback classifiers." },
 
+        { "restraints-orc204", "restraints-orc", "ORC_204 restraint controller",
+          { "ORC_204", "ORC204", NULL, NULL },
+          MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
+          "204/207-era ORC_204 evidence; identity match required",
+          "Public W204 diagnostic catalogues identify ORC_204 separately from ORC_212 on the reused restraint route." },
         { "restraints-orc212", "restraints-orc", "ORC_212 restraint controller",
           { "ORC_212", NULL, NULL, NULL },
           MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
