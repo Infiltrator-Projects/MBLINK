@@ -25,6 +25,10 @@ struct MBPIDCatalogueItem: Identifiable {
     let title: String
     let provenance: String
     let pollingEnabled: Bool
+    /// True only when the source-backed definition is safe/meaningful for
+    /// recurring live polling.  A documented manual/read-only ECU record can
+    /// still appear in PID Setup with this false.
+    let pollable: Bool
     let advertised: Bool
 
     var codeText: String {
@@ -233,7 +237,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let manufacturerSelectionDefaultsKey =
         "mblink.manufacturer.pidSelectionsByVehicle.v1"
     private static let manufacturerCatalogueDefaultsKey =
-        "mblink.manufacturer.pidCatalogueByVehicle.v2"
+        "mblink.manufacturer.pidCatalogueByVehicle.v3"
     private static let standardSelectionControllerIdentifier = "standard-obd"
     private static let standardSelectionMigrationDefaultsKey =
         "mblink.standard.pidSelectionsGlobalMigrated.v1"
@@ -495,6 +499,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 title: title,
                 provenance: "SAE J1979 / ISO 15031-5",
                 pollingEnabled: selected.contains(stableKey),
+                pollable: true,
                 advertised: advertised.contains(pid)))
         }
         return result.sorted {
@@ -508,36 +513,40 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let documentedDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
-        let liveDefinitions = documentedDefinitions.filter { $0.isLive }
         let definitions: [[String: Any]]
         if !documentedDefinitions.isEmpty {
-            // A resolved ECU profile is authoritative even when it deliberately
-            // exposes zero live PIDs. Persist that empty result so a previously
-            // cached response-only identifier cannot reappear after relaunch.
-            definitions = liveDefinitions.map { definition in
+            /*
+             * The catalogue mirrors ALL source-backed non-identification reads
+             * for the exact identified ECU.  "pollable" is deliberately
+             * separate: online documentation can prove that a read exists
+             * without proving it is a continuously sampled live measurement.
+             * Vehicle-capture-only records never enter documentedDefinitions.
+             */
+            definitions = documentedDefinitions.map { definition in
                 [
                     "id": definition.stableKey,
                     "service": Int(definition.service),
                     "identifier": Int(definition.identifier),
                     "shortName": definition.shortName,
                     "title": definition.title,
-                    "provenance": definition.provenance
+                    "provenance": definition.provenance,
+                    "pollable": definition.isLive
                 ]
             }
             cacheManufacturerCatalogue(definitions, moduleID: moduleID)
         } else if controller.isActive {
-            // Never let an unresolved live ECU inherit an offline cache.
+            // Never let an unresolved live ECU inherit another/offline catalogue.
             definitions = []
         } else {
-            // Offline profiles can reuse only the current cache namespace,
-            // which is populated from source-backed live definitions above.
+            // Offline profiles reuse only this source-catalogue cache generation.
             definitions = cachedManufacturerCatalogue(moduleID: moduleID)
         }
 
         var selected = manufacturerSelectionSet(moduleID: moduleID)
         if !documentedDefinitions.isEmpty {
             let allowedStableKeys = Set(definitions.compactMap { value -> String? in
-                guard let storedStableKey = value["id"] as? String else {
+                guard (value["pollable"] as? NSNumber)?.boolValue == true,
+                      let storedStableKey = value["id"] as? String else {
                     return nil
                 }
                 return canonicalManufacturerStableKey(storedStableKey)
@@ -554,11 +563,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                   let serviceNumber = value["service"] as? NSNumber,
                   let identifierNumber = value["identifier"] as? NSNumber,
                   let shortName = value["shortName"] as? String,
-                  let title = value["title"] as? String
+                  let title = value["title"] as? String,
+                  let pollableNumber = value["pollable"] as? NSNumber
             else { return nil }
             let provenance =
-                value["provenance"] as? String ?? "MBLINK documented catalogue"
+                value["provenance"] as? String ?? "MBLINK online-documented catalogue"
             let stableKey = canonicalManufacturerStableKey(storedStableKey)
+            let pollable = pollableNumber.boolValue
             return MBPIDCatalogueItem(
                 id: stableKey,
                 source: .manufacturer,
@@ -567,7 +578,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 shortName: shortName,
                 title: title,
                 provenance: provenance,
-                pollingEnabled: selected.contains(stableKey),
+                pollingEnabled: pollable && selected.contains(stableKey),
+                pollable: pollable,
                 advertised: true)
         }.sorted {
             if $0.identifier != $1.identifier {
@@ -587,7 +599,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         stableKey: String
     ) {
         let catalogue = manufacturerPIDCatalogueItems(moduleID: moduleID)
-        guard catalogue.contains(where: { $0.id == stableKey }) else { return }
+        guard catalogue.contains(where: { $0.id == stableKey && $0.pollable })
+        else { return }
         var selected = manufacturerSelectionSet(moduleID: moduleID)
         if enabled { selected.insert(stableKey) }
         else { selected.remove(stableKey) }
@@ -773,7 +786,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let selected = manufacturerSelectionSet(moduleID: moduleID)
         let wireIdentifiers = Set(
             catalogue
-                .filter { selected.contains($0.id) }
+                .filter { $0.pollable && selected.contains($0.id) }
                 .map { NSNumber(value: $0.identifier) })
         controller.setManufacturerLivePollingIdentifiers(
             Array(wireIdentifiers),
@@ -1944,25 +1957,22 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let standard = Array(standardPIDCatalogueItems().prefix(6).map(\.id))
         let transmission = ["mercedes.transmission.oil_temperature",
                             "mercedes.transmission.actual_gear"]
+        let orcCatalogue = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciORCModuleID)
         guard standard.count == 6,
-              let factory = manufacturerPIDCatalogueItems(
-                moduleID: Self.ciORCModuleID).first else { return false }
+              orcCatalogue.contains(where: { !$0.pollable }) else { return false }
         for key in standard { setStandardPIDSelection(true, stableKey: key) }
         for key in transmission {
             setManufacturerPIDSelection(true,
                 moduleID: Self.ciTransmissionModuleID, stableKey: key)
         }
-        setManufacturerPIDSelection(true,
-            moduleID: Self.ciORCModuleID, stableKey: factory.id)
-        let expected = Set(standard + transmission + [factory.id])
+        let expected = Set(standard + transmission)
         guard Set(enabledDisplayParameters.map(\.id)) == expected else { return false }
         for key in standard { setStandardPIDSelection(false, stableKey: key) }
         for key in transmission {
             setManufacturerPIDSelection(false,
                 moduleID: Self.ciTransmissionModuleID, stableKey: key)
         }
-        setManufacturerPIDSelection(false,
-            moduleID: Self.ciORCModuleID, stableKey: factory.id)
         return enabledDisplayParameters.isEmpty
     }
 
@@ -1976,7 +1986,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let displaySelectionVerified = verifySingleDisplaySelection()
         let ready = !isActive && selectedVehicleVIN?.count == 17 &&
             pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
-            espCount == 0 && orcCount > 0 && displaySelectionVerified
+            orcCount > 0 && displaySelectionVerified
         let marker = "state=\(ready ? "ready" : "failed")\n" +
             "active=\(isActive)\n" +
             "selected_vin=\(selectedVehicleVIN ?? "")\n" +
