@@ -77,12 +77,13 @@ static int test_ic204_pack(void)
          index < mblink_mercedes_ecu_pack_data_item_count(&pack);
          ++index) {
         CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
-        if (item.live) {
-            CHECK(item.advertised);
-            CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE);
+        if (item.advertised) {
+            CHECK(item.live);
+            CHECK(item.status ==
+                MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
             ++advertised;
         } else {
-            CHECK(!item.advertised);
+            CHECK(!item.live);
         }
         if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0xf111)) {
@@ -102,7 +103,7 @@ static int test_ic204_pack(void)
             CHECK(strcmp(field->name, "Hardware version year") == 0);
         }
     }
-    CHECK(advertised == 62U);
+    CHECK(advertised == 71U);
     CHECK(saw_f111 && saw_f150);
     return 0;
 }
@@ -171,7 +172,7 @@ static int test_raw_observation_stays_unadvertised(void)
     return 0;
 }
 
-static int test_documented_non_pid_reads_stay_out_of_pid_catalogue(void)
+static int test_documented_reads_are_selectable_in_pid_catalogue(void)
 {
     static const struct {
         const char *controller_key;
@@ -185,6 +186,11 @@ static int test_documented_non_pid_reads_stay_out_of_pid_catalogue(void)
           UINT16_C(0xe1) }
     };
 
+    /*
+     * Catalogue-completion phase: a safe read documented for the exact
+     * controller belongs in PID Setup even when it was historically described
+     * as static/manual data.
+     */
     for (size_t case_index = 0U;
          case_index < sizeof(cases) / sizeof(cases[0]);
          ++case_index) {
@@ -207,8 +213,8 @@ static int test_documented_non_pid_reads_stay_out_of_pid_catalogue(void)
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
                 item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ) {
                 saw_documented = true;
-                CHECK(!item.advertised);
-                CHECK(!item.live);
+                CHECK(item.advertised);
+                CHECK(item.live);
             }
         }
         CHECK(saw_documented);
@@ -216,7 +222,7 @@ static int test_documented_non_pid_reads_stay_out_of_pid_catalogue(void)
     return 0;
 }
 
-static int test_online_identification_reads_stay_out_of_pid_catalogue(void)
+static int test_documented_identification_reads_are_selectable(void)
 {
     MblinkMercedesEcuPack pack;
     MblinkMercedesEcuDataItem item;
@@ -236,8 +242,8 @@ static int test_online_identification_reads_stay_out_of_pid_catalogue(void)
             item.status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
             saw_identity = true;
             CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_IDENTIFICATION);
-            CHECK(!item.advertised);
-            CHECK(!item.live);
+            CHECK(item.advertised);
+            CHECK(item.live);
         }
     }
     CHECK(saw_identity);
@@ -480,8 +486,8 @@ int main(void)
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
-    if (test_documented_non_pid_reads_stay_out_of_pid_catalogue() != 0) return 1;
-    if (test_online_identification_reads_stay_out_of_pid_catalogue() != 0) return 1;
+    if (test_documented_reads_are_selectable_in_pid_catalogue() != 0) return 1;
+    if (test_documented_identification_reads_are_selectable() != 0) return 1;
     if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
     if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
     if (test_generated_cbf_controller_pid_catalogues() != 0) return 1;
