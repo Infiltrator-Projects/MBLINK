@@ -157,7 +157,11 @@ static int test_raw_observation_stays_unadvertised(void)
          index < mblink_mercedes_ecu_pack_data_item_count(&pack);
          ++index) {
         CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
-        if (item.identifier == UINT16_C(0x2003) &&
+        /*
+         * 0x2003 is no longer raw: ABR2XT.cbf now documents it. 0x20DF
+         * remains capture-only evidence and therefore must stay unadvertised.
+         */
+        if (item.identifier == UINT16_C(0x20df) &&
             item.kind == MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED) {
             saw_raw = true;
             CHECK(!item.advertised);
