@@ -483,6 +483,10 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
             "esp-abr2xt") == 0);
         CHECK(strcmp(
             mblink_mercedes_controller_family_definition_for_evidence(
+                "restraints-orc", "ORC_204", NULL, NULL)->key,
+            "restraints-orc204") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_controller_family_definition_for_evidence(
                 "restraints-orc", "ORC_212", NULL, NULL)->key,
             "restraints-orc212") == 0);
         CHECK(strcmp(
