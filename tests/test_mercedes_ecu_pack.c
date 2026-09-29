@@ -106,6 +106,9 @@ static int test_egs53_pack(void)
     MblinkMercedesEcuPack pack;
     MblinkMercedesEcuDataItem item;
     size_t canonical_2130 = 0U;
+    bool saw_manual_2131 = false;
+    bool saw_manual_2132 = false;
+    bool saw_manual_2133 = false;
 
     CHECK(mblink_mercedes_module_scan_resolve_controller(
         UINT32_C(0x7e1), UINT32_C(0x7e9), false,
@@ -130,8 +133,21 @@ static int test_egs53_pack(void)
             CHECK(item.advertised);
             CHECK(item.allow_duplicate_wire);
         }
+        if (item.service == UINT8_C(0x21) &&
+            item.stable_key == NULL &&
+            (item.identifier == UINT16_C(0x31) ||
+             item.identifier == UINT16_C(0x32) ||
+             item.identifier == UINT16_C(0x33))) {
+            CHECK(!item.live);
+            CHECK(item.advertised);
+            CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ);
+            if (item.identifier == UINT16_C(0x31)) saw_manual_2131 = true;
+            if (item.identifier == UINT16_C(0x32)) saw_manual_2132 = true;
+            if (item.identifier == UINT16_C(0x33)) saw_manual_2133 = true;
+        }
     }
     CHECK(canonical_2130 == 13U);
+    CHECK(saw_manual_2131 && saw_manual_2132 && saw_manual_2133);
     return 0;
 }
 
