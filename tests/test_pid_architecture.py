@@ -177,6 +177,12 @@ require(
     "iPhone PID Setup must be documentation-driven with no separate pollable gate",
 )
 require(
+    "documentedLiveIdentifiersForModuleIdentifier" not in controller
+    and "documentedPIDIdentifiersForModuleIdentifier" in controller
+    and "if (!definition.live) continue;" not in controller,
+    "iPhone polling must attempt every selected documented PID without a hidden live/pollable gate",
+)
+require(
     "!item.advertised" in documented_defs
     and "item->advertised = item->live" in ecu_pack
     and "item->advertised = false" in ecu_pack,
