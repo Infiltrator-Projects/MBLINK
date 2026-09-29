@@ -31,35 +31,56 @@ jobs:
           set -euo pipefail
           upstream=7b745016e1d46f1c6a0b55c1b30eeb0cc1426f42
           base="https://raw.githubusercontent.com/Matrix-aas/mercedes-mcp/${upstream}/cbf"
+
           curl --fail --location --silent --show-error "${base}/eis_204.cbf" -o /tmp/eis_204.cbf
           curl --fail --location --silent --show-error "${base}/ABR2XT.cbf" -o /tmp/ABR2XT.cbf
+          curl --fail --location --silent --show-error "${base}/CGW_212.cbf" -o /tmp/CGW_212.cbf
+          curl --fail --location --silent --show-error "${base}/IC_204.cbf" -o /tmp/IC_204.cbf
+          curl --fail --location --silent --show-error "${base}/MPC212.cbf" -o /tmp/MPC212.cbf
+          curl --fail --location --silent --show-error "${base}/fscm212.cbf" -o /tmp/fscm212.cbf
+
           test "$(git hash-object /tmp/eis_204.cbf)" = "221798fb947c3ab6db5c9f07f03cc45dc5c716f4"
           test "$(git hash-object /tmp/ABR2XT.cbf)" = "b0e1dbf1a947055c76ced61534ebf944c0139c2f"
+          test "$(git hash-object /tmp/CGW_212.cbf)" = "9230aa3c12b97a17e9f4df55fadab1d92a7f05b6"
+          test "$(git hash-object /tmp/IC_204.cbf)" = "5189272819d0385ef66aea19ff6cda160b5cf23f"
+          test "$(git hash-object /tmp/MPC212.cbf)" = "2753be46c2c140fb43b63594f7f0452c1595cd69"
+          test "$(git hash-object /tmp/fscm212.cbf)" = "7af0b3bc4ed5fd786e09173e983d63d0705a95cb"
 
       - name: Extract direct read-only UDS facts
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p cbf-facts
-          /tmp/mblink-cbf-data-extract /tmp/eis_204.cbf \
-            > cbf-facts/eis_204-direct-uds22.tsv \
-            2> cbf-facts/eis_204-summary.txt
-          /tmp/mblink-cbf-data-extract /tmp/ABR2XT.cbf \
-            > cbf-facts/abr2xt-direct-uds22.tsv \
-            2> cbf-facts/abr2xt-summary.txt
 
-          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
+          for stem in eis_204 ABR2XT CGW_212 IC_204 MPC212 fscm212; do
+            out_stem="$(printf '%s' "$stem" | tr '[:upper:]' '[:lower:]')"
+            /tmp/mblink-cbf-data-extract "/tmp/${stem}.cbf" \
+              > "cbf-facts/${out_stem}-direct-uds22.tsv" \
+              2> "cbf-facts/${out_stem}-summary.txt"
+            test "$(wc -l < "cbf-facts/${out_stem}-direct-uds22.tsv")" -gt 1
+          done
+
+          # Known parser control from the independent CaesarSuite interpretation.
+          grep -F 
+      - name: Upload extracted source facts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mercedes-cbf-source-facts
+          path: cbf-facts/
+          if-no-files-found: error
+          retention-days: 30
+EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
             cbf-facts/eis_204-direct-uds22.tsv >/dev/null
-          test "$(wc -l < cbf-facts/abr2xt-direct-uds22.tsv)" -gt 1
 
-          echo "=== Parser control ==="
-          cat cbf-facts/eis_204-summary.txt
-          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
-            cbf-facts/eis_204-direct-uds22.tsv
-          echo "=== ABR2XT summary ==="
-          cat cbf-facts/abr2xt-summary.txt
-          echo "unique_dids=$(tail -n +2 cbf-facts/abr2xt-direct-uds22.tsv | cut -f2 | sort -u | wc -l)"
-          echo "=== Captured C207 DID matches ==="
+          echo "=== Direct UDS 0x22 source facts ==="
+          for stem in eis_204 abr2xt cgw_212 ic_204 mpc212 fscm212; do
+            printf '%s: ' "$stem"
+            cat "cbf-facts/${stem}-summary.txt"
+            printf 'unique_dids=%s\n' \
+              "$(tail -n +2 "cbf-facts/${stem}-direct-uds22.tsv" | cut -f2 | sort -u | wc -l)"
+          done
+
+          echo "=== Captured C207 ABR DID matches ==="
           awk -F '\t' 'NR == 1 || $2 ~ /^(2001|2003|2004|2007|2009|200A|200D|200F|2010|2014|20C0)$/' \
             cbf-facts/abr2xt-direct-uds22.tsv
 
