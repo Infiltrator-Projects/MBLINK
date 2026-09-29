@@ -79,15 +79,15 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
             (NSString *)identifier
                                                forceFullScan:(BOOL)forceFullScan
                                                     liveOnly:(BOOL)liveOnly
-                                        candidateIdentifiers:
-            (nullable NSArray<NSNumber *> *)candidateIdentifiers;
+                                           candidateCommands:
+            (nullable NSArray<NSNumber *> *)candidateCommands;
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
                                                 attempt:(NSUInteger)attempt
                                                liveOnly:(BOOL)liveOnly
-                                   candidateIdentifiers:
-            (nullable NSArray<NSNumber *> *)candidateIdentifiers;
-- (NSArray<NSNumber *> *)documentedPIDIdentifiersForModuleIdentifier:
+                                      candidateCommands:
+            (nullable NSArray<NSNumber *> *)candidateCommands;
+- (NSArray<NSNumber *> *)documentedPIDCommandsForModuleIdentifier:
     (NSString *)identifier;
 - (void)updateScheduledManufacturerLiveJob;
 - (void)beginScheduledTransmissionLiveJob;
@@ -139,7 +139,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     BOOL _scheduledManufacturerJobActive;
     MBLinkScheduledRestoreStage _scheduledManufacturerRestoreStage;
     NSMutableDictionary<NSString *, NSSet<NSNumber *> *> *
-        _selectedManufacturerLiveIdentifiersByModule;
+        _selectedManufacturerLiveCommandsByModule;
     NSUInteger _scheduledManufacturerModuleCursor;
 }
 
@@ -164,6 +164,33 @@ static NSString *MBLinkStandardDataKey(uint8_t pid, uint32_t responder, BOOL ext
 {
     return [NSString stringWithFormat:@"%@:%08X:%02X",
         extended ? @"29" : @"11", (unsigned int)responder, (unsigned int)pid];
+}
+
+/*
+ * Preserve the diagnostic service together with the local identifier all the
+ * way from PID Setup to the wire. KWP controllers legitimately mix 0x1A and
+ * 0x21 reads; an identifier alone is therefore not a complete command key.
+ */
+static NSNumber *MBLinkManufacturerCommandToken(
+    uint8_t service, uint16_t identifier)
+{
+    const uint32_t token =
+        ((uint32_t)service << 16U) | (uint32_t)identifier;
+    return @(token);
+}
+
+static BOOL MBLinkDecodeManufacturerCommandToken(
+    NSNumber *number, uint8_t *service, uint16_t *identifier)
+{
+    if (![number isKindOfClass:[NSNumber class]] ||
+        service == NULL || identifier == NULL) {
+        return NO;
+    }
+    const NSUInteger candidate = number.unsignedIntegerValue;
+    if (candidate > UINT32_MAX) return NO;
+    *service = (uint8_t)((candidate >> 16U) & UINT32_C(0xff));
+    *identifier = (uint16_t)(candidate & UINT32_C(0xffff));
+    return mblink_mercedes_documented_read_is_safe(*service, *identifier);
 }
 
 /*
@@ -704,7 +731,7 @@ static bool MBLinkSimulatorResponder(
     _scheduledManufacturerJobRegistered = NO;
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
-    _selectedManufacturerLiveIdentifiersByModule =
+    _selectedManufacturerLiveCommandsByModule =
         [[NSMutableDictionary alloc] init];
     _scheduledManufacturerModuleCursor = 0U;
     ++_manufacturerDataRequestGeneration;
@@ -1310,11 +1337,11 @@ static bool MBLinkSimulatorResponder(
         if (module == NULL) continue;
         NSString *identifier = MBLinkMercedesModuleIdentifier(module);
         NSSet<NSNumber *> *selected =
-            _selectedManufacturerLiveIdentifiersByModule[identifier];
+            _selectedManufacturerLiveCommandsByModule[identifier];
         if (selected.count == 0U) continue;
 
         NSMutableSet<NSNumber *> *available = [NSMutableSet setWithArray:
-            [self documentedPIDIdentifiersForModuleIdentifier:identifier]];
+            [self documentedPIDCommandsForModuleIdentifier:identifier]];
         [available intersectSet:selected];
         if (available.count == 0U) continue;
 
@@ -1325,7 +1352,7 @@ static bool MBLinkSimulatorResponder(
     return nil;
 }
 
-static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
+static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
     NSArray<NSNumber *> *identifiers,
     NSSet<NSNumber *> *selected)
 {
@@ -1399,15 +1426,15 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
     const MblinkMercedesModuleScanEntry *module =
         [self moduleEntryForIdentifier:moduleIdentifier];
     NSSet<NSNumber *> *selected =
-        _selectedManufacturerLiveIdentifiersByModule[moduleIdentifier];
+        _selectedManufacturerLiveCommandsByModule[moduleIdentifier];
     if (module == NULL || selected.count == 0U) {
         _scheduledManufacturerJobActive = NO;
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
     }
 
-    NSArray<NSNumber *> *documented = MBLinkFilterIdentifiersBySelection(
-        [self documentedPIDIdentifiersForModuleIdentifier:moduleIdentifier],
+    NSArray<NSNumber *> *documented = MBLinkFilterCommandsBySelection(
+        [self documentedPIDCommandsForModuleIdentifier:moduleIdentifier],
         selected);
     if (documented.count == 0U) {
         _scheduledManufacturerJobActive = NO;
@@ -1421,7 +1448,7 @@ static NSArray<NSNumber *> *MBLinkFilterIdentifiersBySelection(
         moduleIdentifier
                                           forceFullScan:NO
                                                liveOnly:YES
-                                   candidateIdentifiers:documented];
+                                   candidateCommands:documented];
 }
 
 - (void)beginScheduledManufacturerChannelRestore
@@ -1600,22 +1627,22 @@ static void MBLinkAppendManufacturerDefinition(
     return [values copy];
 }
 
-- (NSArray<NSNumber *> *)documentedPIDIdentifiersForModuleIdentifier:
+- (NSArray<NSNumber *> *)documentedPIDCommandsForModuleIdentifier:
     (NSString *)identifier
 {
     /*
-     * iPhone follows the same rule as Standard OBD: documentation defines the
-     * catalogue. Every manufacturer PID returned by the exact ECU pack is a
-     * valid user selection regardless of whether this particular vehicle has
-     * answered it before. Runtime NO DATA never changes catalogue membership.
+     * Documentation defines the catalogue. Preserve service + identifier as
+     * one wire-command token because KWP controllers can expose both 0x1A and
+     * 0x21 reads. Runtime response never changes catalogue membership.
      */
-    NSMutableOrderedSet<NSNumber *> *identifiers =
+    NSMutableOrderedSet<NSNumber *> *commands =
         [[NSMutableOrderedSet alloc] init];
     for (MBLinkManufacturerPIDDefinitionSnapshot *definition in
          [self documentedDataDefinitionsForModuleIdentifier:identifier]) {
-        [identifiers addObject:@(definition.identifier)];
+        [commands addObject:MBLinkManufacturerCommandToken(
+            definition.service, definition.identifier)];
     }
-    return [[identifiers array] sortedArrayUsingSelector:@selector(compare:)];
+    return [[commands array] sortedArrayUsingSelector:@selector(compare:)];
 }
 
 - (void)loadSavedVehicleProfileForPIDConfiguration:(NSString *)vin
@@ -1625,29 +1652,33 @@ static void MBLinkAppendManufacturerDefinition(
 }
 
 - (NSArray<NSNumber *> *)
-    manufacturerLivePollingIdentifiersForModuleIdentifier:(NSString *)identifier
+    manufacturerLivePollingCommandsForModuleIdentifier:(NSString *)identifier
 {
     if (identifier.length == 0U) return @[];
     NSSet<NSNumber *> *selected =
-        _selectedManufacturerLiveIdentifiersByModule[identifier];
+        _selectedManufacturerLiveCommandsByModule[identifier];
     if (selected.count == 0U) return @[];
     return [[selected allObjects] sortedArrayUsingSelector:@selector(compare:)];
 }
 
-- (void)setManufacturerLivePollingIdentifiers:(NSArray<NSNumber *> *)identifiers
-                           forModuleIdentifier:(NSString *)identifier
+- (void)setManufacturerLivePollingCommands:(NSArray<NSNumber *> *)commands
+                        forModuleIdentifier:(NSString *)identifier
 {
     if (identifier.length == 0U) return;
     NSMutableSet<NSNumber *> *valid = [[NSMutableSet alloc] init];
-    for (NSNumber *number in identifiers ?: @[]) {
-        if (![number isKindOfClass:[NSNumber class]]) continue;
-        const NSUInteger candidate = number.unsignedIntegerValue;
-        if (candidate <= UINT16_MAX) [valid addObject:@(candidate)];
+    for (NSNumber *number in commands ?: @[]) {
+        uint8_t service = 0U;
+        uint16_t localIdentifier = 0U;
+        if (MBLinkDecodeManufacturerCommandToken(
+                number, &service, &localIdentifier)) {
+            [valid addObject:MBLinkManufacturerCommandToken(
+                service, localIdentifier)];
+        }
     }
     if (valid.count == 0U) {
-        [_selectedManufacturerLiveIdentifiersByModule removeObjectForKey:identifier];
+        [_selectedManufacturerLiveCommandsByModule removeObjectForKey:identifier];
     } else {
-        _selectedManufacturerLiveIdentifiersByModule[identifier] = [valid copy];
+        _selectedManufacturerLiveCommandsByModule[identifier] = [valid copy];
     }
     [self updateScheduledManufacturerLiveJob];
     [self notifyDelegate];
@@ -1936,15 +1967,15 @@ static void MBLinkAppendManufacturerDefinition(
     [self beginManufacturerDataOperationForModuleIdentifier:identifier
                                               forceFullScan:forceFullScan
                                                    liveOnly:NO
-                                       candidateIdentifiers:nil];
+                                       candidateCommands:nil];
 }
 
 - (void)beginManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
                                                forceFullScan:(BOOL)forceFullScan
                                                     liveOnly:(BOOL)liveOnly
-                                        candidateIdentifiers:
-            (nullable NSArray<NSNumber *> *)candidateIdentifiers
+                                        candidateCommands:
+            (nullable NSArray<NSNumber *> *)candidateCommands
 {
     if (identifier.length == 0U || !_shared.isActive) return;
 
@@ -1978,15 +2009,15 @@ static void MBLinkAppendManufacturerDefinition(
                                                generation:generation
                                                   attempt:0U
                                                  liveOnly:liveOnly
-                                     candidateIdentifiers:candidateIdentifiers];
+                                     candidateCommands:candidateCommands];
 }
 
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
                                                 attempt:(NSUInteger)attempt
                                                liveOnly:(BOOL)liveOnly
-                                   candidateIdentifiers:
-            (nullable NSArray<NSNumber *> *)candidateIdentifiers
+                                   candidateCommands:
+            (nullable NSArray<NSNumber *> *)candidateCommands
 {
     if (generation != _manufacturerDataRequestGeneration ||
         !_shared.isActive ||
@@ -2024,7 +2055,7 @@ static void MBLinkAppendManufacturerDefinition(
                         generation:generation
                         attempt:attempt + 1U
                         liveOnly:liveOnly
-                        candidateIdentifiers:candidateIdentifiers];
+                        candidateCommands:candidateCommands];
                 });
             return;
         }
@@ -2053,26 +2084,32 @@ static void MBLinkAppendManufacturerDefinition(
     MblinkMercedesDataScanResult result =
         MBLINK_MERCEDES_DATA_SCAN_RESULT_INVALID_ARGUMENT;
 
-    if (candidateIdentifiers.count != 0U) {
+    if (candidateCommands.count != 0U) {
         /*
-         * iPhone polling receives only identifiers the user selected from
-         * the exact identified ECU's documented PID catalogue. No second
-         * support/pollability gate is applied here.
+         * iPhone polling receives only commands selected from the exact
+         * identified ECU catalogue. Keep the documented service with the
+         * identifier so KWP 1A xx can never be rewritten as 21 xx.
          */
-        uint16_t identifiers[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
-        size_t identifierCount = 0U;
-        for (NSNumber *number in candidateIdentifiers) {
-            if (identifierCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
+        MblinkMercedesDataProbeCommand
+            commands[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t commandCount = 0U;
+        for (NSNumber *number in candidateCommands) {
+            uint8_t service = 0U;
+            uint16_t localIdentifier = 0U;
+            if (commandCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS)
                 break;
-            const NSUInteger documentedIdentifier =
-                number.unsignedIntegerValue;
-            if (documentedIdentifier > UINT16_MAX) continue;
-            identifiers[identifierCount++] = (uint16_t)documentedIdentifier;
+            if (!MBLinkDecodeManufacturerCommandToken(
+                    number, &service, &localIdentifier)) {
+                continue;
+            }
+            commands[commandCount].service = service;
+            commands[commandCount].identifier = localIdentifier;
+            ++commandCount;
         }
-        if (identifierCount != 0U) {
-            result = mblink_mercedes_data_scan_begin_identifiers(
+        if (commandCount != 0U) {
+            result = mblink_mercedes_data_scan_begin_documented_commands(
                 &_manufacturerDataScan, &config,
-                identifiers, identifierCount);
+                commands, commandCount);
         }
     } else if (!liveOnly && ecuPackItemCount != 0U) {
         /*
