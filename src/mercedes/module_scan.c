@@ -819,6 +819,17 @@ void mblink_mercedes_module_scan_advance_candidate(
     if (scan == NULL) return;
 
     /*
+     * The production cascade allows 1050 ms. ELM327 ATST tops out at 0xFF
+     * (1020 ms), so only these exact fallback targets are widened. Restore the
+     * normal fast census timeout before doing ECU teardown or moving on.
+     */
+    if (scan->vin_timeout_long) {
+        scan->stage =
+            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT;
+        return;
+    }
+
+    /*
      * A Mercedes ECU can change externally visible behaviour while a
      * diagnostic session is active. Always send the documented route-specific
      * quit/default-session command after a responding ECU before moving on.
@@ -832,17 +843,6 @@ void mblink_mercedes_module_scan_advance_candidate(
             scan, true, quit_command)) {
         scan->stage =
             MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION;
-        return;
-    }
-
-    /*
-     * The production cascade allows 1050 ms. ELM327 ATST tops out at 0xFF
-     * (1020 ms), so only these exact fallback targets are widened. Restore the
-     * normal fast census timeout before moving to the next ECU.
-     */
-    if (scan->vin_timeout_long) {
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT;
         return;
     }
 
