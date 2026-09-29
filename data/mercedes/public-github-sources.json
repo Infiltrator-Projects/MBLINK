@@ -110,6 +110,22 @@
       "use": "normalized-factual-route-and-read-evidence",
       "destination": "MBLINK global Mercedes documented-ECU catalogue",
       "value": "Foxwell/Xentry-derived Mercedes SysInfors/SysEnterCmd metadata normalized into controller names, routes, sessions and simple read-only 22/21/1A references."
+    },
+    {
+      "repository": "Matrix-aas/mercedes-mcp",
+      "status": "active",
+      "license": "mixed/reference-only; inspect upstream file licensing before redistribution",
+      "use": "source-backed-actual-value-cbf-evidence",
+      "destination": "MBLINK Mercedes exact-controller PID catalogue",
+      "value": "Public Mercedes Vediamo CBF corpus including ABR2XT, CGW_212, IC_204, MPC212, EIS_204 and FSCM212. CBF Data services provide exact ECU diagnostic requests and named data fields; use source facts, not copied implementation."
+    },
+    {
+      "repository": "jglim/CaesarSuite",
+      "status": "active",
+      "license": "GPL-3.0",
+      "use": "cbf-format-and-decoding-reference",
+      "destination": "MBLINK research/tests",
+      "value": "Open CBF parser documenting DiagService Data type, request bytes, response preparations, presentations, scaling, units and enums. Used to independently interpret public Mercedes CBF facts."
     }
   ]
 }
