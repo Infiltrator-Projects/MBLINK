@@ -116,6 +116,43 @@ static int accept_identity_metadata(
     return 0;
 }
 
+static int test_cached_resolved_egs53_skips_identity_reprobe(void)
+{
+    MblinkMercedesModuleScan scan;
+    MblinkMercedesModuleScanEntry cached;
+    MblinkElm327Response ok =
+        response(MBLINK_ELM327_RESULT_OK, "OK", true);
+    char command[32];
+    size_t written = 0U;
+
+    memset(&cached, 0, sizeof(cached));
+    CHECK(mblink_mercedes_module_scan_resolve_controller(
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        NULL, "0034464310", NULL, NULL, &cached));
+    CHECK(cached.controller_family != NULL);
+    CHECK(strcmp(cached.controller_family->key, "transmission-egs53") == 0);
+
+    CHECK(mblink_mercedes_module_scan_begin_cached(&scan, &cached, 1U) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+
+    /*
+     * Simulate completion of cached route setup. A resolved EGS53 must proceed
+     * directly to TesterPresent rather than widening ATST and replaying
+     * 1A87/1A86/1A89, which the 2026-09-29 reconnect capture returned NO DATA.
+     */
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_RECEIVE;
+    scan.dtc_index = 0U;
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &ok) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "3E01") == 0);
+    return 0;
+}
+
 static int test_documented_session_teardown(void)
 {
     MblinkMercedesModuleScan scan;
@@ -202,6 +239,7 @@ static int test_documented_session_teardown(void)
 
 int main(void)
 {
+    if (test_cached_resolved_egs53_skips_identity_reprobe() != 0) return 1;
     if (test_documented_session_teardown() != 0) return 1;
     MblinkMercedesModuleScan scan;
     char command[32];
