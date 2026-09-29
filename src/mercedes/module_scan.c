@@ -2001,6 +2001,14 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
+        /*
+         * Session teardown is best-effort. A module that times out while
+         * returning to its normal/default session must not stall the entire
+         * vehicle census or cause the teardown command to be retransmitted.
+         */
+        mblink_mercedes_module_scan_advance_candidate(scan);
+        break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
         if (!mblink_mercedes_module_scan_at_ok(response))
             goto adapter_failure;
@@ -2071,6 +2079,29 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
             goto failed_state;
         mblink_mercedes_module_scan_capture_dtc(
             &scan->modules[scan->dtc_index], response);
+        {
+            char quit_command[5];
+            if (mblink_mercedes_module_scan_entry_control_command(
+                    &scan->modules[scan->dtc_index],
+                    true, quit_command)) {
+                scan->stage =
+                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION;
+                break;
+            }
+        }
+        ++scan->dtc_index;
+        scan->stage = scan->single_module_refresh ||
+                      scan->dtc_index >= scan->module_count
+            ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE
+            : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_SET_PROTOCOL;
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION:
+        if (scan->dtc_index >= scan->module_count)
+            goto failed_state;
+        /*
+         * As in discovery, teardown is best-effort. Advance even when the ECU
+         * deliberately does not reply to its documented quit-session command.
+         */
         ++scan->dtc_index;
         scan->stage = scan->single_module_refresh ||
                       scan->dtc_index >= scan->module_count
