@@ -442,7 +442,7 @@ static int test_generated_cbf_controller_pid_catalogues(void)
         { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
           16U, UINT8_C(0x22), UINT16_C(0x0220) },
         { "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-          2U, UINT8_C(0x22), UINT16_C(0x1002) }
+          5U, UINT8_C(0x22), UINT16_C(0x1001) }
     };
 
     for (size_t index = 0U;
