@@ -182,7 +182,13 @@ static int idscan_begin_saved_transmission_with_identity(
     CHECK(idscan_send_ok(scan, "ATSP6") == 0);
     CHECK(idscan_send_ok(scan, "ATSH7E1") == 0);
     CHECK(idscan_send_ok(scan, "ATCRA7E9") == 0);
-    CHECK(idscan_send_ok(scan, "ATST64") == 0);
+    if (scan->stage ==
+        MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_SET_TIMEOUT) {
+        CHECK(idscan_send_ok(scan, "ATST64") == 0);
+    } else {
+        CHECK(scan->stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
+    }
     return 0;
 }
 
@@ -206,7 +212,19 @@ static int idscan_finish_saved_transmission(MblinkMercedesModuleScan *scan)
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(command, "1802FF00") == 0);
     CHECK(mblink_mercedes_module_scan_accept(scan, &faults) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan->stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+    {
+        MblinkElm327Response no_reply =
+            idscan_response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
+        CHECK(mblink_mercedes_module_scan_command(
+                  scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1081") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(scan, &no_reply) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
+    }
     CHECK(scan->module_count == 1U);
     CHECK(scan->modules[0].tester_present_response);
     CHECK(scan->modules[0].dtc_result == MBLINK_MERCEDES_MODULE_DTC_AVAILABLE);
@@ -243,12 +261,14 @@ static int test_saved_transmission_identity_capture(void)
         scan.modules[0].identity) == MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN);
     CHECK(idscan_finish_saved_transmission(&scan) == 0);
 
-    /* A new numeric reply does not erase a previously identified family. */
+    /*
+     * A saved transmission whose family is already resolved does not replay
+     * 1A87/1A86/1A89 on reconnect. The 2026-09-29 EGS53 capture proved those
+     * redundant reads can all return NO DATA even though live 21 30 works.
+     */
     CHECK(idscan_begin_saved_transmission_with_identity(
         &scan, "VGS3_0402") == 0);
-    CHECK(idscan_send_response(&scan, "1A87", &dcx) == 0);
-    CHECK(idscan_send_response(&scan, "1A86", &dcs) == 0);
-    CHECK(idscan_send_response(&scan, "1A89", &variant) == 0);
+    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
     CHECK(strcmp(scan.modules[0].identity, "VGS3_0402") == 0);
     CHECK(mblink_mercedes_transmission_family_from_identity(
         scan.modules[0].identity) == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2);
