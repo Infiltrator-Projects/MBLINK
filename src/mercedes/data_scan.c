@@ -77,8 +77,8 @@ static const MblinkMercedesControllerProfileAlias mblink_documented_controller_a
     {"esp-abr2xt","ABR2XT_X"},{"esp-esp212","ESP212_X"},{"restraints-orc212","ORC_212_X"},
     {"pretensioner-rbtmfl204","RBTMFL_204"},{"pretensioner-rbtmfr204","RBTMFR_204"},{"camera-mfk","MPC212_X"},
     {"fuel-pump-fscu","FSCM212"},{"cluster-ic204","IC_204"},{"cluster-ic212","IC_212"},{"headunit-hu204","HU_204"},
-    {"audio-ctrlc204","CTRLC_204"},{"display-dispc204","DISPC_204"},{"gateway-cgw212","CGW_212_X"},
-    {"eis-ezs212","EIS_212_X"},{"steering-mrm","MRM221"},{"steering-sccm212","SCCM_212_X"},{"steering-scm","SCCM_212_X"},
+    {"audio-ctrlc204","CTRLC_204"},{"display-dispc204","DISPC_204"},{"gateway-cgw204","CGW_204_X"},{"gateway-cgw212","CGW_212_X"},
+    {"eis-ezs204","EIS_204"},{"eis-ezs212","EIS_212_X"},{"steering-mrm","MRM221"},{"steering-sccm204","SCCM_204_X"},{"steering-sccm212","SCCM_212_X"},{"steering-scm","SCCM_212_X"},
     {"sam-front-212","SAMF_212"},{"sam-rear-212","SAMR_212"},{"climate-212","HVAC_212"},
     {"airmatic-ads212","ADS212"},{"distronic-dtr","DTR_212"},{"seat-driver-212","SEATD_212"},{"seat-passenger-204","SEATP_204"}
 };
@@ -523,6 +523,7 @@ static const char k_20260903_field_evidence_provenance[] =
  */
 static const MblinkMercedesControllerDataProfileEntry
     controller_data_profile[] = {
+#include "cbf_controller_data.inc"
     /*
      * Public Mercedes Vediamo CBF data services.
      *
@@ -1174,8 +1175,16 @@ const char *mblink_mercedes_data_profile_key_for_controller(
      * are active data profiles. All other controller families can still be
      * identified and displayed without inheriting guessed services.
      */
+    if (strcmp(family->key, "gateway-cgw204") == 0)
+        return "gateway-cgw204";
     if (strcmp(family->key, "gateway-cgw212") == 0)
         return "gateway-cgw212";
+    if (strcmp(family->key, "cluster-ic204") == 0)
+        return "cluster-ic204";
+    if (strcmp(family->key, "eis-ezs204") == 0)
+        return "eis-ezs204";
+    if (strcmp(family->key, "steering-sccm204") == 0)
+        return "steering-sccm204";
     if (strcmp(family->key, "camera-mfk") == 0)
         return "camera-mfk";
     if (strcmp(family->key, "fuel-pump-fscu") == 0)
@@ -1191,6 +1200,25 @@ const char *mblink_mercedes_data_profile_key_for_controller(
     return NULL;
 }
 
+static bool controller_data_profile_seen_before(
+    size_t index,
+    const char *profile_key,
+    MblinkMercedesDiagnosticProtocol protocol,
+    uint16_t identifier)
+{
+    size_t previous;
+    for (previous = 0U; previous < index; ++previous) {
+        const MblinkMercedesControllerDataProfileEntry *entry =
+            &controller_data_profile[previous];
+        if (entry->protocol == protocol &&
+            entry->identifier == identifier &&
+            strcmp(entry->profile_key, profile_key) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 size_t mblink_mercedes_controller_data_profile_identifier_count(
     const char *profile_key,
     MblinkMercedesDiagnosticProtocol protocol)
@@ -1202,11 +1230,15 @@ size_t mblink_mercedes_controller_data_profile_identifier_count(
     for (index = 0U;
          index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
          ++index) {
-        if (controller_data_profile[index].protocol == protocol &&
-            strcmp(controller_data_profile[index].profile_key,
-                   profile_key) == 0) {
-            ++count;
+        const MblinkMercedesControllerDataProfileEntry *entry =
+            &controller_data_profile[index];
+        if (entry->protocol != protocol ||
+            strcmp(entry->profile_key, profile_key) != 0 ||
+            controller_data_profile_seen_before(
+                index, profile_key, protocol, entry->identifier)) {
+            continue;
         }
+        ++count;
     }
     return count;
 }
@@ -1227,7 +1259,9 @@ mblink_mercedes_controller_data_profile_identifier_at(
         const MblinkMercedesControllerDataProfileEntry *entry =
             &controller_data_profile[index];
         if (entry->protocol != protocol ||
-            strcmp(entry->profile_key, profile_key) != 0) {
+            strcmp(entry->profile_key, profile_key) != 0 ||
+            controller_data_profile_seen_before(
+                index, profile_key, protocol, entry->identifier)) {
             continue;
         }
         if (match_index == requested_index) return entry;
