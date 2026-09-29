@@ -672,6 +672,14 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &dtcs) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1001") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
         CHECK(send_ok(&scan, "ATSP7") == 0);
         CHECK(send_ok(&scan, "ATSH18DA02F1") == 0);
