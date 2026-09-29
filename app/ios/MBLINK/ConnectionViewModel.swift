@@ -1974,7 +1974,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let displaySelectionVerified = verifySingleDisplaySelection()
         let ready = !isActive && selectedVehicleVIN?.count == 17 &&
             pidConfigurationModules.count >= 4 && transmissionCount > 0 &&
-            orcCount > 0 && displaySelectionVerified
+            displaySelectionVerified
         let marker = "state=\(ready ? "ready" : "failed")\n" +
             "active=\(isActive)\n" +
             "selected_vin=\(selectedVehicleVIN ?? "")\n" +
