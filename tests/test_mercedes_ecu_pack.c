@@ -360,7 +360,8 @@ static int test_generated_cbf_controller_pid_catalogues(void)
         uint16_t sample_identifier;
     } cases[] = {
         { "eis-ezs204", 9U, UINT16_C(0x0228) },
-        { "esp-abr2xt", 18U, UINT16_C(0x2001) },
+        /* 18 CBF-defined DIDs plus seven remaining raw observations. */
+        { "esp-abr2xt", 25U, UINT16_C(0x2001) },
         { "gateway-cgw212", 11U, UINT16_C(0xd243) },
         { "cluster-ic204", 62U, UINT16_C(0x0001) },
         { "camera-mfk", 16U, UINT16_C(0x0220) },
