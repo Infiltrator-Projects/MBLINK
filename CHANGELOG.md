@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.254 — 2026-09-30
+
+- Complete the current Mercedes controller-catalogue population pass by exposing every safe source-backed read from the exact identified ECU profile in PID Setup, without filtering slow-changing, static-looking, identification or configuration reads during this completeness phase.
+- Use the richest exact source profile available for the captured C207 controller families, add CRD3 to exact-profile resolution, and regress all 13 captured controller routes so every documented safe read reaches the selectable ECU pack.
+- Retain semantic kinds for later UI grouping while keeping capture-only unknown identifiers explicitly raw and unadvertised; vehicle response still never creates or removes catalogue membership.
+- Keep the generated pinned-CBF Data catalogues attached alongside the global 1,319-profile / 4,355-read Mercedes source catalogue, with exact-controller and protocol matching remaining authoritative.
+- Preserve diagnostic service together with identifier throughout iPhone manufacturer polling, so mixed KWP2000 `1A xx` and `21 xx` selections cannot collapse into the wrong wire command; selected commands remain de-duplicated before scheduling.
+- Add catalogue-completeness, exact-family and service-aware polling regressions across portable C11, sanitizers, GTK, Windows and the iOS simulator flow.
+
 ## 0.7.253 — 2026-09-29
 
 - Make the iPhone Mercedes PID catalogue purely documentation-driven: exact-ECU online actual-value definitions determine catalogue membership, while vehicle response, NO DATA, capture-only observations, and desktop scanner repeatability never add, remove or hide a PID.
