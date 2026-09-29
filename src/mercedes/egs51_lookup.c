@@ -157,7 +157,7 @@ static const MblinkMercedesEgs51SignalDefinition f2s[] = {
 };
 static const MblinkMercedesEgs51SignalDefinition f3s[] = {
  { "IGN_ANG",UINT16_C(16),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"Ignition angle",MBLINK_MERCEDES_EGS51_SIGNAL_NUMBER,0.35,0.0,"",NULL,0U },
- { "PW",UINT16_C(16),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"Pedal position",MBLINK_MERCEDES_EGS51_SIGNAL_NUMBER,1.0,0.0,"",NULL,0U },
+ { "PW",UINT16_C(16),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"Pedal position",MBLINK_MERCEDES_EGS51_SIGNAL_NUMBER,0.4,0.0,"%",NULL,0U },
  { "M_ESP",UINT16_C(48),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"Motor torque for ESP",MBLINK_MERCEDES_EGS51_SIGNAL_NUMBER,3.0,0.0,"",NULL,0U },
 };
 static const MblinkMercedesEgs51SignalDefinition f4s[] = {
@@ -371,6 +371,9 @@ bool mblink_mercedes_egs51_decode_signal(const MblinkMercedesEgs51SignalDefiniti
  }
  if ((strcmp(s->name,"DHR")==0 || strcmp(s->name,"DHL")==0) &&
      r==UINT64_C(0x3fff)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if (strcmp(s->name,"PW")==0 && r>UINT64_C(250)) {
   x.unavailable=true;*d=x;return true;
  }
  if ((strcmp(s->name,"IND_TORQUE")==0 || strcmp(s->name,"MIN_TORQUE")==0 ||

@@ -518,6 +518,16 @@ const char *mblink_mercedes_transmission_egs53_rli30_program_name(
 const char *mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(
     uint8_t code);
 
+/* Family-local passive-CAN derived read semantics. */
+const char *mblink_mercedes_transmission_egs52_tcc_request_name(
+    bool slipping_request, bool open_request);
+bool mblink_mercedes_transmission_egs52_esp_torque_intervention_active(
+    bool minimum_request, bool maximum_request);
+bool mblink_mercedes_transmission_egs52_cruise_torque_intervention_active(
+    bool minimum_request, bool maximum_request);
+const char *mblink_mercedes_transmission_egs53_tcc_request_name(
+    uint8_t request_code);
+
 const char *mblink_mercedes_transmission_tcc_name(
     MblinkMercedesTorqueConverterState state);
 

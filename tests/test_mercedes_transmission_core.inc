@@ -614,6 +614,68 @@ static int test_transport_formatter(void)
         UINT32_C(0x30d), payload, sizeof(payload), text, sizeof(text)));
     CHECK(strstr(text, "EngCoolTemp=60 °C") != NULL);
 
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 16U, 8U, 125U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,
+        UINT32_C(0x210), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "PW=50 %") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 16U, 8U, 125U);
+    put_bits(payload, 34U, 1U, 1U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        UINT32_C(0x210), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "PW=50 %") != NULL);
+    CHECK(strstr(text, "TCC slip request=yes") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 1U, 1U, 1U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        UINT32_C(0x308), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "TCC open request=yes") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 17U, 1U, 1U);
+    put_bits(payload, 19U, 13U, 2400U);
+    put_bits(payload, 33U, 1U, 1U);
+    put_bits(payload, 35U, 13U, 2600U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52,
+        UINT32_C(0x300), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "ESP intervention=yes") != NULL);
+    CHECK(strstr(text, "ESP demand=150.00 Nm") != NULL);
+    CHECK(strstr(text, "Cruise intervention=yes") != NULL);
+    CHECK(strstr(text, "Cruise demand=100.00 Nm") != NULL);
+
+    memset(payload, 0, sizeof(payload));
+    put_bits(payload, 32U, 2U, 2U);
+    CHECK(mblink_mercedes_transmission_format_can_frame(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
+        UINT32_C(0x17d), payload, sizeof(payload), text, sizeof(text)));
+    CHECK(strstr(text, "TCC request=Slipping") != NULL);
+
+    CHECK(strcmp(
+        mblink_mercedes_transmission_egs52_tcc_request_name(true, true),
+        "Open") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_transmission_egs52_tcc_request_name(true, false),
+        "Slipping") == 0);
+    CHECK(!mblink_mercedes_transmission_egs52_esp_torque_intervention_active(
+        false, false));
+    CHECK(mblink_mercedes_transmission_egs52_esp_torque_intervention_active(
+        true, false));
+    CHECK(mblink_mercedes_transmission_egs52_cruise_torque_intervention_active(
+        false, true));
+    CHECK(strcmp(
+        mblink_mercedes_transmission_egs53_tcc_request_name(1U),
+        "Open") == 0);
+    CHECK(strcmp(
+        mblink_mercedes_transmission_egs53_tcc_request_name(2U),
+        "Slipping") == 0);
+
     CHECK(!mblink_mercedes_transmission_format_can_frame(
         MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS51,
         UINT32_C(0x7ff), payload, sizeof(payload), text, sizeof(text)));

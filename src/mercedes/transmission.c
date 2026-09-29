@@ -776,6 +776,42 @@ static bool format_egs51_lookup_frame(
     return wrote;
 }
 
+static bool egs52_lookup_bool(
+    const MblinkMercedesEgs52FrameDefinition *frame,
+    const char *signal_name,
+    const uint8_t *payload, size_t payload_length,
+    bool *value)
+{
+    const MblinkMercedesEgs52SignalDefinition *signal;
+    MblinkMercedesEgs52DecodedSignal decoded;
+    if (frame == NULL || signal_name == NULL || value == NULL) return false;
+    signal = mblink_mercedes_egs52_signal_find(frame, signal_name);
+    if (signal == NULL ||
+        !mblink_mercedes_egs52_decode_signal(
+            signal, payload, payload_length, &decoded) ||
+        !decoded.boolean_available) return false;
+    *value = decoded.boolean_value;
+    return true;
+}
+
+static bool egs52_lookup_physical(
+    const MblinkMercedesEgs52FrameDefinition *frame,
+    const char *signal_name,
+    const uint8_t *payload, size_t payload_length,
+    double *value)
+{
+    const MblinkMercedesEgs52SignalDefinition *signal;
+    MblinkMercedesEgs52DecodedSignal decoded;
+    if (frame == NULL || signal_name == NULL || value == NULL) return false;
+    signal = mblink_mercedes_egs52_signal_find(frame, signal_name);
+    if (signal == NULL ||
+        !mblink_mercedes_egs52_decode_signal(
+            signal, payload, payload_length, &decoded) ||
+        decoded.unavailable || !decoded.physical_available) return false;
+    *value = decoded.physical_value;
+    return true;
+}
+
 static bool format_egs52_lookup_frame(
     uint32_t can_id, const uint8_t *payload, size_t payload_length,
     char *buffer, size_t buffer_size)
@@ -798,6 +834,74 @@ static bool format_egs52_lookup_frame(
                  wrote ? " || " : "", frame->ecu, frame->name);
         if (!append_lookup_text(buffer, buffer_size, &used, piece)) return true;
         wrote = true;
+
+        if (strcmp(frame->name, "MS_210h") == 0) {
+            bool slip_request;
+            if (egs52_lookup_bool(
+                    frame, "KUEB_S_A", payload, payload_length,
+                    &slip_request)) {
+                snprintf(piece, sizeof(piece), " · TCC slip request=%s",
+                         slip_request ? "yes" : "no");
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+        } else if (strcmp(frame->name, "MS_308h") == 0) {
+            bool open_request;
+            if (egs52_lookup_bool(
+                    frame, "KUEB_O_A", payload, payload_length,
+                    &open_request)) {
+                snprintf(piece, sizeof(piece), " · TCC open request=%s",
+                         open_request ? "yes" : "no");
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+        } else if (strcmp(frame->name, "BS_300h") == 0) {
+            bool esp_min = false, esp_max = false;
+            bool cruise_min = false, cruise_max = false;
+            bool have_esp_min, have_esp_max;
+            bool have_cruise_min, have_cruise_max;
+            double esp_demand, cruise_demand;
+            const bool have_esp_demand = egs52_lookup_physical(
+                frame, "M_ESP", payload, payload_length, &esp_demand);
+            const bool have_cruise_demand = egs52_lookup_physical(
+                frame, "DM_ART", payload, payload_length, &cruise_demand);
+
+            have_esp_min = egs52_lookup_bool(
+                frame, "MMIN_ESP", payload, payload_length, &esp_min);
+            have_esp_max = egs52_lookup_bool(
+                frame, "MMAX_ESP", payload, payload_length, &esp_max);
+            have_cruise_min = egs52_lookup_bool(
+                frame, "DMMIN_ART", payload, payload_length, &cruise_min);
+            have_cruise_max = egs52_lookup_bool(
+                frame, "DMMAX_ART", payload, payload_length, &cruise_max);
+
+            if (have_esp_min && have_esp_max) {
+                snprintf(piece, sizeof(piece), " · ESP intervention=%s",
+                         mblink_mercedes_transmission_egs52_esp_torque_intervention_active(
+                             esp_min, esp_max) ? "yes" : "no");
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+            if (have_esp_demand) {
+                snprintf(piece, sizeof(piece),
+                         " · ESP demand=%.2f Nm", esp_demand);
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+            if (have_cruise_min && have_cruise_max) {
+                snprintf(piece, sizeof(piece), " · Cruise intervention=%s",
+                         mblink_mercedes_transmission_egs52_cruise_torque_intervention_active(
+                             cruise_min, cruise_max) ? "yes" : "no");
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+            if (have_cruise_demand) {
+                snprintf(piece, sizeof(piece),
+                         " · Cruise demand=%.2f Nm", cruise_demand);
+                if (!append_lookup_text(
+                        buffer, buffer_size, &used, piece)) return true;
+            }
+        }
 
         for (signal_index = 0U; signal_index < frame->signal_count;
              ++signal_index) {
@@ -885,6 +989,25 @@ static bool format_egs53_lookup_frame(
                  wrote ? " || " : "", frame->ecu, frame->name);
         if (!append_lookup_text(buffer, buffer_size, &used, piece)) return true;
         wrote = true;
+
+        if (strcmp(frame->name, "TX_RQ_ECM") == 0) {
+            const MblinkMercedesEgs53SignalDefinition *tcc_signal =
+                mblink_mercedes_egs53_signal_find(frame, "TCC_Rq");
+            MblinkMercedesEgs53DecodedSignal tcc_value;
+            if (tcc_signal != NULL &&
+                mblink_mercedes_egs53_decode_signal(
+                    tcc_signal, payload, payload_length, &tcc_value)) {
+                const char *request_name =
+                    mblink_mercedes_transmission_egs53_tcc_request_name(
+                        (uint8_t)tcc_value.raw);
+                if (request_name != NULL) {
+                    snprintf(piece, sizeof(piece),
+                             " · TCC request=%s", request_name);
+                    if (!append_lookup_text(
+                            buffer, buffer_size, &used, piece)) return true;
+                }
+            }
+        }
 
         for (signal_index = 0U; signal_index < frame->signal_count;
              ++signal_index) {
@@ -1707,6 +1830,39 @@ const char *mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(
     case 23U: return "Wrong gear";
     case 88U: return "Calculating";
     case 255U: return "Unavailable";
+    default: return NULL;
+    }
+}
+
+const char *mblink_mercedes_transmission_egs52_tcc_request_name(
+    bool slipping_request, bool open_request)
+{
+    /* Upstream evaluates slip first and open second: open wins. */
+    if (open_request) return "Open";
+    if (slipping_request) return "Slipping";
+    return "None";
+}
+
+bool mblink_mercedes_transmission_egs52_esp_torque_intervention_active(
+    bool minimum_request, bool maximum_request)
+{
+    return minimum_request || maximum_request;
+}
+
+bool mblink_mercedes_transmission_egs52_cruise_torque_intervention_active(
+    bool minimum_request, bool maximum_request)
+{
+    return minimum_request || maximum_request;
+}
+
+const char *mblink_mercedes_transmission_egs53_tcc_request_name(
+    uint8_t request_code)
+{
+    switch (request_code) {
+    case 0U: return "None";
+    case 1U: return "Open";
+    case 2U: return "Slipping";
+    case 3U: return "Unavailable";
     default: return NULL;
     }
 }

@@ -291,7 +291,7 @@ static const MblinkMercedesEgs52SignalDefinition f10s[] = {
  { "ZH_AUS_MS",UINT16_C(9),UINT16_C(1),false,UINT64_C(0),UINT8_C(0),"Turn off heater",MBLINK_MERCEDES_EGS52_SIGNAL_BOOL,1.0,0.0,"",NULL,0U },
  { "GMAX_MS",UINT16_C(10),UINT16_C(3),false,UINT64_C(0),UINT8_C(0),"Gear, upper limit",MBLINK_MERCEDES_EGS52_SIGNAL_ENUM,1.0,0.0,"",f10s6e,sizeof(f10s6e)/sizeof(f10s6e[0]) },
  { "GMIN_MS",UINT16_C(13),UINT16_C(3),false,UINT64_C(0),UINT8_C(0),"Gear, lower limit",MBLINK_MERCEDES_EGS52_SIGNAL_ENUM,1.0,0.0,"",f10s7e,sizeof(f10s7e)/sizeof(f10s7e[0]) },
- { "PW",UINT16_C(16),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"pedal",MBLINK_MERCEDES_EGS52_SIGNAL_NUMBER,1.0,0.0,"",NULL,0U },
+ { "PW",UINT16_C(16),UINT16_C(8),false,UINT64_C(0),UINT8_C(0),"pedal",MBLINK_MERCEDES_EGS52_SIGNAL_NUMBER,0.4,0.0,"%",NULL,0U },
  { "V_DSPL_NEU",UINT16_C(24),UINT16_C(1),false,UINT64_C(0),UINT8_C(0),"retrigger minimum display time in the display: S",MBLINK_MERCEDES_EGS52_SIGNAL_BOOL,1.0,0.0,"",NULL,0U },
  { "LL_STBL",UINT16_C(25),UINT16_C(1),false,UINT64_C(0),UINT8_C(0),"idle is stable",MBLINK_MERCEDES_EGS52_SIGNAL_BOOL,1.0,0.0,"",NULL,0U },
  { "VGL_ST",UINT16_C(26),UINT16_C(1),false,UINT64_C(0),UINT8_C(0),"Vorglühstatus",MBLINK_MERCEDES_EGS52_SIGNAL_BOOL,1.0,0.0,"",NULL,0U },
@@ -1759,6 +1759,9 @@ bool mblink_mercedes_egs52_decode_signal(const MblinkMercedesEgs52SignalDefiniti
  }
  if ((strcmp(s->name,"DHR")==0 || strcmp(s->name,"DHL")==0) &&
      r==UINT64_C(0x3fff)) {
+  x.unavailable=true;*d=x;return true;
+ }
+ if (strcmp(s->name,"PW")==0 && r>UINT64_C(250)) {
   x.unavailable=true;*d=x;return true;
  }
  if (strcmp(s->name,"T_MOT")==0 || strcmp(s->name,"T_OEL")==0 ||
