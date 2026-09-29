@@ -743,7 +743,7 @@ static int test_runtime_candidate_catalog(void)
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
         "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 16U);
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 5U);
+        "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS) == 6U);
     entry = mblink_mercedes_controller_data_profile_find(
         "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT16_C(0xD243));
