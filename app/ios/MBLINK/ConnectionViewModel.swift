@@ -510,6 +510,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
     }
 
+    func manufacturerPIDCatalogueComplete(moduleID: String) -> Bool {
+        controller.manufacturerPIDCatalogueComplete(moduleIdentifier: moduleID)
+    }
+
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let documentedDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
