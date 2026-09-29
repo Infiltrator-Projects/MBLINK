@@ -1314,7 +1314,7 @@ static bool MBLinkSimulatorResponder(
         if (selected.count == 0U) continue;
 
         NSMutableSet<NSNumber *> *available = [NSMutableSet setWithArray:
-            [self documentedLiveIdentifiersForModuleIdentifier:identifier]];
+            [self documentedPIDIdentifiersForModuleIdentifier:identifier]];
         [available intersectSet:selected];
         if (available.count == 0U) continue;
 
