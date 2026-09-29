@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/vediamo-download /tmp/vediamo-db exact-facts
-          link='https://mega.nz/file/gJMiyabT#wH2VNRjXB4eQ4sgBDaOgFfGhTZ2c8oHGRcW3_FPX2uk'
+          link='https://mega.nz/file/7JAQHJxL#vOUIANdlv--LMwfCVfbUeDsGUkF_BemdWDIuyJ3lJ-E'
           megadl --no-progress --path /tmp/vediamo-download "$link"
           archive="$(find /tmp/vediamo-download -maxdepth 1 -type f -print -quit)"
           test -n "$archive"
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           found=0
-          for wanted in RBTMFL_204.CBF RBTMFR_204.CBF CRD3.CBF EGS53.CBF; do
+          for wanted in RBTMFL_204.CBF RBTMFR_204.CBF CRD3.CBF EGS53.CBF VGSNAG2.CBF; do
             file="$(find /tmp/vediamo-db -type f -iname "$wanted" -print -quit)"
             if test -z "$file"; then
               echo "MISSING $wanted" | tee -a exact-facts/missing.txt
