@@ -786,9 +786,12 @@ static int test_runtime_candidate_catalog(void)
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) ==
         sizeof(orc_ids) / sizeof(orc_ids[0]));
+    /*
+     * HU_204.cbf contributes 24 exact KWP Data records. Captured 0x02 is not
+     * present in that CBF and remains one additional raw observation.
+     */
     CHECK(mblink_mercedes_controller_data_profile_identifier_count(
-        "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) ==
-        sizeof(hu_ids) / sizeof(hu_ids[0]));
+        "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000) == 25U);
 
     for (index = 0U; index < sizeof(esp_ids) / sizeof(esp_ids[0]); ++index) {
         CHECK(mblink_mercedes_controller_data_profile_find(
