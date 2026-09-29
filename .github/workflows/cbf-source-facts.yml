@@ -14,15 +14,22 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install archive source client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends megatools p7zip-full
 
       - name: Build strict CBF fact extractor
         shell: bash
         run: |
           set -euo pipefail
-          cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 \
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 \
              -Wstrict-prototypes -Wmissing-prototypes -Werror \
              tools/mblink-cbf-data-extract.c -o /tmp/mblink-cbf-data-extract
 
@@ -30,52 +37,69 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/cbf /tmp/w204-download /tmp/w204-extract cbf-facts
+
           upstream=7b745016e1d46f1c6a0b55c1b30eeb0cc1426f42
-          base="https://raw.githubusercontent.com/Matrix-aas/mercedes-mcp/${upstream}/cbf"
+          base="https://raw.githubusercontent.com/Matrix-aas/mercedes-mcp/$upstream/cbf"
+          curl --fail --location --silent --show-error "$base/ABR2XT.cbf" -o /tmp/cbf/ABR2XT.cbf
+          curl --fail --location --silent --show-error "$base/CGW_212.cbf" -o /tmp/cbf/CGW_212.cbf
+          curl --fail --location --silent --show-error "$base/MPC212.cbf" -o /tmp/cbf/MPC212.cbf
+          test "$(git hash-object /tmp/cbf/ABR2XT.cbf)" = "b0e1dbf1a947055c76ced61534ebf944c0139c2f"
+          test "$(git hash-object /tmp/cbf/CGW_212.cbf)" = "9230aa3c12b97a17e9f4df55fadab1d92a7f05b6"
+          test "$(git hash-object /tmp/cbf/MPC212.cbf)" = "2753be46c2c140fb43b63594f7f0452c1595cd69"
 
-          curl --fail --location --silent --show-error "${base}/eis_204.cbf" -o /tmp/eis_204.cbf
-          curl --fail --location --silent --show-error "${base}/ABR2XT.cbf" -o /tmp/ABR2XT.cbf
-          curl --fail --location --silent --show-error "${base}/CGW_212.cbf" -o /tmp/CGW_212.cbf
-          curl --fail --location --silent --show-error "${base}/IC_204.cbf" -o /tmp/IC_204.cbf
-          curl --fail --location --silent --show-error "${base}/MPC212.cbf" -o /tmp/MPC212.cbf
-          curl --fail --location --silent --show-error "${base}/fscm212.cbf" -o /tmp/fscm212.cbf
+          w204_link='https://mega.nz/file/7JAQHJxL#vOUIANdlv--LMwfCVfbUeDsGUkF_BemdWDIuyJ3lJ-E'
+          megadl --no-progress --path /tmp/w204-download "$w204_link"
+          archive="$(find /tmp/w204-download -maxdepth 1 -type f -print -quit)"
+          test -n "$archive"
+          echo "0ca7ccf48178f297175a394e1470e0b182a49d6cda7407e346596e74bd35ed76  $archive" | sha256sum --check -
+          7z x -y -o/tmp/w204-extract "$archive" >/dev/null
 
-          test "$(git hash-object /tmp/eis_204.cbf)" = "221798fb947c3ab6db5c9f07f03cc45dc5c716f4"
-          test "$(git hash-object /tmp/ABR2XT.cbf)" = "b0e1dbf1a947055c76ced61534ebf944c0139c2f"
-          test "$(git hash-object /tmp/CGW_212.cbf)" = "9230aa3c12b97a17e9f4df55fadab1d92a7f05b6"
-          test "$(git hash-object /tmp/IC_204.cbf)" = "5189272819d0385ef66aea19ff6cda160b5cf23f"
-          test "$(git hash-object /tmp/MPC212.cbf)" = "2753be46c2c140fb43b63594f7f0452c1595cd69"
-          test "$(git hash-object /tmp/fscm212.cbf)" = "7af0b3bc4ed5fd786e09173e983d63d0705a95cb"
+          copy_exact() {
+            wanted="$1"
+            target="$2"
+            expected="$3"
+            found="$(find /tmp/w204-extract -type f -iname "$wanted" -print -quit)"
+            test -n "$found"
+            cp "$found" "/tmp/cbf/$target"
+            echo "$expected  /tmp/cbf/$target" | sha256sum --check -
+          }
 
-      - name: Extract direct read-only UDS facts
+          copy_exact CGW_204.cbf CGW_204.cbf 15a5ebbc1a30e32149ffb1f60ff64df90608dbd6bcfa83a0acc19f6ce2dbd641
+          copy_exact EIS_204.cbf EIS_204.cbf f49237d873c26c7ec083c1b6f60115e7b120f9357a46ba0ed2f903d314c91bba
+          copy_exact IC_204.cbf IC_204.cbf b6c874e45d1ce3888bd558246c2b6e5597dea351f4ec2c9fc1e5892cec3658b4
+          copy_exact SCCM_204.cbf SCCM_204.cbf d4805eb59d89a1353bceb334e0a34f957eaee3a7a21bb733a1ec81289bd0bd50
+          copy_exact ORC_204.cbf ORC_204.cbf 8038e21bb8ca5e0afc461dcffacdd0588f8bb9fc5eb7f478839a4bf2cf88f340
+          copy_exact HU_204.cbf HU_204.cbf ff2d8e01a113ea2d175b7e95499b6a5e41fbc543995cc4e181735fef4d2ea1f0
+          copy_exact FSCM212.cbf FSCM212.cbf 5abc8dac53b4292f47aa7efca0c2d7f637e4059b3c88f77035a0b4935eb1cbb8
+
+          printf '%s\n' \
+            'W204-cbf.7z sha256 0ca7ccf48178f297175a394e1470e0b182a49d6cda7407e346596e74bd35ed76' \
+            'Public source: SmartLand/Carmasters W204 CBF archive' \
+            > cbf-facts/w204-source.txt
+
+      - name: Extract direct read-only Data facts
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p cbf-facts
-
-          for stem in eis_204 ABR2XT CGW_212 IC_204 MPC212 fscm212; do
+          for stem in ABR2XT CGW_212 MPC212 CGW_204 EIS_204 IC_204 SCCM_204 ORC_204 HU_204 FSCM212; do
             out_stem="$(printf '%s' "$stem" | tr '[:upper:]' '[:lower:]')"
-            /tmp/mblink-cbf-data-extract "/tmp/${stem}.cbf" \
-              > "cbf-facts/${out_stem}-direct-uds22.tsv" \
-              2> "cbf-facts/${out_stem}-summary.txt"
-            test "$(wc -l < "cbf-facts/${out_stem}-direct-uds22.tsv")" -gt 1
+            /tmp/mblink-cbf-data-extract "/tmp/cbf/$stem.cbf" \
+              > "cbf-facts/$out_stem-direct-reads.tsv" \
+              2> "cbf-facts/$out_stem-summary.txt"
+            test "$(wc -l < "cbf-facts/$out_stem-direct-reads.tsv")" -gt 1
           done
 
-          # Known parser control from the independent CaesarSuite interpretation.
-          grep -F $'EIS_204\t0228\tDT_Versorgungsspannung_Ubat\t' \
-            cbf-facts/eis_204-direct-uds22.tsv >/dev/null
+          grep -F $'EIS_204\t22\t0228\tDT_Versorgungsspannung_Ubat\t' \
+            cbf-facts/eis_204-direct-reads.tsv >/dev/null
 
-          echo "=== Direct UDS 0x22 source facts ==="
-          for stem in eis_204 abr2xt cgw_212 ic_204 mpc212 fscm212; do
+          echo '=== Direct controller Data reads ==='
+          for stem in abr2xt cgw_212 mpc212 cgw_204 eis_204 ic_204 sccm_204 orc_204 hu_204 fscm212; do
             printf '%s: ' "$stem"
-            cat "cbf-facts/${stem}-summary.txt"
-            printf 'unique_dids=%s\n' \
-              "$(tail -n +2 "cbf-facts/${stem}-direct-uds22.tsv" | cut -f2 | sort -u | wc -l)"
+            cat "cbf-facts/$stem-summary.txt"
+            awk -F '\t' 'NR > 1 { key=$2 ":" $3; seen[key]=1 } END { print "unique_read_keys=" length(seen) }' \
+              "cbf-facts/$stem-direct-reads.tsv"
           done
-
-          echo "=== Captured C207 ABR DID matches ==="
-          awk -F '\t' 'NR == 1 || $2 ~ /^(2001|2003|2004|2007|2009|200A|200D|200F|2010|2014|20C0)$/' \
-            cbf-facts/abr2xt-direct-uds22.tsv
 
       - name: Generate exact-controller PID datasource include
         shell: bash
@@ -86,26 +110,30 @@ jobs:
             echo '/* SPDX-License-Identifier: GPL-3.0-or-later */'
             echo '/*'
             echo ' * GENERATED FILE - do not hand-edit.'
-            echo ' * Source: immutable public Mercedes Vediamo CBF Data services.'
-            echo ' * Every emitted direct executable UDS 0x22 Data service is a'
-            echo ' * PID Setup monitoring source for its exact controller family.'
+            echo ' * Sources are pinned public Mercedes Vediamo CBF files.'
+            echo ' * Direct executable read-only Data services (UDS 22 and KWP 21/1A)'
+            echo ' * are PID Setup sources for their exact controller families.'
             echo ' */'
             echo
 
-            /tmp/mblink-cbf-data-extract --profile               eis-ezs204 eis_204.cbf /tmp/eis_204.cbf
-            /tmp/mblink-cbf-data-extract --profile               esp-abr2xt ABR2XT.cbf /tmp/ABR2XT.cbf
-            /tmp/mblink-cbf-data-extract --profile               gateway-cgw212 CGW_212.cbf /tmp/CGW_212.cbf
-            /tmp/mblink-cbf-data-extract --profile               cluster-ic204 IC_204.cbf /tmp/IC_204.cbf
-            /tmp/mblink-cbf-data-extract --profile               camera-mfk MPC212.cbf /tmp/MPC212.cbf
-            /tmp/mblink-cbf-data-extract --profile               fuel-pump-fscu fscm212.cbf /tmp/fscm212.cbf
+            /tmp/mblink-cbf-data-extract --profile gateway-cgw204 CGW_204.cbf /tmp/cbf/CGW_204.cbf
+            /tmp/mblink-cbf-data-extract --profile eis-ezs204 EIS_204.cbf /tmp/cbf/EIS_204.cbf
+            /tmp/mblink-cbf-data-extract --profile cluster-ic204 IC_204.cbf /tmp/cbf/IC_204.cbf
+            /tmp/mblink-cbf-data-extract --profile steering-sccm204 SCCM_204.cbf /tmp/cbf/SCCM_204.cbf
+            /tmp/mblink-cbf-data-extract --profile restraints-orc204 ORC_204.cbf /tmp/cbf/ORC_204.cbf
+            /tmp/mblink-cbf-data-extract --profile headunit-hu204 HU_204.cbf /tmp/cbf/HU_204.cbf
+            /tmp/mblink-cbf-data-extract --profile fuel-pump-fscu FSCM212.cbf /tmp/cbf/FSCM212.cbf
+            /tmp/mblink-cbf-data-extract --profile esp-abr2xt ABR2XT.cbf /tmp/cbf/ABR2XT.cbf
+            /tmp/mblink-cbf-data-extract --profile gateway-cgw212 CGW_212.cbf /tmp/cbf/CGW_212.cbf
+            /tmp/mblink-cbf-data-extract --profile camera-mfk MPC212.cbf /tmp/cbf/MPC212.cbf
           } > "$output"
 
           test -s "$output"
-          grep -F '"eis-ezs204"' "$output" >/dev/null
-          grep -F '"cluster-ic204"' "$output" >/dev/null
-          grep -F '"esp-abr2xt"' "$output" >/dev/null
-          grep -F '"camera-mfk"' "$output" >/dev/null
-          grep -F '"fuel-pump-fscu"' "$output" >/dev/null
+          for key in gateway-cgw204 eis-ezs204 cluster-ic204 steering-sccm204 restraints-orc204 headunit-hu204 fuel-pump-fscu esp-abr2xt gateway-cgw212 camera-mfk; do
+            grep -F "\"$key\"" "$output" >/dev/null
+          done
+          grep -F 'MBLINK_MERCEDES_DIAGNOSTIC_KWP2000' "$output" >/dev/null
+          grep -F 'UINT8_C(0x21)' "$output" >/dev/null
 
       - name: Commit regenerated controller PID datasource
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -114,12 +142,12 @@ jobs:
           set -euo pipefail
           git add src/mercedes/cbf_controller_data.inc
           if git diff --cached --quiet; then
-            echo "Controller PID datasource already current"
+            echo 'Controller PID datasource already current'
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Regenerate Mercedes CBF controller PID datasources"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Regenerate exact Mercedes CBF PID datasources'
           git push origin HEAD:main
 
       - name: Upload extracted source facts
