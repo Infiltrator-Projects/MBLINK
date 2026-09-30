@@ -73,6 +73,9 @@ module_scan = (ROOT / "src/mercedes/module_scan.c").read_text(encoding="utf-8")
 module_scan_api = (ROOT / "include/mblink/mercedes_module_scan_core.h").read_text(
     encoding="utf-8"
 )
+apple_models = (ROOT / "platform/apple/MBLinkDiagnosticsModels.inc").read_text(
+    encoding="utf-8"
+)
 require(
     "enableStarterStandardPIDs" not in app
     and "enableStarterStandardPIDs" not in model
@@ -246,6 +249,22 @@ require(
     and "F153" not in module_scan
     and "beginStartupEgs53VariantCodingReadIfAvailable" not in controller,
     "startup-only reads must not add controller-specific stages or commands to module discovery",
+)
+require(
+    "MblinkMercedesEcuPackDataPolicy" in ecu_pack
+    and "pack_data_policies" in ecu_pack
+    and "pack_data_policy_for_item" in ecu_pack
+    and "pack_is_orc_controller" not in ecu_pack
+    and "controller_specific_read_name" not in ecu_pack,
+    "controller-family startup ownership must be declarative ECU-pack data, not controller-specific code paths",
+)
+require(
+    "bootSoftwareVersion" not in apple_api
+    and "bootSoftwareVersion" not in apple_models
+    and "bootSoftware" not in controller
+    and "boot_software" not in controller
+    and "boot_software" not in module_scan_api,
+    "boot software must flow through generic startup module data rather than legacy identity/profile fields",
 )
 require(
     "MBLinkManufacturerCommandToken" in controller

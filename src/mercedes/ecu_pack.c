@@ -76,34 +76,90 @@ static void clear_item(MblinkMercedesEcuDataItem *item)
     if (item != NULL) memset(item, 0, sizeof(*item));
 }
 
-static bool pack_is_orc_controller(const MblinkMercedesEcuPack *pack)
-{
-    const char *key = pack != NULL && pack->controller_family != NULL
-        ? pack->controller_family->key : NULL;
-    return key != NULL &&
-        (strcmp(key, "restraints-orc204") == 0 ||
-         strcmp(key, "restraints-orc212") == 0);
-}
+typedef struct MblinkMercedesEcuPackDataPolicy {
+    const char *controller_family_key;
+    uint8_t service;
+    uint16_t identifier;
+    MblinkMercedesEcuDataAcquisition acquisition;
+    const char *name_override;
+} MblinkMercedesEcuPackDataPolicy;
 
-static bool pack_item_is_startup_once(
+/*
+ * Controller-family-owned acquisition policy.
+ *
+ * This is data, not discovery logic: once a module resolves to an ECU pack,
+ * these rows become part of that pack's STARTUP_ONCE / USER_POLLING split.
+ * Adding another controller-specific startup value therefore never changes
+ * the discovery state machine or the generic startup scheduler.
+ */
+static const MblinkMercedesEcuPackDataPolicy pack_data_policies[] = {
+    { "restraints-orc204", UINT8_C(0x21), UINT16_C(0x0002),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "Restraint equipment configuration" },
+    { "restraints-orc204", UINT8_C(0x21), UINT16_C(0x0058),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "ECU lock state / tester identification" },
+    { "restraints-orc212", UINT8_C(0x21), UINT16_C(0x0002),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "Restraint equipment configuration" },
+    { "restraints-orc212", UINT8_C(0x21), UINT16_C(0x0058),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "ECU lock state / tester identification" },
+    { "transmission-egs53", UINT8_C(0x21), UINT16_C(0x00b1),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE, NULL }
+};
+
+static const MblinkMercedesEcuPackDataPolicy *pack_data_policy_for_item(
     const MblinkMercedesEcuPack *pack,
     uint8_t service,
     uint16_t identifier)
 {
+    const char *key = pack != NULL && pack->controller_family != NULL
+        ? pack->controller_family->key : NULL;
+    size_t index;
+
+    if (key == NULL) return NULL;
+    for (index = 0U;
+         index < sizeof(pack_data_policies) / sizeof(pack_data_policies[0]);
+         ++index) {
+        const MblinkMercedesEcuPackDataPolicy *policy =
+            &pack_data_policies[index];
+        if (policy->service == service &&
+            policy->identifier == identifier &&
+            strcmp(policy->controller_family_key, key) == 0) {
+            return policy;
+        }
+    }
+    return NULL;
+}
+
+static MblinkMercedesEcuDataAcquisition pack_item_acquisition(
+    const MblinkMercedesEcuPack *pack,
+    uint8_t service,
+    uint16_t identifier)
+{
+    const MblinkMercedesEcuPackDataPolicy *policy;
+
     if (mblink_mercedes_documented_read_is_module_metadata(
             service, identifier)) {
-        return true;
+        return MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE;
     }
-    if (pack_transmission_family(pack) ==
-            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
-        service == UINT8_C(0x21) &&
-        identifier == UINT16_C(0x00b1)) {
-        return true;
-    }
-    return pack_is_orc_controller(pack) &&
-        service == UINT8_C(0x21) &&
-        (identifier == UINT16_C(0x0002) ||
-         identifier == UINT16_C(0x0058));
+    policy = pack_data_policy_for_item(pack, service, identifier);
+    return policy != NULL
+        ? policy->acquisition
+        : MBLINK_MERCEDES_ECU_DATA_USER_POLLING;
+}
+
+static const char *pack_item_name(
+    const MblinkMercedesEcuPack *pack,
+    uint8_t service,
+    uint16_t identifier,
+    const char *fallback)
+{
+    const MblinkMercedesEcuPackDataPolicy *policy =
+        pack_data_policy_for_item(pack, service, identifier);
+    return policy != NULL && policy->name_override != NULL
+        ? policy->name_override : fallback;
 }
 
 static bool pack_item_acquired_during_identification(
@@ -127,44 +183,12 @@ static void classify_item_acquisition(
     MblinkMercedesEcuDataItem *item)
 {
     if (item == NULL) return;
-    item->acquisition = pack_item_is_startup_once(
-        pack, item->service, item->identifier)
-        ? MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE
-        : MBLINK_MERCEDES_ECU_DATA_USER_POLLING;
+    item->acquisition = pack_item_acquisition(
+        pack, item->service, item->identifier);
     item->acquired_during_identification =
         item->acquisition == MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE &&
         pack_item_acquired_during_identification(
             item->service, item->identifier);
-}
-
-static const char *controller_specific_read_name(
-    const MblinkMercedesEcuPack *pack,
-    uint8_t service,
-    uint16_t identifier,
-    const char *fallback)
-{
-    const char *key;
-
-    if (pack == NULL || pack->controller_family == NULL ||
-        pack->controller_family->key == NULL ||
-        service != UINT8_C(0x21)) {
-        return fallback;
-    }
-
-    key = pack->controller_family->key;
-    if (strcmp(key, "restraints-orc204") != 0 &&
-        strcmp(key, "restraints-orc212") != 0) {
-        return fallback;
-    }
-
-    switch (identifier) {
-    case UINT16_C(0x0002):
-        return "Restraint equipment configuration";
-    case UINT16_C(0x0058):
-        return "ECU lock state / tester identification";
-    default:
-        return fallback;
-    }
 }
 
 static const MblinkMercedesDocumentedEcuProfile *
@@ -506,7 +530,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         if (entry == NULL) return false;
         item->service = entry->service;
         item->identifier = entry->identifier;
-        item->name = controller_specific_read_name(
+        item->name = pack_item_name(
             pack, entry->service, entry->identifier, entry->name);
         if (entry->status ==
                 MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
@@ -544,7 +568,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         if (read == NULL) return false;
         item->service = read->service;
         item->identifier = read->identifier;
-        item->name = controller_specific_read_name(
+        item->name = pack_item_name(
             pack, read->service, read->identifier,
             mblink_mercedes_documented_read_name(
                 read->service, read->identifier));
