@@ -469,6 +469,9 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         ? dictionary[@"software"] : nil;
     NSString *hardware = [dictionary[@"hardware"] isKindOfClass:[NSString class]]
         ? dictionary[@"hardware"] : nil;
+    NSString *bootSoftware =
+        [dictionary[@"bootSoftware"] isKindOfClass:[NSString class]]
+            ? dictionary[@"bootSoftware"] : nil;
 
     (void)mblink_mercedes_module_scan_resolve_controller(
         tx.unsignedIntValue,
@@ -480,6 +483,14 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         software.UTF8String,
         hardware.UTF8String,
         entry);
+    if (bootSoftware.length != 0U) {
+        (void)snprintf(
+            entry->boot_software_version,
+            sizeof(entry->boot_software_version),
+            "%s", bootSoftware.UTF8String);
+        entry->boot_software_version_available =
+            entry->boot_software_version[0] != '\0';
+    }
 
     NSString *savedFamilyKey =
         [dictionary[@"controllerFamily"] isKindOfClass:[NSString class]]
@@ -1031,6 +1042,8 @@ static bool MBLinkSimulatorResponder(
             ? MBLinkStringFromCString(module->software_number) : nil;
         snapshot.hardwareNumber = module->hardware_number_available
             ? MBLinkStringFromCString(module->hardware_number) : nil;
+        snapshot.bootSoftwareVersion = module->boot_software_version_available
+            ? MBLinkStringFromCString(module->boot_software_version) : nil;
         if (!module->extended_id &&
             module->tx_can_id == UINT32_C(0x7e0)) {
             if (snapshot.identityText.length == 0U &&
@@ -3194,6 +3207,10 @@ static void MBLinkAppendManufacturerDefinition(
             [identity addObject:[NSString stringWithFormat:
                 @"  HARDWARE · %@",
                 MBLinkStringFromCString(module.hardware_number)]];
+        if (module.boot_software_version_available)
+            [identity addObject:[NSString stringWithFormat:
+                @"  BOOT SOFTWARE · %@",
+                MBLinkStringFromCString(module.boot_software_version)]];
     }
 
     if (validModules == 0U) {
@@ -3311,6 +3328,9 @@ static void MBLinkAppendManufacturerDefinition(
         if (module->hardware_number_available)
             dictionary[@"hardware"] =
                 MBLinkStringFromCString(module->hardware_number);
+        if (module->boot_software_version_available)
+            dictionary[@"bootSoftware"] =
+                MBLinkStringFromCString(module->boot_software_version);
 
         NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
         NSArray<MBLinkMercedesDataSnapshot *> *knownManufacturerData =
