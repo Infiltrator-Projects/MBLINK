@@ -156,6 +156,13 @@ NS_ASSUME_NONNULL_BEGIN
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;
 
 /**
+ * Return only one-time startup/module-card values for this resolved ECU.
+ * This is the startup half of the ECU pack; it never includes user polling.
+ */
+- (NSArray<MBLinkMercedesDataSnapshot *> *)
+    startupDataSnapshotsForModuleIdentifier:(NSString *)identifier;
+
+/**
  * Presentation-ready live GS 21 30 values decoded only by the portable
  * Mercedes transmission layer. Swift must not reinterpret raw KWP bytes.
  */
