@@ -12,6 +12,31 @@
 
 #include "infiltratr/core.h"
 
+/*
+ * Internal transport/census entry points are externally linked only so the
+ * core regression fixture can exercise them. They are deliberately omitted
+ * from installed public headers.
+ */
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_core(MblinkMercedesModuleScan *scan);
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_gateway_core(MblinkMercedesModuleScan *scan);
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_mobile_census_core(
+    MblinkMercedesModuleScan *scan);
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_begin_full_core(MblinkMercedesModuleScan *scan);
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_command_core(
+    const MblinkMercedesModuleScan *scan,
+    char *buffer,
+    size_t buffer_size,
+    size_t *written);
+MblinkMercedesModuleScanResult
+mblink_mercedes_module_scan_accept_core(
+    MblinkMercedesModuleScan *scan,
+    const MblinkElm327Response *response);
+
 const char *mblink_mercedes_module_scan_scope_name(
     MblinkMercedesModuleScanScope scope)
 {
