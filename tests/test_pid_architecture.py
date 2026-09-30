@@ -19,8 +19,8 @@ contract = " ".join(
     (ROOT / "docs/PID_ARCHITECTURE.md").read_text(encoding="utf-8").split()
 )
 for statement in (
-    "Standard OBD choices use one VIN-scoped selection",
-    "Mercedes choices remain VIN-and-module scoped",
+    "Standard OBD choices are VIN-and-controller scoped",
+    "Mercedes choices remain VIN-and-controller scoped",
     "Unknown or unresolved modules may still appear in the module list.",
     "They must not be assigned invented semantics.",
 ):
@@ -173,7 +173,7 @@ require(
     "pollable" not in model
     and "pollable" not in app
     and "documentedDefinitions.map" in model
-    and ".filter { selected.contains($0.id) }" in model,
+    and ".filter { selected.contains($0.selectionKey) }" in model,
     "iPhone PID Setup must be documentation-driven with no separate pollable gate",
 )
 require(

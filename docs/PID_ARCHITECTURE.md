@@ -238,9 +238,10 @@ are corroboration.
 
 A release satisfies this design only when all of the following are true:
 
-- PID Setup shows the full generic SAE catalogue first.
-- Discovered/saved Mercedes modules appear below it as separate sections.
-- A module's Mercedes choices come from its resolved `MblinkMercedesEcuPack`, not merely its advertised SAE PIDs.
+- PID Setup is controller-first: each discovered/saved physical controller is one section.
+- Each controller section shows that exact responder's advertised OBD-II channels alongside the exact Mercedes KWP2000/UDS catalogue, with the diagnostic source visible on every row.
+- Equivalent-looking OBD-II and Mercedes values remain separate independently selectable channels and may appear adjacent.
+- A controller's OBD-II choices come only from that exact responder's advertised/cached SAE capability map; its Mercedes choices come from its resolved `MblinkMercedesEcuPack`.
 - The ECU pack carries the friendly name, controller key, physical lookup route, protocol/session metadata and named data items as one controller-scoped view.
 - Route addresses alone never force a controller-family name or permanent protocol when the global catalogue contains multiple generations on that route.
 - After controller identity resolves an authoritative pack, that pack dictates UDS/KWP2000 and session behaviour; conflicting live evidence triggers re-identification rather than silent protocol fallback.
@@ -248,7 +249,7 @@ A release satisfies this design only when all of the following are true:
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery causes no manufacturer live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
-- Mode 01 PID 0x01 exposes its constituent readiness values as independent user choices; one or several enabled fields still produce one 0x01 request.
+- Mode 01 PID 0x01 exposes its constituent readiness values as independent per-controller choices; selections across one or several responders still de-duplicate to one functional 0x01 request, while each response is decoded using that responder's own field mask.
 - Unselected fields in a grouped response are not decoded into presentation telemetry merely because the shared response carried their bytes.
 - Standard selections persist by VIN, Mercedes selections persist by
   VIN/module, and both can be edited from a saved offline vehicle profile.
