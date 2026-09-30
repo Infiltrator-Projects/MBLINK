@@ -475,19 +475,6 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     NSNumber *bootSoftwareAttempted =
         [dictionary[@"bootSoftwareAttempted"] isKindOfClass:[NSNumber class]]
             ? dictionary[@"bootSoftwareAttempted"] : nil;
-    NSString *restraintConfiguration =
-        [dictionary[@"restraintConfiguration"] isKindOfClass:[NSString class]]
-            ? dictionary[@"restraintConfiguration"] : nil;
-    NSNumber *restraintConfigurationAttempted =
-        [dictionary[@"restraintConfigurationAttempted"]
-            isKindOfClass:[NSNumber class]]
-            ? dictionary[@"restraintConfigurationAttempted"] : nil;
-    NSString *ecuLockState =
-        [dictionary[@"ecuLockState"] isKindOfClass:[NSString class]]
-            ? dictionary[@"ecuLockState"] : nil;
-    NSNumber *ecuLockStateAttempted =
-        [dictionary[@"ecuLockStateAttempted"] isKindOfClass:[NSNumber class]]
-            ? dictionary[@"ecuLockStateAttempted"] : nil;
 
     (void)mblink_mercedes_module_scan_resolve_controller(
         tx.unsignedIntValue,
@@ -508,27 +495,6 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
             "%s", bootSoftware.UTF8String);
         entry->boot_software_version_available =
             entry->boot_software_version[0] != '\0';
-    }
-    entry->restraint_configuration_attempted =
-        restraintConfigurationAttempted.boolValue ||
-        restraintConfiguration.length != 0U;
-    if (restraintConfiguration.length != 0U) {
-        (void)snprintf(
-            entry->restraint_configuration,
-            sizeof(entry->restraint_configuration),
-            "%s", restraintConfiguration.UTF8String);
-        entry->restraint_configuration_available =
-            entry->restraint_configuration[0] != '\0';
-    }
-    entry->ecu_lock_state_attempted =
-        ecuLockStateAttempted.boolValue || ecuLockState.length != 0U;
-    if (ecuLockState.length != 0U) {
-        (void)snprintf(
-            entry->ecu_lock_state,
-            sizeof(entry->ecu_lock_state),
-            "%s", ecuLockState.UTF8String);
-        entry->ecu_lock_state_available =
-            entry->ecu_lock_state[0] != '\0';
     }
 
     NSString *savedFamilyKey =
@@ -1083,11 +1049,6 @@ static bool MBLinkSimulatorResponder(
             ? MBLinkStringFromCString(module->hardware_number) : nil;
         snapshot.bootSoftwareVersion = module->boot_software_version_available
             ? MBLinkStringFromCString(module->boot_software_version) : nil;
-        snapshot.restraintConfiguration =
-            module->restraint_configuration_available
-            ? MBLinkStringFromCString(module->restraint_configuration) : nil;
-        snapshot.ecuLockState = module->ecu_lock_state_available
-            ? MBLinkStringFromCString(module->ecu_lock_state) : nil;
         if (!module->extended_id &&
             module->tx_can_id == UINT32_C(0x7e0)) {
             if (snapshot.identityText.length == 0U &&
@@ -1634,26 +1595,6 @@ static NSString *MBLinkManufacturerStableKey(
         moduleIdentifier, (unsigned int)service, (unsigned int)identifier];
 }
 
-static BOOL MBLinkMercedesReadIsStartupModuleMetadata(
-    const MblinkMercedesModuleScanEntry *module,
-    uint8_t service,
-    uint16_t identifier)
-{
-    if (mblink_mercedes_documented_read_is_module_metadata(
-            service, identifier)) {
-        return YES;
-    }
-    return module != NULL &&
-        !module->extended_id &&
-        module->tx_can_id == UINT32_C(0x64a) &&
-        module->rx_can_id == UINT32_C(0x489) &&
-        mblink_mercedes_module_scan_entry_protocol(module) ==
-            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-        service == UINT8_C(0x21) &&
-        (identifier == UINT16_C(0x0002) ||
-         identifier == UINT16_C(0x0058));
-}
-
 static void MBLinkAppendManufacturerDefinition(
     NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values,
     NSMutableSet<NSString *> *seenWireKeys,
@@ -1723,8 +1664,8 @@ static void MBLinkAppendManufacturerDefinition(
          * Hardware/software identity is acquired once by module discovery.
          * It belongs on the module card, never in selectable live PID setup.
          */
-        if (MBLinkMercedesReadIsStartupModuleMetadata(
-                module, item.service, item.identifier)) {
+        if (mblink_mercedes_documented_read_is_module_metadata(
+                item.service, item.identifier)) {
             continue;
         }
 
@@ -3275,14 +3216,6 @@ static void MBLinkAppendManufacturerDefinition(
             [identity addObject:[NSString stringWithFormat:
                 @"  BOOT SOFTWARE · %@",
                 MBLinkStringFromCString(module.boot_software_version)]];
-        if (module.restraint_configuration_available)
-            [identity addObject:[NSString stringWithFormat:
-                @"  RESTRAINT CONFIGURATION · %@",
-                MBLinkStringFromCString(module.restraint_configuration)]];
-        if (module.ecu_lock_state_available)
-            [identity addObject:[NSString stringWithFormat:
-                @"  ECU LOCK STATE · %@",
-                MBLinkStringFromCString(module.ecu_lock_state)]];
     }
 
     if (validModules == 0U) {
@@ -3405,16 +3338,6 @@ static void MBLinkAppendManufacturerDefinition(
         if (module->boot_software_version_available)
             dictionary[@"bootSoftware"] =
                 MBLinkStringFromCString(module->boot_software_version);
-        if (module->restraint_configuration_attempted)
-            dictionary[@"restraintConfigurationAttempted"] = @YES;
-        if (module->restraint_configuration_available)
-            dictionary[@"restraintConfiguration"] =
-                MBLinkStringFromCString(module->restraint_configuration);
-        if (module->ecu_lock_state_attempted)
-            dictionary[@"ecuLockStateAttempted"] = @YES;
-        if (module->ecu_lock_state_available)
-            dictionary[@"ecuLockState"] =
-                MBLinkStringFromCString(module->ecu_lock_state);
 
         NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
         NSArray<MBLinkMercedesDataSnapshot *> *knownManufacturerData =
@@ -3510,7 +3433,6 @@ static void MBLinkAppendManufacturerDefinition(
         MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES];
     size_t count = 0U;
     BOOL needsBootSoftwareMetadataRefresh = NO;
-    BOOL needsOrcMetadataRefresh = NO;
     for (id value in modules) {
         if (count >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) break;
         if (![value isKindOfClass:[NSDictionary class]]) continue;
@@ -3522,15 +3444,6 @@ static void MBLinkAppendManufacturerDefinition(
                 cached[count].protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS &&
                 !cached[count].boot_software_version_attempted) {
                 needsBootSoftwareMetadataRefresh = YES;
-            }
-            if (!cached[count].extended_id &&
-                cached[count].tx_can_id == UINT32_C(0x64a) &&
-                cached[count].rx_can_id == UINT32_C(0x489) &&
-                mblink_mercedes_module_scan_entry_protocol(&cached[count]) ==
-                    MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 &&
-                (!cached[count].restraint_configuration_attempted ||
-                 !cached[count].ecu_lock_state_attempted)) {
-                needsOrcMetadataRefresh = YES;
             }
             ++count;
         }
@@ -3550,10 +3463,9 @@ static void MBLinkAppendManufacturerDefinition(
      * profile records the attempt even when the ECU returns no F153 value, so
      * this migration never degenerates into repeated probing.
      */
-    if (needsBootSoftwareMetadataRefresh || needsOrcMetadataRefresh) {
-        self.vehicleProfileStatusText = needsOrcMetadataRefresh
-            ? @"Saved VIN profile needs ORC module metadata; refreshing once"
-            : @"Saved VIN profile needs boot-software metadata; refreshing once";
+    if (needsBootSoftwareMetadataRefresh) {
+        self.vehicleProfileStatusText =
+            @"Saved VIN profile needs boot-software metadata; refreshing once";
         return NO;
     }
 
