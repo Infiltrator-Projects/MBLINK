@@ -318,27 +318,13 @@ bool mblink_mercedes_module_scan_decode_entry(
 
 void mblink_mercedes_module_scan_capture_dtc(MblinkMercedesModuleScanEntry *module, const MblinkElm327Response *response);
 
-MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_core(MblinkMercedesModuleScan *scan);
-
-MblinkMercedesModuleScanResult
-mblink_mercedes_module_scan_begin_gateway_core(MblinkMercedesModuleScan *scan);
-
-MblinkMercedesModuleScanResult
-mblink_mercedes_module_scan_begin_mobile_census_core(
-    MblinkMercedesModuleScan *scan);
-
 MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_begin_cached(
     MblinkMercedesModuleScan *scan,
     const MblinkMercedesModuleScanEntry *modules,
     size_t module_count);
 
-MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_full_core(
-    MblinkMercedesModuleScan *scan);
-
 uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *scan);
-
-MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const MblinkMercedesModuleScan *scan, char *buffer, size_t buffer_size, size_t *written);
 
 int mblink_mercedes_module_scan_hex_value(char value);
 
@@ -360,8 +346,6 @@ bool mblink_mercedes_module_scan_accept_adapter_transition(
     MblinkMercedesModuleScan *scan,
     const MblinkElm327Response *response,
     MblinkMercedesModuleScanStage next_stage);
-
-MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMercedesModuleScan *scan, const MblinkElm327Response *response);
 
 size_t mblink_mercedes_module_scan_module_count(const MblinkMercedesModuleScan *scan);
 const MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_module_at(const MblinkMercedesModuleScan *scan, size_t index);

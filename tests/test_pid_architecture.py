@@ -241,6 +241,12 @@ require(
     "startup module data must run through one generic post-discovery per-ECU pass",
 )
 require(
+    "mblink_mercedes_module_scan_begin_core" not in module_scan_api
+    and "mblink_mercedes_module_scan_command_core" not in module_scan_api
+    and "mblink_mercedes_module_scan_accept_core" not in module_scan_api,
+    "module-scan core helpers must stay private to the implementation",
+)
+require(
     "identity_first" in module_scan_api
     and "kwp_identity_fallback" in module_scan_api
     and "kwp_identity_index" in module_scan_api

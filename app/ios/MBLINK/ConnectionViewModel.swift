@@ -1153,19 +1153,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return legacyGlobalPollingKeys()
     }
 
-    private func storeStandardPollingKeys(_ selection: Set<String>) {
-        let sorted = Array(selection).sorted()
-        if let vin = effectivePIDConfigurationVIN {
-            pidSelectionStore.setStableKeys(
-                sorted,
-                forVIN: vin,
-                controllerIdentifier:
-                    Self.standardSelectionControllerIdentifier)
-        } else if !controller.isActive {
-            pidSelectionStore.setGlobalStableKeys(sorted)
-        }
-    }
-
     private func legacyGlobalPollingKeys() -> Set<String> {
         if pidSelectionStore.hasGlobalSelection {
             return Set(pidSelectionStore.globalStableKeys)
