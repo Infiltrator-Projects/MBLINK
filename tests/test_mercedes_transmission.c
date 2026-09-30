@@ -74,7 +74,7 @@ static int test_identity_first_direct_uds(void)
 
     CHECK(mblink_mercedes_module_scan_begin(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.dtc_index == MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL);
+    CHECK(scan.identity_first);
     CHECK(idscan_send_ok(&scan, "ATSP6") == 0);
     CHECK(idscan_send_ok(&scan, "ATH0") == 0);
     CHECK(idscan_send_ok(&scan, "ATCAF1") == 0);
@@ -113,7 +113,7 @@ static int test_identity_first_kwp_transmission(void)
 
     memset(&scan, 0, sizeof(scan));
     scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
-    scan.dtc_index = MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
+    scan.identity_first = true;
     mblink_mercedes_module_scan_set_11_candidate(&scan, UINT32_C(0x7e1));
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
 
@@ -326,7 +326,7 @@ static int test_identity_first_n93_mixed_protocol(void)
 
     memset(&scan, 0, sizeof(scan));
     scan.scope = MBLINK_MERCEDES_MODULE_SCAN_MOBILE_CENSUS;
-    scan.dtc_index = MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
+    scan.identity_first = true;
     scan.full_target_index = 3U; /* 0x61A -> 0x483 remains unclassified. */
     scan.candidate_tx = UINT32_C(0x61a);
     scan.candidate_rx = UINT32_C(0x483);
@@ -432,7 +432,7 @@ static int test_interrupted_extended_discovery_replays_protocol(void)
     CHECK(idscan_send_ok(&scan, "ATSP7") == 0);
     CHECK(idscan_send_ok(&scan, "ATH0") == 0);
     CHECK(idscan_send_ok(&scan, "ATSH18DA10F1") == 0);
-    CHECK(scan.dtc_index == MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL);
+    CHECK(scan.identity_first);
     return 0;
 }
 
