@@ -475,51 +475,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         pidConfigurationModules.first { $0.id == id }
     }
 
-    func moduleBootSoftwareVersion(moduleID: String) -> String? {
-        if let startup = controller.startupDataSnapshots(
-            forModuleIdentifier: moduleID
-        ).first(where: {
-            $0.service == 0x22 && $0.identifier == 0xF153
-        }) {
-            let value = startup.formattedValue.trimmingCharacters(
-                in: .whitespacesAndNewlines)
-            if !value.isEmpty && !value.hasPrefix("RAW ") {
-                return value
-            }
-        }
-
-        if let live = controller.mercedesModuleSnapshots.first(where: {
-            $0.identifier == moduleID
-        }), let value = live.bootSoftwareVersion?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !value.isEmpty {
-            return value
-        }
-
-        guard let module = pidConfigurationModule(id: moduleID),
-              let vin = effectivePIDConfigurationVIN,
-              let profile = vehicleProfileStore.profile(forVIN: vin)
-                as? [String: Any],
-              let savedModules = profile["modules"] as? [[String: Any]]
-        else { return nil }
-
-        for saved in savedModules {
-            guard let tx = saved["tx"] as? NSNumber,
-                  let rx = saved["rx"] as? NSNumber,
-                  let extended = saved["extended"] as? NSNumber,
-                  tx.uint32Value == module.requestCANIdentifier,
-                  rx.uint32Value == module.responseCANIdentifier,
-                  extended.boolValue == module.extendedID,
-                  let value = saved["bootSoftware"] as? String
-            else { continue }
-
-            let trimmed = value.trimmingCharacters(
-                in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
-        return nil
-    }
-
     override func selectSavedVehicle(vin: String) {
         // A live VIN is authoritative. Saved-profile selection is an offline
         // operation and must never override the physical car.
@@ -817,7 +772,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     func egs53VariantCoding(
         moduleID: String
     ) -> EGS53VariantCodingSummary? {
-        guard let value = manufacturerData(moduleID: moduleID).first(where: {
+        guard let value = startupModuleData(moduleID: moduleID).first(where: {
             $0.service == 0x21 && $0.identifier == 0x00B1
         }), value.rawData.count >= 42 else { return nil }
 
