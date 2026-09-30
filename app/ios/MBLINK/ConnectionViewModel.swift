@@ -639,8 +639,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                   let shortName = value["shortName"] as? String,
                   let title = value["title"] as? String
             else { return nil }
-            let provenance =
+            let rawProvenance =
                 value["provenance"] as? String ?? "MBLINK documented ECU PID"
+            let service = serviceNumber.uint8Value
+            let identifier = identifierNumber.uint16Value
+            let provenance = manufacturerPIDPresentationProvenance(
+                raw: rawProvenance,
+                service: service,
+                identifier: identifier)
             let stableKey = canonicalManufacturerStableKey(storedStableKey)
             return MBPIDCatalogueItem(
                 id: scopedChannelID(
@@ -649,8 +655,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     selectionKey: stableKey),
                 selectionKey: stableKey,
                 source: .manufacturer,
-                service: serviceNumber.uint8Value,
-                identifier: identifierNumber.uint16Value,
+                service: service,
+                identifier: identifier,
                 shortName: shortName,
                 title: title,
                 provenance: provenance,
@@ -1199,6 +1205,40 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     private func canonicalManufacturerStableKey(_ stableKey: String) -> String {
         Self.manufacturerStableKeyAliases[stableKey] ?? stableKey
+    }
+
+    /*
+     * Keep raw source identifiers such as DT_Motortyp_Motortyp in the
+     * evidence catalogue, but never leak those internal German CBF symbols
+     * into PID Setup. The user-facing provenance is deliberately short,
+     * English and free of source-code underscores.
+     */
+    private func manufacturerPIDPresentationProvenance(
+        raw: String,
+        service: UInt8,
+        identifier: UInt16
+    ) -> String {
+        let lower = raw.lowercased()
+        let source: String
+        if lower.contains("vediamo") || lower.contains(".cbf") {
+            source = "Mercedes Vediamo CBF"
+        } else if lower.contains("ultimate nag52") {
+            source = "Ultimate NAG52 documentation"
+        } else if lower.contains("xentry") || lower.contains("foxwell") {
+            source = "Mercedes diagnostic documentation"
+        } else {
+            source = "MBLINK documented Mercedes data"
+        }
+
+        let command: String
+        if service == 0x22 {
+            command = String(
+                format: "%02X %04X", Int(service), Int(identifier))
+        } else {
+            command = String(
+                format: "%02X %02X", Int(service), Int(identifier))
+        }
+        return "\(source) · \(command)"
     }
 
     private func standardStableKey(for pid: UInt8) -> String {
