@@ -248,8 +248,9 @@ A release satisfies this design only when all of the following are true:
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery causes no manufacturer live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
-- Mode 01 PID 0x01 exposes its constituent readiness values as independent per-controller choices; selections across one or several responders still de-duplicate to one functional 0x01 request, while each response is decoded using that responder's own field mask.
-- Unselected fields in a grouped response are not decoded into presentation telemetry merely because the shared response carried their bytes.
+- Mode 01 PID 0x01 is startup-only module metadata: LINK issues one functional `01 01` request during connection diagnostic context, retains every responder-attributed reply, and MBLINK shows that controller's MIL, confirmed emissions DTC count, ignition layout and readiness monitors directly on its Modules card.
+- PID 0x01 never appears in PID Setup and never enters recurring live polling. Historical saved PID-01/readiness selections are pruned and ignored.
+- For genuinely live grouped sources, unselected fields are not decoded into presentation telemetry merely because the shared response carried their bytes.
 - Standard and Mercedes selections both persist by VIN/controller, and both can
   be edited from a saved offline vehicle profile.
 - Unknown modules are not assigned invented PID meanings.
