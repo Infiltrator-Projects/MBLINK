@@ -1154,9 +1154,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             pidSelectionStore.hasSelection(
                 forVIN: vin, controllerIdentifier: $0.id)
         }
-        let legacy = expandedStandardPollingKeys(storedPollingKeys())
         let primaryID = preferredStandardControllerID()
 
+        /*
+         * The Mercedes census can arrive before responder-specific SAE
+         * capability discovery. Do not consume the one-time migration while
+         * every controller still has an empty OBD capability map.
+         */
+        guard existingPerModule || primaryID != nil else { return }
+
+        let legacy = expandedStandardPollingKeys(storedPollingKeys())
         for module in pidConfigurationModules {
             if existingPerModule &&
                pidSelectionStore.hasSelection(
