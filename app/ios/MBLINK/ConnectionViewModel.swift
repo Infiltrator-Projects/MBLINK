@@ -476,6 +476,18 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     func moduleBootSoftwareVersion(moduleID: String) -> String? {
+        if let startup = controller.startupDataSnapshots(
+            forModuleIdentifier: moduleID
+        ).first(where: {
+            $0.service == 0x22 && $0.identifier == 0xF153
+        }) {
+            let value = startup.formattedValue.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            if !value.isEmpty && !value.hasPrefix("RAW ") {
+                return value
+            }
+        }
+
         if let live = controller.mercedesModuleSnapshots.first(where: {
             $0.identifier == moduleID
         }), let value = live.bootSoftwareVersion?
@@ -766,6 +778,28 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         applyConfiguredPollingIfNeeded(force: true)
         refreshPresentation()
         refreshStandardState()
+    }
+
+    func startupModuleData(moduleID: String) -> [MercedesModuleDataValue] {
+        controller.startupDataSnapshots(forModuleIdentifier: moduleID)
+            .map { snapshot in
+                let code = snapshot.codeText
+                let title = snapshot.name ?? code
+                return MercedesModuleDataValue(
+                    id: "\(moduleID):startup:\(snapshot.service):\(snapshot.identifier)",
+                    moduleID: moduleID,
+                    identifier: snapshot.identifier,
+                    service: snapshot.service,
+                    codeText: code,
+                    title: title,
+                    formattedValue: snapshot.formattedValue,
+                    rawHex: snapshot.rawHex,
+                    rawData: snapshot.rawData,
+                    mapped: snapshot.isMapped,
+                    unit: snapshot.unit,
+                    numericValue: snapshot.isNumericValueAvailable
+                        ? snapshot.numericValue : nil)
+            }
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
