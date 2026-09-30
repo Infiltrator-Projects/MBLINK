@@ -967,57 +967,6 @@ bool mblink_mercedes_module_scan_capture_text_did(
     return true;
 }
 
-static bool mblink_mercedes_module_scan_capture_display_did(
-    const MblinkElm327Response *response,
-    uint16_t did,
-    char *destination,
-    size_t destination_capacity)
-{
-    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
-    size_t pdu_length = 0U;
-    MblinkUdsDidRecord record;
-    size_t index;
-    size_t offset = 0U;
-
-    if (mblink_mercedes_module_scan_capture_text_did(
-            response, did, destination, destination_capacity)) {
-        return true;
-    }
-    if (response == NULL || destination == NULL ||
-        destination_capacity == 0U ||
-        response->result != MBLINK_ELM327_RESULT_OK) {
-        return false;
-    }
-    destination[0] = '\0';
-    if (mblink_elm327_can_decode_pdu(
-            response, pdu, sizeof(pdu), &pdu_length) !=
-        MBLINK_ELM327_CAN_RESULT_OK ||
-        mblink_uds_decode_read_did_response(
-            pdu, pdu_length, did, &record) != MBLINK_UDS_RESULT_OK ||
-        record.data_length == 0U) {
-        return false;
-    }
-
-    /* Preserve non-text versions losslessly as hex instead of inventing a
-     * number or silently dropping the field. */
-    if (record.data_length > destination_capacity / 3U) {
-        return false;
-    }
-    for (index = 0U; index < record.data_length; ++index) {
-        const int written = snprintf(
-            destination + offset, destination_capacity - offset,
-            index == 0U ? "%02X" : " %02X",
-            (unsigned int)record.data[index]);
-        if (written <= 0 ||
-            (size_t)written >= destination_capacity - offset) {
-            destination[0] = '\0';
-            return false;
-        }
-        offset += (size_t)written;
-    }
-    return offset != 0U;
-}
-
 void mblink_mercedes_module_scan_classify_controller_family(
     MblinkMercedesModuleScanEntry *module)
 {
