@@ -297,9 +297,12 @@ bool mblink_mercedes_documented_read_is_module_metadata(
         case UINT16_C(0xf121):
         case UINT16_C(0xf150):
         case UINT16_C(0xf151):
+        case UINT16_C(0xf153):
+        case UINT16_C(0xf187):
         case UINT16_C(0xf188):
         case UINT16_C(0xf189):
         case UINT16_C(0xf191):
+        case UINT16_C(0xf197):
         case UINT16_C(0xf192):
         case UINT16_C(0xf193):
         case UINT16_C(0xf194):
