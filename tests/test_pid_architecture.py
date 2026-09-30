@@ -99,6 +99,12 @@ require(
     and "dashboardSelectionStore" not in model,
     "MBLINK display membership must come only from PID Setup selections",
 )
+require(
+    "manufacturerPIDPresentationProvenance" in model
+    and 'source = "Mercedes Vediamo CBF"' in model
+    and "rawProvenance" in model,
+    "PID Setup must not expose raw German/underscore CBF provenance symbols",
+)
 factory_start = app.index("private struct MBFactoryReadingsView")
 factory_end = app.index(".mbDiagnosticScreen(\"Factory Readings\")", factory_start)
 factory_view = app[factory_start:factory_end]
