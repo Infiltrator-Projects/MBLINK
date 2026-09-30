@@ -1641,6 +1641,15 @@ static void MBLinkAppendManufacturerDefinition(
             continue;
         }
 
+        /*
+         * Hardware/software identity is acquired once by module discovery.
+         * It belongs on the module card, never in selectable live PID setup.
+         */
+        if (mblink_mercedes_documented_read_is_module_metadata(
+                item.service, item.identifier)) {
+            continue;
+        }
+
         NSString *stableKey = item.stable_key != NULL
             ? MBLinkStringFromCString(item.stable_key)
             : MBLinkManufacturerStableKey(
