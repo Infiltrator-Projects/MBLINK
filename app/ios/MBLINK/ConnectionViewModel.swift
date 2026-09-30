@@ -602,10 +602,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let definitions: [[String: Any]]
         if !documentedDefinitions.isEmpty {
             /*
-             * PID Setup remains documentation-driven. Static startup metadata
-             * is removed only after the complete controller catalogue is
-             * materialised; there is no separate runtime qualification.
-             * CGW DID F153 is the boot software version and belongs on Modules.
+             * The controller already exposes only the resolved ECU pack's
+             * user-polling section. Do not repeat startup/static exceptions in
+             * the UI: acquisition ownership belongs to the ECU pack.
              */
             definitions = documentedDefinitions.map { definition in
                 [
@@ -616,10 +615,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     "title": definition.title,
                     "provenance": definition.provenance
                 ]
-            }.filter { value in
-                let service = value["service"] as? Int
-                let identifier = value["identifier"] as? Int
-                return !(service == 0x22 && identifier == 0xF153)
             }
             cacheManufacturerCatalogue(definitions, moduleID: moduleID)
         } else if controller.isActive {
@@ -659,11 +654,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 raw: rawProvenance,
                 service: service,
                 identifier: identifier)
-            let presentationTitle = manufacturerPIDPresentationTitle(
-                moduleID: moduleID,
-                service: service,
-                identifier: identifier,
-                fallback: title)
             let stableKey = canonicalManufacturerStableKey(storedStableKey)
             return MBPIDCatalogueItem(
                 id: scopedChannelID(
@@ -675,7 +665,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 service: service,
                 identifier: identifier,
                 shortName: shortName,
-                title: presentationTitle,
+                title: title,
                 provenance: provenance,
                 pollingEnabled: selected.contains(stableKey),
                 advertised: true)
@@ -1278,29 +1268,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 format: "%02X %02X", Int(service), Int(identifier))
         }
         return "\(source) · \(command)"
-    }
-
-    private func manufacturerPIDPresentationTitle(
-        moduleID: String,
-        service: UInt8,
-        identifier: UInt16,
-        fallback: String
-    ) -> String {
-        guard service == 0x21,
-              let module = pidConfigurationModule(id: moduleID),
-              !module.extendedID,
-              module.requestCANIdentifier == 0x64A,
-              module.responseCANIdentifier == 0x489
-        else { return fallback }
-
-        switch identifier {
-        case 0x02:
-            return "Restraint equipment configuration"
-        case 0x58:
-            return "ECU lock state / tester identification"
-        default:
-            return fallback
-        }
     }
 
     private func standardStableKey(for pid: UInt8) -> String {
