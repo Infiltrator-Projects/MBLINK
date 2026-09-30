@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.266 — 2026-10-01
+
+- Fix simulation stopping with obd2-error when a selected documented reading has no simulated sample, such as fuel level 01 2F. LINK 0.15.88 returns NO DATA for those valid requests so the session keeps polling.
+- Keep the fuel-level catalogue entry and real-car percentage decoder intact.
+- Require iOS CI to select fuel level alongside RPM/speed and observe its NO DATA reply before accepting a successful simulated session. LINK additionally exercises every documented live PID through two minutes of simulated polling.
+
 ## 0.7.265 — 2026-10-01
 
 - Show decoded rear axle ratio, tyre circumference and engine inertia in the Vehicle profile under Vehicle configuration, using the current VIN’s saved startup readings.

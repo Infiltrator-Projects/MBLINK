@@ -388,7 +388,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_POLLING"] == "1" {
                 let simulatedVIN = "WDD2073022F123456"
                 pidSelectionStore.setStableKeys(
-                    ["obd2.engine.rpm", "obd2.vehicle.speed"],
+                    ["obd2.engine.rpm", "obd2.vehicle.speed", "obd2.fuel.tank_level"],
                     forVIN: simulatedVIN,
                     controllerIdentifier: Self.standardSelectionControllerIdentifier)
                 markStandardSelectionExplicitlyEdited(vin: simulatedVIN)
@@ -2332,6 +2332,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 moduleID: Self.ciORCModuleID).count
             let udsServiceCatalogueCount = udsServiceCatalogue.count
             let udsDTCReportCatalogueCount = udsDTCReportCatalogue.count
+            let unavailableFuelObserved = (controller.csvSnapshot() ?? "")
+                .contains("\"012F\",\"no-data\"")
             let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
             let state = isReady && liveVIN.count == 17
                 ? "ready" : (failed ? "failed" : "pending")
@@ -2351,6 +2353,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "standard_selection_keys=\(standardSelectionKeys.joined(separator: ","))\n" +
                 "standard_selection_pairs=\(standardSelectionPairs.joined(separator: ","))\n" +
                 "standard_selection_scoped=\(standardSelectionScoped)\n" +
+                "unavailable_fuel_observed=\(unavailableFuelObserved)\n" +
                 "module_count=\(diagnosticModules.count)\n" +
                 "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
                 "esp_catalogue_count=\(espCatalogueCount)\n" +
