@@ -1586,6 +1586,51 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
     return values != nil ? [values copy] : @[];
 }
 
+- (NSArray<MBLinkMercedesDataSnapshot *> *)
+    startupDataSnapshotsForModuleIdentifier:(NSString *)identifier
+{
+    if (identifier.length == 0U) return @[];
+
+    MblinkMercedesModuleScanEntry cachedModule;
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    MblinkMercedesEcuPack pack;
+    if (module == NULL &&
+        [self populateCachedModuleEntry:&cachedModule
+                          forIdentifier:identifier]) {
+        module = &cachedModule;
+    }
+    if (module == NULL ||
+        !mblink_mercedes_ecu_pack_resolve_module(module, &pack)) {
+        return @[];
+    }
+
+    NSArray<MBLinkMercedesDataSnapshot *> *values =
+        _manufacturerDataByModule[identifier] ?: @[];
+    if (values.count == 0U) return @[];
+
+    NSMutableArray<MBLinkMercedesDataSnapshot *> *result =
+        [[NSMutableArray alloc] init];
+    const size_t startupCount =
+        mblink_mercedes_ecu_pack_startup_item_count(&pack);
+
+    for (MBLinkMercedesDataSnapshot *snapshot in values) {
+        for (size_t index = 0U; index < startupCount; ++index) {
+            MblinkMercedesEcuDataItem item;
+            if (!mblink_mercedes_ecu_pack_startup_item_at(
+                    &pack, index, &item)) {
+                continue;
+            }
+            if (item.service == snapshot.service &&
+                item.identifier == snapshot.identifier) {
+                [result addObject:snapshot];
+                break;
+            }
+        }
+    }
+
+    return [result copy];
+}
 
 
 static NSString *MBLinkManufacturerStableKey(
