@@ -57,7 +57,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readwrite) NSString *shortName;
 @property(nonatomic, copy, readwrite) NSString *title;
 @property(nonatomic, copy, readwrite) NSString *provenance;
-@property(nonatomic, readwrite, getter=isLive) BOOL live;
 @end
 @implementation MBLinkManufacturerPIDDefinitionSnapshot
 @end

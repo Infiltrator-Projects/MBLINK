@@ -31,9 +31,6 @@
 extern "C" {
 #endif
 
-#define MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL SIZE_MAX
-#define MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER ((size_t)0x80U)
-
 bool mblink_mercedes_module_scan_identity_first_active(
     const MblinkMercedesModuleScan *scan);
 

@@ -40,8 +40,9 @@ ecu_pack_api = (ROOT / "include/mblink/mercedes_ecu_pack.h").read_text(
 )
 ecu_pack = (ROOT / "src/mercedes/ecu_pack.c").read_text(encoding="utf-8")
 require(
-    "mblink_mercedes_data_runtime_candidate_identifier_count_for_route" in manufacturer_api,
-    "public Mercedes runtime-candidate API is missing",
+    "mblink_mercedes_data_runtime_candidate_identifier" not in manufacturer_api
+    and "mblink_mercedes_data_identifier_is_runtime_refreshable" not in manufacturer_api,
+    "obsolete route-level runtime polling policy must not coexist with ECU-pack USER_POLLING",
 )
 require(
     "MblinkMercedesEcuPack" in ecu_pack_api
@@ -240,6 +241,14 @@ require(
     "startup module data must run through one generic post-discovery per-ECU pass",
 )
 require(
+    "identity_first" in module_scan_api
+    and "kwp_identity_fallback" in module_scan_api
+    and "kwp_identity_index" in module_scan_api
+    and "MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL" not in module_scan
+    and "MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER" not in module_scan,
+    "module discovery identity state must be explicit rather than hidden in DTC/VIN indices",
+)
+require(
     "DISCOVERY_ORC_RESTRAINT_CONFIGURATION" not in module_scan
     and "DISCOVERY_ORC_LOCK_STATE" not in module_scan
     and "DISCOVERY_ORC_RESTRAINT_CONFIGURATION" not in module_scan_api
@@ -265,6 +274,12 @@ require(
     and "boot_software" not in controller
     and "boot_software" not in module_scan_api,
     "boot software must flow through generic startup module data rather than legacy identity/profile fields",
+)
+require(
+    "MBLinkManufacturerPIDDefinitionSnapshot" in apple_api
+    and "getter=isLive" not in apple_api
+    and "snapshot.live" not in controller,
+    "manufacturer PID snapshots must not carry a redundant live/pollable bit after ECU-pack filtering",
 )
 require(
     "MBLinkManufacturerCommandToken" in controller

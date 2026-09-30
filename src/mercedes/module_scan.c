@@ -419,6 +419,8 @@ static bool mblink_mercedes_module_scan_try_alternate_protocol(
     scan->candidate_protocol_attempted_mask |=
         mblink_mercedes_module_scan_protocol_bit(scan->candidate_protocol);
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     scan->stage =
         MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
     return true;
@@ -431,6 +433,8 @@ void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesModuleScan *scan
     scan->candidate_extended = false;
     scan->candidate_route_locked = false;
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
 }
 
@@ -450,6 +454,8 @@ bool mblink_mercedes_module_scan_set_gateway_target(
     scan->candidate_extended = true;
     scan->candidate_route_locked = true;
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
     return true;
 }
@@ -494,6 +500,8 @@ bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     mblink_mercedes_module_scan_prepare_candidate_protocol(scan);
     /*
      * Only lock routes whose RX identifier is authoritative.  Source-backed
@@ -2113,15 +2121,16 @@ bool mblink_mercedes_module_scan_identity_first_active(
 {
     return scan != NULL &&
            scan->scope != MBLINK_MERCEDES_MODULE_SCAN_CACHED &&
-           scan->dtc_index == MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
+           scan->identity_first;
 }
 
 void mblink_mercedes_module_scan_mark_identity_first(
     MblinkMercedesModuleScan *scan)
 {
     if (scan == NULL) return;
-    scan->dtc_index = MBLINK_MERCEDES_IDENTITY_FIRST_SENTINEL;
-    scan->vin_probe_index = 0U;
+    scan->identity_first = true;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
 }
 
 bool mblink_mercedes_module_scan_kwp_identity_mode(
@@ -2130,20 +2139,13 @@ bool mblink_mercedes_module_scan_kwp_identity_mode(
     if (scan == NULL) return false;
     return mblink_mercedes_module_scan_candidate_protocol(scan) ==
                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 ||
-           scan->vin_probe_index >=
-               MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
+           scan->kwp_identity_fallback;
 }
 
 size_t mblink_mercedes_module_scan_kwp_identity_index(
     const MblinkMercedesModuleScan *scan)
 {
-    if (scan == NULL) return 0U;
-    if (scan->vin_probe_index >=
-        MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER) {
-        return scan->vin_probe_index -
-            MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
-    }
-    return scan->vin_probe_index;
+    return scan != NULL ? scan->kwp_identity_index : 0U;
 }
 
 uint8_t mblink_mercedes_module_scan_kwp_identity_option(
@@ -2491,24 +2493,19 @@ void mblink_mercedes_module_scan_start_kwp_identity_fallback(
     MblinkMercedesModuleScan *scan)
 {
     if (scan == NULL) return;
-    scan->vin_probe_index =
-        MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
+    scan->kwp_identity_fallback = true;
+    scan->kwp_identity_index = 0U;
     scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
 }
 
 bool mblink_mercedes_module_scan_advance_kwp_identity(
     MblinkMercedesModuleScan *scan)
 {
-    const bool fallback = scan != NULL &&
-        scan->vin_probe_index >=
-            MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER;
     const size_t next =
         mblink_mercedes_module_scan_kwp_identity_index(scan) + 1U;
 
     if (scan == NULL || next >= 3U) return false;
-    scan->vin_probe_index = fallback
-        ? MBLINK_MERCEDES_KWP_IDENTITY_FALLBACK_MARKER + next
-        : next;
+    scan->kwp_identity_index = next;
     scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_IDENTITY;
     return true;
 }
@@ -2623,7 +2620,8 @@ mblink_mercedes_module_scan_accept_identity(
                 if (module != NULL)
                     mblink_mercedes_module_scan_advance_candidate(scan);
                 else {
-                    scan->vin_probe_index = 0U;
+                    scan->kwp_identity_fallback = false;
+                    scan->kwp_identity_index = 0U;
                     scan->stage =
                         MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_TESTER_PRESENT;
                 }
@@ -2717,7 +2715,7 @@ mblink_mercedes_module_scan_accept(
                     &scan->modules[scan->dtc_index], response,
                     mblink_mercedes_module_scan_kwp_identity_option(scan));
         /* No retries: unsupported, malformed and ELM NO DATA replies advance. */
-        if (++scan->vin_probe_index >= 3U)
+        if (++scan->kwp_identity_index >= 3U)
             scan->stage =
                 MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT;
         return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
@@ -2737,7 +2735,8 @@ mblink_mercedes_module_scan_accept(
         mblink_mercedes_module_scan_is_kwp_transmission(
             &scan->modules[scan->dtc_index]) &&
         scan->modules[scan->dtc_index].controller_family == NULL) {
-        scan->vin_probe_index = 0U;
+        scan->kwp_identity_index = 0U;
+        scan->kwp_identity_fallback = false;
         /*
          * Re-probe KWP identity only when the saved transmission is still
          * unresolved. Once a VIN profile has already resolved EGS53/EGS52/etc,
@@ -2822,6 +2821,8 @@ bool mblink_mercedes_module_scan_resume_after_interruption(
     scan->recovery_extended = extended;
     scan->vin_timeout_long = false;
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     if (repeated) {
         if (dtc_pass) {
             ++scan->dtc_index;
@@ -2876,6 +2877,8 @@ bool mblink_mercedes_module_scan_begin_late_transmission(
     scan->resume_pending = false;
     scan->vin_timeout_long = false;
     scan->vin_probe_index = 0U;
+    scan->kwp_identity_fallback = false;
+    scan->kwp_identity_index = 0U;
     scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_INIT_PROTOCOL_11;
     return true;
 }

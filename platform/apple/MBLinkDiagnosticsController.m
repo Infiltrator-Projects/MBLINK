@@ -1698,7 +1698,6 @@ static void MBLinkAppendManufacturerDefinition(
     NSString *shortName,
     NSString *title,
     NSString *provenance,
-    BOOL live,
     BOOL allowDuplicateWire)
 {
     if (values == nil || stableKey.length == 0U || title.length == 0U) return;
@@ -1717,7 +1716,6 @@ static void MBLinkAppendManufacturerDefinition(
     snapshot.title = title;
     snapshot.provenance = provenance.length != 0U
         ? provenance : @"MBLINK source-backed catalogue";
-    snapshot.live = live;
     [values addObject:snapshot];
     [seenWireKeys addObject:wireKey];
 }
@@ -1786,7 +1784,6 @@ static void MBLinkAppendManufacturerDefinition(
             shortName,
             title,
             provenance,
-            item.live,
             item.allow_duplicate_wire);
     }
 

@@ -60,7 +60,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *shortName;
 @property(nonatomic, copy, readonly) NSString *title;
 @property(nonatomic, copy, readonly) NSString *provenance;
-@property(nonatomic, readonly, getter=isLive) BOOL live;
 @end
 
 @interface MBLinkMercedesModuleSnapshot : NSObject

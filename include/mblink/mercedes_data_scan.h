@@ -137,15 +137,6 @@ MblinkMercedesDataScanConfig mblink_mercedes_data_scan_default_config(
     MblinkMercedesDiagnosticProtocol protocol,
     MblinkMercedesModuleKind module_kind);
 
-/**
- * Legacy compatibility only. Automatic probing must use controller profiles,
- * never a diagnostic CAN address. These route functions intentionally return
- * no candidates.
- */
-size_t mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id);
 typedef struct MblinkMercedesControllerDataProfileEntry {
     const char *profile_key;
     MblinkMercedesDiagnosticProtocol protocol;
@@ -230,30 +221,6 @@ mblink_mercedes_route_evidence_identifier_at(
     MblinkMercedesDiagnosticProtocol protocol,
     MblinkMercedesModuleKind module_kind,
     size_t index);
-
-/**
- * Legacy compatibility only. Automatic probing must use controller profiles,
- * not route-derived candidates. These functions intentionally return no
- * candidates.
- */
-uint16_t mblink_mercedes_data_runtime_candidate_identifier_at_for_route(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id,
-    size_t index);
-
-/**
- * Decide whether a proven-positive identifier is suitable for periodic
- * runtime refresh.  Static Daimler KWP identification records E0-EB are
- * deliberately excluded; discovered actual-value/raw records remain eligible
- * so later captures can establish their semantics by correlation.
- */
-bool mblink_mercedes_data_identifier_is_runtime_refreshable(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id,
-    MblinkMercedesDiagnosticProtocol protocol,
-    uint16_t identifier);
 
 MblinkMercedesDataScanResult mblink_mercedes_data_scan_begin(
     MblinkMercedesDataScan *scan,

@@ -760,9 +760,6 @@ static int test_runtime_candidate_catalog(void)
     CHECK(entry != NULL && entry->live &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
 
-    CHECK(mblink_mercedes_data_runtime_candidate_identifier_count_for_route(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false) == 0U);
-
     CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
         "engine-cdi", "CRD3", NULL, NULL), "engine-crd3") == 0);
     CHECK(mblink_mercedes_data_profile_key_for_controller(
@@ -866,81 +863,9 @@ static int test_runtime_candidate_catalog(void)
         UINT16_C(0x0005));
     CHECK(entry != NULL && entry->live);
     /*
-     * Readable/discoverable is not the same as safe background polling.
-     * Only GS 21 30 is automatic; HU_204 is manual-only.
+     * Recurring polling membership is not duplicated in this evidence layer.
+     * The resolved ECU pack owns STARTUP_ONCE versus USER_POLLING.
      */
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x30)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x31)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x32)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x33)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x652), UINT32_C(0x48a), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x01)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x652), UINT32_C(0x48a), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x05)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x652), UINT32_C(0x48a), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x06)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x64a), UINT32_C(0x489), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x58)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x64a), UINT32_C(0x489), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, UINT16_C(0x11)));
-
-    /* Static identity/configuration reads are never background telemetry. */
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf100)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf111)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf151)));
-
-    /*
-     * Runtime manufacturer polling is source-qualified, not capture-qualified.
-     * CRD3 0x2007 has online semantics; the ABR2XT DIDs below are retained
-     * only as raw vehicle evidence until equivalent exact-family online
-     * documentation is imported.
-     */
-    CHECK(mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x7e0), UINT32_C(0x7e8), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2001)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2004)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2007)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2003)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2009)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x632), UINT32_C(0x486), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x20c0)));
-    CHECK(!mblink_mercedes_data_identifier_is_runtime_refreshable(
-        UINT32_C(0x612), UINT32_C(0x482), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0xf100)));
 
     return 0;
 }

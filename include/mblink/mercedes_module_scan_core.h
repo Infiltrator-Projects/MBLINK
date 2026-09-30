@@ -165,6 +165,9 @@ typedef struct MblinkMercedesModuleScan {
     uint32_t vin_rx_can_id;
     MblinkMercedesVinProbe vin_source;
     bool vin_timeout_long;
+    bool identity_first;
+    bool kwp_identity_fallback;
+    size_t kwp_identity_index;
     bool kwp_identity_captured;
     size_t dtc_index;
     /* Resume only after the transport owner has resynchronised the wire. */
