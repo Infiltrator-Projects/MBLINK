@@ -30,6 +30,11 @@ typedef enum MblinkMercedesEcuDataKind {
     MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED
 } MblinkMercedesEcuDataKind;
 
+typedef enum MblinkMercedesEcuDataAcquisition {
+    MBLINK_MERCEDES_ECU_DATA_USER_POLLING = 0,
+    MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE
+} MblinkMercedesEcuDataAcquisition;
+
 typedef struct MblinkMercedesEcuDataItem {
     uint8_t service;
     uint16_t identifier;
@@ -38,9 +43,11 @@ typedef struct MblinkMercedesEcuDataItem {
     const char *name;
     const char *unit;
     MblinkMercedesEcuDataKind kind;
+    MblinkMercedesEcuDataAcquisition acquisition;
     MblinkMercedesDefinitionStatus status;
     const char *provenance;
     bool live;
+    bool acquired_during_identification;
     bool advertised;
     bool allow_duplicate_wire;
     size_t field_count;
@@ -98,6 +105,20 @@ const char *mblink_mercedes_ecu_pack_alias_at(
 size_t mblink_mercedes_ecu_pack_data_item_count(
     const MblinkMercedesEcuPack *pack);
 bool mblink_mercedes_ecu_pack_data_item_at(
+    const MblinkMercedesEcuPack *pack,
+    size_t index,
+    MblinkMercedesEcuDataItem *item);
+
+size_t mblink_mercedes_ecu_pack_startup_item_count(
+    const MblinkMercedesEcuPack *pack);
+bool mblink_mercedes_ecu_pack_startup_item_at(
+    const MblinkMercedesEcuPack *pack,
+    size_t index,
+    MblinkMercedesEcuDataItem *item);
+
+size_t mblink_mercedes_ecu_pack_polling_item_count(
+    const MblinkMercedesEcuPack *pack);
+bool mblink_mercedes_ecu_pack_polling_item_at(
     const MblinkMercedesEcuPack *pack,
     size_t index,
     MblinkMercedesEcuDataItem *item);
