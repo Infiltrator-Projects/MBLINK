@@ -117,13 +117,11 @@ static int accept_identity_metadata(
     return 0;
 }
 
-static int test_cgw_boot_software_is_startup_metadata(void)
+static int test_startup_metadata_is_not_embedded_in_module_discovery(void)
 {
     MblinkMercedesModuleScan scan;
     MblinkElm327Response hardware = response(
         MBLINK_ELM327_RESULT_OK, "62F19132303439303130303031", false);
-    MblinkElm327Response boot = response(
-        MBLINK_ELM327_RESULT_OK, "62F153312E322E33", false);
     char command[32];
     size_t written = 0U;
 
@@ -142,21 +140,18 @@ static int test_cgw_boot_software_is_startup_metadata(void)
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE;
     CHECK(mblink_mercedes_module_scan_accept(&scan, &hardware) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE);
 
+    /*
+     * Once identity/hardware discovery is complete the scanner leaves the
+     * controller. Optional static values such as F153 now belong to the
+     * generic per-ECU startup-data pass, never to the discovery state machine.
+     */
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
     CHECK(mblink_mercedes_module_scan_command(
               &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "22F153") == 0);
-
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &boot) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(scan.modules[0].boot_software_version_attempted);
-    CHECK(scan.modules[0].boot_software_version_available);
-    CHECK(strcmp(scan.modules[0].boot_software_version, "1.2.3") == 0);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    CHECK(strcmp(command, "1001") == 0);
     return 0;
 }
 
@@ -283,7 +278,7 @@ static int test_documented_session_teardown(void)
 
 int main(void)
 {
-    if (test_cgw_boot_software_is_startup_metadata() != 0) return 1;
+    if (test_startup_metadata_is_not_embedded_in_module_discovery() != 0) return 1;
     if (test_cached_resolved_egs53_skips_identity_reprobe() != 0) return 1;
     if (test_documented_session_teardown() != 0) return 1;
     MblinkMercedesModuleScan scan;
