@@ -98,6 +98,32 @@ typedef struct MblinkMercedesTransmissionLive2130 {
     uint16_t output_speed_raw;
 } MblinkMercedesTransmissionLive2130;
 
+/**
+ * Independently selectable values carried by KWP local record 0x30.
+ *
+ * Each bit selects one logical value while the wire request remains the single
+ * 21 30 transaction. The order is persistent API for selection masks.
+ */
+typedef enum MblinkMercedesTransmission2130Field {
+    MBLINK_MERCEDES_TRANSMISSION_2130_OIL_TEMPERATURE = 0,
+    MBLINK_MERCEDES_TRANSMISSION_2130_ACTUAL_GEAR,
+    MBLINK_MERCEDES_TRANSMISSION_2130_TARGET_GEAR,
+    MBLINK_MERCEDES_TRANSMISSION_2130_TCC_STATE,
+    MBLINK_MERCEDES_TRANSMISSION_2130_RECOGNISED_GEAR,
+    MBLINK_MERCEDES_TRANSMISSION_2130_SELECTOR_POSITION,
+    MBLINK_MERCEDES_TRANSMISSION_2130_DRIVE_PROGRAM,
+    MBLINK_MERCEDES_TRANSMISSION_2130_TCC_DELTA_SPEED,
+    MBLINK_MERCEDES_TRANSMISSION_2130_TCC_SPEED,
+    MBLINK_MERCEDES_TRANSMISSION_2130_TCC_PRESSURE,
+    MBLINK_MERCEDES_TRANSMISSION_2130_ENGINE_TORQUE,
+    MBLINK_MERCEDES_TRANSMISSION_2130_CONVERTER_TORQUE,
+    MBLINK_MERCEDES_TRANSMISSION_2130_OUTPUT_SPEED,
+    MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_COUNT
+} MblinkMercedesTransmission2130Field;
+
+#define MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(FIELD) \
+    (UINT64_C(1) << (unsigned int)(FIELD))
+
 /* EGS51 / early 722.6: six-byte GS_218h broadcast. */
 typedef struct MblinkMercedesEgs51Gs218 {
     double torque_request;
@@ -394,6 +420,19 @@ bool mblink_mercedes_transmission_decode_live_2130_for_family(
     MblinkMercedesTransmissionFamily family,
     const uint8_t *data,
     size_t data_length,
+    MblinkMercedesTransmissionLive2130 *decoded);
+
+/**
+ * Decode only the selected logical values from one family-qualified 21 30
+ * payload. Unselected fields remain unavailable in the output and their bytes
+ * are not interpreted. One or many selected fields still consume one wire
+ * response.
+ */
+bool mblink_mercedes_transmission_decode_live_2130_mask_for_family(
+    MblinkMercedesTransmissionFamily family,
+    const uint8_t *data,
+    size_t data_length,
+    uint64_t field_mask,
     MblinkMercedesTransmissionLive2130 *decoded);
 
 bool mblink_mercedes_transmission_decode_egs51_gs218(

@@ -142,6 +142,28 @@ static int test_2130(void)
         CHECK(strcmp(
             mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(4U),
             "D4") == 0);
+
+        {
+            const uint64_t selected =
+                MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+                    MBLINK_MERCEDES_TRANSMISSION_2130_OIL_TEMPERATURE) |
+                MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+                    MBLINK_MERCEDES_TRANSMISSION_2130_ENGINE_TORQUE);
+            MblinkMercedesTransmissionLive2130 selective;
+            CHECK(mblink_mercedes_transmission_decode_live_2130_mask_for_family(
+                MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53,
+                egs53_capture, sizeof(egs53_capture), selected, &selective));
+            CHECK(selective.rich_layout);
+            CHECK(selective.oil_temperature_available &&
+                  selective.oil_temperature_c == 38.0);
+            CHECK(selective.engine_torque_available &&
+                  selective.engine_torque_signed_raw == INT16_C(-37));
+            CHECK(!selective.actual_gear_available);
+            CHECK(!selective.target_gear_available);
+            CHECK(!selective.tcc_status_available);
+            CHECK(!selective.converter_torque_available);
+            CHECK(!selective.output_speed_available);
+        }
     }
 
     rich[6] = UINT8_C(0xff);

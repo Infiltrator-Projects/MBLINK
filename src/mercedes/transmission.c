@@ -251,6 +251,146 @@ bool mblink_mercedes_transmission_decode_live_2130_for_family(
     return !decoded->rich_layout;
 }
 
+bool mblink_mercedes_transmission_decode_live_2130_mask_for_family(
+    MblinkMercedesTransmissionFamily family,
+    const uint8_t *data,
+    size_t data_length,
+    uint64_t field_mask,
+    MblinkMercedesTransmissionLive2130 *decoded)
+{
+    MblinkMercedesTransmissionLive2130 value;
+    bool decoded_any = false;
+
+    if (!mblink_mercedes_transmission_family_uses_2130_actual_values(family) ||
+        data == NULL || decoded == NULL || field_mask == UINT64_C(0)) {
+        return false;
+    }
+
+    memset(&value, 0, sizeof(value));
+
+    /*
+     * EGS52 and EGS53 share the source-backed 24-byte RLI-30 offsets used by
+     * these canonical fields. VGS/NAG2 is the corroborated compact shape and
+     * exposes only oil temperature plus current gear here.
+     *
+     * Deliberately do not validate or decode unrelated bytes. A bad TCC byte,
+     * for example, cannot invalidate an ATF-only selection.
+     */
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+        family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53) {
+        if (data_length != 24U) return false;
+        value.rich_layout = true;
+
+#define FIELD_SELECTED(FIELD) \
+    ((field_mask & MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(FIELD)) != \
+        UINT64_C(0))
+
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_OIL_TEMPERATURE)) {
+            value.oil_temperature_available = true;
+            value.oil_temperature_c = (double)data[11] - 50.0;
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_ACTUAL_GEAR)) {
+            const uint8_t code = (uint8_t)(data[10] & UINT8_C(0x0f));
+            if (code > UINT8_C(14)) return false;
+            value.actual_gear_available = true;
+            value.actual_gear_code = code;
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_TARGET_GEAR)) {
+            const uint8_t code =
+                (uint8_t)((data[10] >> 4U) & UINT8_C(0x0f));
+            if (code > UINT8_C(14)) return false;
+            value.target_gear_available = true;
+            value.target_gear_code = code;
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_TCC_STATE)) {
+            if (data[6] > UINT8_C(6)) return false;
+            value.tcc_status_available = true;
+            value.tcc_status_code = data[6];
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(
+                MBLINK_MERCEDES_TRANSMISSION_2130_RECOGNISED_GEAR)) {
+            value.recognised_gear_available = true;
+            value.recognised_gear_code = data[9];
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(
+                MBLINK_MERCEDES_TRANSMISSION_2130_SELECTOR_POSITION)) {
+            value.selector_position_available = true;
+            value.selector_position_code = data[7];
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_DRIVE_PROGRAM)) {
+            value.drive_program_available = true;
+            value.drive_program_code = data[8];
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(
+                MBLINK_MERCEDES_TRANSMISSION_2130_TCC_DELTA_SPEED)) {
+            value.tcc_delta_speed_available = true;
+            value.tcc_delta_speed_raw = infiltratr_load_be16(&data[0]);
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_TCC_SPEED)) {
+            value.tcc_speed_available = true;
+            value.tcc_speed_raw = infiltratr_load_be16(&data[2]);
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_TCC_PRESSURE)) {
+            value.tcc_pressure_available = true;
+            value.tcc_pressure_raw = infiltratr_load_be16(&data[4]);
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_ENGINE_TORQUE)) {
+            value.engine_torque_available = true;
+            value.engine_torque_signed_raw =
+                signed_raw16(infiltratr_load_be16(&data[12]));
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(
+                MBLINK_MERCEDES_TRANSMISSION_2130_CONVERTER_TORQUE)) {
+            value.converter_torque_available = true;
+            value.converter_torque_signed_raw =
+                signed_raw16(infiltratr_load_be16(&data[14]));
+            decoded_any = true;
+        }
+        if (FIELD_SELECTED(MBLINK_MERCEDES_TRANSMISSION_2130_OUTPUT_SPEED)) {
+            value.output_speed_available = true;
+            value.output_speed_raw = infiltratr_load_be16(&data[16]);
+            decoded_any = true;
+        }
+
+#undef FIELD_SELECTED
+    } else if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2) {
+        if (data_length < 10U || data_length >= 24U) return false;
+        if ((field_mask &
+             MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+                 MBLINK_MERCEDES_TRANSMISSION_2130_OIL_TEMPERATURE)) !=
+            UINT64_C(0)) {
+            value.oil_temperature_available = true;
+            value.oil_temperature_c = (double)data[9] - 50.0;
+            decoded_any = true;
+        }
+        if ((field_mask &
+             MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+                 MBLINK_MERCEDES_TRANSMISSION_2130_ACTUAL_GEAR)) !=
+            UINT64_C(0)) {
+            const uint8_t code = (uint8_t)(data[3] & UINT8_C(0x0f));
+            if (code > UINT8_C(14)) return false;
+            value.actual_gear_available = true;
+            value.actual_gear_code = code;
+            decoded_any = true;
+        }
+    }
+
+    if (!decoded_any) return false;
+    *decoded = value;
+    return true;
+}
+
 bool mblink_mercedes_transmission_decode_egs51_gs218(
     const uint8_t *payload,
     size_t payload_length,

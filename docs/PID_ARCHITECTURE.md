@@ -199,7 +199,10 @@ field mask. The adapter necessarily receives the complete standards-defined
 response, but LINK decodes and promotes only the selected logical fields. Bytes
 belonging only to unselected fields are not turned into telemetry values,
 histories or display channels. This is the same request/deduplication model used
-by Mercedes grouped records such as KWP 0x21 0x30.
+by Mercedes grouped records such as KWP 0x21 0x30. The transmission decoder
+receives the selected logical identifiers and extracts only those fields from
+the returned record; unselected gear, torque, pressure, speed or status fields
+are not decoded simply because their bytes share the 0x21 0x30 payload.
 
 A PID setup screen must never trigger a broad brute-force scan simply because the user opened it. Broad or bounded discovery is a separate explicit diagnostic operation.
 

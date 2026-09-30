@@ -158,6 +158,13 @@ NS_ASSUME_NONNULL_BEGIN
  * Mercedes transmission layer. Swift must not reinterpret raw KWP bytes.
  */
 - (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots;
+/**
+ * Decode only the selected logical values from the shared GS 21 30 record.
+ * All identifiers still share one scheduled 21 30 request.
+ */
+- (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)
+    transmissionLiveValueSnapshotsForIdentifiers:(NSArray<NSString *> *)identifiers
+    NS_SWIFT_NAME(transmissionLiveValueSnapshots(identifiers:));
 
 /**
  * Return the documentation-backed live-data catalogue for one discovered ECU.

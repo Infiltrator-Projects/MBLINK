@@ -348,22 +348,81 @@ static BOOL MBLinkTransmissionModuleSupportsCanonical2130(
         mblink_mercedes_transmission_family_uses_2130_actual_values(family);
 }
 
+static uint64_t MBLinkTransmission2130FieldBit(
+    NSString *identifier)
+{
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.oil_temperature"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_OIL_TEMPERATURE);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.actual_gear"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_ACTUAL_GEAR);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.target_gear"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_TARGET_GEAR);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.tcc_state"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_TCC_STATE);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.recognised_gear"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_RECOGNISED_GEAR);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.selector_position"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_SELECTOR_POSITION);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.drive_program"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_DRIVE_PROGRAM);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.tcc_delta_speed_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_TCC_DELTA_SPEED);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.tcc_speed_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_TCC_SPEED);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.tcc_pressure_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_TCC_PRESSURE);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.engine_torque_signed_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_ENGINE_TORQUE);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.converter_torque_signed_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_CONVERTER_TORQUE);
+    if ([identifier isEqualToString:
+            @"mercedes.transmission.output_speed_raw"])
+        return MBLINK_MERCEDES_TRANSMISSION_2130_FIELD_MASK(
+            MBLINK_MERCEDES_TRANSMISSION_2130_OUTPUT_SPEED);
+    return UINT64_C(0);
+}
+
 static BOOL MBLinkDecodeTransmissionLive2130(
     const MblinkMercedesModuleScanEntry *module,
     const uint8_t *data,
     size_t dataLength,
+    uint64_t fieldMask,
     MblinkMercedesTransmissionLive2130 *decoded)
 {
-    if (!MBLinkTransmissionModuleSupportsCanonical2130(module))
+    if (!MBLinkTransmissionModuleSupportsCanonical2130(module) ||
+        fieldMask == UINT64_C(0)) {
         return NO;
+    }
     const MblinkMercedesTransmissionFamily family =
         MBLinkTransmissionFamilyForModule(module);
-    if (family != MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN) {
-        return mblink_mercedes_transmission_decode_live_2130_for_family(
-            family, data, dataLength, decoded);
-    }
-    return mblink_mercedes_transmission_decode_live_2130(
-        data, dataLength, decoded);
+    if (family == MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN)
+        return NO;
+    return mblink_mercedes_transmission_decode_live_2130_mask_for_family(
+        family, data, dataLength, fieldMask, decoded);
 }
 
 static NSString *MBLinkMercedesEndpointText(
@@ -1686,6 +1745,26 @@ static void MBLinkAppendManufacturerDefinition(
 
 - (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)transmissionLiveValueSnapshots
 {
+    return [self transmissionLiveValueSnapshotsForIdentifiers:@[
+        @"mercedes.transmission.oil_temperature",
+        @"mercedes.transmission.actual_gear",
+        @"mercedes.transmission.target_gear",
+        @"mercedes.transmission.tcc_state",
+        @"mercedes.transmission.recognised_gear",
+        @"mercedes.transmission.selector_position",
+        @"mercedes.transmission.drive_program",
+        @"mercedes.transmission.tcc_delta_speed_raw",
+        @"mercedes.transmission.tcc_speed_raw",
+        @"mercedes.transmission.tcc_pressure_raw",
+        @"mercedes.transmission.engine_torque_signed_raw",
+        @"mercedes.transmission.converter_torque_signed_raw",
+        @"mercedes.transmission.output_speed_raw"
+    ]];
+}
+
+- (NSArray<MBLinkTransmissionLiveValueSnapshot *> *)
+    transmissionLiveValueSnapshotsForIdentifiers:(NSArray<NSString *> *)identifiers
+{
     const MblinkMercedesModuleScanEntry *module = NULL;
     NSString *moduleIdentifier = nil;
     const size_t count =
@@ -1717,10 +1796,17 @@ static void MBLinkAppendManufacturerDefinition(
     if (rli30 == nil) return @[];
 
     if (!MBLinkTransmissionModuleSupportsCanonical2130(module)) return @[];
+
+    uint64_t fieldMask = UINT64_C(0);
+    for (NSString *identifier in identifiers ?: @[]) {
+        fieldMask |= MBLinkTransmission2130FieldBit(identifier);
+    }
+    if (fieldMask == UINT64_C(0)) return @[];
+
     MblinkMercedesTransmissionLive2130 decoded;
     if (!MBLinkDecodeTransmissionLive2130(
             module, (const uint8_t *)rli30.rawData.bytes,
-            rli30.rawData.length, &decoded)) return @[];
+            rli30.rawData.length, fieldMask, &decoded)) return @[];
 
     const MblinkMercedesTransmissionFamily family =
         MBLinkTransmissionFamilyForModule(module);

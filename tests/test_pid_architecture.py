@@ -177,6 +177,12 @@ require(
     "iPhone PID Setup must be documentation-driven with no separate pollable gate",
 )
 require(
+    "transmissionLiveValueSnapshots(" in model
+    and "identifiers: Array(selected)" in model
+    and ".filter { selected.contains($0.identifier) }" not in model,
+    "Mercedes grouped records must receive logical selection before decoding rather than filtering a fully decoded record",
+)
+require(
     "readinessFieldSnapshots" in model
     and "setPollingFieldMask" in model
     and "readinessFieldMask(for: selection)" in model

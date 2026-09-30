@@ -1435,8 +1435,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
         let source = "\(module.name) · \(module.addressText)"
         let selected = manufacturerSelectionSet(moduleID: module.id)
-        return controller.transmissionLiveValueSnapshots()
-            .filter { selected.contains($0.identifier) }
+        return controller.transmissionLiveValueSnapshots(
+            identifiers: Array(selected))
             .map { snapshot in
                 let numeric = snapshot.isNumericValueAvailable
                     ? snapshot.numericValue : nil
