@@ -261,6 +261,15 @@ jobs:
           cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
           cmake --build build-macos --config Release --parallel
           ctest --test-dir build-macos --build-config Release --output-on-failure
+      - name: Verify manufacturer live freshness and retained startup data
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun clang -fobjc-arc -Wall -Wextra -Werror \
+            -Iinclude -Isrc/link/include -Isrc/link/src/infiltratr-common/include \
+            tests/apple/ManufacturerSnapshotRegression.m -framework Foundation \
+            -o "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
+          "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
       - name: Build iOS simulator Debug
         shell: bash
         env:

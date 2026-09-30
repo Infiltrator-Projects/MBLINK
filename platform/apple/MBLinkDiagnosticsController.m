@@ -2168,6 +2168,13 @@ static void MBLinkAppendManufacturerDefinition(
 #undef APPEND_RLI30_SIGNED
 #undef APPEND_RLI30_UNSIGNED
 
+    if (rli30.isStale) {
+        for (MBLinkTransmissionLiveValueSnapshot *value in values) {
+            value.formattedValue = [@"Stale · " stringByAppendingString:value.formattedValue];
+            value.numericValueAvailable = NO;
+            value.qualityNote = @"Latest live refresh failed; showing the last received value";
+        }
+    }
     return [values copy];
 }
 
@@ -2629,43 +2636,16 @@ static void MBLinkAppendManufacturerDefinition(
         [values addObject:snapshot];
     }
 
-    /*
-     * A positive response is durable discovery evidence. A later timeout or
-     * NO DATA is not proof that the identifier ceased to exist, especially on
-     * a busy in-vehicle CAN network. Merge refreshed values into the previous
-     * module set instead of replacing the set with only this pass.
-     */
-    NSArray<MBLinkMercedesDataSnapshot *> *previous =
-        _manufacturerDataByModule[identifier] ?: @[];
-    NSMutableDictionary<NSString *, MBLinkMercedesDataSnapshot *> *merged =
-        [[NSMutableDictionary alloc] initWithCapacity:
-            previous.count + values.count];
-
-    for (MBLinkMercedesDataSnapshot *snapshot in previous) {
-        NSString *key = [NSString stringWithFormat:@"%02X:%04X",
-            (unsigned int)snapshot.service,
-            (unsigned int)snapshot.identifier];
-        merged[key] = snapshot;
+    NSMutableSet<NSNumber *> *requestedLiveCommands = [[NSMutableSet alloc] init];
+    if (_manufacturerDataScanLiveOnly && _manufacturerDataScan.identifier_list_active) {
+        for (size_t index = 0U; index < _manufacturerDataScan.identifier_count; ++index) {
+            [requestedLiveCommands addObject:MBLinkManufacturerCommandToken(
+                _manufacturerDataScan.services[index],
+                _manufacturerDataScan.identifiers[index])];
+        }
     }
-    for (MBLinkMercedesDataSnapshot *snapshot in values) {
-        NSString *key = [NSString stringWithFormat:@"%02X:%04X",
-            (unsigned int)snapshot.service,
-            (unsigned int)snapshot.identifier];
-        merged[key] = snapshot;
-    }
-
-    NSArray<MBLinkMercedesDataSnapshot *> *retained =
-        [[merged allValues] sortedArrayUsingComparator:
-            ^NSComparisonResult(
-                MBLinkMercedesDataSnapshot *left,
-                MBLinkMercedesDataSnapshot *right) {
-                if (left.service < right.service) return NSOrderedAscending;
-                if (left.service > right.service) return NSOrderedDescending;
-                if (left.identifier < right.identifier) return NSOrderedAscending;
-                if (left.identifier > right.identifier) return NSOrderedDescending;
-                return NSOrderedSame;
-            }];
-    _manufacturerDataByModule[identifier] = retained;
+    _manufacturerDataByModule[identifier] = MBLinkMergeMercedesDataSnapshots(
+        _manufacturerDataByModule[identifier] ?: @[], values, requestedLiveCommands);
 }
 
 - (void)finishManufacturerDataScanWithStatus:(NSString *)status

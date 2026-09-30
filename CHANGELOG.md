@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.264 — 2026-09-30
+
+- Pin LINK 0.15.87 at c397e6e423d0ef0e44363c38971111a35c67f32c: fix headered CAN fault decoding, handle populated/multi-frame DTC lists and continue into readiness and recurring polling.
+- Offer documented Mode 01 readings on standard OBD controllers independently of individual capability bits, and let explicit selections create the corresponding polling request. Keep readiness, controller identity and ECU-pack startup data read once and excluded from live toggles.
+- Mark retained manufacturer live readings as stale after a failed requested refresh; preserve raw evidence and startup module data, remove stale numeric values from gauges/graphs, and restore fresh status after a successful reply.
+- Regress snapshot freshness/recovery and selecting an unadvertised documented PID alongside an advertised one without exposing SAE channels on body ECU routes.
+
 ## 0.7.263 — 2026-09-30
 
 - Promote EGS53 21 B1 bytes 37-38 from tentative to corroborated tyre circumference after cross-vehicle coding comparisons; the development C207 decodes to 1960 mm.

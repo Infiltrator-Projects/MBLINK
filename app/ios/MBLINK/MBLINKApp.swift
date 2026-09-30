@@ -936,7 +936,7 @@ private struct MBPIDCatalogueSection: View {
                     .foregroundStyle(MBBrand.silverBright)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(item.source == .standard
-                     ? "Advertised by this controller · \(item.provenance)"
+                     ? "\(item.advertised ? "Advertised by this controller" : "Documented SAE reading") · \(item.provenance)"
                      : item.provenance)
                     .font(MBTypography.caption2)
                     .foregroundStyle(
@@ -1810,7 +1810,7 @@ private struct MBModuleDetailView: View {
 
         if standardParameters.isEmpty {
             MBPanel {
-                Text("No SAE Mode 01 live values have been advertised by this ECU.")
+                Text("No standard OBD interface is known for this ECU.")
                     .font(MBTypography.subheadline)
                     .foregroundStyle(MBBrand.silver)
                     .fixedSize(horizontal: false, vertical: true)

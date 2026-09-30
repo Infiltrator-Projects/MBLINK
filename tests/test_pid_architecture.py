@@ -428,8 +428,11 @@ require(
 require(
     "func standardPIDCatalogueItems(" in model
     and "pidSupportByModule[moduleID]" in model
-    and "advertised.contains(pid)" in model,
-    "controller OBD catalogue membership must come from that responder's advertised/cached capability map",
+    and "hasStandardOBDInterface(moduleID:" in model
+    and "advertised: advertised.contains(pid)" in model
+    and "guard (pid & 0x1F) != 0, advertised.contains(pid)" not in model
+    and "guard (pid & 0x1F) != 0, supported.contains(pid)" not in model,
+    "documented OBD readings must remain selectable on OBD controllers without per-PID capability gating",
 )
 require(
     '"controllerFamily"' in controller

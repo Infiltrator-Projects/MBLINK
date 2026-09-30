@@ -27,6 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readwrite) NSString *rawHex;
 @property(nonatomic, copy, readwrite) NSData *rawData;
 @property(nonatomic, readwrite, getter=isMapped) BOOL mapped;
+@property(nonatomic, readwrite, getter=isStale) BOOL stale;
 @property(nonatomic, readwrite, getter=isNumericValueAvailable)
     BOOL numericValueAvailable;
 @property(nonatomic, readwrite) double numericValue;
@@ -84,5 +85,35 @@ NS_ASSUME_NONNULL_BEGIN
 @implementation MBLinkMercedesModuleSnapshot
 @end
 
+
+/* Retain evidence, but a failed requested live refresh is not a fresh value.
+ * Startup-only and unrequested records are absent from requestedLiveCommands. */
+static NSArray<MBLinkMercedesDataSnapshot *> *MBLinkMergeMercedesDataSnapshots(
+    NSArray<MBLinkMercedesDataSnapshot *> *previous,
+    NSArray<MBLinkMercedesDataSnapshot *> *fresh,
+    NSSet<NSNumber *> *requestedLiveCommands)
+{
+    NSMutableDictionary<NSNumber *, MBLinkMercedesDataSnapshot *> *merged =
+        [[NSMutableDictionary alloc] initWithCapacity:previous.count + fresh.count];
+    for (MBLinkMercedesDataSnapshot *snapshot in previous) {
+        NSNumber *key = @(((uint32_t)snapshot.service << 16U) | snapshot.identifier);
+        if ([requestedLiveCommands containsObject:key]) snapshot.stale = YES;
+        merged[key] = snapshot;
+    }
+    for (MBLinkMercedesDataSnapshot *snapshot in fresh) {
+        NSNumber *key = @(((uint32_t)snapshot.service << 16U) | snapshot.identifier);
+        snapshot.stale = NO;
+        merged[key] = snapshot;
+    }
+    return [[merged allValues] sortedArrayUsingComparator:
+        ^NSComparisonResult(MBLinkMercedesDataSnapshot *left,
+                            MBLinkMercedesDataSnapshot *right) {
+            if (left.service < right.service) return NSOrderedAscending;
+            if (left.service > right.service) return NSOrderedDescending;
+            if (left.identifier < right.identifier) return NSOrderedAscending;
+            if (left.identifier > right.identifier) return NSOrderedDescending;
+            return NSOrderedSame;
+        }];
+}
 
 NS_ASSUME_NONNULL_END

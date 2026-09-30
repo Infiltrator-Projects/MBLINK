@@ -499,13 +499,27 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         controller.loadSavedVehicleProfileForPIDConfiguration(vin: vin)
     }
 
+    private func hasStandardOBDInterface(moduleID: String) -> Bool {
+        guard let module = pidConfigurationModule(id: moduleID)
+                ?? diagnosticModule(id: moduleID) else { return false }
+        if !(pidSupportByModule[moduleID] ?? []).isEmpty { return true }
+        // The standard physical OBD routes identify the interface even when
+        // individual capability bits are absent. Body ECU routes do not.
+        if !module.extendedID {
+            return (0x7E0...0x7E7).contains(module.requestCANIdentifier) &&
+                module.responseCANIdentifier == module.requestCANIdentifier + 8
+        }
+        return (module.requestCANIdentifier & 0xFFFF00FF) == 0x18DA00F1 &&
+            module.responseCANIdentifier ==
+                (0x18DAF100 | ((module.requestCANIdentifier >> 8) & 0xFF))
+    }
+
     func standardPIDCatalogueItems(
         moduleID: String
     ) -> [MBPIDCatalogueItem] {
-        guard pidConfigurationModule(id: moduleID) != nil else { return [] }
+        guard hasStandardOBDInterface(moduleID: moduleID) else { return [] }
         let selected = moduleStandardSelectionSet(moduleID: moduleID)
         let advertised = pidSupportByModule[moduleID] ?? []
-        guard !advertised.isEmpty else { return [] }
 
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
@@ -520,7 +534,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             let pid = metadata.pid
             // Capability-bitmap PIDs describe the next block; they are not
             // user-facing measurements.
-            guard (pid & 0x1F) != 0, advertised.contains(pid) else { continue }
+            guard (pid & 0x1F) != 0 else { continue }
 
             if pid == 0x01 { continue }
 
@@ -546,7 +560,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 provenance:
                     "SAE J1979 / ISO 15031-5",
                 pollingEnabled: selected.contains(stableKey),
-                advertised: true))
+                advertised: advertised.contains(pid)))
         }
         return result.sorted(by: controllerCatalogueSort)
     }
@@ -759,12 +773,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     service: snapshot.service,
                     codeText: code,
                     title: title,
-                    formattedValue: snapshot.formattedValue,
+                    formattedValue: snapshot.isStale
+                        ? "Stale · \(snapshot.formattedValue)"
+                        : snapshot.formattedValue,
                     rawHex: snapshot.rawHex,
                     rawData: snapshot.rawData,
                     mapped: snapshot.isMapped,
                     unit: snapshot.unit,
-                    numericValue: snapshot.isNumericValueAvailable
+                    numericValue: !snapshot.isStale && snapshot.isNumericValueAvailable
                         ? snapshot.numericValue : nil)
             }
     }
@@ -1283,7 +1299,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     private func preferredStandardControllerID() -> String? {
         let candidates = pidConfigurationModules.filter {
-            !(pidSupportByModule[$0.id] ?? []).isEmpty
+            hasStandardOBDInterface(moduleID: $0.id)
         }
         return candidates.first(where: {
             !$0.extendedID && $0.responseCANIdentifier == 0x7E8
@@ -1310,9 +1326,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let primaryID = preferredStandardControllerID()
 
         /*
-         * The Mercedes census can arrive before responder-specific SAE
-         * capability discovery. Do not consume the one-time migration while
-         * every controller still has an empty OBD capability map.
+         * Wait until a physical OBD controller is known before consuming
+         * the one-time migration; per-PID capability bits are not membership.
          */
         guard existingPerModule || primaryID != nil else { return }
 
@@ -1333,10 +1348,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
             var migrated = Set<String>()
             if !existingPerModule, module.id == primaryID {
-                let supported = pidSupportByModule[module.id] ?? []
                 migrated = Set(legacy.filter { key in
-                    guard let pid = pidForStableKey(key) else { return false }
-                    return supported.contains(pid)
+                    guard let pid = pidForStableKey(key), (pid & 0x1F) != 0,
+                          pid != 0x01 else { return false }
+                    return mblink_obd2_pid_definition(0x01, pid) != nil
                 })
             }
             pidSelectionStore.setStableKeys(
@@ -1557,11 +1572,11 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         extendedID: Bool,
         sourceLabel: String? = nil
     ) -> [DiagnosticParameter] {
+        guard hasStandardOBDInterface(moduleID: moduleID) else { return [] }
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
 
         let selectedStandard = moduleStandardSelectionSet(moduleID: moduleID)
-        let supported = pidSupportByModule[moduleID] ?? []
         let sourceModule = pidConfigurationModule(id: moduleID)
             ?? diagnosticModule(id: moduleID)
         let requestIdentifier = sourceModule?.requestCANIdentifier ?? 0
@@ -1575,7 +1590,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             let catalogue = catalogueDefinition.pointee
             guard catalogue.mode == 0x01 else { continue }
             let pid = catalogue.pid
-            guard (pid & 0x1F) != 0, supported.contains(pid) else { continue }
+            guard (pid & 0x1F) != 0 else { continue }
 
             if pid == 0x01 { continue }
 
@@ -2373,9 +2388,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         guard let standardModule = pidConfigurationModules.first(where: {
             !standardPIDCatalogueItems(moduleID: $0.id).isEmpty
         }) else { return false }
-        let standard = Array(
-            standardPIDCatalogueItems(moduleID: standardModule.id)
-                .prefix(2).map(\.selectionKey))
+        let catalogue = standardPIDCatalogueItems(moduleID: standardModule.id)
+        guard !catalogue.contains(where: { $0.identifier == 0x01 }),
+              let advertised = catalogue.first(where: { $0.advertised }),
+              let unadvertised = catalogue.first(where: { !$0.advertised }),
+              standardPIDCatalogueItems(moduleID: Self.ciESPModuleID).isEmpty,
+              standardPIDCatalogueItems(moduleID: Self.ciORCModuleID).isEmpty
+        else { return false }
+        let standard = [advertised.selectionKey, unadvertised.selectionKey]
         let transmission = [
             "mercedes.transmission.oil_temperature",
             "mercedes.transmission.actual_gear"

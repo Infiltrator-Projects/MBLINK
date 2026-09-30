@@ -27,6 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSString *rawHex;
 @property(nonatomic, copy, readonly) NSData *rawData;
 @property(nonatomic, readonly, getter=isMapped) BOOL mapped;
+@property(nonatomic, readonly, getter=isStale) BOOL stale;
 @property(nonatomic, readonly, getter=isNumericValueAvailable)
     BOOL numericValueAvailable;
 @property(nonatomic, readonly) double numericValue;
