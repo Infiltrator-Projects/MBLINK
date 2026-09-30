@@ -475,15 +475,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         pidConfigurationModules.first { $0.id == id }
     }
 
-    func moduleBootSoftwareVersion(moduleID: String) -> String? {
-        if let live = controller.mercedesModuleSnapshots.first(where: {
-            $0.identifier == moduleID
-        }), let value = live.bootSoftwareVersion?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !value.isEmpty {
-            return value
-        }
-
+    private func savedModuleMetadataValue(
+        moduleID: String,
+        key: String
+    ) -> String? {
         guard let module = pidConfigurationModule(id: moduleID),
               let vin = effectivePIDConfigurationVIN,
               let profile = vehicleProfileStore.profile(forVIN: vin)
@@ -498,7 +493,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                   tx.uint32Value == module.requestCANIdentifier,
                   rx.uint32Value == module.responseCANIdentifier,
                   extended.boolValue == module.extendedID,
-                  let value = saved["bootSoftware"] as? String
+                  let value = saved[key] as? String
             else { continue }
 
             let trimmed = value.trimmingCharacters(
@@ -506,6 +501,42 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             if !trimmed.isEmpty { return trimmed }
         }
         return nil
+    }
+
+    func moduleBootSoftwareVersion(moduleID: String) -> String? {
+        if let live = controller.mercedesModuleSnapshots.first(where: {
+            $0.identifier == moduleID
+        }), let value = live.bootSoftwareVersion?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+        return savedModuleMetadataValue(
+            moduleID: moduleID, key: "bootSoftware")
+    }
+
+    func moduleRestraintConfiguration(moduleID: String) -> String? {
+        if let live = controller.mercedesModuleSnapshots.first(where: {
+            $0.identifier == moduleID
+        }), let value = live.restraintConfiguration?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+        return savedModuleMetadataValue(
+            moduleID: moduleID, key: "restraintConfiguration")
+    }
+
+    func moduleECULockState(moduleID: String) -> String? {
+        if let live = controller.mercedesModuleSnapshots.first(where: {
+            $0.identifier == moduleID
+        }), let value = live.ecuLockState?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+        return savedModuleMetadataValue(
+            moduleID: moduleID, key: "ecuLockState")
     }
 
     override func selectSavedVehicle(vin: String) {
@@ -769,8 +800,22 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {
-        controller.manufacturerDataSnapshots(forModuleIdentifier: moduleID)
-            .map { snapshot in
+        let module =
+            diagnosticModule(id: moduleID) ?? pidConfigurationModule(id: moduleID)
+        let isORCStartupMetadataRoute =
+            module?.extendedID == false &&
+            module?.requestCANIdentifier == 0x64A &&
+            module?.responseCANIdentifier == 0x489
+
+        return controller.manufacturerDataSnapshots(
+            forModuleIdentifier: moduleID
+        ).compactMap { snapshot in
+                if isORCStartupMetadataRoute &&
+                    snapshot.service == 0x21 &&
+                    (snapshot.identifier == 0x02 ||
+                     snapshot.identifier == 0x58) {
+                    return nil
+                }
                 let code = snapshot.codeText
                 let title = snapshot.name ?? code
                 return MercedesModuleDataValue(
