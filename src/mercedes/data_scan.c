@@ -288,6 +288,31 @@ const char *mblink_mercedes_documented_read_name(uint8_t s,uint16_t id){
  return NULL;
 }
 bool mblink_mercedes_documented_read_is_safe(uint8_t s,uint16_t id){if(s==0x22)return true;if((s==0x21||s==0x1a)&&id!=0U&&id<=0xffU)return true;return false;}
+bool mblink_mercedes_documented_read_is_module_metadata(
+    uint8_t service, uint16_t identifier)
+{
+    if (service == UINT8_C(0x22)) {
+        switch (identifier) {
+        case UINT16_C(0xf111):
+        case UINT16_C(0xf121):
+        case UINT16_C(0xf150):
+        case UINT16_C(0xf151):
+        case UINT16_C(0xf188):
+        case UINT16_C(0xf189):
+        case UINT16_C(0xf191):
+        case UINT16_C(0xf192):
+        case UINT16_C(0xf193):
+        case UINT16_C(0xf194):
+        case UINT16_C(0xf195):
+            return true;
+        default:
+            return false;
+        }
+    }
+    return service == UINT8_C(0x1a) &&
+           identifier >= UINT16_C(0x0086) &&
+           identifier <= UINT16_C(0x0089);
+}
 size_t mblink_mercedes_documented_field_count(uint8_t s,uint16_t id){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i)if(mblink_documented_fields[i].service==s&&mblink_documented_fields[i].identifier==id)++n;return n;}
 const MblinkMercedesDocumentedField *mblink_mercedes_documented_field_at(uint8_t s,uint16_t id,size_t wanted){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i){const MblinkMercedesDocumentedField*f=&mblink_documented_fields[i];if(f->service!=s||f->identifier!=id)continue;if(n++==wanted)return f;}return NULL;}
 const char *mblink_mercedes_documented_route_source(void){return k_documented_route_source;}
