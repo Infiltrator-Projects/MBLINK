@@ -96,6 +96,9 @@ module_catalog_source = (ROOT / "src/mercedes/module_catalog.c").read_text(
 data_catalog_source = (ROOT / "src/mercedes/data_catalog.c").read_text(
     encoding="utf-8"
 )
+data_scan_source = (ROOT / "src/mercedes/data_scan.c").read_text(
+    encoding="utf-8"
+)
 apple_models = (ROOT / "platform/apple/MBLinkDiagnosticsModels.inc").read_text(
     encoding="utf-8"
 )
@@ -269,9 +272,9 @@ require(
     "module-scan core helpers must stay private to the implementation",
 )
 require(
-    "controller_data_profile[]" not in manufacturer
-    and "route_evidence[]" not in manufacturer
-    and "mercedes_documented_ecus.inc" not in manufacturer
+    "controller_data_profile[]" not in data_scan_source
+    and "route_evidence[]" not in data_scan_source
+    and "mercedes_documented_ecus.inc" not in data_scan_source
     and "controller_data_profile[]" in data_catalog_source
     and "route_evidence[]" in data_catalog_source
     and "mercedes_documented_ecus.inc" in data_catalog_source,
