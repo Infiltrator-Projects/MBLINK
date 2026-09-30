@@ -479,7 +479,6 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         item->provenance =
             "Mercedes GS KWP 21 30 · portable MBLINK family decoder";
-        item->live = true;
         item->advertised = true;
         item->allow_duplicate_wire = true;
         classify_item_acquisition(pack, item);
@@ -511,7 +510,6 @@ bool mblink_mercedes_ecu_pack_data_item_at(
          * classification below decides whether this exact item belongs to the
          * startup-once or user-polling section.
          */
-        item->live = true;
         item->advertised = true;
         item->field_count =
             mblink_mercedes_documented_field_count(
@@ -548,9 +546,8 @@ bool mblink_mercedes_ecu_pack_data_item_at(
          * decides whether a reviewed item is startup-once or user-polling.
          * Capture-only observations remain unadvertised.
          */
-        item->live =
+        item->advertised =
             entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
-        item->advertised = item->live;
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
@@ -585,10 +582,9 @@ bool mblink_mercedes_ecu_pack_data_item_at(
              * The explicit acquisition field then routes each reviewed item to
              * startup-once or user-polling without losing source coverage.
              */
-            item->live =
+            item->advertised =
                 mblink_mercedes_documented_read_is_safe(
                     read->service, read->identifier);
-            item->advertised = item->live;
         }
         item->field_count =
             mblink_mercedes_documented_field_count(

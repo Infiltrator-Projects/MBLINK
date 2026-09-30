@@ -46,7 +46,6 @@ typedef struct MblinkMercedesEcuDataItem {
     MblinkMercedesEcuDataAcquisition acquisition;
     MblinkMercedesDefinitionStatus status;
     const char *provenance;
-    bool live;
     bool acquired_during_identification;
     bool advertised;
     bool allow_duplicate_wire;

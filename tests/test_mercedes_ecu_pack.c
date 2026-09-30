@@ -102,12 +102,10 @@ static int test_ic204_pack(void)
          ++index) {
         CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
         if (item.advertised) {
-            CHECK(item.live);
             CHECK(item.status ==
                 MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
             ++advertised;
         } else {
-            CHECK(!item.live);
         }
         if (item.name != NULL) {
             CHECK(strchr(item.name, '_') == NULL);
@@ -184,7 +182,6 @@ static int test_egs53_pack(void)
             item.identifier == UINT16_C(0x30) &&
             item.stable_key != NULL) {
             ++canonical_2130;
-            CHECK(item.live);
             CHECK(item.advertised);
             CHECK(item.allow_duplicate_wire);
         }

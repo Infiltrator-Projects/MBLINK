@@ -45,6 +45,10 @@ require(
     "obsolete route-level runtime polling policy must not coexist with ECU-pack USER_POLLING",
 )
 require(
+    "bool live;" not in ecu_pack_api,
+    "ECU pack items must use acquisition/advertised state instead of a redundant live flag",
+)
+require(
     "MblinkMercedesEcuPack" in ecu_pack_api
     and "mblink_mercedes_ecu_pack_resolve_module" in ecu_pack_api
     and "mblink_mercedes_ecu_pack_data_item_at" in ecu_pack_api
