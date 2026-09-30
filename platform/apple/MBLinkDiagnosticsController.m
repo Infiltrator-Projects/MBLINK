@@ -1854,12 +1854,45 @@ static void MBLinkAppendManufacturerDefinition(
                         forModuleIdentifier:(NSString *)identifier
 {
     if (identifier.length == 0U) return;
+
+    MblinkMercedesModuleScanEntry cachedModule;
+    const MblinkMercedesModuleScanEntry *module =
+        [self moduleEntryForIdentifier:identifier];
+    MblinkMercedesEcuPack pack;
+    if (module == NULL &&
+        [self populateCachedModuleEntry:&cachedModule
+                          forIdentifier:identifier]) {
+        module = &cachedModule;
+    }
+    const BOOL hasPack = module != NULL &&
+        mblink_mercedes_ecu_pack_resolve_module(module, &pack);
+
     NSMutableSet<NSNumber *> *valid = [[NSMutableSet alloc] init];
     for (NSNumber *number in commands ?: @[]) {
         uint8_t service = 0U;
         uint16_t localIdentifier = 0U;
-        if (MBLinkDecodeManufacturerCommandToken(
+        BOOL pollingItem = NO;
+        if (!hasPack ||
+            !MBLinkDecodeManufacturerCommandToken(
                 number, &service, &localIdentifier)) {
+            continue;
+        }
+
+        const size_t count =
+            mblink_mercedes_ecu_pack_polling_item_count(&pack);
+        for (size_t index = 0U; index < count; ++index) {
+            MblinkMercedesEcuDataItem item;
+            if (!mblink_mercedes_ecu_pack_polling_item_at(
+                    &pack, index, &item)) {
+                continue;
+            }
+            if (item.service == service &&
+                item.identifier == localIdentifier) {
+                pollingItem = YES;
+                break;
+            }
+        }
+        if (pollingItem) {
             [valid addObject:MBLinkManufacturerCommandToken(
                 service, localIdentifier)];
         }
