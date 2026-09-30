@@ -472,6 +472,9 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     NSString *bootSoftware =
         [dictionary[@"bootSoftware"] isKindOfClass:[NSString class]]
             ? dictionary[@"bootSoftware"] : nil;
+    NSNumber *bootSoftwareAttempted =
+        [dictionary[@"bootSoftwareAttempted"] isKindOfClass:[NSNumber class]]
+            ? dictionary[@"bootSoftwareAttempted"] : nil;
 
     (void)mblink_mercedes_module_scan_resolve_controller(
         tx.unsignedIntValue,
@@ -483,6 +486,8 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
         software.UTF8String,
         hardware.UTF8String,
         entry);
+    entry->boot_software_version_attempted =
+        bootSoftwareAttempted.boolValue || bootSoftware.length != 0U;
     if (bootSoftware.length != 0U) {
         (void)snprintf(
             entry->boot_software_version,
@@ -3328,6 +3333,8 @@ static void MBLinkAppendManufacturerDefinition(
         if (module->hardware_number_available)
             dictionary[@"hardware"] =
                 MBLinkStringFromCString(module->hardware_number);
+        if (module->boot_software_version_attempted)
+            dictionary[@"bootSoftwareAttempted"] = @YES;
         if (module->boot_software_version_available)
             dictionary[@"bootSoftware"] =
                 MBLinkStringFromCString(module->boot_software_version);
@@ -3425,11 +3432,19 @@ static void MBLinkAppendManufacturerDefinition(
     MblinkMercedesModuleScanEntry cached[
         MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES];
     size_t count = 0U;
+    BOOL needsBootSoftwareMetadataRefresh = NO;
     for (id value in modules) {
         if (count >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) break;
         if (![value isKindOfClass:[NSDictionary class]]) continue;
         if (MBLinkPopulateModuleEntryFromProfile(
                 (NSDictionary *)value, &cached[count])) {
+            if (!cached[count].extended_id &&
+                cached[count].tx_can_id == UINT32_C(0x602) &&
+                cached[count].rx_can_id == UINT32_C(0x480) &&
+                cached[count].protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS &&
+                !cached[count].boot_software_version_attempted) {
+                needsBootSoftwareMetadataRefresh = YES;
+            }
             ++count;
         }
     }
@@ -3439,6 +3454,18 @@ static void MBLinkAppendManufacturerDefinition(
         _cachedVehicleProfile = nil;
         self.vehicleProfileStatusText =
             @"Saved VIN profile was invalid; rebuilding";
+        return NO;
+    }
+
+    /*
+     * Profiles written before CGW F153 support cannot satisfy the startup
+     * metadata contract. Rebuild the module census once; the resulting
+     * profile records the attempt even when the ECU returns no F153 value, so
+     * this migration never degenerates into repeated probing.
+     */
+    if (needsBootSoftwareMetadataRefresh) {
+        self.vehicleProfileStatusText =
+            @"Saved VIN profile needs boot-software metadata; refreshing once";
         return NO;
     }
 
