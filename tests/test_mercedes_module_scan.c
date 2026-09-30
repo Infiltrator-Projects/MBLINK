@@ -117,6 +117,48 @@ static int accept_identity_metadata(
     return 0;
 }
 
+static int test_cgw_boot_software_is_startup_metadata(void)
+{
+    MblinkMercedesModuleScan scan;
+    MblinkElm327Response hardware = response(
+        MBLINK_ELM327_RESULT_OK, "62F19132303439303130303031", false);
+    MblinkElm327Response boot = response(
+        MBLINK_ELM327_RESULT_OK, "62F153312E322E33", false);
+    char command[32];
+    size_t written = 0U;
+
+    memset(&scan, 0, sizeof(scan));
+    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
+    scan.candidate_tx = UINT32_C(0x602);
+    scan.candidate_rx = UINT32_C(0x480);
+    scan.candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    scan.candidate_protocol_mask = MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK;
+    scan.module_count = 1U;
+    scan.modules[0].tx_can_id = UINT32_C(0x602);
+    scan.modules[0].rx_can_id = UINT32_C(0x480);
+    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+    mblink_mercedes_module_scan_apply_route_identity(&scan.modules[0]);
+
+    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE;
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &hardware) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE);
+
+    CHECK(mblink_mercedes_module_scan_command(
+              &scan, command, sizeof(command), &written) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(strcmp(command, "22F153") == 0);
+
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &boot) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.modules[0].boot_software_version_available);
+    CHECK(strcmp(scan.modules[0].boot_software_version, "1.2.3") == 0);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
+    return 0;
+}
+
 static int test_cached_resolved_egs53_skips_identity_reprobe(void)
 {
     MblinkMercedesModuleScan scan;
@@ -240,6 +282,7 @@ static int test_documented_session_teardown(void)
 
 int main(void)
 {
+    if (test_cgw_boot_software_is_startup_metadata() != 0) return 1;
     if (test_cached_resolved_egs53_skips_identity_reprobe() != 0) return 1;
     if (test_documented_session_teardown() != 0) return 1;
     MblinkMercedesModuleScan scan;
