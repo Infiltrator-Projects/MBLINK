@@ -76,26 +76,42 @@ The pack is the canonical controller-scoped diagnostic view. It carries:
 - documented session, TesterPresent and quit commands when available
 - module/controller aliases used for identification
 - the controller-owned data catalogue
-- each data item's service, identifier, real name, live/read-only
-  classification, evidence status, provenance and decoded field metadata
+- each data item's service, identifier, real name, evidence status,
+  provenance, decoded field metadata and acquisition class
 
-During the current catalogue-completion phase, every documented safe read-only
-item intended for user-controlled recurring observation is exposed in PID
-Setup. Static controller identity and startup metadata are a separate class:
-they are acquired automatically once during module census, retained with the
-VIN/controller profile and shown on the Modules inventory rather than offered
-as live-data toggles. Mode 01 PID 0x01 and the CGW_204 UDS boot-software read
-`22 F1 53` are explicit examples of this startup-only class.
+Every resolved ECU pack exposes two explicit acquisition sections:
+
+1. **Startup-once data.** These are controller identity, coding,
+   configuration and other static/module-card facts. Facts required to identify
+   the ECU may already have been captured during discovery; the remaining
+   startup entries are read once in a generic per-module pass after module
+   discovery completes and before recurring polling begins. Results are retained
+   with the VIN/controller profile and shown on Modules.
+2. **User-polling data.** These are the documented readings offered in PID
+   Setup. They start OFF and are requested repeatedly only when the user enables
+   them.
+
+This split belongs to the resolved ECU pack, not to route-specific scanner
+hooks and not to an extra UI filter. Classification is deliberately
+conservative: individual documented reads move into the startup section only
+when their static/identity/configuration meaning has been established. A broad
+reclassification based on old `live` flags, one vehicle capture, or a positive
+response is not permitted.
+
+Known startup examples include Mode 01 PID `01`, CGW boot software
+`22 F1 53`, EGS53 variant/SCN coding `21 B1`, and ORC restraint
+configuration / ECU lock-state records `21 02` and `21 58`. None of these
+belongs in PID Setup or the recurring scheduler.
+
 Write/control/security/routine/DTC operations are not made PID Setup polling
 items. Vehicle-verified raw identifiers whose semantics are still unknown remain
 explicitly `raw-observed` and stay out of PID Setup. Captures can corroborate
 an online definition; they never create catalogue membership.
 
 Factory Readings and PID Setup consume the same exact-ECU pack. Factory
-Readings may use the pack's documented diagnostic commands. PID Setup exposes
-the complete documented user-selectable read-only catalogue for the identified
-ECU/controller family after startup-only identity/metadata reads are removed;
-finer presentation categories come after catalogue completion.
+Readings may manually re-read documented commands from either acquisition
+section without changing selections. PID Setup consumes only the pack's
+user-polling section.
 
 The iPhone catalogue is documentation-driven in the same way as the Standard
 OBD catalogue. A documented PID remains visible whether or not this particular
@@ -162,11 +178,12 @@ written catalogue and selection records must use the canonical identifier.
 PID Setup is the single control for both polling and display membership. The
 main-screen PID Setup tile is the only navigation entry point to that control;
 Vehicle, Modules, Live Data, Dashboard, Table and Graphs must never link back
-into PID Setup. Manufacturer PID rows come only from the online source-backed safe read-only
-catalogue for the specifically identified ECU/controller family. During
-catalogue completion every documented readable item is selectable on iPhone.
-Whether the connected vehicle responds to it is runtime state, not catalogue
-membership. Route-wide unions,
+into PID Setup. Manufacturer PID rows come only from the user-polling section of the
+online source-backed catalogue for the specifically identified ECU/controller
+family. Every documented read classified for user-controlled recurring
+observation is selectable on iPhone. Startup-once items are never selectable.
+Whether the connected vehicle responds to a polling item is runtime state, not
+catalogue membership. Route-wide unions,
 response-driven candidate discovery and brute-force PID scans are not allowed
 to manufacture iPhone PID definitions.
 An enabled measurement appears in Dashboard, Graphs and Table;
@@ -213,13 +230,19 @@ A successful discovery pass answers: "What modules are here?"
 
 Identification answers: "What controller/family is this, and what documented knowledge can MBLINK safely associate with it?"
 
-The catalogue answers: "Which safe read-only data items do the online sources document for this exact identified module?"
+The resolved ECU pack then answers two separate questions: "Which documented
+facts are startup-once module data?" and "Which documented readings are
+user-pollable?"
 
-Selection answers: "Which documented controller reads did the user ask MBLINK to monitor?"
+The startup pass answers: "What are this module's one-time facts for the module
+card?"
 
-Runtime answers: "Which selected documented reads did this particular ECU answer, and what values did it return?"
+Selection answers: "Which polling-section reads did the user ask MBLINK to monitor?"
 
-Those four questions must remain separate in code and UI.
+Runtime answers: "Which selected polling reads did this particular ECU answer,
+and what values did it return?"
+
+Those jobs must remain separate in code and UI.
 
 ## Evidence and safety
 
@@ -248,11 +271,11 @@ A release satisfies this design only when all of the following are true:
 - After controller identity resolves an authoritative pack, that pack dictates UDS/KWP2000 and session behaviour; conflicting live evidence triggers re-identification rather than silent protocol fallback.
 - The known transmission module exposes the supported transmission live channels described above.
 - All live-data toggles are OFF on a clean first run.
-- Completing module discovery causes no manufacturer live-data request.
+- Completing module discovery starts only the generic startup-once module-data pass; it causes no manufacturer recurring live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
 - Mode 01 PID 0x01 is startup-only module metadata: LINK issues one functional `01 01` request during connection diagnostic context, retains every responder-attributed reply, and MBLINK shows that controller's MIL, confirmed emissions DTC count, ignition layout and readiness monitors directly on its Modules card.
 - PID 0x01 never appears in PID Setup and never enters recurring live polling. Historical saved PID-01/readiness selections are pruned and ignored.
-- On the documented UDS central-gateway route `0x602 -> 0x480`, `22 F1 53` is startup-only Boot software version metadata. It is read once during module census, stored with that module/VIN profile, shown on Modules, and excluded from PID Setup and recurring scheduling. A saved profile records that the read was attempted so an unsupported/no-data response is not retried indefinitely.
+- On the documented UDS central-gateway route `0x602 -> 0x480`, `22 F1 53` is startup-only Boot software version metadata. It is handled by the same generic post-discovery startup pass as other static module data, stored with that module/VIN profile when returned, shown on Modules, and excluded from PID Setup and recurring scheduling.
 - For genuinely live grouped sources, unselected fields are not decoded into presentation telemetry merely because the shared response carried their bytes.
 - Standard and Mercedes selections both persist by VIN/controller, and both can
   be edited from a saved offline vehicle profile.
@@ -260,7 +283,7 @@ A release satisfies this design only when all of the following are true:
 - Opening PID Setup does not launch a brute-force scan.
 - PID Setup is the only UI that can enable or disable live channels.
 - The main-screen PID Setup tile is the only navigation entry point to PID Setup.
-- During catalogue completion, Manufacturer PID Setup contains every online-documented safe read-only item for the identified ECU/controller family except reads explicitly classified as startup-only module metadata.
+- Manufacturer PID Setup contains every online-documented safe read-only item in the identified ECU pack's user-polling section and no startup-once item.
 - Every documented user-selectable manufacturer read is visible on iPhone even before the connected ECU has answered it.
 - Semantic kinds remain metadata for grouping, while explicitly startup-only identity/configuration reads belong to Modules; write/control/security/routine/DTC operations are not polling catalogue entries.
 - Vehicle-capture-only identifiers never become PID catalogue entries.
