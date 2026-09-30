@@ -183,13 +183,14 @@ require(
     "Mercedes grouped records must receive logical selection before decoding rather than filtering a fully decoded record",
 )
 require(
-    "readinessFieldSnapshots" in model
-    and "readinessFieldSnapshots(" in model
-    and "forResponderCANIdentifier:" in model
-    and "setPollingFieldMask" in model
-    and "readinessFieldMask(for: selection)" in model
-    and "one shared 01 01 request" in model,
-    "standard grouped PID fields must be independently selectable per responder while sharing one functional source request",
+    "moduleStartupReadinessFields" in model
+    and "startupReadinessFieldMask" in model
+    and "sanitizedStandardPollingKeys" in model
+    and "controller.setPollingFieldMask(0, forPID: pid)" in model
+    and "if pid == 0x01 { continue }" in model
+    and "Startup OBD status" in modules_view
+    and "read once at connection" in modules_view,
+    "Mode 01 PID 01 must be captured once at startup, shown per responder on Modules, and excluded from recurring PID polling",
 )
 require(
     "documentedLiveIdentifiersForModuleIdentifier" not in controller
