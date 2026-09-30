@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.261 — 2026-09-30
+
+- Treat Mode 01 PID 01 as one-shot startup module metadata instead of a recurring live PID: the connection flow reads it once, retains each physical ECU's reply and never schedules it continuously.
+- Show every returned PID-01 field directly on that controller's Modules card: MIL with green/red status, confirmed emissions DTC count, ignition-layout bit and every readiness-monitor state including Ready, Not ready, Not supported and Not applicable.
+- Remove PID 01/readiness fields from PID Setup, Dashboard, Table and Graph live-channel membership; prune historical saved selections so upgrades cannot keep polling them in the background.
+- Pin LINK 0.15.86 at cab1e7eb7463293dcbf970d44955040f62c2bd2e, which preserves responder identity for the single startup readiness transaction.
+
 ## 0.7.260 — 2026-09-30
 
 - Add exact per-controller MIL status lights to the Modules screen: green when that ECU reports MIL not requested, red when it reports MIL requested, and no light when that controller does not return a usable Mode 01 PID 01 MIL value.
