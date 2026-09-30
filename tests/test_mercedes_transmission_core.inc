@@ -137,8 +137,18 @@ static int test_2130(void)
             mblink_mercedes_transmission_egs53_rli30_selector_name(5U),
             "D") == 0);
         CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_program_name(0U),
+            "Sport") == 0);
+        CHECK(strcmp(
             mblink_mercedes_transmission_egs53_rli30_program_name(1U),
             "Comfort") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_program_name(2U),
+            "Adaptive") == 0);
+        CHECK(strcmp(
+            mblink_mercedes_transmission_egs53_rli30_program_name(3U),
+            "Manual") == 0);
+        CHECK(mblink_mercedes_transmission_egs53_rli30_program_name(4U) == NULL);
         CHECK(strcmp(
             mblink_mercedes_transmission_egs53_rli30_recognised_gear_name(4U),
             "D4") == 0);

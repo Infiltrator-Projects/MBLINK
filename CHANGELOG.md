@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.259 — 2026-09-30
+
+- Correct the EGS53 RLI 0x30 drive-program decoder from the older two-state fallback to the four states directly corroborated on Siemens EGS53 A0034464310 (HW 06.48 / SW 18.29.00): 0 Sport, 1 Comfort, 2 Adaptive and 3 Manual.
+- Add regression coverage for all four EGS53 drive-program codes and keep out-of-range values unmapped rather than manufacturing a label.
+
 ## 0.7.258 — 2026-09-30
 
 - Make PID Setup controller-first: each discovered/saved physical controller now owns one combined catalogue containing that exact responder's advertised OBD-II channels alongside the exact Mercedes KWP2000/UDS controller-pack reads.

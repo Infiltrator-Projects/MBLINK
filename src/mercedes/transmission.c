@@ -1985,11 +1985,19 @@ const char *mblink_mercedes_transmission_egs53_rli30_selector_name(
 const char *mblink_mercedes_transmission_egs53_rli30_program_name(
     uint8_t code)
 {
+    /*
+     * Siemens EGS53 A0034464310 (HW 06.48 / SW 18.29.00) was
+     * vehicle-corroborated on 2026-09-30 by cycling the selector in its only
+     * permitted order: Comfort -> Sport -> Adaptive -> Manual.  The captured
+     * RLI 0x30 field changed 1 -> 0 -> 2 -> 3 respectively.  Preserve those
+     * observed semantics instead of the older two-state FPC_AAD fallback that
+     * labelled 2/3 as undefined/unavailable.
+     */
     switch (code) {
     case 0U: return "Sport";
     case 1U: return "Comfort";
-    case 2U: return "Not defined";
-    case 3U: return "Unavailable";
+    case 2U: return "Adaptive";
+    case 3U: return "Manual";
     default: return NULL;
     }
 }
