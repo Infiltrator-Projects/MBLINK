@@ -562,139 +562,7 @@ static const MblinkMercedesControllerDataProfileEntry
      * whether its value changes rapidly, rarely, or appears static in a given
      * capture. Vehicle response never creates or removes catalogue membership.
      * Identification/programming/session records remain separate categories.
-     */
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0025), true, "Engine type",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · Data service DT_Motortyp" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0026), true, "Bus watchdog events",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · Data service DT_Buswachhalterereignisse" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0310), true, "Installed ECUs target - body",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0x0310" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0311), true, "Installed ECUs target - chassis",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0x0311" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0312), true, "Installed ECUs target - impact",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0x0312" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0313), true, "Installed ECUs target - diagnostic",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0x0313" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0xD210), true, "Installed ECUs actual - body",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0xD210" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0xD211), true, "Installed ECUs actual - chassis",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0xD211" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0xD212), true, "Installed ECUs actual - impact",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0xD212" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0xD213), true, "Installed ECUs actual - diagnostic",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · documented Data service 0xD213" },
-    { "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0xD243), true, "VIN odometer counter",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo CGW_212.cbf · Data service DT_VIN_Odometer_Counter" },
-
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0201), true, "Current model-series information",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0201" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0209), true, "Windscreen heating availability",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0209" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0210), true, "Windscreen heating status",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0210" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0212), true, "Temperatures",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0212" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0213), true, "Temperature histogram",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0213" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0215), true, "Supply voltages",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0215" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0220), true, "Vehicle dynamics",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · vehicle speed and steering angle" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0230), true, "IHC usage counters",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0230" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0231), true, "SLA usage counters",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0231" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0232), true, "ALDW usage counters",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0232" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0233), true, "Heating statistics",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0233" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0240), true, "Post-crash status",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0240" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0242), true, "Calibration status",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0242" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0250), true, "CAN vehicle information",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0250" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0251), true, "CAN common vehicle information",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0251" },
-    { "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0254), true, "Variant-coding status",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo MPC212.cbf · documented Data service 0x0254" },
-
-    { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x0009), true, "Fuel-pressure target values",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo FSCM212.cbf · documented Data service 0x0009" },
-    { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x000A), true, "Fuel-pump analogue values",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo FSCM212.cbf · documented Data service 0x000A" },
-    { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x000B), true, "Fuel-pump physical values",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo FSCM212.cbf · documented Data service 0x000B" },
-    { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x000C), true, "Fuel-pump status values",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo FSCM212.cbf · documented Data service 0x000C" },
-    { "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x001C), true, "Fuel-pump development status",
-        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
-        "Mercedes Vediamo FSCM212.cbf · documented Data service 0x001C" },
-
-    {
+     */{
         "engine-crd3", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x1001), true,
         "SCN / calibration identification",
@@ -731,58 +599,11 @@ static const MblinkMercedesControllerDataProfileEntry
         MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED,
         "CaesarSuite CRD3 DT_2007 documents DID 0x2007 and its scaling; "
         "field capture independently proves the positive response."
-    },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2001), true,
-        "Observed raw DID 0x2001",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2003), false,
-        "Observed raw DID 0x2003",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2004), true,
-        "Observed raw DID 0x2004",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2007), true,
-        "Observed raw DID 0x2007",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2009), false,
-        "Observed raw DID 0x2009",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x200A), false,
-        "Observed raw DID 0x200A",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x200D), true,
-        "Observed raw DID 0x200D",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+    },{ "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x200F), false,
         "Observed raw DID 0x200F",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2010), false,
-        "Observed raw DID 0x2010",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2014), false,
-        "Observed raw DID 0x2014",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        k_20260903_field_evidence_provenance },{ "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x2017), false,
         "Observed raw DID 0x2017",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
@@ -796,18 +617,7 @@ static const MblinkMercedesControllerDataProfileEntry
         UINT8_C(0x22), UINT16_C(0x2043), false,
         "Observed raw DID 0x2043",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2046), false,
-        "Observed raw DID 0x2046",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
-        UINT8_C(0x22), UINT16_C(0x2047), false,
-        "Observed raw DID 0x2047",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
+        k_20260903_field_evidence_provenance },{ "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT8_C(0x22), UINT16_C(0x2070), false,
         "Observed raw DID 0x2070",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
@@ -1246,27 +1056,6 @@ const char *mblink_mercedes_data_profile_key_for_controller(
     return NULL;
 }
 
-static bool controller_data_profile_seen_before(
-    size_t index,
-    const char *profile_key,
-    MblinkMercedesDiagnosticProtocol protocol,
-    uint8_t service,
-    uint16_t identifier)
-{
-    size_t previous;
-    for (previous = 0U; previous < index; ++previous) {
-        const MblinkMercedesControllerDataProfileEntry *entry =
-            &controller_data_profile[previous];
-        if (entry->protocol == protocol &&
-            entry->service == service &&
-            entry->identifier == identifier &&
-            strcmp(entry->profile_key, profile_key) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 size_t mblink_mercedes_controller_data_profile_identifier_count(
     const char *profile_key,
     MblinkMercedesDiagnosticProtocol protocol)
@@ -1281,10 +1070,7 @@ size_t mblink_mercedes_controller_data_profile_identifier_count(
         const MblinkMercedesControllerDataProfileEntry *entry =
             &controller_data_profile[index];
         if (entry->protocol != protocol ||
-            strcmp(entry->profile_key, profile_key) != 0 ||
-            controller_data_profile_seen_before(
-                index, profile_key, protocol,
-                entry->service, entry->identifier)) {
+            strcmp(entry->profile_key, profile_key) != 0) {
             continue;
         }
         ++count;
@@ -1308,10 +1094,7 @@ mblink_mercedes_controller_data_profile_identifier_at(
         const MblinkMercedesControllerDataProfileEntry *entry =
             &controller_data_profile[index];
         if (entry->protocol != protocol ||
-            strcmp(entry->profile_key, profile_key) != 0 ||
-            controller_data_profile_seen_before(
-                index, profile_key, protocol,
-                entry->service, entry->identifier)) {
+            strcmp(entry->profile_key, profile_key) != 0) {
             continue;
         }
         if (match_index == requested_index) return entry;
