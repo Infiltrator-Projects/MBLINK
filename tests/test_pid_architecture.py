@@ -292,7 +292,7 @@ require(
 require(
     "func standardPIDCatalogueItems(" in model
     and "pidSupportByModule[moduleID]" in model
-    and "Advertised by this controller" in model,
+    and "advertised.contains(pid)" in model,
     "controller OBD catalogue membership must come from that responder's advertised/cached capability map",
 )
 require(

@@ -498,7 +498,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                         shortName: field.shortName,
                         title: field.title,
                         provenance:
-                            "SAE J1979 / ISO 15031-5 · advertised by this controller",
+                            "SAE J1979 / ISO 15031-5",
                         pollingEnabled: selected.contains(field.stableKey),
                         advertised: true))
                 }
@@ -525,7 +525,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 shortName: shortName,
                 title: title,
                 provenance:
-                    "SAE J1979 / ISO 15031-5 · advertised by this controller",
+                    "SAE J1979 / ISO 15031-5",
                 pollingEnabled: selected.contains(stableKey),
                 advertised: true))
         }
