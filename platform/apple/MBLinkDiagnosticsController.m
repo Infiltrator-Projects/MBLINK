@@ -869,6 +869,8 @@ static bool MBLinkSimulatorResponder(
     _standardDataLatest = [[NSMutableDictionary alloc] init];
     _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
+    _startupModuleDataPassActive = NO;
+    _startupModuleDataIndex = 0U;
     _scheduledManufacturerJobRegistered = NO;
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
@@ -946,6 +948,8 @@ static bool MBLinkSimulatorResponder(
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
+    _startupModuleDataPassActive = NO;
+    _startupModuleDataIndex = 0U;
     _scheduledManufacturerJobRegistered = NO;
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
