@@ -168,6 +168,8 @@ module_detail_view = app[module_detail_start:module_detail_end]
 require(
     "Startup module data" in module_detail_view
     and "Read once at connection · never recurring" in module_detail_view
+    and "Startup module data" in modules_view
+    and "connection.startupModuleData(moduleID: module.id)" in modules_view
     and "startupModuleData(" in model,
     "one-time ECU data must be presented on the module card rather than as an available PID",
 )
