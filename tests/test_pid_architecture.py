@@ -333,7 +333,7 @@ require(
     and "let sanitized = selected.intersection(documentedStableKeys)" in model,
     "the exact identified ECU's documented PID catalogue must be authoritative and stale selections must be pruned",
 )
-saved_marker_start = model.index("private func writeSavedPIDCatalogueRegressionMarker()")
+saved_marker_start = model.index("private func writeSavedPIDCatalogueRegressionMarker(")
 saved_marker_end = model.index("#endif", saved_marker_start)
 saved_marker = model[saved_marker_start:saved_marker_end]
 require(
