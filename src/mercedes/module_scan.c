@@ -1011,8 +1011,7 @@ static bool mblink_mercedes_module_scan_capture_display_did(
 
     /* Preserve non-text versions losslessly as hex instead of inventing a
      * number or silently dropping the field. */
-    if (record.data_length > (destination_capacity - 1U) / 3U +
-            ((destination_capacity - 1U) % 3U != 0U ? 1U : 0U)) {
+    if (record.data_length > destination_capacity / 3U) {
         return false;
     }
     for (index = 0U; index < record.data_length; ++index) {
@@ -2010,6 +2009,7 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE:
         module = mblink_mercedes_module_scan_find_candidate(scan);
         if (module != NULL) {
+            module->boot_software_version_attempted = true;
             module->boot_software_version_available =
                 mblink_mercedes_module_scan_capture_display_did(
                     response, UINT16_C(0xf153),
