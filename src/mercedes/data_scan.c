@@ -1228,37 +1228,21 @@ const char *mblink_mercedes_data_profile_key_for_controller(
     const MblinkMercedesControllerFamilyDefinition *family =
         mblink_mercedes_controller_family_definition_for_evidence(
             module_key, identity, software_number, hardware_number);
-    if (family == NULL) return NULL;
+    size_t index;
+
+    if (family == NULL || family->key == NULL) return NULL;
 
     /*
-     * Only families with independently source-backed/captured read identifiers
-     * are active data profiles. All other controller families can still be
-     * identified and displayed without inheriting guessed services.
+     * A controller family has a data profile exactly when the profile table
+     * contains rows under that family key. Keep that ownership data-driven so
+     * adding a sourced ECU family never requires another hard-coded if-chain.
      */
-    if (strcmp(family->key, "gateway-cgw204") == 0)
-        return "gateway-cgw204";
-    if (strcmp(family->key, "gateway-cgw212") == 0)
-        return "gateway-cgw212";
-    if (strcmp(family->key, "cluster-ic204") == 0)
-        return "cluster-ic204";
-    if (strcmp(family->key, "eis-ezs204") == 0)
-        return "eis-ezs204";
-    if (strcmp(family->key, "steering-sccm204") == 0)
-        return "steering-sccm204";
-    if (strcmp(family->key, "camera-mfk") == 0)
-        return "camera-mfk";
-    if (strcmp(family->key, "fuel-pump-fscu") == 0)
-        return "fuel-pump-fscu";
-    if (strcmp(family->key, "engine-crd3") == 0)
-        return "engine-crd3";
-    if (strcmp(family->key, "esp-abr2xt") == 0)
-        return "esp-abr2xt";
-    if (strcmp(family->key, "restraints-orc204") == 0)
-        return "restraints-orc204";
-    if (strcmp(family->key, "restraints-orc212") == 0)
-        return "restraints-orc212";
-    if (strcmp(family->key, "headunit-hu204") == 0)
-        return "headunit-hu204";
+    for (index = 0U;
+         index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
+         ++index) {
+        if (strcmp(controller_data_profile[index].profile_key, family->key) == 0)
+            return family->key;
+    }
     return NULL;
 }
 
@@ -1344,16 +1328,17 @@ mblink_mercedes_controller_data_profile_find_service(
     uint16_t identifier)
 {
     size_t index;
-    const size_t count =
-        mblink_mercedes_controller_data_profile_identifier_count(
-            profile_key, protocol);
-    for (index = 0U; index < count; ++index) {
+
+    if (profile_key == NULL || profile_key[0] == '\0') return NULL;
+    for (index = 0U;
+         index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
+         ++index) {
         const MblinkMercedesControllerDataProfileEntry *entry =
-            mblink_mercedes_controller_data_profile_identifier_at(
-                profile_key, protocol, index);
-        if (entry != NULL &&
+            &controller_data_profile[index];
+        if (entry->protocol == protocol &&
             entry->service == service &&
-            entry->identifier == identifier) {
+            entry->identifier == identifier &&
+            strcmp(entry->profile_key, profile_key) == 0) {
             return entry;
         }
     }
@@ -1367,14 +1352,18 @@ mblink_mercedes_controller_data_profile_find(
     uint16_t identifier)
 {
     size_t index;
-    const size_t count =
-        mblink_mercedes_controller_data_profile_identifier_count(
-            profile_key, protocol);
-    for (index = 0U; index < count; ++index) {
+
+    if (profile_key == NULL || profile_key[0] == '\0') return NULL;
+    for (index = 0U;
+         index < INFILTRATR_ARRAY_LENGTH(controller_data_profile);
+         ++index) {
         const MblinkMercedesControllerDataProfileEntry *entry =
-            mblink_mercedes_controller_data_profile_identifier_at(
-                profile_key, protocol, index);
-        if (entry != NULL && entry->identifier == identifier) return entry;
+            &controller_data_profile[index];
+        if (entry->protocol == protocol &&
+            entry->identifier == identifier &&
+            strcmp(entry->profile_key, profile_key) == 0) {
+            return entry;
+        }
     }
     return NULL;
 }
