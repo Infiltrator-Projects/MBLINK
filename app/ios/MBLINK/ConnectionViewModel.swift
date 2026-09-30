@@ -587,24 +587,15 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let documentedDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
-        let selectableDocumentedDefinitions =
-            documentedDefinitions.filter { definition in
-                /*
-                 * Static ECU identity belongs on the module card, not in the
-                 * user's live polling catalogue. CGW DID F153 is the boot
-                 * software version and is read exactly once by module census.
-                 */
-                !(definition.service == 0x22 &&
-                  definition.identifier == 0xF153)
-            }
         let definitions: [[String: Any]]
         if !documentedDefinitions.isEmpty {
             /*
-             * PID Setup exposes the documented user-selectable data for the
-             * exact controller. Startup identity/configuration reads are
-             * deliberately filtered before this point.
+             * PID Setup remains documentation-driven. Static startup metadata
+             * is removed only after the complete controller catalogue is
+             * materialised; there is no separate "pollable" qualification.
+             * CGW DID F153 is the boot software version and belongs on Modules.
              */
-            definitions = selectableDocumentedDefinitions.map { definition in
+            definitions = documentedDefinitions.map { definition in
                 [
                     "id": definition.stableKey,
                     "service": Int(definition.service),
@@ -613,6 +604,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     "title": definition.title,
                     "provenance": definition.provenance
                 ]
+            }.filter { value in
+                let service = value["service"] as? Int
+                let identifier = value["identifier"] as? Int
+                return !(service == 0x22 && identifier == 0xF153)
             }
             cacheManufacturerCatalogue(definitions, moduleID: moduleID)
         } else if controller.isActive {
