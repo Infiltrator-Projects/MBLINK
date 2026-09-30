@@ -777,27 +777,12 @@ static const MblinkMercedesControllerDataProfileEntry
         "Observed raw local record 0xE4",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
-    { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        UINT8_C(0x21), UINT16_C(0x01), true,
-        "Observed raw local record 0x01",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+        { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT8_C(0x21), UINT16_C(0x02), false,
         "Observed raw local record 0x02",
         MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
         k_20260903_field_evidence_provenance },
-    { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        UINT8_C(0x21), UINT16_C(0x05), true,
-        "Observed raw local record 0x05",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-    { "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-        UINT8_C(0x21), UINT16_C(0x06), true,
-        "Observed raw local record 0x06",
-        MBLINK_MERCEDES_DEFINITION_VEHICLE_VERIFIED,
-        k_20260903_field_evidence_provenance },
-};
+        };
 
 /*
  * Exact-route fallback from the same field captures.
