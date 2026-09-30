@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.257 — 2026-09-30
+
+- Pin the completed grouped-field architecture to released LINK 0.15.83 at 3de497edaedda8459cc0cd19e7bcfed05dd1b325, keeping standard and Mercedes logical selections on one shared physical request per source record.
+- Make field-selection changes wire-stable: enabling or disabling another logical value on an already-active source changes only the extraction mask and no longer restarts the underlying source poll.
+- Preserve the final-field rule: the source request starts when the first constituent value is enabled and stops only when the last direct/logical selection is disabled.
+- Retain 0.7.256 selective decoding for Mode 01 PID 0x01 and Mercedes EGS53 0x21/0x30, so unselected constituent values are not interpreted merely because their bytes arrived in the shared response.
+
 ## 0.7.256 — 2026-09-30
 
 - Separate user-facing logical values from physical diagnostic source requests so several enabled values carried by one OBD/KWP record share one wire poll rather than becoming duplicate requests.
