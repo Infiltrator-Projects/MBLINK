@@ -8,6 +8,12 @@
     fprintf(stderr, "check failed: %s at %s:%d\n", #expr, __FILE__, __LINE__); \
     return 1; } } while (0)
 
+static bool pack_section_contains(
+    const MblinkMercedesEcuPack *pack,
+    bool startup,
+    uint8_t service,
+    uint16_t identifier);
+
 static int test_ic204_pack(void)
 {
     MblinkMercedesModuleScanEntry module;
