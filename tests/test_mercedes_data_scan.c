@@ -1187,8 +1187,56 @@ static int test_hu204_factory_reading_session_teardown(void)
     return 0;
 }
 
+static int test_orc_dashboard_records_are_semantically_mapped(void)
+{
+    MblinkMercedesDataRecord record;
+    char text[256];
+    const char *name = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service =
+        MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
+
+    record.identifier = UINT16_C(0x02);
+    record.data_length = 4U;
+    record.data[0] = UINT8_C(0xc1);
+    record.data[1] = UINT8_C(0x24);
+    record.data[2] = UINT8_C(0x41);
+    record.data[3] = UINT8_C(0x00);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_MODULE_RESTRAINTS,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Restraint equipment configuration") == 0);
+    CHECK(strcmp(text, "Configuration C1244100") == 0);
+
+    record.identifier = UINT16_C(0x58);
+    record.data_length = 5U;
+    record.data[0] = UINT8_C(0x00);
+    record.data[1] = UINT8_C(0x90);
+    record.data[2] = UINT8_C(0x55);
+    record.data[3] = UINT8_C(0x68);
+    record.data[4] = UINT8_C(0x00);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_MODULE_RESTRAINTS,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "ECU lock state / tester identification") == 0);
+    CHECK(strcmp(
+        text,
+        "Lock state 0x00 · tester identification 90556800") == 0);
+
+    /* Never promote the same local IDs on an unrelated KWP controller. */
+    CHECK(!mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x652), UINT32_C(0x48a), false,
+        MBLINK_MERCEDES_MODULE_BODY,
+        &record, text, sizeof(text), &name));
+    return 0;
+}
+
 int main(void)
 {
+    if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
     if (test_hu204_factory_reading_session_teardown() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
