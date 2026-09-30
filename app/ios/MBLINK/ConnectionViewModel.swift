@@ -262,7 +262,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let manufacturerSelectionDefaultsKey =
         "mblink.manufacturer.pidSelectionsByVehicle.v1"
     private static let manufacturerCatalogueDefaultsKey =
-        "mblink.manufacturer.pidCatalogueByVehicle.v4"
+        "mblink.manufacturer.pidCatalogueByVehicle.v5"
     private static let standardSelectionControllerIdentifier = "standard-obd"
     private static let moduleStatusMILStableKey = "obd2.readiness.mil"
     private static let standardSelectionMigrationDefaultsKey =
