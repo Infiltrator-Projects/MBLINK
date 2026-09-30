@@ -145,7 +145,7 @@ add_library(mblink STATIC
     src/core/mblink.c src/core/parameter.c src/core/scheduler.c src/core/telemetry_store.c src/core/telemetry_csv.c
     src/embedded/console.c src/embedded/stm32f767_ota.c
     src/elm327/elm327.c src/elm327/can.c src/elm327/session.c src/elm327/probe.c
-    src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/module_scan.c src/mercedes/vin.c
+    src/obd2/obd2.c src/kwp2000/kwp2000.c src/uds/uds.c src/mercedes/mercedes.c src/mercedes/module_catalog.c src/mercedes/module_scan.c src/mercedes/vin.c
     src/mercedes/server.c src/mercedes/probe.c src/mercedes/discover_plan.c src/mercedes/data_scan.c
     src/mercedes/ecu_pack.c
     src/mercedes/factory_data.c src/mercedes/signal_catalog.c src/mercedes/transmission.c

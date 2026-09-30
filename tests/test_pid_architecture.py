@@ -87,6 +87,12 @@ module_scan = (ROOT / "src/mercedes/module_scan.c").read_text(encoding="utf-8")
 module_scan_api = (ROOT / "include/mblink/mercedes_module_scan_core.h").read_text(
     encoding="utf-8"
 )
+module_catalog_api = (ROOT / "include/mblink/mercedes_module_catalog.h").read_text(
+    encoding="utf-8"
+)
+module_catalog_source = (ROOT / "src/mercedes/module_catalog.c").read_text(
+    encoding="utf-8"
+)
 apple_models = (ROOT / "platform/apple/MBLinkDiagnosticsModels.inc").read_text(
     encoding="utf-8"
 )
@@ -258,6 +264,13 @@ require(
     and "mblink_mercedes_module_scan_command_core" not in module_scan_api
     and "mblink_mercedes_module_scan_accept_core" not in module_scan_api,
     "module-scan core helpers must stay private to the implementation",
+)
+require(
+    "static inline" not in module_catalog_api
+    and "static const MblinkMercedesModuleDefinition definitions[]" not in module_catalog_api
+    and "mblink_mercedes_module_definition_at" in module_catalog_source
+    and "mblink_mercedes_controller_family_definition_at" in module_catalog_source,
+    "Mercedes module/controller catalogue implementation must stay out of the public header",
 )
 require(
     "identity_first" in module_scan_api
