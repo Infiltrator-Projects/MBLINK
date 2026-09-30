@@ -1252,7 +1252,7 @@ void mblink_mercedes_module_scan_capture_dtc(MblinkMercedesModuleScanEntry *modu
     }
 }
 
-static MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_core(MblinkMercedesModuleScan *scan)
+MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_core(MblinkMercedesModuleScan *scan)
 {
     if (scan == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
     memset(scan, 0, sizeof(*scan));
@@ -1262,7 +1262,7 @@ static MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_core(Mbl
     return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
 }
 
-static MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_begin_gateway_core(MblinkMercedesModuleScan *scan)
 {
     if (scan == NULL)
@@ -1274,7 +1274,7 @@ mblink_mercedes_module_scan_begin_gateway_core(MblinkMercedesModuleScan *scan)
     return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
 }
 
-static MblinkMercedesModuleScanResult
+MblinkMercedesModuleScanResult
 mblink_mercedes_module_scan_begin_mobile_census_core(
     MblinkMercedesModuleScan *scan)
 {
@@ -1354,7 +1354,7 @@ mblink_mercedes_module_scan_begin_cached(
     return MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK;
 }
 
-static MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_full_core(
+MblinkMercedesModuleScanResult mblink_mercedes_module_scan_begin_full_core(
     MblinkMercedesModuleScan *scan)
 {
     const link_discover_sweep_plan *plan;
@@ -1406,7 +1406,7 @@ uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *
     }
 }
 
-static MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const MblinkMercedesModuleScan *scan, char *buffer, size_t buffer_size, size_t *written)
+MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const MblinkMercedesModuleScan *scan, char *buffer, size_t buffer_size, size_t *written)
 {
     const MblinkMercedesModuleScanEntry *module;
     char control_command[5];
@@ -1612,7 +1612,7 @@ bool mblink_mercedes_module_scan_accept_adapter_transition(
     return true;
 }
 
-static MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMercedesModuleScan *scan, const MblinkElm327Response *response)
+MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMercedesModuleScan *scan, const MblinkElm327Response *response)
 {
     uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY]; size_t pdu_length = 0U; MblinkUdsResponse uds; MblinkMercedesModuleScanEntry *module; bool present;
     if (scan == NULL || response == NULL) return MBLINK_MERCEDES_MODULE_SCAN_RESULT_INVALID_ARGUMENT;
