@@ -76,6 +76,67 @@ static void clear_item(MblinkMercedesEcuDataItem *item)
     if (item != NULL) memset(item, 0, sizeof(*item));
 }
 
+static bool pack_is_orc_controller(const MblinkMercedesEcuPack *pack)
+{
+    const char *key = pack != NULL && pack->controller_family != NULL
+        ? pack->controller_family->key : NULL;
+    return key != NULL &&
+        (strcmp(key, "restraints-orc204") == 0 ||
+         strcmp(key, "restraints-orc212") == 0);
+}
+
+static bool pack_item_is_startup_once(
+    const MblinkMercedesEcuPack *pack,
+    uint8_t service,
+    uint16_t identifier)
+{
+    if (mblink_mercedes_documented_read_is_module_metadata(
+            service, identifier)) {
+        return true;
+    }
+    if (pack_transmission_family(pack) ==
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
+        service == UINT8_C(0x21) &&
+        identifier == UINT16_C(0x00b1)) {
+        return true;
+    }
+    return pack_is_orc_controller(pack) &&
+        service == UINT8_C(0x21) &&
+        (identifier == UINT16_C(0x0002) ||
+         identifier == UINT16_C(0x0058));
+}
+
+static bool pack_item_acquired_during_identification(
+    uint8_t service,
+    uint16_t identifier)
+{
+    if (service == UINT8_C(0x22)) {
+        return identifier == UINT16_C(0xf187) ||
+               identifier == UINT16_C(0xf188) ||
+               identifier == UINT16_C(0xf191) ||
+               identifier == UINT16_C(0xf197);
+    }
+    return service == UINT8_C(0x1a) &&
+        (identifier == UINT16_C(0x0086) ||
+         identifier == UINT16_C(0x0087) ||
+         identifier == UINT16_C(0x0089));
+}
+
+static void classify_item_acquisition(
+    const MblinkMercedesEcuPack *pack,
+    MblinkMercedesEcuDataItem *item)
+{
+    if (item == NULL) return;
+    item->acquisition = pack_item_is_startup_once(
+        pack, item->service, item->identifier)
+        ? MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE
+        : MBLINK_MERCEDES_ECU_DATA_USER_POLLING;
+    item->acquired_during_identification =
+        item->acquisition == MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE &&
+        pack_item_acquired_during_identification(
+            item->service, item->identifier);
+}
+
 static const char *controller_specific_read_name(
     const MblinkMercedesEcuPack *pack,
     uint8_t service,
@@ -397,6 +458,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->live = true;
         item->advertised = true;
         item->allow_duplicate_wire = true;
+        classify_item_acquisition(pack, item);
         return true;
     }
     index -= count;
@@ -430,6 +492,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
+        classify_item_acquisition(pack, item);
         return true;
     }
     index -= count;
@@ -467,6 +530,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->field_count =
             mblink_mercedes_documented_field_count(
                 item->service, item->identifier);
+        classify_item_acquisition(pack, item);
         return true;
     }
     index -= count;
@@ -506,10 +570,86 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->field_count =
             mblink_mercedes_documented_field_count(
                 read->service, read->identifier);
+        classify_item_acquisition(pack, item);
         return true;
     }
 
     return false;
+}
+
+static bool data_item_at_for_acquisition(
+    const MblinkMercedesEcuPack *pack,
+    MblinkMercedesEcuDataAcquisition acquisition,
+    size_t wanted,
+    MblinkMercedesEcuDataItem *item)
+{
+    size_t seen = 0U;
+    const size_t count = mblink_mercedes_ecu_pack_data_item_count(pack);
+
+    if (item == NULL) return false;
+    for (size_t index = 0U; index < count; ++index) {
+        MblinkMercedesEcuDataItem candidate;
+        if (!mblink_mercedes_ecu_pack_data_item_at(
+                pack, index, &candidate)) {
+            continue;
+        }
+        if (candidate.acquisition != acquisition) continue;
+        if (seen++ == wanted) {
+            *item = candidate;
+            return true;
+        }
+    }
+    clear_item(item);
+    return false;
+}
+
+static size_t data_item_count_for_acquisition(
+    const MblinkMercedesEcuPack *pack,
+    MblinkMercedesEcuDataAcquisition acquisition)
+{
+    size_t result = 0U;
+    const size_t count = mblink_mercedes_ecu_pack_data_item_count(pack);
+
+    for (size_t index = 0U; index < count; ++index) {
+        MblinkMercedesEcuDataItem item;
+        if (mblink_mercedes_ecu_pack_data_item_at(pack, index, &item) &&
+            item.acquisition == acquisition) {
+            ++result;
+        }
+    }
+    return result;
+}
+
+size_t mblink_mercedes_ecu_pack_startup_item_count(
+    const MblinkMercedesEcuPack *pack)
+{
+    return data_item_count_for_acquisition(
+        pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
+}
+
+bool mblink_mercedes_ecu_pack_startup_item_at(
+    const MblinkMercedesEcuPack *pack,
+    size_t index,
+    MblinkMercedesEcuDataItem *item)
+{
+    return data_item_at_for_acquisition(
+        pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE, index, item);
+}
+
+size_t mblink_mercedes_ecu_pack_polling_item_count(
+    const MblinkMercedesEcuPack *pack)
+{
+    return data_item_count_for_acquisition(
+        pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING);
+}
+
+bool mblink_mercedes_ecu_pack_polling_item_at(
+    const MblinkMercedesEcuPack *pack,
+    size_t index,
+    MblinkMercedesEcuDataItem *item)
+{
+    return data_item_at_for_acquisition(
+        pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING, index, item);
 }
 
 const MblinkMercedesDocumentedField *mblink_mercedes_ecu_pack_field_at(
