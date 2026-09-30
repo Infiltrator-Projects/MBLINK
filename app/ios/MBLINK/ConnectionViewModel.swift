@@ -253,6 +253,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var manufacturerHistorySessionActive = false
     private var appliedPollingConfigurationKey: String?
     private var livePollingReadyRearmSignature: String?
+#if MBLINK_CI_SIMULATED_FLOW
+    private var ciDisplaySelectionFailure = "not-run"
+#endif
     /*
      * v2 changes first-run policy from an automatic core set to explicit
      * opt-in. Existing user choices are preserved, but the old untouched
@@ -2348,7 +2351,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let ciORCModuleID = "11:0000064A:00000489"
 
     private func verifySingleDisplaySelection() -> Bool {
+        ciDisplaySelectionFailure = "none"
         guard !isActive, effectivePIDConfigurationVIN != nil else {
+            ciDisplaySelectionFailure = "active-or-no-vin"
             return false
         }
         let oldStandard = pidConfigurationModules.map {
@@ -2369,10 +2374,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
 
         resetPIDSelectionsForCurrentVehicle()
-        guard enabledDisplayParameters.isEmpty else { return false }
+        guard enabledDisplayParameters.isEmpty else {
+            ciDisplaySelectionFailure = "reset-left-visible"
+            return false
+        }
         guard let standardModule = pidConfigurationModules.first(where: {
             !standardPIDCatalogueItems(moduleID: $0.id).isEmpty
-        }) else { return false }
+        }) else {
+            ciDisplaySelectionFailure = "no-standard-catalogue"
+            return false
+        }
         let standard = Array(
             standardPIDCatalogueItems(moduleID: standardModule.id)
                 .prefix(2).map(\.selectionKey))
@@ -2380,7 +2391,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             "mercedes.transmission.oil_temperature",
             "mercedes.transmission.actual_gear"
         ]
-        guard standard.count == 2 else { return false }
+        guard standard.count == 2 else {
+            ciDisplaySelectionFailure = "standard-count-\(standard.count)"
+            return false
+        }
 
         for key in standard {
             setStandardPIDSelection(
@@ -2413,7 +2427,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
          * publishes this same set immediately afterwards in normal UI use.
          */
         let visible = loadPrimaryDiagnosticParameters().filter(\.pollingEnabled)
-        guard Set(visible.map(\.id)) == expected else { return false }
+        let visibleIDs = Set(visible.map(\.id))
+        guard visibleIDs == expected else {
+            let missing = expected.subtracting(visibleIDs).sorted().joined(separator: ",")
+            let extra = visibleIDs.subtracting(expected).sorted().joined(separator: ",")
+            ciDisplaySelectionFailure = "visible-mismatch;missing=\(missing);extra=\(extra)"
+            return false
+        }
 
         for key in standard {
             setStandardPIDSelection(
@@ -2425,8 +2445,10 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 moduleID: Self.ciTransmissionModuleID,
                 stableKey: key)
         }
-        return loadPrimaryDiagnosticParameters()
+        let cleared = loadPrimaryDiagnosticParameters()
             .filter(\.pollingEnabled).isEmpty
+        if !cleared { ciDisplaySelectionFailure = "clear-left-visible" }
+        return cleared
     }
 
     private func writeSavedPIDCatalogueRegressionMarker() {
@@ -2448,7 +2470,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             "transmission_catalogue_count=\(transmissionCount)\n" +
             "esp_catalogue_count=\(espCount)\n" +
             "orc_catalogue_count=\(orcCount)\n" +
-            "display_selection_verified=\(displaySelectionVerified)\n"
+            "display_selection_verified=\(displaySelectionVerified)\n" +
+            "display_selection_failure=\(ciDisplaySelectionFailure)\n"
         if let directory = FileManager.default.urls(
                 for: .documentDirectory, in: .userDomainMask).first {
             try? FileManager.default.createDirectory(
