@@ -321,6 +321,8 @@ jobs:
                  grep -Fq 'standard_selection_keys=obd2.engine.rpm,obd2.fuel.tank_level,obd2.vehicle.speed' "$snapshot" && \
                  grep -Fq 'standard_selection_scoped=true' "$snapshot" && \
                  grep -Fq 'unavailable_fuel_observed=true' "$snapshot" && \
+                 grep -Fq 'live_polling_verified=true' "$snapshot" && \
+                 grep -Fq 'live_profile_verified=true' "$snapshot" && \
                  grep -Fq 'module_count=4' "$snapshot" && \
                  grep -Eq '^transmission_catalogue_count=[1-9][0-9]*$' "$snapshot" && \
                  grep -Eq '^esp_catalogue_count=[0-9]+$' "$snapshot" && \

@@ -5,6 +5,7 @@
 - Fix simulation stopping with obd2-error when a selected documented reading has no simulated sample, such as fuel level 01 2F. LINK 0.15.88 returns NO DATA for those valid requests so the session keeps polling.
 - Keep the fuel-level catalogue entry and real-car percentage decoder intact.
 - Require iOS CI to select fuel level alongside RPM/speed and observe its NO DATA reply before accepting a successful simulated session. LINK additionally exercises every documented live PID through two minutes of simulated polling.
+- Require repeated responder-attributed RPM/speed replies and saved profile evidence before the CI cold restart; startup readiness alone must not satisfy the live-polling check.
 
 ## 0.7.265 — 2026-10-01
 

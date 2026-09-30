@@ -2334,6 +2334,21 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             let udsDTCReportCatalogueCount = udsDTCReportCatalogue.count
             let unavailableFuelObserved = (controller.csvSnapshot() ?? "")
                 .contains("\"012F\",\"no-data\"")
+            // Readiness contributes to recordedSampleCount too. Require
+            // repeated live replies and their saved responder evidence before
+            // CI terminates the app for its cold-launch profile check.
+            let livePollingVerified = [UInt8(0x0C), UInt8(0x0D)].allSatisfy {
+                controller.recentValues(
+                    forPID: $0, responderCANIdentifier: 0x7E8,
+                    extendedID: false, limit: 3).count >= 3
+            }
+            let savedProfile = vehicleProfileStore.profile(forVIN: liveVIN)
+            let savedPIDs = Set(LinkVehicleProfileStandardResponders(
+                savedProfile ?? [:]).filter {
+                    !$0.isExtendedID && $0.responderCANIdentifier == 0x7E8
+                }.flatMap { $0.pids.map(\.uint8Value) })
+            let liveProfileVerified = savedPIDs.contains(0x0C) &&
+                savedPIDs.contains(0x0D)
             let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
             let state = isReady && liveVIN.count == 17
                 ? "ready" : (failed ? "failed" : "pending")
@@ -2354,6 +2369,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 "standard_selection_pairs=\(standardSelectionPairs.joined(separator: ","))\n" +
                 "standard_selection_scoped=\(standardSelectionScoped)\n" +
                 "unavailable_fuel_observed=\(unavailableFuelObserved)\n" +
+                "live_polling_verified=\(livePollingVerified)\n" +
+                "live_profile_verified=\(liveProfileVerified)\n" +
                 "module_count=\(diagnosticModules.count)\n" +
                 "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
                 "esp_catalogue_count=\(espCatalogueCount)\n" +
@@ -2381,10 +2398,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let ciTransmissionModuleID = "11:000007E1:000007E9"
     private static let ciESPModuleID = "11:00000632:00000486"
     private static let ciORCModuleID = "11:0000064A:00000489"
+    private var ciDisplaySelectionFailure = ""
 
     private func verifySingleDisplaySelection() -> Bool {
-        guard !isActive, effectivePIDConfigurationVIN != nil else {
+        ciDisplaySelectionFailure = ""
+        func fail(_ reason: String) -> Bool {
+            ciDisplaySelectionFailure = reason
             return false
+        }
+        guard !isActive, effectivePIDConfigurationVIN != nil else {
+            return fail("offline vehicle unavailable")
         }
         let oldStandard = pidConfigurationModules.map {
             ($0.id, moduleStandardSelectionSet(moduleID: $0.id))
@@ -2404,23 +2427,23 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
 
         resetPIDSelectionsForCurrentVehicle()
-        guard enabledDisplayParameters.isEmpty else { return false }
+        guard loadPrimaryDiagnosticParameters().filter(\.pollingEnabled).isEmpty
+        else { return fail("reset retained enabled parameters") }
         guard let standardModule = pidConfigurationModules.first(where: {
             !standardPIDCatalogueItems(moduleID: $0.id).isEmpty
-        }) else { return false }
+        }) else { return fail("standard controller catalogue unavailable") }
         let catalogue = standardPIDCatalogueItems(moduleID: standardModule.id)
         guard !catalogue.contains(where: { $0.identifier == 0x01 }),
               let advertised = catalogue.first(where: { $0.advertised }),
               let unadvertised = catalogue.first(where: { !$0.advertised }),
               standardPIDCatalogueItems(moduleID: Self.ciESPModuleID).isEmpty,
               standardPIDCatalogueItems(moduleID: Self.ciORCModuleID).isEmpty
-        else { return false }
+        else { return fail("startup/body exclusion or advertised/unadvertised catalogue mismatch") }
         let standard = [advertised.selectionKey, unadvertised.selectionKey]
         let transmission = [
             "mercedes.transmission.oil_temperature",
             "mercedes.transmission.actual_gear"
         ]
-        guard standard.count == 2 else { return false }
 
         for key in standard {
             setStandardPIDSelection(
@@ -2453,7 +2476,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
          * publishes this same set immediately afterwards in normal UI use.
          */
         let visible = loadPrimaryDiagnosticParameters().filter(\.pollingEnabled)
-        guard Set(visible.map(\.id)) == expected else { return false }
+        guard Set(visible.map(\.id)) == expected else {
+            return fail("enabled parameters mismatch: \(visible.map(\.id).sorted().joined(separator: ","))")
+        }
 
         for key in standard {
             setStandardPIDSelection(
@@ -2465,8 +2490,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 moduleID: Self.ciTransmissionModuleID,
                 stableKey: key)
         }
-        return loadPrimaryDiagnosticParameters()
-            .filter(\.pollingEnabled).isEmpty
+        guard loadPrimaryDiagnosticParameters().filter(\.pollingEnabled).isEmpty
+        else { return fail("disabled parameters remain enabled") }
+        return true
     }
 
     private func writeSavedPIDCatalogueRegressionMarker(attempt: Int = 0) {
@@ -2489,6 +2515,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             "esp_catalogue_count=\(espCount)\n" +
             "orc_catalogue_count=\(orcCount)\n" +
             "display_selection_verified=\(displaySelectionVerified)\n" +
+            "display_selection_failure=\(ciDisplaySelectionFailure)\n" +
             "display_selection_attempt=\(attempt)\n"
         if let directory = FileManager.default.urls(
                 for: .documentDirectory, in: .userDomainMask).first {
