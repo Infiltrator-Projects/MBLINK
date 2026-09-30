@@ -2302,8 +2302,14 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     source: .manufacturer,
                     selectionKey: $0)
             })
-        guard Set(enabledDisplayParameters.map(\.id)) == expected
-        else { return false }
+        /*
+         * During the cold-launch regression this helper runs from init before
+         * Combine has published the next inherited diagnosticParameters value.
+         * Verify the exact product parameter set directly; refreshStandardState
+         * publishes this same set immediately afterwards in normal UI use.
+         */
+        let visible = loadPrimaryDiagnosticParameters().filter(\.pollingEnabled)
+        guard Set(visible.map(\.id)) == expected else { return false }
 
         for key in standard {
             setStandardPIDSelection(
@@ -2315,7 +2321,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 moduleID: Self.ciTransmissionModuleID,
                 stableKey: key)
         }
-        return enabledDisplayParameters.isEmpty
+        return loadPrimaryDiagnosticParameters()
+            .filter(\.pollingEnabled).isEmpty
     }
 
     private func writeSavedPIDCatalogueRegressionMarker() {
