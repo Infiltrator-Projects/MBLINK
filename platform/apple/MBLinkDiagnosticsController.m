@@ -2527,7 +2527,8 @@ static void MBLinkAppendManufacturerDefinition(
                 MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER
                 ? mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
                     transmissionFamily, (uint8_t)record->identifier)
-                : NULL;
+                : mblink_mercedes_documented_read_name(
+                    record->service, record->identifier);
 
         if (numericMapped || structuredMapped) {
             snapshot.mapped = YES;
