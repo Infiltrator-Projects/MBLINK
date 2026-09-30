@@ -77,8 +77,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readwrite, nullable) NSString *softwareNumber;
 @property(nonatomic, copy, readwrite, nullable) NSString *hardwareNumber;
 @property(nonatomic, copy, readwrite, nullable) NSString *bootSoftwareVersion;
-@property(nonatomic, copy, readwrite, nullable) NSString *restraintConfiguration;
-@property(nonatomic, copy, readwrite, nullable) NSString *ecuLockState;
 @property(nonatomic, copy, readwrite) NSString *faultStatus;
 @property(nonatomic, readwrite) NSUInteger faultCount;
 @property(nonatomic, copy, readwrite) NSArray<NSString *> *faults;
