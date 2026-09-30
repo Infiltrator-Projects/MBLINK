@@ -813,8 +813,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 confidence: "corroborated"),
             EGS53VariantCodingFact(
                 id: "tyre", label: "Tyre circumference",
-                value: "\(decoded.tyre_circumference_mm_candidate) mm",
-                confidence: "best current mapping"),
+                value: "\(decoded.tyre_circumference_mm) mm",
+                confidence: "corroborated"),
+            EGS53VariantCodingFact(
+                id: "inertia", label: "Engine inertia",
+                value: "\(decoded.engine_inertia_nm) Nm",
+                confidence: "corroborated"),
             EGS53VariantCodingFact(
                 id: "crc", label: "Coding integrity",
                 value: crcText, confidence: "verified"),
@@ -827,7 +831,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             "Bytes 5–27: \(hex(4..<27))",
             "Byte 30: \(hex(29..<30))",
             "Bytes 33–36: \(hex(32..<36))",
-            "Bytes 39–40: \(hex(38..<40))"
+            "Byte 40: \(hex(39..<40))"
         ].joined(separator: " · ")
 
         return EGS53VariantCodingSummary(

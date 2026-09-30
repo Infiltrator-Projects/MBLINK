@@ -79,7 +79,8 @@ typedef struct MblinkMercedesEgs53VariantCoding {
     uint8_t paddle_coding_flags;
     bool paddle_coding_bit_set;
     uint16_t rear_axle_ratio_milli;
-    uint16_t tyre_circumference_mm_candidate;
+    uint16_t tyre_circumference_mm;
+    uint8_t engine_inertia_nm;
     uint16_t stored_crc;
     uint16_t calculated_crc;
     bool crc_valid;

@@ -527,7 +527,8 @@ static int test_egs53_b1_variant_coding_capture(void)
     CHECK(decoded.paddle_coding_flags == UINT8_C(0x28));
     CHECK(decoded.paddle_coding_bit_set);
     CHECK(decoded.rear_axle_ratio_milli == UINT16_C(2470));
-    CHECK(decoded.tyre_circumference_mm_candidate == UINT16_C(1960));
+    CHECK(decoded.tyre_circumference_mm == UINT16_C(1960));
+    CHECK(decoded.engine_inertia_nm == UINT8_C(39));
     CHECK(decoded.stored_crc == UINT16_C(0x311e));
     CHECK(decoded.calculated_crc == UINT16_C(0x311e));
     CHECK(decoded.crc_valid);
@@ -538,7 +539,8 @@ static int test_egs53_b1_variant_coding_capture(void)
         captured, sizeof(captured), text, sizeof(text)));
     CHECK(strstr(text, "Variant KXCY") != NULL);
     CHECK(strstr(text, "rear axle 2.470:1") != NULL);
-    CHECK(strstr(text, "likely tyre circumference 1960 mm") != NULL);
+    CHECK(strstr(text, "tyre circumference 1960 mm") != NULL);
+    CHECK(strstr(text, "engine inertia 39 Nm") != NULL);
     CHECK(strstr(text, "coding CRC valid") != NULL);
     CHECK(strstr(text, "87 53 90 51") != NULL);
     CHECK(strcmp(

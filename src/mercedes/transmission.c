@@ -121,9 +121,15 @@ bool mblink_mercedes_transmission_decode_egs53_variant_coding(
     value.rear_axle_ratio_milli =
         (uint16_t)((uint16_t)data[30] |
                    ((uint16_t)data[31] << 8U));
-    value.tyre_circumference_mm_candidate =
+    value.tyre_circumference_mm =
         (uint16_t)((uint16_t)data[36] |
                    ((uint16_t)data[37] << 8U));
+    /*
+     * Cross-vehicle EGS53 coding comparisons and the independent 207.303
+     * OM651 configuration table agree on byte 39 as the engine-inertia
+     * calibration in Nm. The field capture contains 0x27 = 39 Nm.
+     */
+    value.engine_inertia_nm = data[38];
 
     value.stored_crc =
         (uint16_t)((uint16_t)data[40] |
@@ -156,7 +162,7 @@ bool mblink_mercedes_transmission_format_egs53_variant_coding(
     char bytes_5_27[80];
     char byte_30[8];
     char bytes_33_36[16];
-    char bytes_39_40[8];
+    char byte_40[8];
     char trailing[64];
     int count;
 
@@ -171,8 +177,8 @@ bool mblink_mercedes_transmission_format_egs53_variant_coding(
                          sizeof(byte_30)) ||
         !format_hex_span(data, 32U, 4U, bytes_33_36,
                          sizeof(bytes_33_36)) ||
-        !format_hex_span(data, 38U, 2U, bytes_39_40,
-                         sizeof(bytes_39_40))) {
+        !format_hex_span(data, 39U, 1U, byte_40,
+                         sizeof(byte_40))) {
         return false;
     }
     if (data_length > 42U) {
@@ -190,11 +196,11 @@ bool mblink_mercedes_transmission_format_egs53_variant_coding(
         "Variant %s · program coding C/S=%s M=%s A=%s "
         "(byte 28 0x%02X) · paddle coding bit=%s "
         "(byte 29 0x%02X, best-current mapping) · "
-        "rear axle %.3f:1 · likely tyre circumference %u mm "
-        "(best-current mapping) · coding CRC %s "
+        "rear axle %.3f:1 · tyre circumference %u mm · "
+        "engine inertia %u Nm · coding CRC %s "
         "(stored 0x%04X calculated 0x%04X) · "
         "undecoded bytes 5-27 [%s], 30 [%s], 33-36 [%s], "
-        "39-40 [%s] · trailing metadata [%s] "
+        "40 [%s] · trailing metadata [%s] "
         "(possible coding fingerprint)",
         decoded.variant_code,
         decoded.comfort_sport_coding ? "set" : "clear",
@@ -204,11 +210,12 @@ bool mblink_mercedes_transmission_format_egs53_variant_coding(
         decoded.paddle_coding_bit_set ? "set" : "clear",
         (unsigned int)decoded.paddle_coding_flags,
         (double)decoded.rear_axle_ratio_milli / 1000.0,
-        (unsigned int)decoded.tyre_circumference_mm_candidate,
+        (unsigned int)decoded.tyre_circumference_mm,
+        (unsigned int)decoded.engine_inertia_nm,
         decoded.crc_valid ? "valid" : "INVALID",
         (unsigned int)decoded.stored_crc,
         (unsigned int)decoded.calculated_crc,
-        bytes_5_27, byte_30, bytes_33_36, bytes_39_40, trailing);
+        bytes_5_27, byte_30, bytes_33_36, byte_40, trailing);
     return count >= 0 && (size_t)count < buffer_size;
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.263 — 2026-09-30
+
+- Promote EGS53 21 B1 bytes 37-38 from tentative to corroborated tyre circumference after cross-vehicle coding comparisons; the development C207 decodes to 1960 mm.
+- Decode byte 39 as the corroborated engine-inertia calibration; the captured C207 value 0x27 is 39 Nm.
+- Keep byte 40 raw and explicitly unknown rather than hiding it inside the previous bytes-39-40 unknown range. The Modules screen now shows tyre circumference and engine inertia as decoded startup facts.
+
 ## 0.7.262 — 2026-09-30
 
 - Read EGS53 KWP local identifier 0xB1 exactly once during connection startup after the controller family is positively identified; it is never admitted to recurring PID polling.
