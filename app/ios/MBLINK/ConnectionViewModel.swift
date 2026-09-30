@@ -406,7 +406,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             diagnosticModule(id: moduleID) ?? pidConfigurationModule(id: moduleID)
         else { return [] }
 
-        let selected = storedPollingKeys()
+        let selected =
+            expandedStandardPollingKeys(storedPollingKeys())
         return loadDiagnosticParameters(
             responderCANIdentifier: module.responseCANIdentifier,
             extendedID: module.extendedID,
