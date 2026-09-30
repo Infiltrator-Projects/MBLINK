@@ -572,13 +572,6 @@ static bool mblink_mercedes_module_scan_entry_control_command(
         command, 5U);
 }
 
-/*
- * CGW_204 on the documented 0x602 -> 0x480 route exposes its boot software
- * version through proprietary UDS DID F153.  This is static ECU identity
- * metadata: read it once during the census and never put it in the live PID
- * scheduler.
- */
-
 MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
     const MblinkMercedesModuleScan *scan)
