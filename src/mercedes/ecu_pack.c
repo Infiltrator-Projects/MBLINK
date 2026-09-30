@@ -592,7 +592,16 @@ static bool data_item_at_for_acquisition(
                 pack, index, &candidate)) {
             continue;
         }
-        if (candidate.acquisition != acquisition) continue;
+        /*
+         * The two acquisition views are executable/source-backed sections of
+         * the resolved ECU pack. Keep raw vehicle-only observations in the
+         * canonical evidence catalogue, but never surface them as startup
+         * commands or user-polling commands.
+         */
+        if (candidate.acquisition != acquisition ||
+            !candidate.advertised) {
+            continue;
+        }
         if (seen++ == wanted) {
             *item = candidate;
             return true;
@@ -612,7 +621,8 @@ static size_t data_item_count_for_acquisition(
     for (size_t index = 0U; index < count; ++index) {
         MblinkMercedesEcuDataItem item;
         if (mblink_mercedes_ecu_pack_data_item_at(pack, index, &item) &&
-            item.acquisition == acquisition) {
+            item.acquisition == acquisition &&
+            item.advertised) {
             ++result;
         }
     }
