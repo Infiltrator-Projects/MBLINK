@@ -1227,6 +1227,11 @@ private struct MBModulesView: View {
             connection.egs53VariantCoding(moduleID: module.id)
         let bootSoftwareVersion =
             connection.moduleBootSoftwareVersion(moduleID: module.id)
+        let startupModuleData =
+            connection.startupModuleData(moduleID: module.id).filter {
+                !($0.service == 0x22 && $0.identifier == 0xF153) &&
+                !($0.service == 0x21 && $0.identifier == 0x00B1)
+            }
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 13) {
@@ -1316,6 +1321,36 @@ private struct MBModulesView: View {
                         .font(MBTypography.caption2.monospaced())
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if !startupModuleData.isEmpty {
+                Divider().overlay(MBBrand.line)
+                HStack {
+                    Text("Startup module data")
+                        .font(MBTypography.captionBold)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Spacer()
+                    Text("read once at connection")
+                        .font(MBTypography.caption2)
+                        .foregroundStyle(MBBrand.muted)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(startupModuleData) { value in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(value.title)
+                                .font(MBTypography.caption2Bold)
+                                .foregroundStyle(MBBrand.silver)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Text(value.formattedValue)
+                                .font(MBTypography.caption2.monospaced())
+                                .foregroundStyle(MBBrand.silverBright)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
 
