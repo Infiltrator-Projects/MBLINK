@@ -1423,8 +1423,24 @@ private struct MBModuleDetailView: View {
             ?? connection.pidConfigurationModule(id: moduleID)
     }
 
+    private var startupValues: [MercedesModuleDataValue] {
+        connection.startupModuleData(moduleID: moduleID)
+    }
+
+    private var startupCardValues: [MercedesModuleDataValue] {
+        startupValues.filter {
+            !($0.service == 0x22 && $0.identifier == 0xF153) &&
+            !($0.service == 0x21 && $0.identifier == 0x00B1)
+        }
+    }
+
     private var manufacturerValues: [MercedesModuleDataValue] {
-        connection.manufacturerData(moduleID: moduleID)
+        let startupKeys = Set(startupValues.map {
+            "\($0.service):\($0.identifier)"
+        })
+        return connection.manufacturerData(moduleID: moduleID).filter {
+            !startupKeys.contains("\($0.service):\($0.identifier)")
+        }
     }
 
     private var scanningThisModule: Bool {
@@ -1448,6 +1464,7 @@ private struct MBModuleDetailView: View {
                             kicker: module.kind.uppercased())
 
                         moduleIdentityPanel(module)
+                        startupModuleDataSection(module)
                         variantCodingSection(module)
                         factoryDataSection(module)
                         standardLiveDataSection(module)
@@ -1512,6 +1529,26 @@ private struct MBModuleDetailView: View {
         guard let value else { return "N/A" }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "N/A" : trimmed
+    }
+
+    @ViewBuilder
+    private func startupModuleDataSection(_ module: DiagnosticModule) -> some View {
+        if !startupCardValues.isEmpty {
+            MBSectionHeader(
+                title: "Startup module data",
+                kicker: "Read once at connection · never recurring")
+
+            MBPanel {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(startupCardValues) { value in
+                        factoryDataRow(value)
+                        if value.id != startupCardValues.last?.id {
+                            Divider().overlay(MBBrand.line)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
