@@ -1223,6 +1223,8 @@ private struct MBModulesView: View {
     private func moduleCard(_ module: DiagnosticModule) -> some View {
         let startupStatus =
             connection.moduleStartupReadinessFields(moduleID: module.id)
+        let variantCoding =
+            connection.egs53VariantCoding(moduleID: module.id)
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 13) {
@@ -1260,6 +1262,47 @@ private struct MBModulesView: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(MBBrand.muted)
                     .padding(.top, 8)
+            }
+
+            if let variantCoding {
+                Divider().overlay(MBBrand.line)
+                HStack {
+                    Text("Transmission coding")
+                        .font(MBTypography.captionBold)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Spacer()
+                    Text("21 B1 · read once")
+                        .font(MBTypography.caption2.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(variantCoding.facts) { fact in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(fact.label)
+                                .font(MBTypography.caption2Bold)
+                                .foregroundStyle(MBBrand.silver)
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 1) {
+                                Text(fact.value)
+                                    .font(MBTypography.caption2)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .multilineTextAlignment(.trailing)
+                                Text(fact.confidence)
+                                    .font(MBTypography.caption2)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+                    }
+                    Text("Undecoded coding bytes")
+                        .font(MBTypography.caption2Bold)
+                        .foregroundStyle(MBBrand.silver)
+                        .padding(.top, 2)
+                    Text(variantCoding.undecodedRaw)
+                        .font(MBTypography.caption2.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if !startupStatus.isEmpty {
@@ -1391,6 +1434,7 @@ private struct MBModuleDetailView: View {
                             kicker: module.kind.uppercased())
 
                         moduleIdentityPanel(module)
+                        variantCodingSection(module)
                         factoryDataSection(module)
                         standardLiveDataSection(module)
                         faultMemorySection(module)
@@ -1449,6 +1493,63 @@ private struct MBModuleDetailView: View {
         guard let value else { return "N/A" }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "N/A" : trimmed
+    }
+
+    @ViewBuilder
+    private func variantCodingSection(_ module: DiagnosticModule) -> some View {
+        if let coding = connection.egs53VariantCoding(moduleID: module.id) {
+            MBSectionHeader(
+                title: "Transmission coding",
+                kicker: "EGS53 · 21 B1 · startup read")
+
+            MBPanel {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(coding.facts) { fact in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(fact.label)
+                                    .font(MBTypography.subheadlineBold)
+                                    .foregroundStyle(MBBrand.silver)
+                                Spacer(minLength: 8)
+                                Text(fact.value)
+                                    .font(MBTypography.subheadline)
+                                    .foregroundStyle(MBBrand.silverBright)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            Text(fact.confidence)
+                                .font(MBTypography.caption2)
+                                .foregroundStyle(MBBrand.muted)
+                            if fact.id != coding.facts.last?.id {
+                                Divider().overlay(MBBrand.line)
+                                    .padding(.top, 4)
+                            }
+                        }
+                    }
+                }
+            }
+
+            MBPanel {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Undecoded coding bytes")
+                        .font(MBTypography.subheadlineBold)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text(coding.undecodedRaw)
+                        .font(MBTypography.caption.monospaced())
+                        .foregroundStyle(MBBrand.silver)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Divider().overlay(MBBrand.line)
+                    Text("Complete 21 B1 payload")
+                        .font(MBTypography.subheadlineBold)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Text(coding.fullRaw)
+                        .font(MBTypography.caption.monospaced())
+                        .foregroundStyle(MBBrand.muted)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 
     @ViewBuilder

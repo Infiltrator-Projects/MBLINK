@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.262 — 2026-09-30
+
+- Read EGS53 KWP local identifier 0xB1 exactly once during connection startup after the controller family is positively identified; it is never admitted to recurring PID polling.
+- Decode the captured EGS53 variant-coding record into KXCY variant code, C/S + Manual + A program flags, paddle-shift coding bit, 2.470 final-drive ratio, best-current tyre-circumference candidate, and CRC-16/ARC integrity while explicitly retaining confidence labels for inferred mappings.
+- Show the decoded 21 B1 data directly on the EGS53 Modules card and module detail. Undecoded byte ranges and the complete raw payload remain visible for continued reverse engineering; trailing four bytes are labelled as a possible coding fingerprint rather than asserted as settled fact.
+- Add a regression using the exact 46-byte field capture and keep 0xB1 classified as non-live/static configuration data.
+
 ## 0.7.261 — 2026-09-30
 
 - Treat Mode 01 PID 01 as one-shot startup module metadata instead of a recurring live PID: the connection flow reads it once, retains each physical ECU's reply and never schedules it continuously.

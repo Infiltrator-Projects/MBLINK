@@ -46,6 +46,172 @@ static int16_t signed_raw16(uint16_t raw)
     return (int16_t)(-((int32_t)(UINT16_MAX - raw) + 1));
 }
 
+static uint16_t crc16_arc(const uint8_t *data, size_t length)
+{
+    uint16_t crc = 0U;
+    size_t index;
+    unsigned int bit;
+    for (index = 0U; index < length; ++index) {
+        crc ^= (uint16_t)data[index];
+        for (bit = 0U; bit < 8U; ++bit) {
+            crc = (crc & UINT16_C(1)) != 0U
+                ? (uint16_t)((crc >> 1U) ^ UINT16_C(0xa001))
+                : (uint16_t)(crc >> 1U);
+        }
+    }
+    return crc;
+}
+
+static bool format_hex_span(
+    const uint8_t *data, size_t start, size_t count,
+    char *buffer, size_t buffer_size)
+{
+    size_t offset = 0U;
+    size_t index;
+    if (data == NULL || buffer == NULL || buffer_size == 0U)
+        return false;
+    buffer[0] = '\0';
+    for (index = 0U; index < count; ++index) {
+        const int written = snprintf(
+            buffer + offset, buffer_size - offset,
+            index == 0U ? "%02X" : " %02X",
+            (unsigned int)data[start + index]);
+        if (written < 0 || (size_t)written >= buffer_size - offset) {
+            buffer[0] = '\0';
+            return false;
+        }
+        offset += (size_t)written;
+    }
+    return true;
+}
+
+bool mblink_mercedes_transmission_decode_egs53_variant_coding(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesEgs53VariantCoding *decoded)
+{
+    MblinkMercedesEgs53VariantCoding value;
+    size_t index;
+    if (data == NULL || decoded == NULL || data_length < 42U)
+        return false;
+
+    memset(&value, 0, sizeof(value));
+    for (index = 0U; index < 4U; ++index) {
+        uint8_t ch = data[index];
+        if (ch < UINT8_C(0x20) || ch > UINT8_C(0x7e))
+            return false;
+        if (ch >= (uint8_t)'a' && ch <= (uint8_t)'z')
+            ch = (uint8_t)(ch - (uint8_t)'a' + (uint8_t)'A');
+        value.variant_code[index] = (char)ch;
+    }
+    value.variant_code[4] = '\0';
+
+    value.drive_program_flags = data[27];
+    value.comfort_sport_coding =
+        (data[27] & UINT8_C(0x04)) != 0U;
+    value.manual_program_coding =
+        (data[27] & UINT8_C(0x08)) != 0U;
+    value.agility_program_coding =
+        (data[27] & UINT8_C(0x10)) != 0U;
+
+    value.paddle_coding_flags = data[28];
+    value.paddle_coding_bit_set =
+        (data[28] & UINT8_C(0x20)) != 0U;
+
+    value.rear_axle_ratio_milli =
+        (uint16_t)((uint16_t)data[30] |
+                   ((uint16_t)data[31] << 8U));
+    value.tyre_circumference_mm_candidate =
+        (uint16_t)((uint16_t)data[36] |
+                   ((uint16_t)data[37] << 8U));
+
+    value.stored_crc =
+        (uint16_t)((uint16_t)data[40] |
+                   ((uint16_t)data[41] << 8U));
+    value.calculated_crc = crc16_arc(data, 40U);
+    value.crc_valid = value.stored_crc == value.calculated_crc;
+
+    value.trailing_metadata_length =
+        data_length > 42U ? data_length - 42U : 0U;
+    if (value.trailing_metadata_length >
+        sizeof(value.trailing_metadata)) {
+        value.trailing_metadata_length = sizeof(value.trailing_metadata);
+    }
+    if (value.trailing_metadata_length != 0U) {
+        memcpy(value.trailing_metadata, data + 42U,
+               value.trailing_metadata_length);
+    }
+
+    *decoded = value;
+    return true;
+}
+
+bool mblink_mercedes_transmission_format_egs53_variant_coding(
+    const uint8_t *data,
+    size_t data_length,
+    char *buffer,
+    size_t buffer_size)
+{
+    MblinkMercedesEgs53VariantCoding decoded;
+    char bytes_5_27[80];
+    char byte_30[8];
+    char bytes_33_36[16];
+    char bytes_39_40[8];
+    char trailing[64];
+    int count;
+
+    if (buffer == NULL || buffer_size == 0U ||
+        !mblink_mercedes_transmission_decode_egs53_variant_coding(
+            data, data_length, &decoded)) {
+        return false;
+    }
+    if (!format_hex_span(data, 4U, 23U, bytes_5_27,
+                         sizeof(bytes_5_27)) ||
+        !format_hex_span(data, 29U, 1U, byte_30,
+                         sizeof(byte_30)) ||
+        !format_hex_span(data, 32U, 4U, bytes_33_36,
+                         sizeof(bytes_33_36)) ||
+        !format_hex_span(data, 38U, 2U, bytes_39_40,
+                         sizeof(bytes_39_40))) {
+        return false;
+    }
+    if (data_length > 42U) {
+        const size_t tail_count = data_length - 42U;
+        if (!format_hex_span(data, 42U, tail_count, trailing,
+                             sizeof(trailing))) {
+            (void)snprintf(trailing, sizeof(trailing), "<too long>");
+        }
+    } else {
+        (void)snprintf(trailing, sizeof(trailing), "none");
+    }
+
+    count = snprintf(
+        buffer, buffer_size,
+        "Variant %s · program coding C/S=%s M=%s A=%s "
+        "(byte 28 0x%02X) · paddle coding bit=%s "
+        "(byte 29 0x%02X, best-current mapping) · "
+        "rear axle %.3f:1 · likely tyre circumference %u mm "
+        "(best-current mapping) · coding CRC %s "
+        "(stored 0x%04X calculated 0x%04X) · "
+        "undecoded bytes 5-27 [%s], 30 [%s], 33-36 [%s], "
+        "39-40 [%s] · trailing metadata [%s] "
+        "(possible coding fingerprint)",
+        decoded.variant_code,
+        decoded.comfort_sport_coding ? "set" : "clear",
+        decoded.manual_program_coding ? "set" : "clear",
+        decoded.agility_program_coding ? "set" : "clear",
+        (unsigned int)decoded.drive_program_flags,
+        decoded.paddle_coding_bit_set ? "set" : "clear",
+        (unsigned int)decoded.paddle_coding_flags,
+        (double)decoded.rear_axle_ratio_milli / 1000.0,
+        (unsigned int)decoded.tyre_circumference_mm_candidate,
+        decoded.crc_valid ? "valid" : "INVALID",
+        (unsigned int)decoded.stored_crc,
+        (unsigned int)decoded.calculated_crc,
+        bytes_5_27, byte_30, bytes_33_36, bytes_39_40, trailing);
+    return count >= 0 && (size_t)count < buffer_size;
+}
+
 static MblinkMercedesTorqueConverterState tcc_state(
     bool slipping, bool open, bool closed)
 {
@@ -1791,8 +1957,11 @@ const char *mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
         default: return NULL;
         }
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53:
-        return id == UINT8_C(0x30)
-            ? "EGS53 transmission actual values / RLI 30" : NULL;
+        if (id == UINT8_C(0x30))
+            return "EGS53 transmission actual values / RLI 30";
+        if (id == UINT8_C(0xb1))
+            return "EGS53 variant / SCN coding";
+        return NULL;
     case MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2:
         return id == UINT8_C(0x30)
             ? "Transmission actual values / compact RLI 30" : NULL;

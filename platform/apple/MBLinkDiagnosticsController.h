@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly, nullable) NSString *unit;
 @property(nonatomic, copy, readonly) NSString *formattedValue;
 @property(nonatomic, copy, readonly) NSString *rawHex;
+@property(nonatomic, copy, readonly) NSData *rawData;
 @property(nonatomic, readonly, getter=isMapped) BOOL mapped;
 @property(nonatomic, readonly, getter=isNumericValueAvailable)
     BOOL numericValueAvailable;

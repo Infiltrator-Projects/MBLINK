@@ -504,6 +504,52 @@ static int test_late_transmission_preserves_module_map(void)
     return 0;
 }
 
+static int test_egs53_b1_variant_coding_capture(void)
+{
+    static const uint8_t captured[] = {
+        0x6B,0x78,0x63,0x79,0x1C,0x0B,0x00,0x07,
+        0x00,0x05,0x1C,0x23,0x23,0x23,0x00,0x0A,
+        0x02,0x02,0x07,0x00,0x03,0x01,0x00,0x03,
+        0x01,0x05,0x00,0x3C,0x28,0x03,0xA6,0x09,
+        0x01,0x00,0x00,0x00,0xA8,0x07,0x27,0x0A,
+        0x1E,0x31,0x87,0x53,0x90,0x51
+    };
+    MblinkMercedesEgs53VariantCoding decoded;
+    char text[1024];
+
+    CHECK(mblink_mercedes_transmission_decode_egs53_variant_coding(
+        captured, sizeof(captured), &decoded));
+    CHECK(strcmp(decoded.variant_code, "KXCY") == 0);
+    CHECK(decoded.drive_program_flags == UINT8_C(0x3c));
+    CHECK(decoded.comfort_sport_coding);
+    CHECK(decoded.manual_program_coding);
+    CHECK(decoded.agility_program_coding);
+    CHECK(decoded.paddle_coding_flags == UINT8_C(0x28));
+    CHECK(decoded.paddle_coding_bit_set);
+    CHECK(decoded.rear_axle_ratio_milli == UINT16_C(2470));
+    CHECK(decoded.tyre_circumference_mm_candidate == UINT16_C(1960));
+    CHECK(decoded.stored_crc == UINT16_C(0x311e));
+    CHECK(decoded.calculated_crc == UINT16_C(0x311e));
+    CHECK(decoded.crc_valid);
+    CHECK(decoded.trailing_metadata_length == 4U);
+    CHECK(decoded.trailing_metadata[0] == UINT8_C(0x87));
+    CHECK(decoded.trailing_metadata[3] == UINT8_C(0x51));
+    CHECK(mblink_mercedes_transmission_format_egs53_variant_coding(
+        captured, sizeof(captured), text, sizeof(text)));
+    CHECK(strstr(text, "Variant KXCY") != NULL);
+    CHECK(strstr(text, "rear axle 2.470:1") != NULL);
+    CHECK(strstr(text, "likely tyre circumference 1960 mm") != NULL);
+    CHECK(strstr(text, "coding CRC valid") != NULL);
+    CHECK(strstr(text, "87 53 90 51") != NULL);
+    CHECK(strcmp(
+        mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, UINT8_C(0xb1)),
+        "EGS53 variant / SCN coding") == 0);
+    CHECK(!mblink_mercedes_transmission_kwp_identifier_is_live_for_family(
+        MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53, UINT8_C(0xb1)));
+    return 0;
+}
+
 int main(void)
 {
     CHECK(mblink_transmission_core_main() == 0);
@@ -514,5 +560,6 @@ int main(void)
     CHECK(test_interrupted_cached_scan_continues() == 0);
     CHECK(test_interrupted_extended_discovery_replays_protocol() == 0);
     CHECK(test_late_transmission_preserves_module_map() == 0);
+    CHECK(test_egs53_b1_variant_coding_capture() == 0);
     return 0;
 }

@@ -71,6 +71,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
 - (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
+- (BOOL)beginStartupEgs53VariantCodingReadIfAvailable;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
 - (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
@@ -2439,14 +2440,30 @@ static void MBLinkAppendManufacturerDefinition(
                 module->extended_id,
                 module->kind,
                 record, &numeric, &numericName, &unit);
-        const BOOL structuredMapped =
-            allowOemTransmissionValueDecode &&
-            mblink_mercedes_data_record_format_known_for_route(
-                module->tx_can_id,
-                module->rx_can_id,
-                module->extended_id,
-                module->kind,
-                record, structured, sizeof(structured), &structuredName);
+        BOOL structuredMapped = NO;
+        const BOOL egs53VariantCoding =
+            transmissionFamily ==
+                MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
+            record->service ==
+                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
+            record->identifier == UINT16_C(0x00b1);
+        if (egs53VariantCoding) {
+            structuredMapped =
+                mblink_mercedes_transmission_format_egs53_variant_coding(
+                    record->data, record->data_length,
+                    structured, sizeof(structured));
+            if (structuredMapped)
+                structuredName = "EGS53 variant / SCN coding";
+        } else if (allowOemTransmissionValueDecode) {
+            structuredMapped =
+                mblink_mercedes_data_record_format_known_for_route(
+                    module->tx_can_id,
+                    module->rx_can_id,
+                    module->extended_id,
+                    module->kind,
+                    record, structured, sizeof(structured),
+                    &structuredName);
+        }
         const char *profileName =
             MBLinkMercedesModuleIsTransmissionController(module) &&
             record->service ==
@@ -2843,6 +2860,55 @@ static void MBLinkAppendManufacturerDefinition(
     }
 }
 
+- (BOOL)beginStartupEgs53VariantCodingReadIfAvailable
+{
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    const MblinkMercedesDataProbeCommand command = {
+        UINT8_C(0x21), UINT16_C(0x00b1)
+    };
+
+    for (size_t index = 0U; index < count; ++index) {
+        const MblinkMercedesModuleScanEntry *module =
+            mblink_mercedes_module_scan_module_at(
+                &_mercedesModuleScan, index);
+        if (module == NULL ||
+            MBLinkTransmissionFamilyForModule(module) !=
+                MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 ||
+            mblink_mercedes_module_scan_entry_protocol(module) !=
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 ||
+            !mblink_mercedes_documented_read_is_safe(
+                command.service, command.identifier)) {
+            continue;
+        }
+
+        MblinkMercedesDataScanConfig config =
+            mblink_mercedes_data_scan_default_config(
+                module->tx_can_id, module->rx_can_id,
+                module->extended_id,
+                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
+                MBLINK_MERCEDES_MODULE_TRANSMISSION);
+        if (mblink_mercedes_data_scan_begin_documented_commands(
+                &_manufacturerDataScan, &config, &command, 1U) !=
+            MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
+            return NO;
+        }
+
+        self.manufacturerDataScanActive = YES;
+        self.manufacturerDataScanModuleIdentifier =
+            MBLinkMercedesModuleIdentifier(module);
+        _manufacturerDataForceFullScan = NO;
+        _manufacturerDataScanLiveOnly = NO;
+        self.manufacturerDataScanStatusText =
+            @"Reading EGS53 variant coding once at connection";
+        [self setStatus:@"Reading EGS53 startup variant coding"];
+        [self notifyDelegate];
+        [self beginCurrentMercedesDataScanCommand];
+        return YES;
+    }
+    return NO;
+}
+
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response
 {
     MblinkMercedesModuleScanResult result = mblink_mercedes_module_scan_accept(&_mercedesModuleScan, response);
@@ -2872,6 +2938,13 @@ static void MBLinkAppendManufacturerDefinition(
             }
         }
         _cachedModuleRefreshActive = NO;
+
+        /*
+         * EGS53 21 B1 is configuration, not telemetry. Read it exactly once
+         * while startup discovery already owns the manufacturer channel.
+         */
+        if ([self beginStartupEgs53VariantCodingReadIfAvailable])
+            return;
 
         /* Recurring GS actual values are now registered before the
          * startup extension returns. LINK preserves external jobs when it

@@ -60,6 +60,7 @@ struct MercedesModuleDataValue: Identifiable {
     let title: String
     let formattedValue: String
     let rawHex: String
+    let rawData: Data
     let mapped: Bool
     let unit: String?
     let numericValue: Double?
@@ -74,6 +75,19 @@ struct MercedesModuleDataValue: Identifiable {
 }
 
 typealias DiagnosticFault = LinkDiagnosticFault
+
+struct EGS53VariantCodingFact: Identifiable {
+    let id: String
+    let label: String
+    let value: String
+    let confidence: String
+}
+
+struct EGS53VariantCodingSummary {
+    let facts: [EGS53VariantCodingFact]
+    let undecodedRaw: String
+    let fullRaw: String
+}
 
 struct MercedesTargetSignal: Identifiable {
     let id: String
@@ -722,11 +736,104 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     title: title,
                     formattedValue: snapshot.formattedValue,
                     rawHex: snapshot.rawHex,
+                    rawData: snapshot.rawData,
                     mapped: snapshot.isMapped,
                     unit: snapshot.unit,
                     numericValue: snapshot.isNumericValueAvailable
                         ? snapshot.numericValue : nil)
             }
+    }
+
+    func egs53VariantCoding(
+        moduleID: String
+    ) -> EGS53VariantCodingSummary? {
+        guard let value = manufacturerData(moduleID: moduleID).first(where: {
+            $0.service == 0x21 && $0.identifier == 0x00B1
+        }), value.rawData.count >= 42 else { return nil }
+
+        var decoded = MblinkMercedesEgs53VariantCoding()
+        let decodedOK = value.rawData.withUnsafeBytes { bytes -> Bool in
+            guard let base = bytes.bindMemory(to: UInt8.self).baseAddress
+            else { return false }
+            return mblink_mercedes_transmission_decode_egs53_variant_coding(
+                base, value.rawData.count, &decoded)
+        }
+        guard decodedOK else { return nil }
+
+        let raw = Array(value.rawData)
+        let variant = String(
+            bytes: raw[0..<4], encoding: .ascii)?.uppercased() ?? "Unknown"
+        var programs = [String]()
+        if decoded.comfort_sport_coding { programs.append("Comfort / Sport") }
+        if decoded.manual_program_coding { programs.append("Manual") }
+        if decoded.agility_program_coding {
+            programs.append("Adaptive / Agility")
+        }
+        if programs.isEmpty { programs.append("No mapped flags set") }
+
+        func hex(_ range: Range<Int>) -> String {
+            guard range.lowerBound >= 0, range.upperBound <= raw.count else {
+                return "N/A"
+            }
+            return raw[range]
+                .map { String(format: "%02X", $0) }
+                .joined(separator: " ")
+        }
+
+        let fingerprintRange = 42..<min(raw.count, 46)
+        let fingerprint = fingerprintRange.isEmpty
+            ? "Not returned" : hex(fingerprintRange)
+        let crcText = decoded.crc_valid
+            ? String(format: "Valid · 0x%04X", decoded.stored_crc)
+            : String(
+                format: "INVALID · stored 0x%04X / calculated 0x%04X",
+                decoded.stored_crc, decoded.calculated_crc)
+
+        let facts = [
+            EGS53VariantCodingFact(
+                id: "variant", label: "Variant coding",
+                value: variant, confidence: "decoded"),
+            EGS53VariantCodingFact(
+                id: "programs", label: "Drive programs",
+                value: programs.joined(separator: " · ") +
+                    String(format: " · byte 28 = 0x%02X",
+                           decoded.drive_program_flags),
+                confidence: "corroborated"),
+            EGS53VariantCodingFact(
+                id: "paddles", label: "Paddle-shift coding",
+                value: (decoded.paddle_coding_bit_set ? "Bit set" : "Bit clear") +
+                    String(format: " · byte 29 = 0x%02X",
+                           decoded.paddle_coding_flags),
+                confidence: "best current mapping"),
+            EGS53VariantCodingFact(
+                id: "axle", label: "Rear axle ratio",
+                value: String(
+                    format: "%.3f:1",
+                    Double(decoded.rear_axle_ratio_milli) / 1000.0),
+                confidence: "corroborated"),
+            EGS53VariantCodingFact(
+                id: "tyre", label: "Tyre circumference",
+                value: "\(decoded.tyre_circumference_mm_candidate) mm",
+                confidence: "best current mapping"),
+            EGS53VariantCodingFact(
+                id: "crc", label: "Coding integrity",
+                value: crcText, confidence: "verified"),
+            EGS53VariantCodingFact(
+                id: "fingerprint", label: "Possible coding fingerprint",
+                value: fingerprint, confidence: "inferred")
+        ]
+
+        let undecoded = [
+            "Bytes 5–27: \(hex(4..<27))",
+            "Byte 30: \(hex(29..<30))",
+            "Bytes 33–36: \(hex(32..<36))",
+            "Bytes 39–40: \(hex(38..<40))"
+        ].joined(separator: " · ")
+
+        return EGS53VariantCodingSummary(
+            facts: facts,
+            undecodedRaw: undecoded,
+            fullRaw: value.rawHex)
     }
 
     func discoverManufacturerData(moduleID: String) {

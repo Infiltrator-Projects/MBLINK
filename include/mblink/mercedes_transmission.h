@@ -63,6 +63,41 @@ typedef struct MblinkMercedesTransmission2130 {
 } MblinkMercedesTransmission2130;
 
 /**
+ * Siemens EGS53 KWP local identifier B1 variant-coding record.
+ *
+ * The first 42 bytes are the coding record observed on a field-verified
+ * A0034464310 EGS53. Bytes 43+ are retained as trailing metadata rather than
+ * silently folded into the coding. Fields whose public mapping is not yet
+ * fully corroborated are named as candidates so the UI can show confidence.
+ */
+typedef struct MblinkMercedesEgs53VariantCoding {
+    char variant_code[5];
+    uint8_t drive_program_flags;
+    bool comfort_sport_coding;
+    bool manual_program_coding;
+    bool agility_program_coding;
+    uint8_t paddle_coding_flags;
+    bool paddle_coding_bit_set;
+    uint16_t rear_axle_ratio_milli;
+    uint16_t tyre_circumference_mm_candidate;
+    uint16_t stored_crc;
+    uint16_t calculated_crc;
+    bool crc_valid;
+    uint8_t trailing_metadata[4];
+    size_t trailing_metadata_length;
+} MblinkMercedesEgs53VariantCoding;
+
+bool mblink_mercedes_transmission_decode_egs53_variant_coding(
+    const uint8_t *data,
+    size_t data_length,
+    MblinkMercedesEgs53VariantCoding *decoded);
+bool mblink_mercedes_transmission_format_egs53_variant_coding(
+    const uint8_t *data,
+    size_t data_length,
+    char *buffer,
+    size_t buffer_size);
+
+/**
  * Canonical live values recoverable from a source/vehicle-corroborated
  * Mercedes GS KWP 21 30 response. The decoder qualifies the response by
  * layout/length and never treats diagnostic route 0x7E1 -> 0x7E9 as proof of
