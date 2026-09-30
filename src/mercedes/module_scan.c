@@ -84,7 +84,6 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return "discover-spare-part";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return "discover-boot-software-version";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION: return "discover-quit-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return "initialise-29-bit-can";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return "29-bit-headers-off";
@@ -579,16 +578,6 @@ static bool mblink_mercedes_module_scan_entry_control_command(
  * metadata: read it once during the census and never put it in the live PID
  * scheduler.
  */
-static bool mblink_mercedes_module_scan_is_cgw_boot_software_target(
-    const MblinkMercedesModuleScan *scan)
-{
-    return scan != NULL &&
-        !scan->candidate_extended &&
-        scan->candidate_tx == UINT32_C(0x602) &&
-        scan->candidate_rx == UINT32_C(0x480) &&
-        mblink_mercedes_module_scan_candidate_protocol(scan) ==
-            MBLINK_MERCEDES_DIAGNOSTIC_UDS;
-}
 
 MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
@@ -1551,7 +1540,6 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return WRITE("22F187");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return WRITE("22F188");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return WRITE("22F153");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
         return mblink_mercedes_module_scan_candidate_control_command(
                    scan, true, control_command)
@@ -1997,24 +1985,6 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
                     module->hardware_number,
                     sizeof(module->hardware_number));
             mblink_mercedes_module_scan_classify_controller_family(module);
-        }
-        if (module != NULL &&
-            mblink_mercedes_module_scan_is_cgw_boot_software_target(scan)) {
-            scan->stage =
-                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE;
-        } else {
-            mblink_mercedes_module_scan_advance_candidate(scan);
-        }
-        break;
-    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE:
-        module = mblink_mercedes_module_scan_find_candidate(scan);
-        if (module != NULL) {
-            module->boot_software_version_attempted = true;
-            module->boot_software_version_available =
-                mblink_mercedes_module_scan_capture_display_did(
-                    response, UINT16_C(0xf153),
-                    module->boot_software_version,
-                    sizeof(module->boot_software_version));
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
