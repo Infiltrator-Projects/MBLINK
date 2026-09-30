@@ -239,6 +239,13 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var manufacturerHistorySessionActive = false
     private var appliedPollingConfigurationKey: String?
     private var livePollingReadyRearmSignature: String?
+    /*
+     * The Modules screen needs one exact-responder PID 01 sample to know
+     * whether that ECU is requesting the MIL. This probe is transport state,
+     * not a user PID selection: after the first valid responder sample it is
+     * removed and the user's normal PID Setup selection remains authoritative.
+     */
+    private var moduleMILProbeRequired = true
 
     /*
      * v2 changes first-run policy from an automatic core set to explicit
@@ -251,6 +258,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let manufacturerCatalogueDefaultsKey =
         "mblink.manufacturer.pidCatalogueByVehicle.v4"
     private static let standardSelectionControllerIdentifier = "standard-obd"
+    private static let moduleStatusMILStableKey = "obd2.readiness.mil"
     private static let standardSelectionMigrationDefaultsKey =
         "mblink.standard.pidSelectionsGlobalMigrated.v1"
     private static let standardSelectionExplicitDefaultsKey =
@@ -384,6 +392,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     override func connect() {
         connectionAlertText = nil
         lastConnectionAlertText = nil
+        moduleMILProbeRequired = true
+        applyStoredPollingPolicy()
         super.connect()
     }
 
@@ -419,6 +429,27 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     func diagnosticModule(id: String) -> DiagnosticModule? {
         diagnosticModules.first { $0.id == id }
+    }
+
+    /// Exact-responder MIL request state for the live Modules screen.
+    /// nil means this ECU has not returned a usable Mode 01 PID 01 MIL value,
+    /// so no status light must be shown for it.
+    func moduleMILState(moduleID: String) -> Bool? {
+        guard isActive,
+              let module = diagnosticModule(id: moduleID) else { return nil }
+        let mask = moduleStatusMILFieldMask()
+        guard mask != 0,
+              let field = controller.readinessFieldSnapshots(
+                forResponderCANIdentifier: module.responseCANIdentifier,
+                extendedID: module.extendedID,
+                fieldMask: mask
+              ).first(where: {
+                $0.stableKey == Self.moduleStatusMILStableKey
+              }),
+              field.valueAvailable,
+              field.numericValueAvailable
+        else { return nil }
+        return field.numericValue != 0
     }
 
     func moduleParameters(moduleID: String) -> [DiagnosticParameter] {
@@ -1110,6 +1141,19 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return mask
     }
 
+    private func moduleStatusMILFieldMask() -> UInt64 {
+        guard let field = readinessFields().first(where: {
+            $0.stableKey == Self.moduleStatusMILStableKey
+        }), field.fieldIndex < 64 else { return 0 }
+        return UInt64(1) << UInt64(field.fieldIndex)
+    }
+
+    private func moduleMILProbeHasSample() -> Bool {
+        diagnosticModules.contains { module in
+            moduleMILState(moduleID: module.id) != nil
+        }
+    }
+
     private func controllerScopedStandardMigrationComplete(
         vin: String
     ) -> Bool {
@@ -1238,8 +1282,17 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         selection: Set<String>
     ) {
         if pid == 0x01 {
+            let selectedMask = readinessFieldMask(for: selection)
+            let moduleStatusMask = moduleMILProbeRequired
+                ? moduleStatusMILFieldMask() : 0
+            /*
+             * A temporary MIL bit may keep the one physical 01 01 request
+             * alive long enough to populate per-ECU module status. It never
+             * enters the saved selection and therefore never makes MIL appear
+             * in Dashboard/Table/Graph unless the user selected it in PID Setup.
+             */
             controller.setPollingFieldMask(
-                readinessFieldMask(for: selection), forPID: pid)
+                selectedMask | moduleStatusMask, forPID: pid)
             controller.setPollingEnabled(false, forPID: pid)
             return
         }
@@ -2151,6 +2204,17 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")
         diagnosticModules = isActive ? loadDiagnosticModules() : []
         refreshPIDConfiguration()
+
+        /*
+         * The functional 01 01 request can return several physical ECUs in
+         * one response. LINK retains those responder-attributed samples. Once
+         * at least one exact responder supplied MIL state, stop the hidden
+         * module-status probe; ECUs that did not answer simply show no light.
+         */
+        if isActive && moduleMILProbeRequired && moduleMILProbeHasSample() {
+            moduleMILProbeRequired = false
+            applyStoredPollingPolicy()
+        }
 
         /*
          * A live connection deliberately suppresses offline selections until

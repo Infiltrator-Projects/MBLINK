@@ -1251,6 +1251,26 @@ private struct MBModulesView: View {
                 .foregroundStyle(MBBrand.silver)
             }
             Spacer(minLength: 4)
+            if let milOn = connection.moduleMILState(moduleID: module.id) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(milOn ? MBBrand.fault : MBBrand.success)
+                        .frame(width: 14, height: 14)
+                        .overlay(
+                            Circle().stroke(
+                                MBBrand.silverBright.opacity(0.35),
+                                lineWidth: 1))
+                    Text("MIL")
+                        .font(MBTypography.caption2Bold)
+                        .foregroundStyle(MBBrand.silver)
+                }
+                .padding(.top, 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    milOn ? "MIL requested" : "MIL not requested")
+                .accessibilityHint(
+                    "Malfunction indicator lamp status reported by this control unit")
+            }
             Image(systemName: "chevron.right")
                 .foregroundStyle(MBBrand.muted)
                 .padding(.top, 8)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.260 — 2026-09-30
+
+- Add exact per-controller MIL status lights to the Modules screen: green when that ECU reports MIL not requested, red when it reports MIL requested, and no light when that controller does not return a usable Mode 01 PID 01 MIL value.
+- Issue one temporary hidden MIL field probe independently of PID Setup display choices, retain LINK's responder-attributed 01 01 replies, then remove the hidden probe after the first valid responder sample so normal user-selected polling remains authoritative.
+
 ## 0.7.259 — 2026-09-30
 
 - Correct the EGS53 RLI 0x30 drive-program decoder from the older two-state fallback to the four states directly corroborated on Siemens EGS53 A0034464310 (HW 06.48 / SW 18.29.00): 0 Sport, 1 Comfort, 2 Adaptive and 3 Manual.
