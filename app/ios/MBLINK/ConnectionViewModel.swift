@@ -87,6 +87,14 @@ struct EGS53VariantCodingSummary {
     let facts: [EGS53VariantCodingFact]
     let undecodedRaw: String
     let fullRaw: String
+
+    var vehicleFacts: [EGS53VariantCodingFact] {
+        facts.filter { ["axle", "tyre", "inertia"].contains($0.id) }
+    }
+
+    var moduleFacts: [EGS53VariantCodingFact] {
+        facts.filter { !["axle", "tyre", "inertia"].contains($0.id) }
+    }
 }
 
 struct MercedesTargetSignal: Identifiable {
@@ -783,6 +791,15 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     numericValue: !snapshot.isStale && snapshot.isNumericValueAvailable
                         ? snapshot.numericValue : nil)
             }
+    }
+
+    var vehicleConfigurationFacts: [EGS53VariantCodingFact] {
+        for module in pidConfigurationModules {
+            if let coding = egs53VariantCoding(moduleID: module.id) {
+                return coding.vehicleFacts
+            }
+        }
+        return []
     }
 
     func egs53VariantCoding(

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.265 — 2026-10-01
+
+- Show decoded rear axle ratio, tyre circumference and engine inertia in the Vehicle profile under Vehicle configuration, using the current VIN’s saved startup readings.
+- Remove those vehicle facts from the module card and module detail while retaining transmission-specific coding, integrity and raw evidence there. Acquisition remains startup-only, with no extra polling or PID toggles.
+
 ## 0.7.264 — 2026-09-30
 
 - Pin LINK 0.15.87 at c397e6e423d0ef0e44363c38971111a35c67f32c: fix headered CAN fault decoding, handle populated/multi-frame DTC lists and continue into readiness and recurring polling.

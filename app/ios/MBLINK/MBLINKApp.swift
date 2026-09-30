@@ -1057,6 +1057,22 @@ private struct MBVehicleView: View {
                             }
                         }
                     }
+                    if !connection.vehicleConfigurationFacts.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                MBSectionHeader(
+                                    title: "Vehicle configuration",
+                                    kicker: "Saved startup readings")
+                                MBVehicleFactGrid(facts:
+                                    connection.vehicleConfigurationFacts.map {
+                                        MBVehicleFact(label: $0.label, value: $0.value)
+                                    })
+                                Text("Decoded from the vehicle's transmission coding.")
+                                    .font(MBTypography.caption)
+                                    .foregroundStyle(MBBrand.muted)
+                            }
+                        }
+                    }
                     if !buildFacts.isEmpty {
                         MBPanel {
                             VStack(alignment: .leading, spacing: 12) {
@@ -1281,7 +1297,7 @@ private struct MBModulesView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(variantCoding.facts) { fact in
+                    ForEach(variantCoding.moduleFacts) { fact in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(fact.label)
                                 .font(MBTypography.caption2Bold)
@@ -1574,7 +1590,7 @@ private struct MBModuleDetailView: View {
 
             MBPanel {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(coding.facts) { fact in
+                    ForEach(coding.moduleFacts) { fact in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(fact.label)
@@ -1589,7 +1605,7 @@ private struct MBModuleDetailView: View {
                             Text(fact.confidence)
                                 .font(MBTypography.caption2)
                                 .foregroundStyle(MBBrand.muted)
-                            if fact.id != coding.facts.last?.id {
+                            if fact.id != coding.moduleFacts.last?.id {
                                 Divider().overlay(MBBrand.line)
                                     .padding(.top, 4)
                             }
