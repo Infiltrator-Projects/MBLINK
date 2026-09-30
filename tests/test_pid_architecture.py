@@ -46,8 +46,12 @@ require(
 require(
     "MblinkMercedesEcuPack" in ecu_pack_api
     and "mblink_mercedes_ecu_pack_resolve_module" in ecu_pack_api
-    and "mblink_mercedes_ecu_pack_data_item_at" in ecu_pack_api,
-    "Mercedes ECU identity, route, protocol and data metadata must have one public pack view",
+    and "mblink_mercedes_ecu_pack_data_item_at" in ecu_pack_api
+    and "MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE" in ecu_pack_api
+    and "MBLINK_MERCEDES_ECU_DATA_USER_POLLING" in ecu_pack_api
+    and "mblink_mercedes_ecu_pack_startup_item_at" in ecu_pack_api
+    and "mblink_mercedes_ecu_pack_polling_item_at" in ecu_pack_api,
+    "every resolved Mercedes ECU pack must expose explicit startup-once and user-polling sections",
 )
 
 apple_api = (ROOT / "platform/apple/MBLinkDiagnosticsController.h").read_text(
@@ -63,6 +67,10 @@ model = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
     encoding="utf-8"
 )
 controller = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
+    encoding="utf-8"
+)
+module_scan = (ROOT / "src/mercedes/module_scan.c").read_text(encoding="utf-8")
+module_scan_api = (ROOT / "include/mblink/mercedes_module_scan_core.h").read_text(
     encoding="utf-8"
 )
 require(
@@ -154,6 +162,15 @@ require(
     and "PID configuration" not in modules_view,
     "Modules screen must remain ECU inventory only and must not expose PID setup",
 )
+module_detail_start = app.index("private struct MBModuleDetailView")
+module_detail_end = app.index("private struct MBFactoryReadingsView", module_detail_start)
+module_detail_view = app[module_detail_start:module_detail_end]
+require(
+    "Startup module data" in module_detail_view
+    and "Read once at connection · never recurring" in module_detail_view
+    and "startupModuleData(" in model,
+    "one-time ECU data must be presented on the module card rather than as an available PID",
+)
 live_start = app.index("private struct MBLiveDataView")
 live_end = app.index("private struct MBDataTableView", live_start)
 live_view = app[live_start:live_end]
@@ -180,7 +197,7 @@ require(
     and "pollable" not in app
     and "documentedDefinitions.map" in model
     and ".filter { selected.contains($0.selectionKey) }" in model,
-    "iPhone PID Setup must be documentation-driven with no separate pollable gate",
+    "iPhone PID Setup must remain documentation-driven; startup-vs-polling ownership belongs to the ECU pack, not an extra UI gate",
 )
 require(
     "transmissionLiveValueSnapshots(" in model
@@ -199,10 +216,28 @@ require(
     "Mode 01 PID 01 must be captured once at startup, shown per responder on Modules, and excluded from recurring PID polling",
 )
 require(
-    "documentedLiveIdentifiersForModuleIdentifier" not in controller
-    and "documentedPIDCommandsForModuleIdentifier" in controller
-    and "if (!definition.live) continue;" not in controller,
-    "iPhone polling must attempt every selected documented read without a hidden live/pollable gate",
+    "mblink_mercedes_ecu_pack_polling_item_count" in documented_defs
+    and "mblink_mercedes_ecu_pack_polling_item_at" in documented_defs
+    and "mblink_mercedes_ecu_pack_data_item_at" not in documented_defs,
+    "PID Setup must be built only from the resolved ECU pack's user-polling section",
+)
+require(
+    "beginNextStartupModuleDataRead" in controller
+    and "mblink_mercedes_ecu_pack_startup_item_count" in controller
+    and "mblink_mercedes_ecu_pack_startup_item_at" in controller
+    and "_startupModuleDataPassActive" in controller
+    and "Reading one-time Mercedes module data" in controller,
+    "startup module data must run through one generic post-discovery per-ECU pass",
+)
+require(
+    "DISCOVERY_ORC_RESTRAINT_CONFIGURATION" not in module_scan
+    and "DISCOVERY_ORC_LOCK_STATE" not in module_scan
+    and "DISCOVERY_ORC_RESTRAINT_CONFIGURATION" not in module_scan_api
+    and "DISCOVERY_ORC_LOCK_STATE" not in module_scan_api
+    and "DISCOVERY_BOOT_SOFTWARE" not in module_scan
+    and "DISCOVERY_BOOT_SOFTWARE" not in module_scan_api
+    and "beginStartupEgs53VariantCodingReadIfAvailable" not in controller,
+    "startup-only reads must not add controller-specific stages to module discovery",
 )
 require(
     "MBLinkManufacturerCommandToken" in controller
@@ -214,16 +249,21 @@ require(
     "manufacturer polling must preserve service plus identifier so KWP 1A and 21 reads cannot collapse to the wrong wire command",
 )
 require(
+    "mblink_mercedes_ecu_pack_polling_item_count(&pack)" in controller
+    and "mblink_mercedes_ecu_pack_polling_item_at(" in controller,
+    "the recurring scheduler must reject startup-only commands even if stale settings try to submit one",
+)
+require(
     "mblink_mercedes_documented_read_is_safe(" in ecu_pack
     and "entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED" in ecu_pack
     and "MBLINK_MERCEDES_ECU_DATA_RAW_OBSERVED" in ecu_pack
-    and "item->advertised = item->live" in ecu_pack,
-    "PID Setup must expose every safe source-backed exact-controller read while capture-only raw evidence stays out",
+    and "classify_item_acquisition(pack, item)" in ecu_pack,
+    "the complete source-backed ECU catalogue must be retained, then explicitly classified into startup or polling without promoting capture-only raw evidence",
 )
 require(
-    "mblink.manufacturer.pidCatalogueByVehicle.v4" in model
-    and "mblink.manufacturer.pidCatalogueByVehicle.v3" not in model,
-    "legacy pollable/read-only manufacturer PID catalogue caches must not survive the documented-PID policy change",
+    "mblink.manufacturer.pidCatalogueByVehicle.v5" in model
+    and "mblink.manufacturer.pidCatalogueByVehicle.v4" not in model,
+    "pre-split manufacturer PID catalogue caches must not leak startup-only items back into PID Setup",
 )
 require(
     "let documentedDefinitions = controller.documentedDataDefinitions(" in model
