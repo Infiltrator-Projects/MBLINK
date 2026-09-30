@@ -76,6 +76,36 @@ static void clear_item(MblinkMercedesEcuDataItem *item)
     if (item != NULL) memset(item, 0, sizeof(*item));
 }
 
+static const char *controller_specific_read_name(
+    const MblinkMercedesEcuPack *pack,
+    uint8_t service,
+    uint16_t identifier,
+    const char *fallback)
+{
+    const char *key;
+
+    if (pack == NULL || pack->controller_family == NULL ||
+        pack->controller_family->key == NULL ||
+        service != UINT8_C(0x21)) {
+        return fallback;
+    }
+
+    key = pack->controller_family->key;
+    if (strcmp(key, "restraints-orc204") != 0 &&
+        strcmp(key, "restraints-orc212") != 0) {
+        return fallback;
+    }
+
+    switch (identifier) {
+    case UINT16_C(0x0002):
+        return "Restraint equipment configuration";
+    case UINT16_C(0x0058):
+        return "ECU lock state / tester identification";
+    default:
+        return fallback;
+    }
+}
+
 static const MblinkMercedesDocumentedEcuProfile *
 pack_profile_for_controller(
     const MblinkMercedesControllerFamilyDefinition *controller,
@@ -413,7 +443,8 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         if (entry == NULL) return false;
         item->service = entry->service;
         item->identifier = entry->identifier;
-        item->name = entry->name;
+        item->name = controller_specific_read_name(
+            pack, entry->service, entry->identifier, entry->name);
         if (entry->status ==
                 MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
             item->kind = entry->live
@@ -449,9 +480,10 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         if (read == NULL) return false;
         item->service = read->service;
         item->identifier = read->identifier;
-        item->name =
+        item->name = controller_specific_read_name(
+            pack, read->service, read->identifier,
             mblink_mercedes_documented_read_name(
-                read->service, read->identifier);
+                read->service, read->identifier));
         {
             const bool identification = is_identification_read(
                 read->service, read->identifier);
