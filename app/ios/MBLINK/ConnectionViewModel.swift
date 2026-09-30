@@ -592,7 +592,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             /*
              * PID Setup remains documentation-driven. Static startup metadata
              * is removed only after the complete controller catalogue is
-             * materialised; there is no separate "pollable" qualification.
+             * materialised; there is no separate runtime qualification.
              * CGW DID F153 is the boot software version and belongs on Modules.
              */
             definitions = documentedDefinitions.map { definition in
