@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.256 — 2026-09-30
+
+- Separate user-facing logical values from physical diagnostic source requests so several enabled values carried by one OBD/KWP record share one wire poll rather than becoming duplicate requests.
+- Split Mode 01 PID 0x01 into independently selectable MIL, confirmed emissions DTC count, ignition-layout and readiness-monitor values while retaining one physical `01 01` request whenever any constituent field is enabled.
+- Pin LINK 0.15.82 and pass the PID 0x01 logical selection as a per-source field mask; only selected fields are decoded and promoted to telemetry, history and display values even though the standards-defined response bytes arrive together.
+- Preserve existing saved PID-01 choices by expanding the old whole-PID selection into the new constituent logical values instead of losing prior user intent.
+- Apply the same grouped-read rule to Mercedes EGS53 `21 30`: selected transmission values are collapsed to one KWP request and the decoder receives a field mask so unselected gear, torque, pressure, speed and state fields are not interpreted.
+- Keep PID Setup, module views, Dashboard, Graphs and Table on the same logical selection set so an OFF constituent field cannot reappear from cached data.
+- Add portable, Apple and architecture regressions proving one or many logical selections still schedule exactly one source request and that selective extraction preserves the captured PID 0x01 and EGS53 behaviours.
+
 ## 0.7.255 — 2026-09-30
 
 - Populate PID Setup from both exact controller-data sources and exact Foxwell/Xentry read profiles: every safe source-backed readable item for the identified controller is selectable during the current catalogue-completion phase, without filtering slow-changing, static-looking, identification or configuration values.
