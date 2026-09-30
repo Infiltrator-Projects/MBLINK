@@ -122,8 +122,8 @@ def check_stable_architecture_contract() -> None:
     contract = (ROOT / "docs/PID_ARCHITECTURE.md").read_text(encoding="utf-8")
     flattened = " ".join(contract.split())
     required = [
-        "Standard OBD choices use one VIN-scoped selection",
-        "Mercedes choices remain VIN-and-module scoped",
+        "Standard OBD choices are VIN-and-controller scoped",
+        "Mercedes choices remain VIN-and-controller scoped",
         "Unknown or unresolved modules may still appear in the module list.",
         "They must not be assigned invented semantics.",
     ]

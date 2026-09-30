@@ -184,10 +184,12 @@ require(
 )
 require(
     "readinessFieldSnapshots" in model
+    and "readinessFieldSnapshots(" in model
+    and "forResponderCANIdentifier:" in model
     and "setPollingFieldMask" in model
     and "readinessFieldMask(for: selection)" in model
-    and "shares one 01 01 request" in model,
-    "standard grouped PID fields must be independently selectable while sharing one source request",
+    and "one shared 01 01 request" in model,
+    "standard grouped PID fields must be independently selectable per responder while sharing one functional source request",
 )
 require(
     "documentedLiveIdentifiersForModuleIdentifier" not in controller
@@ -268,13 +270,30 @@ require(
     "iPhone PID Setup must not invent source-completeness or pollability states",
 )
 require(
-    'item.source == .standard ? "SAE" : "DOCUMENTED"' in app
-    and "No documented PIDs are currently defined for this ECU." in app,
-    "manufacturer PID rows must represent documented PIDs, independent of whether this vehicle has answered them",
+    "item.sourceText" in app
+    and "No OBD-II or documented Mercedes data is currently available for this controller." in app
+    and "item.selectionKey" in app,
+    "controller PID rows must preserve independent source-labelled OBD-II and documented Mercedes selections",
 )
 require(
-    "Legislated OBD-II responders are intentionally not represented" in controller,
-    "standard OBD responders must not be synthesized into the Mercedes Modules inventory",
+    "Legislated OBD-II responders are intentionally not represented" in controller
+    and "controllerPIDCatalogueItems" in model
+    and "scopedChannelID" in model
+    and "moduleStandardSelectionSet" in model
+    and "aggregateStandardPollingKeys" in model,
+    "Mercedes Modules must remain identity-driven while PID Setup attaches exact-responder OBD channels to their physical controller",
+)
+require(
+    'title: "OBD / EOBD"' not in app
+    and "controllerPIDCatalogueItems(" in app
+    and "item.sourceText" in app,
+    "PID Setup must be controller-first and show OBD-II/KWP2000/UDS source labels inside each controller",
+)
+require(
+    "standardPIDCatalogueItems(moduleID:" in model
+    and "pidSupportByModule[moduleID]" in model
+    and "Advertised by this controller" in model,
+    "controller OBD catalogue membership must come from that responder's advertised/cached capability map",
 )
 require(
     '"controllerFamily"' in controller

@@ -150,7 +150,7 @@ module there must never change live-PID selections or create recurring polling.
 
 Selections are stored per VIN and, where relevant, per controller/module. Reconnecting to the same VIN restores the user's own choices. Loading a saved VIN profile offline must expose the same configuration without pretending a live vehicle is attached.
 
-Standard OBD choices use one VIN-scoped selection because the scheduler issues
+Standard OBD choices are VIN-and-controller scoped because the scheduler issues
 one functional Mode 01 request and retains responder-specific replies. Mercedes
 choices remain VIN-and-module scoped. Correctly spelled stable identifiers are
 persistent API: a migration may recognise an older misspelling, but newly

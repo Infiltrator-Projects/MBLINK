@@ -599,7 +599,7 @@ private struct MBCommandCentreView: View {
         VStack(alignment: .leading, spacing: 14) {
             MBSectionHeader(title: "Tools", kicker: "Measurements, records and settings")
             LinkDiagnosticGrid {
-                MBHomeTile("PID Setup", "OBD first, then documented data for each discovered module", "switch.2") { MBPIDSetupView() }
+                MBHomeTile("PID Setup", "All OBD-II and Mercedes data grouped by controller", "switch.2") { MBPIDSetupView() }
                 MBHomeTile("Evidence", "Session history and CSV export", "doc.text.magnifyingglass") { MBEvidenceView() }
                 MBHomeTile("Readiness", "Monitor status and freeze-frame records", "checkmark.square.fill") { MBTestsView() }
                 MBHomeTile("Settings", "Adapter, units and application preferences", "gearshape.fill") { MBSettingsView() }
@@ -727,7 +727,7 @@ private struct MBPIDSetupView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     MBSectionHeader(
                         title: "PID Setup",
-                        kicker: "OBD first · then each discovered controller")
+                        kicker: "Controller first · OBD-II + Mercedes data together")
 
                     MBPanel {
                         VStack(alignment: .leading, spacing: 8) {
@@ -784,20 +784,12 @@ private struct MBPIDSetupView: View {
                             .buttonStyle(.bordered)
                             .disabled(connection.pidConfigurationVehicleVIN == nil)
 
-                            Text("This keeps the saved VIN, control-unit map and diagnostic evidence. It only turns every Standard OBD and Mercedes live-polling choice OFF so you can select a clean set again.")
+                            Text("This keeps the saved VIN, control-unit map and diagnostic evidence. It only turns every controller's OBD-II and Mercedes polling choice OFF so you can select a clean set again.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-
-                    MBPIDCatalogueSection(
-                        title: "OBD / EOBD",
-                        subtitle: "SAE J1979 live data",
-                        symbol: "cpu",
-                        addressText: "Legislated OBD · vehicle-wide",
-                        items: connection.standardPIDCatalogueItems(),
-                        moduleID: nil)
 
                     if connection.pidConfigurationModules.isEmpty {
                         MBPanel {
@@ -814,7 +806,7 @@ private struct MBPIDSetupView: View {
                                     : module.designation,
                                 symbol: module.symbol,
                                 addressText: module.addressText,
-                                items: connection.manufacturerPIDCatalogueItems(
+                                items: connection.controllerPIDCatalogueItems(
                                     moduleID: module.id),
                                 moduleID: module.id)
                         }
@@ -846,7 +838,7 @@ private struct MBPIDCatalogueSection: View {
     let symbol: String
     let addressText: String
     let items: [MBPIDCatalogueItem]
-    let moduleID: String?
+    let moduleID: String
     @State private var expanded = true
 
     private var selectedCount: Int {
@@ -905,9 +897,7 @@ private struct MBPIDCatalogueSection: View {
                     Divider().overlay(MBBrand.line)
 
                     if items.isEmpty {
-                        Text(moduleID == nil
-                             ? "No standard Mode 01 definitions are compiled."
-                             : "No documented PIDs are currently defined for this ECU.")
+                        Text("No OBD-II or documented Mercedes data is currently available for this controller.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -934,7 +924,7 @@ private struct MBPIDCatalogueSection: View {
                     Text(item.codeText)
                         .font(MBTypography.caption2.monospaced())
                         .foregroundStyle(MBBrand.muted)
-                    Text(item.source == .standard ? "SAE" : "DOCUMENTED")
+                    Text(item.sourceText)
                         .font(MBTypography.caption2Bold)
                         .foregroundStyle(
                             item.source == .standard
@@ -946,9 +936,7 @@ private struct MBPIDCatalogueSection: View {
                     .foregroundStyle(MBBrand.silverBright)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(item.source == .standard
-                     ? (item.advertised
-                        ? "Advertised by this vehicle"
-                        : item.provenance)
+                     ? "Advertised by this controller · \(item.provenance)"
                      : item.provenance)
                     .font(MBTypography.caption2)
                     .foregroundStyle(
@@ -963,15 +951,16 @@ private struct MBPIDCatalogueSection: View {
                 isOn: Binding(
                     get: { item.pollingEnabled },
                     set: { enabled in
-                        if let moduleID {
+                        if item.source == .standard {
+                            connection.setStandardPIDSelection(
+                                enabled,
+                                moduleID: moduleID,
+                                stableKey: item.selectionKey)
+                        } else {
                             connection.setManufacturerPIDSelection(
                                 enabled,
                                 moduleID: moduleID,
-                                stableKey: item.id)
-                        } else {
-                            connection.setStandardPIDSelection(
-                                enabled,
-                                stableKey: item.id)
+                                stableKey: item.selectionKey)
                         }
                     }))
                 .labelsHidden()
