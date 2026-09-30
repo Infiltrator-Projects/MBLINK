@@ -151,8 +151,7 @@ module there must never change live-PID selections or create recurring polling.
 Selections are stored per VIN and, where relevant, per controller/module. Reconnecting to the same VIN restores the user's own choices. Loading a saved VIN profile offline must expose the same configuration without pretending a live vehicle is attached.
 
 Standard OBD choices are VIN-and-controller scoped because the scheduler issues
-one functional Mode 01 request and retains responder-specific replies. Mercedes
-choices remain VIN-and-module scoped. Correctly spelled stable identifiers are
+one functional Mode 01 request and retains responder-specific replies. Mercedes choices remain VIN-and-controller scoped. Correctly spelled stable identifiers are
 persistent API: a migration may recognise an older misspelling, but newly
 written catalogue and selection records must use the canonical identifier.
 
@@ -251,8 +250,8 @@ A release satisfies this design only when all of the following are true:
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
 - Mode 01 PID 0x01 exposes its constituent readiness values as independent per-controller choices; selections across one or several responders still de-duplicate to one functional 0x01 request, while each response is decoded using that responder's own field mask.
 - Unselected fields in a grouped response are not decoded into presentation telemetry merely because the shared response carried their bytes.
-- Standard selections persist by VIN, Mercedes selections persist by
-  VIN/module, and both can be edited from a saved offline vehicle profile.
+- Standard and Mercedes selections both persist by VIN/controller, and both can
+  be edited from a saved offline vehicle profile.
 - Unknown modules are not assigned invented PID meanings.
 - Opening PID Setup does not launch a brute-force scan.
 - PID Setup is the only UI that can enable or disable live channels.
