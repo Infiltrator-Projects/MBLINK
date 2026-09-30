@@ -132,6 +132,7 @@ typedef struct MblinkMercedesModuleScanEntry {
     char software_number[64];
     bool hardware_number_available;
     char hardware_number[64];
+    bool boot_software_version_attempted;
     bool boot_software_version_available;
     char boot_software_version[64];
     const MblinkMercedesModuleDefinition *definition;
