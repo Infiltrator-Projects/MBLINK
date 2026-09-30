@@ -1225,11 +1225,8 @@ private struct MBModulesView: View {
             connection.moduleStartupReadinessFields(moduleID: module.id)
         let variantCoding =
             connection.egs53VariantCoding(moduleID: module.id)
-        let bootSoftwareVersion =
-            connection.moduleBootSoftwareVersion(moduleID: module.id)
         let startupModuleData =
             connection.startupModuleData(moduleID: module.id).filter {
-                !($0.service == 0x22 && $0.identifier == 0xF153) &&
                 !($0.service == 0x21 && $0.identifier == 0x00B1)
             }
 
@@ -1252,18 +1249,6 @@ private struct MBModulesView: View {
                     Text("\(module.addressText) · \(module.protocolName)")
                         .font(MBTypography.caption2)
                         .foregroundStyle(MBBrand.muted)
-                    if let bootSoftwareVersion {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("Boot software")
-                                .font(MBTypography.caption2Bold)
-                                .foregroundStyle(MBBrand.silver)
-                            Text(bootSoftwareVersion)
-                                .font(MBTypography.caption2.monospaced())
-                                .foregroundStyle(MBBrand.silverBright)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                        }
-                    }
                     HStack(spacing: 8) {
                         Label(
                             connection.isActive
@@ -1464,7 +1449,6 @@ private struct MBModuleDetailView: View {
 
     private var startupCardValues: [MercedesModuleDataValue] {
         startupValues.filter {
-            !($0.service == 0x22 && $0.identifier == 0xF153) &&
             !($0.service == 0x21 && $0.identifier == 0x00B1)
         }
     }
@@ -1551,11 +1535,6 @@ private struct MBModuleDetailView: View {
                 MBInfoRow(
                     label: "Hardware version",
                     value: moduleIdentityValue(module.hardwareNumber))
-                MBInfoRow(
-                    label: "Boot software version",
-                    value: moduleIdentityValue(
-                        connection.moduleBootSoftwareVersion(
-                            moduleID: module.id)))
             }
         }
     }
