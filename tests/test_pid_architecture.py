@@ -202,6 +202,11 @@ require(
     "iPhone PID Setup must remain documentation-driven; startup-vs-polling ownership belongs to the ECU pack, not an extra UI gate",
 )
 require(
+    "identifier == 0xF153" not in model
+    and "service == 0x22 && identifier == 0xF153" not in model,
+    "PID Setup must not carry startup-item exceptions; the ECU pack owns the split",
+)
+require(
     "transmissionLiveValueSnapshots(" in model
     and "identifiers: Array(selected)" in model
     and ".filter { selected.contains($0.identifier) }" not in model,
@@ -238,8 +243,9 @@ require(
     and "DISCOVERY_ORC_LOCK_STATE" not in module_scan_api
     and "DISCOVERY_BOOT_SOFTWARE" not in module_scan
     and "DISCOVERY_BOOT_SOFTWARE" not in module_scan_api
+    and "F153" not in module_scan
     and "beginStartupEgs53VariantCodingReadIfAvailable" not in controller,
-    "startup-only reads must not add controller-specific stages to module discovery",
+    "startup-only reads must not add controller-specific stages or commands to module discovery",
 )
 require(
     "MBLinkManufacturerCommandToken" in controller
