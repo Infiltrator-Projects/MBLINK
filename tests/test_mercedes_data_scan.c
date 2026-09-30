@@ -697,7 +697,7 @@ static bool route_evidence_has(
             mblink_mercedes_route_evidence_identifier_at(
                 tx, rx, false, protocol, kind, index);
         if (entry != NULL && entry->identifier == identifier) {
-            if (live != NULL) *live = entry->source_dynamic_hint;
+            if (live != NULL) *live = entry->live;
             return true;
         }
     }
