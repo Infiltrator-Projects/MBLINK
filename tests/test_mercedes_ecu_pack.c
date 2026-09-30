@@ -293,60 +293,58 @@ static int test_orc_dashboard_pid_names_are_specific(void)
     return 0;
 }
 
-static int test_documented_reads_are_selectable_in_pid_catalogue(void)
+static int test_documented_reads_are_classified_by_acquisition(void)
 {
     static const struct {
         const char *controller_key;
         uint32_t tx;
         uint32_t rx;
-        uint16_t documented_identifier;
+        uint16_t identifier;
+        bool startup;
     } cases[] = {
         { "restraints-orc212", UINT32_C(0x64a), UINT32_C(0x489),
-          UINT16_C(0x58) },
+          UINT16_C(0x58), true },
         { "headunit-hu204", UINT32_C(0x652), UINT32_C(0x48a),
-          UINT16_C(0xe1) }
+          UINT16_C(0xe1), false }
     };
 
-    /*
-     * Catalogue-completion phase: a safe read documented for the exact
-     * controller belongs in PID Setup even when it was historically described
-     * as static/manual data.
-     */
     for (size_t case_index = 0U;
-         case_index < sizeof(cases) / sizeof(cases[0]);
-         ++case_index) {
+         case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
         MblinkMercedesEcuPack pack;
-        MblinkMercedesEcuDataItem item;
-        bool saw_documented = false;
+        bool found = false;
 
         CHECK(mblink_mercedes_ecu_pack_resolve(
             NULL, cases[case_index].controller_key,
             cases[case_index].tx, cases[case_index].rx, false,
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
-        for (size_t index = 0U;
-             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
-             ++index) {
-            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+        const size_t count = cases[case_index].startup
+            ? mblink_mercedes_ecu_pack_startup_item_count(&pack)
+            : mblink_mercedes_ecu_pack_polling_item_count(&pack);
+        for (size_t index = 0U; index < count; ++index) {
+            MblinkMercedesEcuDataItem item;
+            const bool ok = cases[case_index].startup
+                ? mblink_mercedes_ecu_pack_startup_item_at(
+                    &pack, index, &item)
+                : mblink_mercedes_ecu_pack_polling_item_at(
+                    &pack, index, &item);
+            CHECK(ok);
             if (item.service == UINT8_C(0x21) &&
-                item.identifier == cases[case_index].documented_identifier &&
-                item.status ==
-                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-                item.kind == MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ) {
-                saw_documented = true;
+                item.identifier == cases[case_index].identifier) {
+                found = true;
+                CHECK(item.status ==
+                    MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
                 CHECK(item.advertised);
-                CHECK(item.live);
             }
         }
-        CHECK(saw_documented);
+        CHECK(found);
     }
     return 0;
 }
 
-static int test_documented_identification_reads_are_selectable(void)
+static int test_documented_identification_reads_are_startup_data(void)
 {
     MblinkMercedesEcuPack pack;
-    MblinkMercedesEcuDataItem item;
     bool saw_identity = false;
 
     CHECK(mblink_mercedes_ecu_pack_resolve(
@@ -355,23 +353,24 @@ static int test_documented_identification_reads_are_selectable(void)
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
     for (size_t index = 0U;
-         index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+         index < mblink_mercedes_ecu_pack_startup_item_count(&pack);
          ++index) {
-        CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+        MblinkMercedesEcuDataItem item;
+        CHECK(mblink_mercedes_ecu_pack_startup_item_at(&pack, index, &item));
         if (item.service == UINT8_C(0x1a) &&
             item.identifier == UINT16_C(0x87) &&
             item.status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
             saw_identity = true;
             CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_IDENTIFICATION);
-            CHECK(item.advertised);
-            CHECK(item.live);
+            CHECK(item.acquisition == MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
+            CHECK(item.acquired_during_identification);
         }
     }
     CHECK(saw_identity);
     return 0;
 }
 
-static int test_documented_controller_data_stays_selectable_in_pid_setup(void)
+static int test_documented_polling_controller_data_stays_selectable(void)
 {
     static const struct {
         const char *module_key;
@@ -391,15 +390,13 @@ static int test_documented_controller_data_stays_selectable_in_pid_setup(void)
     };
 
     /*
-     * These source-backed controller Data services are deliberately selectable
-     * in PID Setup even when a value changes rarely or appears static in one
-     * capture. Monitoring membership comes from the exact controller
-     * definition, never from whether this particular vehicle has responded.
+     * These individually reviewed controller Data services remain on the
+     * user-polling side. Static items move only when their semantics have been
+     * established; one quiet capture must never reclassify a documented read.
      */
     for (size_t case_index = 0U;
          case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
         MblinkMercedesEcuPack pack;
-        MblinkMercedesEcuDataItem item;
         bool found = false;
 
         CHECK(mblink_mercedes_ecu_pack_resolve(
@@ -409,16 +406,18 @@ static int test_documented_controller_data_stays_selectable_in_pid_setup(void)
             MBLINK_MERCEDES_DIAGNOSTIC_UDS, &pack));
 
         for (size_t index = 0U;
-             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             index < mblink_mercedes_ecu_pack_polling_item_count(&pack);
              ++index) {
-            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+            MblinkMercedesEcuDataItem item;
+            CHECK(mblink_mercedes_ecu_pack_polling_item_at(
+                &pack, index, &item));
             if (item.service == UINT8_C(0x22) &&
                 item.identifier == cases[case_index].identifier &&
                 item.status ==
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
                 found = true;
-                CHECK(item.kind == MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE);
-                CHECK(item.live);
+                CHECK(item.acquisition ==
+                    MBLINK_MERCEDES_ECU_DATA_USER_POLLING);
                 CHECK(item.advertised);
             }
         }
@@ -563,7 +562,7 @@ static int test_exact_204_controller_family_resolution(void)
     return 0;
 }
 
-static int test_all_c207_exact_profile_reads_reach_pid_setup(void)
+static int test_all_c207_exact_profile_reads_reach_one_pack_section(void)
 {
     static const struct {
         const char *controller_key;
@@ -621,7 +620,7 @@ static int test_all_c207_exact_profile_reads_reach_pid_setup(void)
             const MblinkMercedesDocumentedRead *read =
                 mblink_mercedes_documented_ecu_read_at(
                     pack.documented_profile, read_index);
-            bool found_selectable = false;
+            bool found = false;
             CHECK(read != NULL);
             CHECK(mblink_mercedes_documented_read_is_safe(
                 read->service, read->identifier));
@@ -635,19 +634,22 @@ static int test_all_c207_exact_profile_reads_reach_pid_setup(void)
                 if (item.service == read->service &&
                     item.identifier == read->identifier &&
                     item.status ==
-                        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-                    item.live && item.advertised) {
-                    found_selectable = true;
+                        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+                    CHECK(item.acquisition ==
+                              MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE ||
+                          item.acquisition ==
+                              MBLINK_MERCEDES_ECU_DATA_USER_POLLING);
+                    found = true;
                     break;
                 }
             }
-            CHECK(found_selectable);
+            CHECK(found);
         }
     }
     return 0;
 }
 
-static int test_all_c207_source_backed_controller_data_reaches_pid_setup(void)
+static int test_all_c207_source_backed_controller_data_is_classified(void)
 {
     static const struct {
         const char *controller_key;
@@ -719,8 +721,11 @@ static int test_all_c207_source_backed_controller_data_reaches_pid_setup(void)
                 if (item.service == entry->service &&
                     item.identifier == entry->identifier &&
                     item.status ==
-                        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-                    item.live && item.advertised) {
+                        MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
+                    CHECK(item.acquisition ==
+                              MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE ||
+                          item.acquisition ==
+                              MBLINK_MERCEDES_ECU_DATA_USER_POLLING);
                     found = true;
                     break;
                 }
@@ -729,28 +734,6 @@ static int test_all_c207_source_backed_controller_data_reaches_pid_setup(void)
         }
     }
     return 0;
-}
-
-static bool pack_section_contains(
-    const MblinkMercedesEcuPack *pack,
-    bool startup,
-    uint8_t service,
-    uint16_t identifier)
-{
-    const size_t count = startup
-        ? mblink_mercedes_ecu_pack_startup_item_count(pack)
-        : mblink_mercedes_ecu_pack_polling_item_count(pack);
-
-    for (size_t index = 0U; index < count; ++index) {
-        MblinkMercedesEcuDataItem item;
-        const bool ok = startup
-            ? mblink_mercedes_ecu_pack_startup_item_at(pack, index, &item)
-            : mblink_mercedes_ecu_pack_polling_item_at(pack, index, &item);
-        if (!ok) continue;
-        if (item.service == service && item.identifier == identifier)
-            return true;
-    }
-    return false;
 }
 
 static int test_startup_and_polling_sections_are_separate(void)
@@ -862,14 +845,14 @@ int main(void)
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
     if (test_orc204_and_orc212_keep_separate_exact_catalogues() != 0) return 1;
     if (test_orc_dashboard_pid_names_are_specific() != 0) return 1;
-    if (test_documented_reads_are_selectable_in_pid_catalogue() != 0) return 1;
-    if (test_documented_identification_reads_are_selectable() != 0) return 1;
-    if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
+    if (test_documented_reads_are_classified_by_acquisition() != 0) return 1;
+    if (test_documented_identification_reads_are_startup_data() != 0) return 1;
+    if (test_documented_polling_controller_data_stays_selectable() != 0) return 1;
     if (test_documented_pid_catalogue_does_not_depend_on_vehicle_response() != 0) return 1;
     if (test_generated_cbf_controller_pid_catalogues() != 0) return 1;
     if (test_exact_204_controller_family_resolution() != 0) return 1;
-    if (test_all_c207_exact_profile_reads_reach_pid_setup() != 0) return 1;
-    if (test_all_c207_source_backed_controller_data_reaches_pid_setup() != 0) return 1;
+    if (test_all_c207_exact_profile_reads_reach_one_pack_section() != 0) return 1;
+    if (test_all_c207_source_backed_controller_data_is_classified() != 0) return 1;
     if (test_startup_and_polling_sections_are_separate() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
