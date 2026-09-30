@@ -2175,6 +2175,90 @@ static bool record_is_transmission_kwp(
             MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
 }
 
+static bool record_is_orc_kwp(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record)
+{
+    return !extended_id &&
+        tx_can_id == UINT32_C(0x64a) &&
+        rx_can_id == UINT32_C(0x489) &&
+        module_kind == MBLINK_MERCEDES_MODULE_RESTRAINTS &&
+        record != NULL &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER;
+}
+
+static bool format_orc_kwp_record(
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    int count;
+
+    if (record == NULL || buffer == NULL || buffer_size == 0U ||
+        name == NULL) {
+        return false;
+    }
+
+    switch ((uint8_t)record->identifier) {
+    case UINT8_C(0x02):
+        /*
+         * Foxwell/Xentry ORC metadata uses 21 02 as the filter source for
+         * installed restraint equipment (pyro fuse, curtain/rear side bags,
+         * driver knee bag and rear-door pressure satellites). The public
+         * source establishes the record's semantics but not a sufficiently
+         * precise portable bit layout for every ORC generation, so preserve
+         * the configuration bytes rather than inventing individual states.
+         */
+        *name = "Restraint equipment configuration";
+        if (record->data_length == 0U) return false;
+        {
+            size_t offset = 0U;
+            for (size_t index = 0U; index < record->data_length; ++index) {
+                const int written = snprintf(
+                    buffer + offset, buffer_size - offset,
+                    index == 0U ? "Configuration %02X" : "%02X",
+                    (unsigned int)record->data[index]);
+                if (written <= 0 ||
+                    (size_t)written >= buffer_size - offset) {
+                    buffer[0] = '\0';
+                    return false;
+                }
+                offset += (size_t)written;
+            }
+        }
+        return true;
+
+    case UINT8_C(0x58):
+        /*
+         * Mercedes ORC_204 CBF names 21 58 ECU lock state. A Mercedes DAS
+         * restraint-controller report independently exposes the adjacent
+         * four-byte tester identification. The captured C207 response
+         * 61 58 00 90 55 68 00 therefore has a one-byte lock-state code
+         * followed by tester ID 90556800. Do not assign locked/unlocked
+         * semantics to the status code until its enum is source-backed.
+         */
+        *name = "ECU lock state / tester identification";
+        if (record->data_length != 5U) return false;
+        count = snprintf(
+            buffer, buffer_size,
+            "Lock state 0x%02X · tester identification %02X%02X%02X%02X",
+            (unsigned int)record->data[0],
+            (unsigned int)record->data[1],
+            (unsigned int)record->data[2],
+            (unsigned int)record->data[3],
+            (unsigned int)record->data[4]);
+        return count >= 0 && (size_t)count < buffer_size;
+
+    default:
+        return false;
+    }
+}
+
 static bool format_ascii_payload(
     const uint8_t *data,
     size_t data_length,
@@ -2213,7 +2297,16 @@ bool mblink_mercedes_data_record_format_known_for_route(
     if (name != NULL) *name = NULL;
     if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
     if (record == NULL || buffer == NULL || buffer_size == 0U ||
-        name == NULL || !record_is_transmission_kwp(
+        name == NULL) {
+        return false;
+    }
+
+    if (record_is_orc_kwp(
+            tx_can_id, rx_can_id, extended_id, module_kind, record)) {
+        return format_orc_kwp_record(record, buffer, buffer_size, name);
+    }
+
+    if (!record_is_transmission_kwp(
             tx_can_id, rx_can_id, extended_id, module_kind, record)) {
         return false;
     }
