@@ -84,6 +84,7 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return "discover-spare-part";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return "discover-boot-software-version";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION: return "discover-quit-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return "initialise-29-bit-can";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return "29-bit-headers-off";
@@ -572,6 +573,23 @@ static bool mblink_mercedes_module_scan_entry_control_command(
         command, 5U);
 }
 
+/*
+ * CGW_204 on the documented 0x602 -> 0x480 route exposes its boot software
+ * version through proprietary UDS DID F153.  This is static ECU identity
+ * metadata: read it once during the census and never put it in the live PID
+ * scheduler.
+ */
+static bool mblink_mercedes_module_scan_is_cgw_boot_software_target(
+    const MblinkMercedesModuleScan *scan)
+{
+    return scan != NULL &&
+        !scan->candidate_extended &&
+        scan->candidate_tx == UINT32_C(0x602) &&
+        scan->candidate_rx == UINT32_C(0x480) &&
+        mblink_mercedes_module_scan_candidate_protocol(scan) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS;
+}
+
 MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
     const MblinkMercedesModuleScan *scan)
@@ -958,6 +976,58 @@ bool mblink_mercedes_module_scan_capture_text_did(
     }
     destination[length] = '\0';
     return true;
+}
+
+static bool mblink_mercedes_module_scan_capture_display_did(
+    const MblinkElm327Response *response,
+    uint16_t did,
+    char *destination,
+    size_t destination_capacity)
+{
+    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    MblinkUdsDidRecord record;
+    size_t index;
+    size_t offset = 0U;
+
+    if (mblink_mercedes_module_scan_capture_text_did(
+            response, did, destination, destination_capacity)) {
+        return true;
+    }
+    if (response == NULL || destination == NULL ||
+        destination_capacity == 0U ||
+        response->result != MBLINK_ELM327_RESULT_OK) {
+        return false;
+    }
+    destination[0] = '\0';
+    if (mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &pdu_length) !=
+        MBLINK_ELM327_CAN_RESULT_OK ||
+        mblink_uds_decode_read_did_response(
+            pdu, pdu_length, did, &record) != MBLINK_UDS_RESULT_OK ||
+        record.data_length == 0U) {
+        return false;
+    }
+
+    /* Preserve non-text versions losslessly as hex instead of inventing a
+     * number or silently dropping the field. */
+    if (record.data_length > (destination_capacity - 1U) / 3U +
+            ((destination_capacity - 1U) % 3U != 0U ? 1U : 0U)) {
+        return false;
+    }
+    for (index = 0U; index < record.data_length; ++index) {
+        const int written = snprintf(
+            destination + offset, destination_capacity - offset,
+            index == 0U ? "%02X" : " %02X",
+            (unsigned int)record.data[index]);
+        if (written <= 0 ||
+            (size_t)written >= destination_capacity - offset) {
+            destination[0] = '\0';
+            return false;
+        }
+        offset += (size_t)written;
+    }
+    return offset != 0U;
 }
 
 void mblink_mercedes_module_scan_classify_controller_family(
@@ -1386,6 +1456,7 @@ uint64_t mblink_mercedes_module_scan_timeout_ms(const MblinkMercedesModuleScan *
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE:
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_RESTORE_TIMEOUT:
         return UINT64_C(4000);
@@ -1481,6 +1552,7 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SPARE_PART: return WRITE("22F187");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return WRITE("22F188");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return WRITE("22F153");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
         return mblink_mercedes_module_scan_candidate_control_command(
                    scan, true, control_command)
@@ -1926,6 +1998,23 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
                     module->hardware_number,
                     sizeof(module->hardware_number));
             mblink_mercedes_module_scan_classify_controller_family(module);
+        }
+        if (module != NULL &&
+            mblink_mercedes_module_scan_is_cgw_boot_software_target(scan)) {
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE;
+        } else {
+            mblink_mercedes_module_scan_advance_candidate(scan);
+        }
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE:
+        module = mblink_mercedes_module_scan_find_candidate(scan);
+        if (module != NULL) {
+            module->boot_software_version_available =
+                mblink_mercedes_module_scan_capture_display_did(
+                    response, UINT16_C(0xf153),
+                    module->boot_software_version,
+                    sizeof(module->boot_software_version));
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
