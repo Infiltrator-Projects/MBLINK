@@ -731,6 +731,68 @@ static int test_all_c207_source_backed_controller_data_reaches_pid_setup(void)
     return 0;
 }
 
+static bool pack_section_contains(
+    const MblinkMercedesEcuPack *pack,
+    bool startup,
+    uint8_t service,
+    uint16_t identifier)
+{
+    const size_t count = startup
+        ? mblink_mercedes_ecu_pack_startup_item_count(pack)
+        : mblink_mercedes_ecu_pack_polling_item_count(pack);
+
+    for (size_t index = 0U; index < count; ++index) {
+        MblinkMercedesEcuDataItem item;
+        const bool ok = startup
+            ? mblink_mercedes_ecu_pack_startup_item_at(pack, index, &item)
+            : mblink_mercedes_ecu_pack_polling_item_at(pack, index, &item);
+        if (!ok) continue;
+        if (item.service == service && item.identifier == identifier)
+            return true;
+    }
+    return false;
+}
+
+static int test_startup_and_polling_sections_are_separate(void)
+{
+    MblinkMercedesEcuPack pack;
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        NULL, "restraints-orc212",
+        UINT32_C(0x64a), UINT32_C(0x489), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x21), UINT16_C(0x0002)));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x21), UINT16_C(0x0058)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x21), UINT16_C(0x0002)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x21), UINT16_C(0x0058)));
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        NULL, "transmission-egs53",
+        UINT32_C(0x7e1), UINT32_C(0x7e9), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x21), UINT16_C(0x00b1)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x21), UINT16_C(0x00b1)));
+    CHECK(pack_section_contains(
+        &pack, false, UINT8_C(0x21), UINT16_C(0x0030)));
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        NULL, "gateway-cgw204",
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, &pack));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x22), UINT16_C(0xf153)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x22), UINT16_C(0xf153)));
+
+    return 0;
+}
+
 static int test_20260928_capture_routes_under_new_engine(void)
 {
     static const struct {
@@ -808,6 +870,7 @@ int main(void)
     if (test_exact_204_controller_family_resolution() != 0) return 1;
     if (test_all_c207_exact_profile_reads_reach_pid_setup() != 0) return 1;
     if (test_all_c207_source_backed_controller_data_reaches_pid_setup() != 0) return 1;
+    if (test_startup_and_polling_sections_are_separate() != 0) return 1;
     if (test_20260928_capture_routes_under_new_engine() != 0) return 1;
     puts("Mercedes ECU definition pack tests passed");
     return 0;
