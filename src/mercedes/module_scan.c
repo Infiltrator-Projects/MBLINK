@@ -85,6 +85,8 @@ const char *mblink_mercedes_module_scan_stage_name(MblinkMercedesModuleScanStage
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return "discover-software-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return "discover-hardware-number";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return "discover-boot-software-version";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_RESTRAINT_CONFIGURATION: return "discover-restraint-configuration";
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_LOCK_STATE: return "discover-orc-lock-state";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION: return "discover-quit-session";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29: return "initialise-29-bit-can";
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29: return "29-bit-headers-off";
@@ -590,6 +592,22 @@ static bool mblink_mercedes_module_scan_is_cgw_boot_software_target(
             MBLINK_MERCEDES_DIAGNOSTIC_UDS;
 }
 
+/*
+ * ORC on the documented 0x64A -> 0x489 KWP route exposes two static records
+ * that describe the controller/vehicle configuration rather than live driving
+ * data. Read them once as part of module census and keep them out of PID Setup.
+ */
+static bool mblink_mercedes_module_scan_is_orc_metadata_target(
+    const MblinkMercedesModuleScan *scan)
+{
+    return scan != NULL &&
+        !scan->candidate_extended &&
+        scan->candidate_tx == UINT32_C(0x64a) &&
+        scan->candidate_rx == UINT32_C(0x489) &&
+        mblink_mercedes_module_scan_candidate_protocol(scan) ==
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
+}
+
 MblinkMercedesDiagnosticProtocol
 mblink_mercedes_module_scan_candidate_protocol(
     const MblinkMercedesModuleScan *scan)
@@ -761,8 +779,29 @@ void mblink_mercedes_module_scan_advance_candidate(
     MblinkMercedesModuleScan *scan)
 {
     char quit_command[5];
+    MblinkMercedesModuleScanEntry *module;
 
     if (scan == NULL) return;
+
+    /*
+     * Static ORC records are part of the one-time module census, not the live
+     * scheduler. Intercept the normal "move to next ECU" path until each one
+     * has been attempted exactly once.
+     */
+    module = mblink_mercedes_module_scan_find_candidate(scan);
+    if (module != NULL &&
+        mblink_mercedes_module_scan_is_orc_metadata_target(scan)) {
+        if (!module->restraint_configuration_attempted) {
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_RESTRAINT_CONFIGURATION;
+            return;
+        }
+        if (!module->ecu_lock_state_attempted) {
+            scan->stage =
+                MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_LOCK_STATE;
+            return;
+        }
+    }
 
     /*
      * The production cascade allows 1050 ms. ELM327 ATST tops out at 0xFF
@@ -1019,6 +1058,63 @@ static bool mblink_mercedes_module_scan_capture_display_did(
             destination + offset, destination_capacity - offset,
             index == 0U ? "%02X" : " %02X",
             (unsigned int)record.data[index]);
+        if (written <= 0 ||
+            (size_t)written >= destination_capacity - offset) {
+            destination[0] = '\0';
+            return false;
+        }
+        offset += (size_t)written;
+    }
+    return offset != 0U;
+}
+
+static bool mblink_mercedes_module_scan_capture_kwp_local_metadata(
+    const MblinkElm327Response *response,
+    uint8_t identifier,
+    bool decode_lock_state,
+    char *destination,
+    size_t destination_capacity)
+{
+    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+    size_t pdu_length = 0U;
+    const uint8_t *data;
+    size_t data_length;
+    size_t offset = 0U;
+
+    if (response == NULL || destination == NULL ||
+        destination_capacity == 0U ||
+        response->result != MBLINK_ELM327_RESULT_OK) {
+        return false;
+    }
+    destination[0] = '\0';
+    if (mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &pdu_length) !=
+        MBLINK_ELM327_CAN_RESULT_OK ||
+        pdu_length < 3U ||
+        pdu[0] != UINT8_C(0x61) ||
+        pdu[1] != identifier) {
+        return false;
+    }
+
+    data = &pdu[2];
+    data_length = pdu_length - 2U;
+    if (decode_lock_state && data_length == 5U) {
+        const int written = snprintf(
+            destination, destination_capacity,
+            "Lock state 0x%02X · tester identification %02X%02X%02X%02X",
+            (unsigned int)data[0],
+            (unsigned int)data[1],
+            (unsigned int)data[2],
+            (unsigned int)data[3],
+            (unsigned int)data[4]);
+        return written > 0 && (size_t)written < destination_capacity;
+    }
+
+    for (size_t index = 0U; index < data_length; ++index) {
+        const int written = snprintf(
+            destination + offset, destination_capacity - offset,
+            index == 0U ? "%02X" : " %02X",
+            (unsigned int)data[index]);
         if (written <= 0 ||
             (size_t)written >= destination_capacity - offset) {
             destination[0] = '\0';
@@ -1552,6 +1648,8 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_command_core(const Mb
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE: return WRITE("22F188");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE: return WRITE("22F191");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE: return WRITE("22F153");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_RESTRAINT_CONFIGURATION: return WRITE("2102");
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_LOCK_STATE: return WRITE("2158");
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION:
         return mblink_mercedes_module_scan_candidate_control_command(
                    scan, true, control_command)
@@ -2015,6 +2113,30 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
                     response, UINT16_C(0xf153),
                     module->boot_software_version,
                     sizeof(module->boot_software_version));
+        }
+        mblink_mercedes_module_scan_advance_candidate(scan);
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_RESTRAINT_CONFIGURATION:
+        module = mblink_mercedes_module_scan_find_candidate(scan);
+        if (module != NULL) {
+            module->restraint_configuration_attempted = true;
+            module->restraint_configuration_available =
+                mblink_mercedes_module_scan_capture_kwp_local_metadata(
+                    response, UINT8_C(0x02), false,
+                    module->restraint_configuration,
+                    sizeof(module->restraint_configuration));
+        }
+        mblink_mercedes_module_scan_advance_candidate(scan);
+        break;
+    case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_LOCK_STATE:
+        module = mblink_mercedes_module_scan_find_candidate(scan);
+        if (module != NULL) {
+            module->ecu_lock_state_attempted = true;
+            module->ecu_lock_state_available =
+                mblink_mercedes_module_scan_capture_kwp_local_metadata(
+                    response, UINT8_C(0x58), true,
+                    module->ecu_lock_state,
+                    sizeof(module->ecu_lock_state));
         }
         mblink_mercedes_module_scan_advance_candidate(scan);
         break;
