@@ -15,6 +15,9 @@ static int test_ic204_pack(void)
     MblinkMercedesEcuDataItem item;
     bool saw_f111 = false;
     bool saw_f150 = false;
+    bool saw_assyst_daily = false;
+    bool saw_assyst_overfill = false;
+    bool saw_assyst_maintenance = false;
     size_t advertised = 0U;
 
     /*
@@ -86,6 +89,30 @@ static int test_ic204_pack(void)
         } else {
             CHECK(!item.live);
         }
+        if (item.name != NULL) {
+            CHECK(strchr(item.name, '_') == NULL);
+        }
+        if (item.service == UINT8_C(0x22) &&
+            item.identifier == UINT16_C(0x0302)) {
+            saw_assyst_daily = true;
+            CHECK(item.name != NULL);
+            CHECK(strcmp(item.name,
+                "ASSYST PLUS average daily kilometres") == 0);
+        }
+        if (item.service == UINT8_C(0x22) &&
+            item.identifier == UINT16_C(0x0406)) {
+            saw_assyst_overfill = true;
+            CHECK(item.name != NULL);
+            CHECK(strcmp(item.name,
+                "ASSYST oil overfill threshold 1") == 0);
+        }
+        if (item.service == UINT8_C(0x22) &&
+            item.identifier == UINT16_C(0x0408)) {
+            saw_assyst_maintenance = true;
+            CHECK(item.name != NULL);
+            CHECK(strcmp(item.name,
+                "ASSYST maintenance 1 hex dump data") == 0);
+        }
         if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0xf111)) {
             saw_f111 = true;
@@ -106,6 +133,8 @@ static int test_ic204_pack(void)
     }
     CHECK(advertised == 59U);
     CHECK(saw_f111 && saw_f150);
+    CHECK(saw_assyst_daily && saw_assyst_overfill &&
+          saw_assyst_maintenance);
     return 0;
 }
 
