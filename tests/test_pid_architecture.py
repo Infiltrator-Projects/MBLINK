@@ -290,7 +290,7 @@ require(
     "PID Setup must be controller-first and show OBD-II/KWP2000/UDS source labels inside each controller",
 )
 require(
-    "standardPIDCatalogueItems(moduleID:" in model
+    "func standardPIDCatalogueItems(" in model
     and "pidSupportByModule[moduleID]" in model
     and "Advertised by this controller" in model,
     "controller OBD catalogue membership must come from that responder's advertised/cached capability map",
