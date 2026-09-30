@@ -475,6 +475,39 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         pidConfigurationModules.first { $0.id == id }
     }
 
+    func moduleBootSoftwareVersion(moduleID: String) -> String? {
+        if let live = controller.mercedesModuleSnapshots.first(where: {
+            $0.identifier == moduleID
+        }), let value = live.bootSoftwareVersion?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+
+        guard let module = pidConfigurationModule(id: moduleID),
+              let vin = effectivePIDConfigurationVIN,
+              let profile = vehicleProfileStore.profile(forVIN: vin)
+                as? [String: Any],
+              let savedModules = profile["modules"] as? [[String: Any]]
+        else { return nil }
+
+        for saved in savedModules {
+            guard let tx = saved["tx"] as? NSNumber,
+                  let rx = saved["rx"] as? NSNumber,
+                  let extended = saved["extended"] as? NSNumber,
+                  tx.uint32Value == module.requestCANIdentifier,
+                  rx.uint32Value == module.responseCANIdentifier,
+                  extended.boolValue == module.extendedID,
+                  let value = saved["bootSoftware"] as? String
+            else { continue }
+
+            let trimmed = value.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
     override func selectSavedVehicle(vin: String) {
         // A live VIN is authoritative. Saved-profile selection is an offline
         // operation and must never override the physical car.
@@ -554,17 +587,24 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
         let documentedDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
+        let selectableDocumentedDefinitions =
+            documentedDefinitions.filter { definition in
+                /*
+                 * Static ECU identity belongs on the module card, not in the
+                 * user's live polling catalogue. CGW DID F153 is the boot
+                 * software version and is read exactly once by module census.
+                 */
+                !(definition.service == 0x22 &&
+                  definition.identifier == 0xF153)
+            }
         let definitions: [[String: Any]]
         if !documentedDefinitions.isEmpty {
             /*
-             * Catalogue-completion phase: PID Setup exposes every safe,
-             * read-only item documented for the exact identified controller,
-             * regardless of whether it is fast-changing, rarely changing or
-             * identity/configuration data. Semantic kind is retained so a
-             * later UI pass can group/curate the catalogue without losing it.
-             * Vehicle captures alone never create catalogue entries.
+             * PID Setup exposes the documented user-selectable data for the
+             * exact controller. Startup identity/configuration reads are
+             * deliberately filtered before this point.
              */
-            definitions = documentedDefinitions.map { definition in
+            definitions = selectableDocumentedDefinitions.map { definition in
                 [
                     "id": definition.stableKey,
                     "service": Int(definition.service),
