@@ -239,7 +239,7 @@ static int test_orc204_and_orc212_keep_separate_exact_catalogues(void)
          case_index < sizeof(cases) / sizeof(cases[0]); ++case_index) {
         MblinkMercedesModuleScanEntry module;
         MblinkMercedesEcuPack pack;
-        size_t selectable = 0U;
+        size_t classified = 0U;
 
         CHECK(mblink_mercedes_module_scan_resolve_controller(
             UINT32_C(0x64a), UINT32_C(0x489), false,
@@ -263,16 +263,20 @@ static int test_orc204_and_orc212_keep_separate_exact_catalogues(void)
                 &pack, item_index, &item));
             if (item.status ==
                     MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED &&
-                item.advertised && item.live) {
-                ++selectable;
+                item.advertised &&
+                (item.acquisition ==
+                     MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE ||
+                 item.acquisition ==
+                     MBLINK_MERCEDES_ECU_DATA_USER_POLLING)) {
+                ++classified;
             }
         }
-        CHECK(selectable >= 5U);
+        CHECK(classified >= 5U);
     }
     return 0;
 }
 
-static int test_orc_dashboard_pid_names_are_specific(void)
+static int test_orc_startup_names_are_specific(void)
 {
     static const char *controllers[] = {
         "restraints-orc204",
@@ -292,10 +296,11 @@ static int test_orc_dashboard_pid_names_are_specific(void)
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
         for (size_t index = 0U;
-             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             index < mblink_mercedes_ecu_pack_startup_item_count(&pack);
              ++index) {
             MblinkMercedesEcuDataItem item;
-            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+            CHECK(mblink_mercedes_ecu_pack_startup_item_at(
+                &pack, index, &item));
             if (item.service != UINT8_C(0x21) || item.name == NULL) continue;
             if (item.identifier == UINT16_C(0x02)) {
                 saw_configuration = true;
@@ -866,7 +871,7 @@ int main(void)
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
     if (test_orc204_and_orc212_keep_separate_exact_catalogues() != 0) return 1;
-    if (test_orc_dashboard_pid_names_are_specific() != 0) return 1;
+    if (test_orc_startup_names_are_specific() != 0) return 1;
     if (test_documented_reads_are_classified_by_acquisition() != 0) return 1;
     if (test_documented_identification_reads_are_startup_data() != 0) return 1;
     if (test_documented_polling_controller_data_stays_selectable() != 0) return 1;
