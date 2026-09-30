@@ -647,6 +647,11 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 raw: rawProvenance,
                 service: service,
                 identifier: identifier)
+            let presentationTitle = manufacturerPIDPresentationTitle(
+                moduleID: moduleID,
+                service: service,
+                identifier: identifier,
+                fallback: title)
             let stableKey = canonicalManufacturerStableKey(storedStableKey)
             return MBPIDCatalogueItem(
                 id: scopedChannelID(
@@ -658,7 +663,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 service: service,
                 identifier: identifier,
                 shortName: shortName,
-                title: title,
+                title: presentationTitle,
                 provenance: provenance,
                 pollingEnabled: selected.contains(stableKey),
                 advertised: true)
@@ -1239,6 +1244,29 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 format: "%02X %02X", Int(service), Int(identifier))
         }
         return "\(source) · \(command)"
+    }
+
+    private func manufacturerPIDPresentationTitle(
+        moduleID: String,
+        service: UInt8,
+        identifier: UInt16,
+        fallback: String
+    ) -> String {
+        guard service == 0x21,
+              let module = pidConfigurationModule(id: moduleID),
+              !module.extendedID,
+              module.requestCANIdentifier == 0x64A,
+              module.responseCANIdentifier == 0x489
+        else { return fallback }
+
+        switch identifier {
+        case 0x02:
+            return "Restraint equipment configuration"
+        case 0x58:
+            return "ECU lock state / tester identification"
+        default:
+            return fallback
+        }
     }
 
     private func standardStableKey(for pid: UInt8) -> String {
