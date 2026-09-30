@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.258 — 2026-09-30
+
+- Make PID Setup controller-first: each discovered/saved physical controller now owns one combined catalogue containing that exact responder's advertised OBD-II channels alongside the exact Mercedes KWP2000/UDS controller-pack reads.
+- Remove the synthetic vehicle-wide OBD section. OBD-II is now shown as a diagnostic interface of the responding controller, with every row clearly labelled OBD-II, KWP2000, UDS or Mercedes as appropriate.
+- Keep equivalent-looking values from different interfaces as separate logical channels. An OBD-II vehicle-speed value and a Mercedes controller-specific vehicle-speed value may sit next to one another and can be enabled independently or together.
+- Scope standard selections by VIN and controller while keeping physical Mode 01 scheduling de-duplicated: selections on several responders that require the same standard PID still produce one functional source request, and disabling one controller's copy cannot stop a source still required by another.
+- Pin released LINK 0.15.84 at 4a022eb5cb680191a8a64b34622f67966ca7776a and use exact-responder structured samples for Mode 01 PID 0x01, so each controller presents only its own selected readiness fields even when several ECUs answer the same functional request.
+- Preserve responder identity in standard histories/snapshots and give controller/interface/value combinations distinct stable presentation identities so data from two ECUs can no longer collapse into one displayed channel.
+- Migrate the previous vehicle-wide standard selection conservatively to one deterministic primary advertised responder, preferring 0x7E8 when present, rather than unexpectedly enabling duplicate OBD values on every supporting ECU; existing older per-controller selections are retained.
+- Keep saved VIN profiles controller-centric offline by reattaching cached responder capability maps to their saved Mercedes controllers and retaining unresolved saved OBD responders without inventing Mercedes identity.
+
 ## 0.7.257 — 2026-09-30
 
 - Pin the completed grouped-field architecture to released LINK 0.15.83 at 3de497edaedda8459cc0cd19e7bcfed05dd1b325, keeping standard and Mercedes logical selections on one shared physical request per source record.
