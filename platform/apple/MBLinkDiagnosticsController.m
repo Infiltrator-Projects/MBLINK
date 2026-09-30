@@ -71,7 +71,7 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
 - (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
-- (BOOL)beginStartupEgs53VariantCodingReadIfAvailable;
+- (BOOL)beginNextStartupModuleDataRead;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
 - (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
@@ -136,6 +136,8 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     NSUInteger _manufacturerDataRequestGeneration;
     BOOL _manufacturerDataForceFullScan;
     BOOL _manufacturerDataScanLiveOnly;
+    BOOL _startupModuleDataPassActive;
+    size_t _startupModuleDataIndex;
     BOOL _scheduledManufacturerJobRegistered;
     BOOL _scheduledManufacturerJobActive;
     MBLinkScheduledRestoreStage _scheduledManufacturerRestoreStage;
@@ -1651,21 +1653,13 @@ static void MBLinkAppendManufacturerDefinition(
         [[NSMutableArray alloc] init];
     NSMutableSet<NSString *> *seenWireKeys = [[NSMutableSet alloc] init];
     const size_t itemCount =
-        mblink_mercedes_ecu_pack_data_item_count(&pack);
+        mblink_mercedes_ecu_pack_polling_item_count(&pack);
 
     for (size_t index = 0U; index < itemCount; ++index) {
         MblinkMercedesEcuDataItem item;
-        if (!mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item) ||
+        if (!mblink_mercedes_ecu_pack_polling_item_at(
+                &pack, index, &item) ||
             !item.advertised) {
-            continue;
-        }
-
-        /*
-         * Hardware/software identity is acquired once by module discovery.
-         * It belongs on the module card, never in selectable live PID setup.
-         */
-        if (mblink_mercedes_documented_read_is_module_metadata(
-                item.service, item.identifier)) {
             continue;
         }
 
@@ -2597,6 +2591,22 @@ static void MBLinkAppendManufacturerDefinition(
     _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
 
+    if (_startupModuleDataPassActive) {
+        if ([self beginNextStartupModuleDataRead]) {
+            [self notifyDelegate];
+            return;
+        }
+        _startupModuleDataPassActive = NO;
+        _scheduledManufacturerJobActive = NO;
+        if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
+            [_shared failWithStatus:
+                @"Could not resume standard diagnostics after startup module data"];
+        }
+        [self updateScheduledManufacturerLiveJob];
+        [self notifyDelegate];
+        return;
+    }
+
     if (fastCanRestore) {
         [self beginScheduledManufacturerChannelRestore];
         [self notifyDelegate];
@@ -2878,38 +2888,71 @@ static void MBLinkAppendManufacturerDefinition(
     }
 }
 
-- (BOOL)beginStartupEgs53VariantCodingReadIfAvailable
+- (BOOL)beginNextStartupModuleDataRead
 {
-    const size_t count =
+    const size_t moduleCount =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
-    const MblinkMercedesDataProbeCommand command = {
-        UINT8_C(0x21), UINT16_C(0x00b1)
-    };
 
-    for (size_t index = 0U; index < count; ++index) {
+    while (_startupModuleDataIndex < moduleCount) {
         const MblinkMercedesModuleScanEntry *module =
             mblink_mercedes_module_scan_module_at(
-                &_mercedesModuleScan, index);
+                &_mercedesModuleScan, _startupModuleDataIndex++);
+        MblinkMercedesEcuPack pack;
+        MblinkMercedesDataProbeCommand
+            commands[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
+        size_t commandCount = 0U;
+
         if (module == NULL ||
-            MBLinkTransmissionFamilyForModule(module) !=
-                MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 ||
-            mblink_mercedes_module_scan_entry_protocol(module) !=
-                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000 ||
-            !mblink_mercedes_documented_read_is_safe(
-                command.service, command.identifier)) {
+            !mblink_mercedes_ecu_pack_resolve_module(module, &pack)) {
             continue;
         }
+
+        const size_t startupCount =
+            mblink_mercedes_ecu_pack_startup_item_count(&pack);
+        for (size_t itemIndex = 0U;
+             itemIndex < startupCount; ++itemIndex) {
+            MblinkMercedesEcuDataItem item;
+            BOOL duplicate = NO;
+
+            if (!mblink_mercedes_ecu_pack_startup_item_at(
+                    &pack, itemIndex, &item) ||
+                item.acquired_during_identification ||
+                !item.advertised ||
+                !mblink_mercedes_documented_read_is_safe(
+                    item.service, item.identifier)) {
+                continue;
+            }
+
+            for (size_t seen = 0U; seen < commandCount; ++seen) {
+                if (commands[seen].service == item.service &&
+                    commands[seen].identifier == item.identifier) {
+                    duplicate = YES;
+                    break;
+                }
+            }
+            if (duplicate ||
+                commandCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS) {
+                continue;
+            }
+
+            commands[commandCount].service = item.service;
+            commands[commandCount].identifier = item.identifier;
+            ++commandCount;
+        }
+
+        if (commandCount == 0U) continue;
 
         MblinkMercedesDataScanConfig config =
             mblink_mercedes_data_scan_default_config(
                 module->tx_can_id, module->rx_can_id,
                 module->extended_id,
-                MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
-                MBLINK_MERCEDES_MODULE_TRANSMISSION);
+                mblink_mercedes_module_scan_entry_protocol(module),
+                module->kind);
         if (mblink_mercedes_data_scan_begin_documented_commands(
-                &_manufacturerDataScan, &config, &command, 1U) !=
+                &_manufacturerDataScan, &config,
+                commands, commandCount) !=
             MBLINK_MERCEDES_DATA_SCAN_RESULT_OK) {
-            return NO;
+            continue;
         }
 
         self.manufacturerDataScanActive = YES;
@@ -2917,13 +2960,15 @@ static void MBLinkAppendManufacturerDefinition(
             MBLinkMercedesModuleIdentifier(module);
         _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
-        self.manufacturerDataScanStatusText =
-            @"Reading EGS53 variant coding once at connection";
-        [self setStatus:@"Reading EGS53 startup variant coding"];
+        self.manufacturerDataScanStatusText = [NSString stringWithFormat:
+            @"Reading startup module data · %zu item%@",
+            commandCount, commandCount == 1U ? @"" : @"s"];
+        [self setStatus:@"Reading one-time Mercedes module data"];
         [self notifyDelegate];
         [self beginCurrentMercedesDataScanCommand];
         return YES;
     }
+
     return NO;
 }
 
@@ -2958,16 +3003,19 @@ static void MBLinkAppendManufacturerDefinition(
         _cachedModuleRefreshActive = NO;
 
         /*
-         * EGS53 21 B1 is configuration, not telemetry. Read it exactly once
-         * while startup discovery already owns the manufacturer channel.
+         * Module discovery is complete. Every resolved ECU pack now exposes
+         * two explicit data sections: one-time startup data and user-selected
+         * recurring data. Read the startup section here, one module at a time,
+         * before normal live polling is allowed to begin.
          */
-        if ([self beginStartupEgs53VariantCodingReadIfAvailable])
+        _startupModuleDataPassActive = YES;
+        _startupModuleDataIndex = 0U;
+        if ([self beginNextStartupModuleDataRead])
             return;
+        _startupModuleDataPassActive = NO;
 
-        /* Recurring GS actual values are now registered before the
-         * startup extension returns. LINK preserves external jobs when it
-         * later builds the standard SAE schedule, so the first GS slot and
-         * every subsequent one are serialized with OBD from the outset. */
+        /* Recurring Mercedes work starts only after all one-time module data
+         * has either responded or been attempted. */
         [self updateScheduledManufacturerLiveJob];
         [self finishMercedesExtensionRestoringAdapter:YES];
         return;
@@ -3432,19 +3480,11 @@ static void MBLinkAppendManufacturerDefinition(
     MblinkMercedesModuleScanEntry cached[
         MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES];
     size_t count = 0U;
-    BOOL needsBootSoftwareMetadataRefresh = NO;
     for (id value in modules) {
         if (count >= MBLINK_MERCEDES_MODULE_SCAN_MAX_MODULES) break;
         if (![value isKindOfClass:[NSDictionary class]]) continue;
         if (MBLinkPopulateModuleEntryFromProfile(
                 (NSDictionary *)value, &cached[count])) {
-            if (!cached[count].extended_id &&
-                cached[count].tx_can_id == UINT32_C(0x602) &&
-                cached[count].rx_can_id == UINT32_C(0x480) &&
-                cached[count].protocol == MBLINK_MERCEDES_DIAGNOSTIC_UDS &&
-                !cached[count].boot_software_version_attempted) {
-                needsBootSoftwareMetadataRefresh = YES;
-            }
             ++count;
         }
     }
@@ -3454,18 +3494,6 @@ static void MBLinkAppendManufacturerDefinition(
         _cachedVehicleProfile = nil;
         self.vehicleProfileStatusText =
             @"Saved VIN profile was invalid; rebuilding";
-        return NO;
-    }
-
-    /*
-     * Profiles written before CGW F153 support cannot satisfy the startup
-     * metadata contract. Rebuild the module census once; the resulting
-     * profile records the attempt even when the ECU returns no F153 value, so
-     * this migration never degenerates into repeated probing.
-     */
-    if (needsBootSoftwareMetadataRefresh) {
-        self.vehicleProfileStatusText =
-            @"Saved VIN profile needs boot-software metadata; refreshing once";
         return NO;
     }
 
@@ -3500,6 +3528,8 @@ static void MBLinkAppendManufacturerDefinition(
     _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
+    _startupModuleDataPassActive = NO;
+    _startupModuleDataIndex = 0U;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
     if (![_shared completeManufacturerExtensionRestoringAdapter:restore]) {
