@@ -39,9 +39,13 @@ ecu_pack_api = (ROOT / "include/mblink/mercedes_ecu_pack.h").read_text(
     encoding="utf-8"
 )
 ecu_pack = (ROOT / "src/mercedes/ecu_pack.c").read_text(encoding="utf-8")
+profile_struct = manufacturer_api[
+    manufacturer_api.index("typedef struct MblinkMercedesControllerDataProfileEntry"):
+    manufacturer_api.index("} MblinkMercedesControllerDataProfileEntry;")
+]
 require(
-    "source_dynamic_hint" in manufacturer_api
-    and "bool live;" not in manufacturer_api,
+    "source_dynamic_hint" in profile_struct
+    and "bool live;" not in profile_struct,
     "controller profile source hints must not be named as runtime live/polling state",
 )
 require(
