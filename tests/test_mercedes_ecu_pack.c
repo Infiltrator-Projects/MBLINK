@@ -250,6 +250,49 @@ static int test_orc204_and_orc212_keep_separate_exact_catalogues(void)
     return 0;
 }
 
+static int test_orc_dashboard_pid_names_are_specific(void)
+{
+    static const char *controllers[] = {
+        "restraints-orc204",
+        "restraints-orc212"
+    };
+
+    for (size_t controller_index = 0U;
+         controller_index < sizeof(controllers) / sizeof(controllers[0]);
+         ++controller_index) {
+        MblinkMercedesEcuPack pack;
+        bool saw_configuration = false;
+        bool saw_lock_state = false;
+
+        CHECK(mblink_mercedes_ecu_pack_resolve(
+            NULL, controllers[controller_index],
+            UINT32_C(0x64a), UINT32_C(0x489), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
+
+        for (size_t index = 0U;
+             index < mblink_mercedes_ecu_pack_data_item_count(&pack);
+             ++index) {
+            MblinkMercedesEcuDataItem item;
+            CHECK(mblink_mercedes_ecu_pack_data_item_at(&pack, index, &item));
+            if (item.service != UINT8_C(0x21) || item.name == NULL) continue;
+            if (item.identifier == UINT16_C(0x02)) {
+                saw_configuration = true;
+                CHECK(strcmp(
+                    item.name,
+                    "Restraint equipment configuration") == 0);
+            } else if (item.identifier == UINT16_C(0x58)) {
+                saw_lock_state = true;
+                CHECK(strcmp(
+                    item.name,
+                    "ECU lock state / tester identification") == 0);
+            }
+        }
+        CHECK(saw_configuration);
+        CHECK(saw_lock_state);
+    }
+    return 0;
+}
+
 static int test_documented_reads_are_selectable_in_pid_catalogue(void)
 {
     static const struct {
@@ -756,6 +799,7 @@ int main(void)
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;
     if (test_orc204_and_orc212_keep_separate_exact_catalogues() != 0) return 1;
+    if (test_orc_dashboard_pid_names_are_specific() != 0) return 1;
     if (test_documented_reads_are_selectable_in_pid_catalogue() != 0) return 1;
     if (test_documented_identification_reads_are_selectable() != 0) return 1;
     if (test_documented_controller_data_stays_selectable_in_pid_setup() != 0) return 1;
