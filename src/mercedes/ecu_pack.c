@@ -483,9 +483,9 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         family = pack_transmission_family(pack);
         item->provenance = mblink_mercedes_transmission_family_name(family);
         /*
-         * PID Setup is currently the complete documented read catalogue.
-         * Do not hide a valid family-owned KWP record merely because an older
-         * presentation layer classified it as static/non-live.
+         * Keep the complete family-owned read catalogue here. Acquisition
+         * classification below decides whether this exact item belongs to the
+         * startup-once or user-polling section.
          */
         item->live = true;
         item->advertised = true;
@@ -519,10 +519,10 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->status = entry->status;
         item->provenance = entry->provenance;
         /*
-         * At this stage PID Setup is the complete source-backed controller
-         * read catalogue. Historical live/static classification must not
-         * suppress a documented Data service. Capture-only observations remain
-         * excluded because they do not establish semantics.
+         * Preserve every source-backed controller Data service in the pack.
+         * Explicit acquisition classification, not an old live/static flag,
+         * decides whether a reviewed item is startup-once or user-polling.
+         * Capture-only observations remain unadvertised.
          */
         item->live =
             entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
@@ -557,10 +557,9 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
             item->provenance = mblink_mercedes_documented_route_source();
             /*
-             * Catalogue-completion phase: every safe read documented for the
-             * exact controller profile is selectable in PID Setup. Keep the
-             * semantic kind (identification vs documented-read) so a later UI
-             * pass can group/curate without losing catalogue completeness.
+             * Retain every safe exact-controller read in the canonical pack.
+             * The explicit acquisition field then routes each reviewed item to
+             * startup-once or user-polling without losing source coverage.
              */
             item->live =
                 mblink_mercedes_documented_read_is_safe(
