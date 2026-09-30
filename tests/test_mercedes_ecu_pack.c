@@ -12,7 +12,23 @@ static bool pack_section_contains(
     const MblinkMercedesEcuPack *pack,
     bool startup,
     uint8_t service,
-    uint16_t identifier);
+    uint16_t identifier)
+{
+    const size_t count = startup
+        ? mblink_mercedes_ecu_pack_startup_item_count(pack)
+        : mblink_mercedes_ecu_pack_polling_item_count(pack);
+
+    for (size_t index = 0U; index < count; ++index) {
+        MblinkMercedesEcuDataItem item;
+        const bool ok = startup
+            ? mblink_mercedes_ecu_pack_startup_item_at(pack, index, &item)
+            : mblink_mercedes_ecu_pack_polling_item_at(pack, index, &item);
+        if (!ok) continue;
+        if (item.service == service && item.identifier == identifier)
+            return true;
+    }
+    return false;
+}
 
 static int test_ic204_pack(void)
 {
