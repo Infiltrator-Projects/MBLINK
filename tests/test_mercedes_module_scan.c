@@ -152,6 +152,7 @@ static int test_cgw_boot_software_is_startup_metadata(void)
 
     CHECK(mblink_mercedes_module_scan_accept(&scan, &boot) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.modules[0].boot_software_version_attempted);
     CHECK(scan.modules[0].boot_software_version_available);
     CHECK(strcmp(scan.modules[0].boot_software_version, "1.2.3") == 0);
     CHECK(scan.stage ==
