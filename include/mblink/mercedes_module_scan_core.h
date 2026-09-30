@@ -100,6 +100,8 @@ typedef enum MblinkMercedesModuleScanStage {
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SOFTWARE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_BOOT_SOFTWARE,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_RESTRAINT_CONFIGURATION,
+    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_ORC_LOCK_STATE,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_PROTOCOL_29,
     MBLINK_MERCEDES_MODULE_SCAN_STAGE_SWITCH_HEADERS_OFF_29,
@@ -135,6 +137,12 @@ typedef struct MblinkMercedesModuleScanEntry {
     bool boot_software_version_attempted;
     bool boot_software_version_available;
     char boot_software_version[64];
+    bool restraint_configuration_attempted;
+    bool restraint_configuration_available;
+    char restraint_configuration[128];
+    bool ecu_lock_state_attempted;
+    bool ecu_lock_state_available;
+    char ecu_lock_state[128];
     const MblinkMercedesModuleDefinition *definition;
     const MblinkMercedesControllerFamilyDefinition *controller_family;
     MblinkMercedesDefinitionStatus identification_status;
