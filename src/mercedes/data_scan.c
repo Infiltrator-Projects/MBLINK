@@ -2304,6 +2304,27 @@ bool mblink_mercedes_data_record_format_known_for_route(
         return false;
     }
 
+    /*
+     * Startup metadata can be controller-independent. Preserve the documented
+     * name and render simple printable payloads without adding ECU-specific
+     * hooks to discovery. Binary metadata remains raw until its field layout is
+     * explicitly decoded.
+     */
+    if (record->service == UINT8_C(0x22) &&
+        mblink_mercedes_documented_read_is_module_metadata(
+            record->service, record->identifier)) {
+        const char *documentedName =
+            mblink_mercedes_documented_read_name(
+                record->service, record->identifier);
+        if (documentedName != NULL &&
+            format_ascii_payload(
+                record->data, record->data_length,
+                buffer, buffer_size)) {
+            *name = documentedName;
+            return true;
+        }
+    }
+
     if (record_is_orc_kwp(
             tx_can_id, rx_can_id, extended_id, module_kind, record)) {
         return format_orc_kwp_record(record, buffer, buffer_size, name);
