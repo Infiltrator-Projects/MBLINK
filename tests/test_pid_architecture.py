@@ -50,8 +50,8 @@ require(
     and "mblink_mercedes_ecu_pack_data_item_at" in ecu_pack_api
     and "MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE" in ecu_pack_api
     and "MBLINK_MERCEDES_ECU_DATA_USER_POLLING" in ecu_pack_api
-    and "mblink_mercedes_ecu_pack_startup_item_at" in ecu_pack_api
-    and "mblink_mercedes_ecu_pack_polling_item_at" in ecu_pack_api,
+    and "mblink_mercedes_ecu_pack_next_item" in ecu_pack_api
+    and "MBLINK_MERCEDES_ECU_DATA_USER_POLLING" in ecu_pack_api,
     "every resolved Mercedes ECU pack must expose explicit startup-once and user-polling sections",
 )
 
@@ -227,15 +227,15 @@ require(
     "Mode 01 PID 01 must be captured once at startup, shown per responder on Modules, and excluded from recurring PID polling",
 )
 require(
-    "mblink_mercedes_ecu_pack_polling_item_count" in documented_defs
-    and "mblink_mercedes_ecu_pack_polling_item_at" in documented_defs
+    "mblink_mercedes_ecu_pack_next_item" in documented_defs
+    and "MBLINK_MERCEDES_ECU_DATA_USER_POLLING" in documented_defs
     and "mblink_mercedes_ecu_pack_data_item_at" not in documented_defs,
     "PID Setup must be built only from the resolved ECU pack's user-polling section",
 )
 require(
     "beginNextStartupModuleDataRead" in controller
-    and "mblink_mercedes_ecu_pack_startup_item_count" in controller
-    and "mblink_mercedes_ecu_pack_startup_item_at" in controller
+    and "mblink_mercedes_ecu_pack_next_item" in controller
+    and "MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE" in controller
     and "_startupModuleDataPassActive" in controller
     and "Reading one-time Mercedes module data" in controller,
     "startup module data must run through one generic post-discovery per-ECU pass",
@@ -291,8 +291,8 @@ require(
     "manufacturer polling must preserve service plus identifier so KWP 1A and 21 reads cannot collapse to the wrong wire command",
 )
 require(
-    "mblink_mercedes_ecu_pack_polling_item_count(&pack)" in controller
-    and "mblink_mercedes_ecu_pack_polling_item_at(" in controller,
+    "mblink_mercedes_ecu_pack_next_item" in controller
+    and "MBLINK_MERCEDES_ECU_DATA_USER_POLLING" in controller,
     "the recurring scheduler must reject startup-only commands even if stale settings try to submit one",
 )
 require(

@@ -1658,21 +1658,21 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
 
     NSMutableArray<MBLinkMercedesDataSnapshot *> *result =
         [[NSMutableArray alloc] init];
-    const size_t startupCount =
-        mblink_mercedes_ecu_pack_startup_item_count(&pack);
+    NSMutableSet<NSNumber *> *startupCommands =
+        [[NSMutableSet alloc] init];
+    size_t cursor = 0U;
+    MblinkMercedesEcuDataItem item;
+    while (mblink_mercedes_ecu_pack_next_item(
+            &pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+            &cursor, &item)) {
+        [startupCommands addObject:MBLinkManufacturerCommandToken(
+            item.service, item.identifier)];
+    }
 
     for (MBLinkMercedesDataSnapshot *snapshot in values) {
-        for (size_t index = 0U; index < startupCount; ++index) {
-            MblinkMercedesEcuDataItem item;
-            if (!mblink_mercedes_ecu_pack_startup_item_at(
-                    &pack, index, &item)) {
-                continue;
-            }
-            if (item.service == snapshot.service &&
-                item.identifier == snapshot.identifier) {
-                [result addObject:snapshot];
-                break;
-            }
+        if ([startupCommands containsObject:MBLinkManufacturerCommandToken(
+                snapshot.service, snapshot.identifier)]) {
+            [result addObject:snapshot];
         }
     }
 
@@ -1742,16 +1742,12 @@ static void MBLinkAppendManufacturerDefinition(
     NSMutableArray<MBLinkManufacturerPIDDefinitionSnapshot *> *values =
         [[NSMutableArray alloc] init];
     NSMutableSet<NSString *> *seenWireKeys = [[NSMutableSet alloc] init];
-    const size_t itemCount =
-        mblink_mercedes_ecu_pack_polling_item_count(&pack);
+    size_t cursor = 0U;
+    MblinkMercedesEcuDataItem item;
 
-    for (size_t index = 0U; index < itemCount; ++index) {
-        MblinkMercedesEcuDataItem item;
-        if (!mblink_mercedes_ecu_pack_polling_item_at(
-                &pack, index, &item) ||
-            !item.advertised) {
-            continue;
-        }
+    while (mblink_mercedes_ecu_pack_next_item(
+            &pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING,
+            &cursor, &item)) {
 
         NSString *stableKey = item.stable_key != NULL
             ? MBLinkStringFromCString(item.stable_key)
@@ -1849,33 +1845,29 @@ static void MBLinkAppendManufacturerDefinition(
         mblink_mercedes_ecu_pack_resolve_module(module, &pack);
 
     NSMutableSet<NSNumber *> *valid = [[NSMutableSet alloc] init];
+    NSMutableSet<NSNumber *> *pollingCommands = [[NSMutableSet alloc] init];
+    if (hasPack) {
+        size_t cursor = 0U;
+        MblinkMercedesEcuDataItem item;
+        while (mblink_mercedes_ecu_pack_next_item(
+                &pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING,
+                &cursor, &item)) {
+            [pollingCommands addObject:MBLinkManufacturerCommandToken(
+                item.service, item.identifier)];
+        }
+    }
+
     for (NSNumber *number in commands ?: @[]) {
         uint8_t service = 0U;
         uint16_t localIdentifier = 0U;
-        BOOL pollingItem = NO;
-        if (!hasPack ||
-            !MBLinkDecodeManufacturerCommandToken(
+        if (!MBLinkDecodeManufacturerCommandToken(
                 number, &service, &localIdentifier)) {
             continue;
         }
-
-        const size_t count =
-            mblink_mercedes_ecu_pack_polling_item_count(&pack);
-        for (size_t index = 0U; index < count; ++index) {
-            MblinkMercedesEcuDataItem item;
-            if (!mblink_mercedes_ecu_pack_polling_item_at(
-                    &pack, index, &item)) {
-                continue;
-            }
-            if (item.service == service &&
-                item.identifier == localIdentifier) {
-                pollingItem = YES;
-                break;
-            }
-        }
-        if (pollingItem) {
-            [valid addObject:MBLinkManufacturerCommandToken(
-                service, localIdentifier)];
+        NSNumber *command = MBLinkManufacturerCommandToken(
+            service, localIdentifier);
+        if ([pollingCommands containsObject:command]) {
+            [valid addObject:command];
         }
     }
     if (valid.count == 0U) {
@@ -3030,17 +3022,14 @@ static void MBLinkAppendManufacturerDefinition(
             continue;
         }
 
-        const size_t startupCount =
-            mblink_mercedes_ecu_pack_startup_item_count(&pack);
-        for (size_t itemIndex = 0U;
-             itemIndex < startupCount; ++itemIndex) {
-            MblinkMercedesEcuDataItem item;
+        size_t cursor = 0U;
+        MblinkMercedesEcuDataItem item;
+        while (mblink_mercedes_ecu_pack_next_item(
+                &pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+                &cursor, &item)) {
             BOOL duplicate = NO;
 
-            if (!mblink_mercedes_ecu_pack_startup_item_at(
-                    &pack, itemIndex, &item) ||
-                item.acquired_during_identification ||
-                !item.advertised ||
+            if (item.acquired_during_identification ||
                 !mblink_mercedes_documented_read_is_safe(
                     item.service, item.identifier)) {
                 continue;

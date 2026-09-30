@@ -109,18 +109,15 @@ bool mblink_mercedes_ecu_pack_data_item_at(
     size_t index,
     MblinkMercedesEcuDataItem *item);
 
-size_t mblink_mercedes_ecu_pack_startup_item_count(
-    const MblinkMercedesEcuPack *pack);
-bool mblink_mercedes_ecu_pack_startup_item_at(
+/*
+ * Iterate one acquisition section in a single pass. Set *cursor to zero before
+ * the first call; each successful call advances it to the next canonical pack
+ * position. Raw/unadvertised evidence is skipped automatically.
+ */
+bool mblink_mercedes_ecu_pack_next_item(
     const MblinkMercedesEcuPack *pack,
-    size_t index,
-    MblinkMercedesEcuDataItem *item);
-
-size_t mblink_mercedes_ecu_pack_polling_item_count(
-    const MblinkMercedesEcuPack *pack);
-bool mblink_mercedes_ecu_pack_polling_item_at(
-    const MblinkMercedesEcuPack *pack,
-    size_t index,
+    MblinkMercedesEcuDataAcquisition acquisition,
+    size_t *cursor,
     MblinkMercedesEcuDataItem *item);
 
 const MblinkMercedesDocumentedField *mblink_mercedes_ecu_pack_field_at(

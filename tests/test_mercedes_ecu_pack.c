@@ -14,16 +14,14 @@ static bool pack_section_contains(
     uint8_t service,
     uint16_t identifier)
 {
-    const size_t count = startup
-        ? mblink_mercedes_ecu_pack_startup_item_count(pack)
-        : mblink_mercedes_ecu_pack_polling_item_count(pack);
+    size_t cursor = 0U;
+    MblinkMercedesEcuDataItem item;
+    const MblinkMercedesEcuDataAcquisition acquisition = startup
+        ? MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE
+        : MBLINK_MERCEDES_ECU_DATA_USER_POLLING;
 
-    for (size_t index = 0U; index < count; ++index) {
-        MblinkMercedesEcuDataItem item;
-        const bool ok = startup
-            ? mblink_mercedes_ecu_pack_startup_item_at(pack, index, &item)
-            : mblink_mercedes_ecu_pack_polling_item_at(pack, index, &item);
-        if (!ok) continue;
+    while (mblink_mercedes_ecu_pack_next_item(
+            pack, acquisition, &cursor, &item)) {
         if (item.service == service && item.identifier == identifier)
             return true;
     }
@@ -295,12 +293,11 @@ static int test_orc_startup_names_are_specific(void)
             UINT32_C(0x64a), UINT32_C(0x489), false,
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
-        for (size_t index = 0U;
-             index < mblink_mercedes_ecu_pack_startup_item_count(&pack);
-             ++index) {
-            MblinkMercedesEcuDataItem item;
-            CHECK(mblink_mercedes_ecu_pack_startup_item_at(
-                &pack, index, &item));
+        size_t cursor = 0U;
+        MblinkMercedesEcuDataItem item;
+        while (mblink_mercedes_ecu_pack_next_item(
+                &pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+                &cursor, &item)) {
             if (item.service != UINT8_C(0x21) || item.name == NULL) continue;
             if (item.identifier == UINT16_C(0x02)) {
                 saw_configuration = true;
@@ -345,17 +342,14 @@ static int test_documented_reads_are_classified_by_acquisition(void)
             cases[case_index].tx, cases[case_index].rx, false,
             MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
-        const size_t count = cases[case_index].startup
-            ? mblink_mercedes_ecu_pack_startup_item_count(&pack)
-            : mblink_mercedes_ecu_pack_polling_item_count(&pack);
-        for (size_t index = 0U; index < count; ++index) {
-            MblinkMercedesEcuDataItem item;
-            const bool ok = cases[case_index].startup
-                ? mblink_mercedes_ecu_pack_startup_item_at(
-                    &pack, index, &item)
-                : mblink_mercedes_ecu_pack_polling_item_at(
-                    &pack, index, &item);
-            CHECK(ok);
+        size_t cursor = 0U;
+        MblinkMercedesEcuDataItem item;
+        const MblinkMercedesEcuDataAcquisition acquisition =
+            cases[case_index].startup
+                ? MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE
+                : MBLINK_MERCEDES_ECU_DATA_USER_POLLING;
+        while (mblink_mercedes_ecu_pack_next_item(
+                &pack, acquisition, &cursor, &item)) {
             if (item.service == UINT8_C(0x21) &&
                 item.identifier == cases[case_index].identifier) {
                 found = true;
@@ -379,11 +373,11 @@ static int test_documented_identification_reads_are_startup_data(void)
         UINT32_C(0x652), UINT32_C(0x48a), false,
         MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, &pack));
 
-    for (size_t index = 0U;
-         index < mblink_mercedes_ecu_pack_startup_item_count(&pack);
-         ++index) {
-        MblinkMercedesEcuDataItem item;
-        CHECK(mblink_mercedes_ecu_pack_startup_item_at(&pack, index, &item));
+    size_t cursor = 0U;
+    MblinkMercedesEcuDataItem item;
+    while (mblink_mercedes_ecu_pack_next_item(
+            &pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+            &cursor, &item)) {
         if (item.service == UINT8_C(0x1a) &&
             item.identifier == UINT16_C(0x87) &&
             item.status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
@@ -432,12 +426,11 @@ static int test_documented_polling_controller_data_stays_selectable(void)
             cases[case_index].tx, cases[case_index].rx, false,
             MBLINK_MERCEDES_DIAGNOSTIC_UDS, &pack));
 
-        for (size_t index = 0U;
-             index < mblink_mercedes_ecu_pack_polling_item_count(&pack);
-             ++index) {
-            MblinkMercedesEcuDataItem item;
-            CHECK(mblink_mercedes_ecu_pack_polling_item_at(
-                &pack, index, &item));
+        size_t cursor = 0U;
+        MblinkMercedesEcuDataItem item;
+        while (mblink_mercedes_ecu_pack_next_item(
+                &pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING,
+                &cursor, &item)) {
             if (item.service == UINT8_C(0x22) &&
                 item.identifier == cases[case_index].identifier &&
                 item.status ==

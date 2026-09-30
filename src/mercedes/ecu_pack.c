@@ -600,89 +600,33 @@ bool mblink_mercedes_ecu_pack_data_item_at(
     return false;
 }
 
-static bool data_item_at_for_acquisition(
+bool mblink_mercedes_ecu_pack_next_item(
     const MblinkMercedesEcuPack *pack,
     MblinkMercedesEcuDataAcquisition acquisition,
-    size_t wanted,
+    size_t *cursor,
     MblinkMercedesEcuDataItem *item)
 {
-    size_t seen = 0U;
     const size_t count = mblink_mercedes_ecu_pack_data_item_count(pack);
+    size_t index;
 
-    if (item == NULL) return false;
-    for (size_t index = 0U; index < count; ++index) {
+    if (pack == NULL || cursor == NULL || item == NULL) return false;
+    for (index = *cursor; index < count; ++index) {
         MblinkMercedesEcuDataItem candidate;
+        *cursor = index + 1U;
         if (!mblink_mercedes_ecu_pack_data_item_at(
                 pack, index, &candidate)) {
             continue;
         }
-        /*
-         * The two acquisition views are executable/source-backed sections of
-         * the resolved ECU pack. Keep raw vehicle-only observations in the
-         * canonical evidence catalogue, but never surface them as startup
-         * commands or user-polling commands.
-         */
         if (candidate.acquisition != acquisition ||
             !candidate.advertised) {
             continue;
         }
-        if (seen++ == wanted) {
-            *item = candidate;
-            return true;
-        }
+        *item = candidate;
+        return true;
     }
+    *cursor = count;
     clear_item(item);
     return false;
-}
-
-static size_t data_item_count_for_acquisition(
-    const MblinkMercedesEcuPack *pack,
-    MblinkMercedesEcuDataAcquisition acquisition)
-{
-    size_t result = 0U;
-    const size_t count = mblink_mercedes_ecu_pack_data_item_count(pack);
-
-    for (size_t index = 0U; index < count; ++index) {
-        MblinkMercedesEcuDataItem item;
-        if (mblink_mercedes_ecu_pack_data_item_at(pack, index, &item) &&
-            item.acquisition == acquisition &&
-            item.advertised) {
-            ++result;
-        }
-    }
-    return result;
-}
-
-size_t mblink_mercedes_ecu_pack_startup_item_count(
-    const MblinkMercedesEcuPack *pack)
-{
-    return data_item_count_for_acquisition(
-        pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
-}
-
-bool mblink_mercedes_ecu_pack_startup_item_at(
-    const MblinkMercedesEcuPack *pack,
-    size_t index,
-    MblinkMercedesEcuDataItem *item)
-{
-    return data_item_at_for_acquisition(
-        pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE, index, item);
-}
-
-size_t mblink_mercedes_ecu_pack_polling_item_count(
-    const MblinkMercedesEcuPack *pack)
-{
-    return data_item_count_for_acquisition(
-        pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING);
-}
-
-bool mblink_mercedes_ecu_pack_polling_item_at(
-    const MblinkMercedesEcuPack *pack,
-    size_t index,
-    MblinkMercedesEcuDataItem *item)
-{
-    return data_item_at_for_acquisition(
-        pack, MBLINK_MERCEDES_ECU_DATA_USER_POLLING, index, item);
 }
 
 const MblinkMercedesDocumentedField *mblink_mercedes_ecu_pack_field_at(
