@@ -177,6 +177,13 @@ require(
     "iPhone PID Setup must be documentation-driven with no separate pollable gate",
 )
 require(
+    "readinessFieldSnapshots" in model
+    and "setPollingFieldMask" in model
+    and "readinessFieldMask(for: selection)" in model
+    and "shares one 01 01 request" in model,
+    "standard grouped PID fields must be independently selectable while sharing one source request",
+)
+require(
     "documentedLiveIdentifiersForModuleIdentifier" not in controller
     and "documentedPIDCommandsForModuleIdentifier" in controller
     and "if (!definition.live) continue;" not in controller,

@@ -380,7 +380,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     // PID Setup owns display membership as well as polling. Consult the saved
     // selection directly so cached samples can never keep an OFF channel visible.
     var enabledDisplayParameters: [DiagnosticParameter] {
-        let standard = storedPollingKeys()
+        let standard =
+            expandedStandardPollingKeys(storedPollingKeys())
         let manufacturer = Set(pidConfigurationModules.flatMap {
             manufacturerSelectionSet(moduleID: $0.id)
         })
@@ -463,7 +464,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     func standardPIDCatalogueItems() -> [MBPIDCatalogueItem] {
-        let selected = storedPollingKeys()
+        let selected = expandedStandardPollingKeys(storedPollingKeys())
         let advertised = Set(pidSupportByModule.values.flatMap { $0 })
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
@@ -477,6 +478,23 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             guard metadata.mode == 0x01 else { continue }
             let pid = metadata.pid
             guard (pid & 0x1F) != 0 else { continue }
+
+            if pid == 0x01 {
+                for field in readinessFields() {
+                    result.append(MBPIDCatalogueItem(
+                        id: field.stableKey,
+                        source: .standard,
+                        service: 0x01,
+                        identifier: UInt16(pid),
+                        shortName: field.shortName,
+                        title: field.title,
+                        provenance:
+                            "SAE J1979 / ISO 15031-5 · shared PID 01 record",
+                        pollingEnabled: selected.contains(field.stableKey),
+                        advertised: advertised.contains(pid)))
+                }
+                continue
+            }
 
             let scalar = mblink_parameter_obd2_definition(pid)
             let title = scalar != nil
@@ -599,7 +617,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     var configuredPollingCount: Int {
-        let standard = storedPollingKeys().count
+        let standard =
+            expandedStandardPollingKeys(storedPollingKeys()).count
         let manufacturer = pidConfigurationModules.reduce(0) {
             $0 + manufacturerSelectionSet(moduleID: $1.id).count
         }
@@ -675,13 +694,17 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         guard !controller.isActive || effectivePIDConfigurationVIN != nil
         else { return }
         guard let pid = pidForStableKey(stableKey) else { return }
-        var enabledKeys = storedPollingKeys()
-        if enabled { enabledKeys.insert(stableKey) } else { enabledKeys.remove(stableKey) }
+
+        var enabledKeys =
+            expandedStandardPollingKeys(storedPollingKeys())
+        if enabled { enabledKeys.insert(stableKey) }
+        else { enabledKeys.remove(stableKey) }
         storeStandardPollingKeys(enabledKeys)
         if let vin = effectivePIDConfigurationVIN {
             markStandardSelectionExplicitlyEdited(vin: vin)
         }
-        controller.setPollingEnabled(enabled, forPID: pid)
+
+        applyStandardPollingSelection(for: pid, selection: enabledKeys)
         refreshStandardState()
     }
 
@@ -799,7 +822,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func livePollingSelectionSignature(vin: String) -> String {
-        let standard = storedPollingKeys().sorted().joined(separator: ",")
+        let standard = expandedStandardPollingKeys(storedPollingKeys())
+            .sorted().joined(separator: ",")
         let manufacturer = pidConfigurationModules.map { module in
             let keys = manufacturerSelectionSet(moduleID: module.id)
                 .sorted().joined(separator: ",")
@@ -1001,7 +1025,61 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return String(format: "sae.obd2.mode01.%02X", pid)
     }
 
+    private func readinessFields() -> [LinkReadinessFieldSnapshot] {
+        controller.readinessFieldSnapshots()
+    }
+
+    private func expandedStandardPollingKeys(
+        _ selection: Set<String>
+    ) -> Set<String> {
+        var expanded = selection
+        let legacyPID01 = standardStableKey(for: 0x01)
+        if expanded.remove(legacyPID01) != nil {
+            for field in readinessFields() {
+                expanded.insert(field.stableKey)
+            }
+        }
+        return expanded
+    }
+
+    private func readinessFieldMask(
+        for selection: Set<String>
+    ) -> UInt64 {
+        var mask: UInt64 = 0
+        for field in readinessFields()
+            where field.fieldIndex < 64 &&
+                  selection.contains(field.stableKey) {
+            mask |= UInt64(1) << UInt64(field.fieldIndex)
+        }
+        return mask
+    }
+
+    private func applyStandardPollingSelection(
+        for pid: UInt8,
+        selection: Set<String>
+    ) {
+        if pid == 0x01 {
+            /*
+             * PID 01 is one physical request carrying many independently
+             * selectable logical values. Publish the logical selection as a
+             * field mask, then keep the old whole-PID flag clear. LINK enables
+             * the source request whenever the mask is non-zero.
+             */
+            controller.setPollingFieldMask(
+                readinessFieldMask(for: selection), forPID: pid)
+            controller.setPollingEnabled(false, forPID: pid)
+            return
+        }
+        controller.setPollingEnabled(
+            selection.contains(standardStableKey(for: pid)), forPID: pid)
+    }
+
     private func pidForStableKey(_ stableKey: String) -> UInt8? {
+        if let field = readinessFields().first(where: {
+            $0.stableKey == stableKey
+        }) {
+            return field.sourcePID
+        }
         if let parameter = diagnosticParameters.first(where: { $0.id == stableKey }) {
             return UInt8(exactly: parameter.parameterIdentifier)
         }
@@ -1014,7 +1092,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func applyStoredPollingPolicy() {
-        let enabled = storedPollingKeys()
+        let enabled = expandedStandardPollingKeys(storedPollingKeys())
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return }
         for index in 0..<count {
@@ -1023,8 +1101,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             guard metadata.mode == 0x01 else { continue }
             let pid = metadata.pid
             guard (pid & 0x1F) != 0 else { continue }
-            controller.setPollingEnabled(
-                enabled.contains(standardStableKey(for: pid)), forPID: pid)
+            applyStandardPollingSelection(for: pid, selection: enabled)
         }
     }
 
@@ -1155,7 +1232,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         let count = mblink_obd2_pid_definition_count()
         guard count > 0 else { return [] }
         var result = [DiagnosticParameter]()
-        result.reserveCapacity(Int(count))
+        result.reserveCapacity(Int(count) + 18)
+        let selectedStandard =
+            expandedStandardPollingKeys(storedPollingKeys())
 
         for index in 0..<count {
             guard let catalogueDefinition = mblink_obd2_pid_definition_at(index) else { continue }
@@ -1164,6 +1243,58 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             let pid = catalogue.pid
             // 00/20/.../E0 are support bitmaps, not user-selectable live values.
             guard (pid & 0x1F) != 0 else { continue }
+
+            if pid == 0x01 {
+                let vehicleSupported: Bool
+                if let responderCANIdentifier {
+                    vehicleSupported = controller.observedPIDs(
+                        forResponderCANIdentifier: responderCANIdentifier,
+                        extendedID: extendedID).contains {
+                            $0.uint8Value == pid
+                        }
+                } else {
+                    vehicleSupported = controller.supportsPID(pid)
+                }
+
+                for field in readinessFields() {
+                    let pollingEnabled =
+                        selectedStandard.contains(field.stableKey)
+                    let numeric: Double? =
+                        pollingEnabled && field.valueAvailable &&
+                        field.numericValueAvailable
+                            ? field.numericValue : nil
+                    let structured: String? =
+                        pollingEnabled && field.valueAvailable &&
+                        !field.numericValueAvailable
+                            ? field.formattedValue : nil
+                    let formatted = pollingEnabled
+                        ? (field.valueAvailable
+                            ? field.formattedValue : "Waiting for sample")
+                        : "Not selected"
+                    result.append(DiagnosticParameter(
+                        id: field.stableKey,
+                        protocolName: "obd2",
+                        moduleIdentifier: 0,
+                        parameterIdentifier: UInt32(pid),
+                        shortName: field.shortName,
+                        title: field.title,
+                        suffix: "",
+                        formattedValue: formatted,
+                        value: numeric,
+                        structuredValue: structured,
+                        rawHex: nil,
+                        vehicleSupported: vehicleSupported,
+                        favourite: false,
+                        pollingEnabled: pollingEnabled,
+                        history: [],
+                        sourceLabel: sourceLabel,
+                        qualityNote:
+                            "SAE J1979 PID 01 field · shares one 01 01 request",
+                        dashboardMinimum: nil,
+                        dashboardMaximum: nil))
+                }
+                continue
+            }
 
             let scalarDefinition = mblink_parameter_obd2_definition(pid)
             let rawHistory: [Double]

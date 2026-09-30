@@ -184,7 +184,22 @@ actual-value read, merely because that route responded during the census.
 
 The diagnostic scheduler must remain single-owner/serialized through LINK so generic OBD and manufacturer-specific work never compete for the adapter wire.
 
-The scheduler should de-duplicate requests by underlying diagnostic record. Multiple selected signals decoded from one response must share one scheduled request.
+The scheduler must de-duplicate requests by underlying diagnostic record.
+Multiple selected signals decoded from one response share one scheduled request.
+
+Selection and wire scheduling are deliberately different layers. A logical
+channel records its source service/PID/identifier plus the field it consumes.
+The scheduler groups enabled logical channels by that source request. If any
+field from a source is selected, the source is polled once; selecting more
+fields from the same source does not add another transaction. When the final
+field is disabled, that source request stops.
+
+For grouped standard data such as Mode 01 PID 0x01, LINK maintains a selected
+field mask. The adapter necessarily receives the complete standards-defined
+response, but LINK decodes and promotes only the selected logical fields. Bytes
+belonging only to unselected fields are not turned into telemetry values,
+histories or display channels. This is the same request/deduplication model used
+by Mercedes grouped records such as KWP 0x21 0x30.
 
 A PID setup screen must never trigger a broad brute-force scan simply because the user opened it. Broad or bounded discovery is a separate explicit diagnostic operation.
 
@@ -230,6 +245,8 @@ A release satisfies this design only when all of the following are true:
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery causes no manufacturer live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
+- Mode 01 PID 0x01 exposes its constituent readiness values as independent user choices; one or several enabled fields still produce one 0x01 request.
+- Unselected fields in a grouped response are not decoded into presentation telemetry merely because the shared response carried their bytes.
 - Standard selections persist by VIN, Mercedes selections persist by
   VIN/module, and both can be edited from a saved offline vehicle profile.
 - Unknown modules are not assigned invented PID meanings.
