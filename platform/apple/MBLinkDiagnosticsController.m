@@ -169,6 +169,69 @@ static NSString *MBLinkStandardDataKey(uint8_t pid, uint32_t responder, BOOL ext
         extended ? @"29" : @"11", (unsigned int)responder, (unsigned int)pid];
 }
 
+static NSDictionary *MBLinkPersistedMercedesDataSnapshot(
+    MBLinkMercedesDataSnapshot *snapshot)
+{
+    if (snapshot == nil) return nil;
+    NSMutableDictionary *value = [@{
+        @"service": @(snapshot.service),
+        @"identifier": @(snapshot.identifier),
+        @"codeText": snapshot.codeText ?: @"",
+        @"formattedValue": snapshot.formattedValue ?: @"",
+        @"rawHex": snapshot.rawHex ?: @"",
+        @"mapped": @(snapshot.isMapped),
+        @"numericAvailable": @(snapshot.isNumericValueAvailable),
+        @"numericValue": @(snapshot.numericValue)
+    } mutableCopy];
+    if (snapshot.name.length != 0U) value[@"name"] = snapshot.name;
+    if (snapshot.unit.length != 0U) value[@"unit"] = snapshot.unit;
+    if (snapshot.rawData.length != 0U) {
+        value[@"rawData"] =
+            [snapshot.rawData base64EncodedStringWithOptions:0];
+    }
+    return [value copy];
+}
+
+static MBLinkMercedesDataSnapshot *
+MBLinkMercedesDataSnapshotFromProfile(NSDictionary *value)
+{
+    if (![value isKindOfClass:[NSDictionary class]]) return nil;
+    NSNumber *service = value[@"service"];
+    NSNumber *identifier = value[@"identifier"];
+    if (![service isKindOfClass:[NSNumber class]] ||
+        ![identifier isKindOfClass:[NSNumber class]] ||
+        service.unsignedIntegerValue > UINT8_MAX ||
+        identifier.unsignedIntegerValue > UINT16_MAX) {
+        return nil;
+    }
+
+    MBLinkMercedesDataSnapshot *snapshot =
+        [[MBLinkMercedesDataSnapshot alloc] init];
+    snapshot.service = (uint8_t)service.unsignedIntegerValue;
+    snapshot.identifier = (uint16_t)identifier.unsignedIntegerValue;
+    snapshot.codeText = [value[@"codeText"] isKindOfClass:[NSString class]]
+        ? value[@"codeText"] : @"";
+    snapshot.name = [value[@"name"] isKindOfClass:[NSString class]]
+        ? value[@"name"] : nil;
+    snapshot.unit = [value[@"unit"] isKindOfClass:[NSString class]]
+        ? value[@"unit"] : nil;
+    snapshot.formattedValue =
+        [value[@"formattedValue"] isKindOfClass:[NSString class]]
+            ? value[@"formattedValue"] : @"";
+    snapshot.rawHex = [value[@"rawHex"] isKindOfClass:[NSString class]]
+        ? value[@"rawHex"] : @"";
+    NSString *encoded =
+        [value[@"rawData"] isKindOfClass:[NSString class]]
+            ? value[@"rawData"] : nil;
+    snapshot.rawData = encoded.length != 0U
+        ? [[NSData alloc] initWithBase64EncodedString:encoded options:0]
+        : [NSData data];
+    snapshot.mapped = [value[@"mapped"] boolValue];
+    snapshot.numericValueAvailable = [value[@"numericAvailable"] boolValue];
+    snapshot.numericValue = [value[@"numericValue"] doubleValue];
+    return snapshot;
+}
+
 /*
  * Preserve the diagnostic service together with the local identifier all the
  * way from PID Setup to the wire. KWP controllers legitimately mix 0x1A and
@@ -3310,6 +3373,25 @@ static void MBLinkAppendManufacturerDefinition(
             [identity addObject:[NSString stringWithFormat:
                 @"  BOOT SOFTWARE · %@",
                 MBLinkStringFromCString(module.boot_software_version)]];
+
+        NSArray *savedStartup =
+            [((NSDictionary *)value)[@"startupData"]
+                isKindOfClass:[NSArray class]]
+                ? ((NSDictionary *)value)[@"startupData"] : @[];
+        if (savedStartup.count != 0U) {
+            NSMutableArray<MBLinkMercedesDataSnapshot *> *restored =
+                [[NSMutableArray alloc] initWithCapacity:savedStartup.count];
+            for (id savedData in savedStartup) {
+                MBLinkMercedesDataSnapshot *snapshot =
+                    MBLinkMercedesDataSnapshotFromProfile(savedData);
+                if (snapshot != nil) [restored addObject:snapshot];
+            }
+            if (restored.count != 0U) {
+                _manufacturerDataByModule[
+                    MBLinkMercedesModuleIdentifier(&module)] =
+                    [restored copy];
+            }
+        }
     }
 
     if (validModules == 0U) {
@@ -3434,6 +3516,20 @@ static void MBLinkAppendManufacturerDefinition(
                 MBLinkStringFromCString(module->boot_software_version);
 
         NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
+        NSArray<MBLinkMercedesDataSnapshot *> *startupData =
+            [self startupDataSnapshotsForModuleIdentifier:moduleIdentifier];
+        if (startupData.count != 0U) {
+            NSMutableArray<NSDictionary *> *savedStartup =
+                [[NSMutableArray alloc] initWithCapacity:startupData.count];
+            for (MBLinkMercedesDataSnapshot *snapshot in startupData) {
+                NSDictionary *saved =
+                    MBLinkPersistedMercedesDataSnapshot(snapshot);
+                if (saved != nil) [savedStartup addObject:saved];
+            }
+            if (savedStartup.count != 0U)
+                dictionary[@"startupData"] = [savedStartup copy];
+        }
+
         NSArray<MBLinkMercedesDataSnapshot *> *knownManufacturerData =
             _manufacturerDataByModule[moduleIdentifier];
         NSMutableOrderedSet<NSNumber *> *manufacturerIDs =
