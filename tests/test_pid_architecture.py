@@ -40,6 +40,11 @@ ecu_pack_api = (ROOT / "include/mblink/mercedes_ecu_pack.h").read_text(
 )
 ecu_pack = (ROOT / "src/mercedes/ecu_pack.c").read_text(encoding="utf-8")
 require(
+    "source_dynamic_hint" in manufacturer_api
+    and "bool live;" not in manufacturer_api,
+    "controller profile source hints must not be named as runtime live/polling state",
+)
+require(
     "mblink_mercedes_data_runtime_candidate_identifier" not in manufacturer_api
     and "mblink_mercedes_data_identifier_is_runtime_refreshable" not in manufacturer_api,
     "obsolete route-level runtime polling policy must not coexist with ECU-pack USER_POLLING",

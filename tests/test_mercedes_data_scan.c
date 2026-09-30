@@ -697,7 +697,7 @@ static bool route_evidence_has(
             mblink_mercedes_route_evidence_identifier_at(
                 tx, rx, false, protocol, kind, index);
         if (entry != NULL && entry->identifier == identifier) {
-            if (live != NULL) *live = entry->live;
+            if (live != NULL) *live = entry->source_dynamic_hint;
             return true;
         }
     }
@@ -747,17 +747,17 @@ static int test_runtime_candidate_catalog(void)
     entry = mblink_mercedes_controller_data_profile_find(
         "gateway-cgw212", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT16_C(0xD243));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "camera-mfk", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT16_C(0x0220));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "fuel-pump-fscu", MBLINK_MERCEDES_DIAGNOSTIC_UDS,
         UINT16_C(0x000B));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
 
     CHECK(strcmp(mblink_mercedes_data_profile_key_for_controller(
@@ -838,30 +838,30 @@ static int test_runtime_candidate_catalog(void)
 
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x200d));
-    CHECK(entry != NULL && entry->live);
+    CHECK(entry != NULL && entry->source_dynamic_hint);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2003));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2009));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x20c0));
-    CHECK(entry != NULL && !entry->live);
+    CHECK(entry != NULL && !entry->source_dynamic_hint);
     entry = mblink_mercedes_controller_data_profile_find(
         "esp-abr2xt", MBLINK_MERCEDES_DIAGNOSTIC_UDS, UINT16_C(0x2010));
-    CHECK(entry != NULL && entry->live &&
+    CHECK(entry != NULL && entry->source_dynamic_hint &&
           entry->status == MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED);
     entry = mblink_mercedes_controller_data_profile_find(
         "restraints-orc212", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0058));
-    CHECK(entry != NULL && !entry->live);
+    CHECK(entry != NULL && !entry->source_dynamic_hint);
     entry = mblink_mercedes_controller_data_profile_find(
         "headunit-hu204", MBLINK_MERCEDES_DIAGNOSTIC_KWP2000,
         UINT16_C(0x0005));
-    CHECK(entry != NULL && entry->live);
+    CHECK(entry != NULL && entry->source_dynamic_hint);
     /*
      * Recurring polling membership is not duplicated in this evidence layer.
      * The resolved ECU pack owns STARTUP_ONCE versus USER_POLLING.

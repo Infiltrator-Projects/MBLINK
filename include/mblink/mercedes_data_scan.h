@@ -145,10 +145,10 @@ typedef struct MblinkMercedesControllerDataProfileEntry {
     /*
      * Historical/source classification of this controller Data service.
      * During catalogue completion, source-backed safe reads are selectable in
-     * PID Setup regardless of this flag; preserve it as semantic metadata for
+     * PID Setup regardless of this hint; preserve it as semantic metadata for
      * later grouping/curation. It is never a runtime-response/pollability test.
      */
-    bool live;
+    bool source_dynamic_hint;
     const char *name;
     MblinkMercedesDefinitionStatus status;
     const char *provenance;

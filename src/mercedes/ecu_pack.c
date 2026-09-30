@@ -532,7 +532,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
             pack, entry->service, entry->identifier, entry->name);
         if (entry->status ==
                 MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED) {
-            item->kind = entry->live
+            item->kind = entry->source_dynamic_hint
                 ? MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE
                 : MBLINK_MERCEDES_ECU_DATA_DOCUMENTED_READ;
         } else {
