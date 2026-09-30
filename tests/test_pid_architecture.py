@@ -93,6 +93,9 @@ module_catalog_api = (ROOT / "include/mblink/mercedes_module_catalog.h").read_te
 module_catalog_source = (ROOT / "src/mercedes/module_catalog.c").read_text(
     encoding="utf-8"
 )
+data_catalog_source = (ROOT / "src/mercedes/data_catalog.c").read_text(
+    encoding="utf-8"
+)
 apple_models = (ROOT / "platform/apple/MBLinkDiagnosticsModels.inc").read_text(
     encoding="utf-8"
 )
@@ -264,6 +267,15 @@ require(
     and "mblink_mercedes_module_scan_command_core" not in module_scan_api
     and "mblink_mercedes_module_scan_accept_core" not in module_scan_api,
     "module-scan core helpers must stay private to the implementation",
+)
+require(
+    "controller_data_profile[]" not in manufacturer
+    and "route_evidence[]" not in manufacturer
+    and "mercedes_documented_ecus.inc" not in manufacturer
+    and "controller_data_profile[]" in data_catalog_source
+    and "route_evidence[]" in data_catalog_source
+    and "mercedes_documented_ecus.inc" in data_catalog_source,
+    "Mercedes static data knowledge must stay separate from the data-scan transport state machine",
 )
 require(
     "static inline" not in module_catalog_api

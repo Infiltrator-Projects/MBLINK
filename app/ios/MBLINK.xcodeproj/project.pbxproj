@@ -24,6 +24,7 @@
 		E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */; };
 		E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A0C /* discover_plan.c */; };
 		E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A12 /* data_scan.c */; };
+		E0A1B2C3D4E5F60718293B17 /* data_catalog.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A17 /* data_catalog.c */; };
 		E0A1B2C3D4E5F60718293B15 /* ecu_pack.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A15 /* ecu_pack.c */; };
 		E0A1B2C3D4E5F60718293B16 /* module_catalog.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A16 /* module_catalog.c */; };
 		E0A1B2C3D4E5F60718293B13 /* transmission.c in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A13 /* transmission.c */; };
@@ -120,6 +121,7 @@
 		F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "mercedes_probe.c"; path = "../../src/mercedes/probe.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A0C /* discover_plan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "discover_plan.c"; path = "../../src/mercedes/discover_plan.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A12 /* data_scan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "data_scan.c"; path = "../../src/mercedes/data_scan.c"; sourceTree = SOURCE_ROOT; };
+		F0A1B2C3D4E5F60718293A17 /* data_catalog.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "data_catalog.c"; path = "../../src/mercedes/data_catalog.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A15 /* ecu_pack.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "ecu_pack.c"; path = "../../src/mercedes/ecu_pack.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A16 /* module_catalog.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "module_catalog.c"; path = "../../src/mercedes/module_catalog.c"; sourceTree = SOURCE_ROOT; };
 		F0A1B2C3D4E5F60718293A13 /* transmission.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "transmission.c"; path = "../../src/mercedes/transmission.c"; sourceTree = SOURCE_ROOT; };
@@ -284,6 +286,7 @@
 				F0A1B2C3D4E5F60718293A14 /* module_scan.c */,
 				F0A1B2C3D4E5F60718293A0B /* mercedes_probe.c */,
 				F0A1B2C3D4E5F60718293A0C /* discover_plan.c */,
+				F0A1B2C3D4E5F60718293A17 /* data_catalog.c */,
 				F0A1B2C3D4E5F60718293A12 /* data_scan.c */,
 				F0A1B2C3D4E5F60718293A15 /* ecu_pack.c */,
 				F0A1B2C3D4E5F60718293A16 /* module_catalog.c */,
@@ -559,6 +562,7 @@
 				E0A1B2C3D4E5F60718293B14 /* module_scan.c in Sources */,
 				E0A1B2C3D4E5F60718293B0B /* mercedes_probe.c in Sources */,
 				E0A1B2C3D4E5F60718293B0C /* discover_plan.c in Sources */,
+				E0A1B2C3D4E5F60718293B17 /* data_catalog.c in Sources */,
 				E0A1B2C3D4E5F60718293B12 /* data_scan.c in Sources */,
 				E0A1B2C3D4E5F60718293B15 /* ecu_pack.c in Sources */,
 				E0A1B2C3D4E5F60718293B16 /* module_catalog.c in Sources */,
