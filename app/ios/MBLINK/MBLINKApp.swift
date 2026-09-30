@@ -1221,63 +1221,113 @@ private struct MBModulesView: View {
     }
 
     private func moduleCard(_ module: DiagnosticModule) -> some View {
-        HStack(alignment: .top, spacing: 13) {
-            Image(systemName: module.symbol)
-                .font(MBTypography.title2)
-                .foregroundStyle(MBBrand.silverBright)
-                .frame(width: 34, height: 34)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(module.name)
-                    .font(MBTypography.headline)
+        let startupStatus =
+            connection.moduleStartupReadinessFields(moduleID: module.id)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 13) {
+                Image(systemName: module.symbol)
+                    .font(MBTypography.title2)
                     .foregroundStyle(MBBrand.silverBright)
-                    .multilineTextAlignment(.leading)
-                if !module.designation.isEmpty {
-                    Text(module.designation)
-                        .font(MBTypography.captionBold)
-                        .foregroundStyle(MBBrand.silver)
+                    .frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(module.name)
+                        .font(MBTypography.headline)
+                        .foregroundStyle(MBBrand.silverBright)
+                        .multilineTextAlignment(.leading)
+                    if !module.designation.isEmpty {
+                        Text(module.designation)
+                            .font(MBTypography.captionBold)
+                            .foregroundStyle(MBBrand.silver)
+                    }
+                    Text("\(module.addressText) · \(module.protocolName)")
+                        .font(MBTypography.caption2)
+                        .foregroundStyle(MBBrand.muted)
+                    HStack(spacing: 8) {
+                        Label(
+                            connection.isActive
+                                ? "\(module.livePIDCount) observed live OBD values"
+                                : "\(module.obdAdvertisedPIDCount) previously advertised",
+                            systemImage: "waveform.path.ecg")
+                        Label(
+                            module.faultCountLabel,
+                            systemImage: "exclamationmark.triangle")
+                    }
+                    .font(MBTypography.caption2Bold)
+                    .foregroundStyle(MBBrand.silver)
                 }
-                Text("\(module.addressText) · \(module.protocolName)")
-                    .font(MBTypography.caption2)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
                     .foregroundStyle(MBBrand.muted)
-                HStack(spacing: 8) {
-                    Label(
-                        connection.isActive
-                            ? "\(module.livePIDCount) observed OBD values"
-                            : "\(module.obdAdvertisedPIDCount) previously advertised",
-                        systemImage: "waveform.path.ecg")
-                    Label(module.faultCountLabel, systemImage: "exclamationmark.triangle")
-                }
-                .font(MBTypography.caption2Bold)
-                .foregroundStyle(MBBrand.silver)
+                    .padding(.top, 8)
             }
-            Spacer(minLength: 4)
-            if let milOn = connection.moduleMILState(moduleID: module.id) {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(milOn ? MBBrand.fault : MBBrand.success)
-                        .frame(width: 14, height: 14)
-                        .overlay(
-                            Circle().stroke(
-                                MBBrand.silverBright.opacity(0.35),
-                                lineWidth: 1))
-                    Text("MIL")
-                        .font(MBTypography.caption2Bold)
-                        .foregroundStyle(MBBrand.silver)
+
+            if !startupStatus.isEmpty {
+                Divider().overlay(MBBrand.line)
+                HStack {
+                    Text("Startup OBD status")
+                        .font(MBTypography.captionBold)
+                        .foregroundStyle(MBBrand.silverBright)
+                    Spacer()
+                    Text("read once at connection")
+                        .font(MBTypography.caption2)
+                        .foregroundStyle(MBBrand.muted)
                 }
-                .padding(.top, 8)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    milOn ? "MIL requested" : "MIL not requested")
-                .accessibilityHint(
-                    "Malfunction indicator lamp status reported by this control unit")
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), alignment: .leading),
+                        GridItem(.flexible(), alignment: .leading)
+                    ],
+                    alignment: .leading,
+                    spacing: 6
+                ) {
+                    ForEach(startupStatus, id: \.stableKey) { field in
+                        HStack(spacing: 5) {
+                            if field.stableKey ==
+                                "obd2.readiness.mil" {
+                                Circle()
+                                    .fill(
+                                        field.numericValueAvailable &&
+                                        field.numericValue != 0
+                                            ? MBBrand.fault
+                                            : MBBrand.success)
+                                    .frame(width: 10, height: 10)
+                            }
+                            Text(field.shortName)
+                                .font(MBTypography.caption2Bold)
+                                .foregroundStyle(MBBrand.silver)
+                            Spacer(minLength: 4)
+                            Text(field.formattedValue)
+                                .font(MBTypography.caption2)
+                                .foregroundStyle(startupStatusColor(field))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
             }
-            Image(systemName: "chevron.right")
-                .foregroundStyle(MBBrand.muted)
-                .padding(.top, 8)
         }
         .padding(15)
-        .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(MBBrand.panel))
-        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(MBBrand.line, lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(MBBrand.panel))
+        .overlay(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(MBBrand.line, lineWidth: 1))
+    }
+
+    private func startupStatusColor(
+        _ field: LinkReadinessFieldSnapshot
+    ) -> Color {
+        if field.stableKey == "obd2.readiness.mil" {
+            return field.numericValueAvailable && field.numericValue != 0
+                ? MBBrand.fault : MBBrand.success
+        }
+        if field.formattedValue == "Ready" { return MBBrand.success }
+        if field.formattedValue == "Not ready" { return MBBrand.fault }
+        return MBBrand.silver
     }
 
     private func capability(_ text: String, _ symbol: String) -> some View {
