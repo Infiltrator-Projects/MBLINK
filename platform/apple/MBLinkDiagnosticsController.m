@@ -1277,6 +1277,11 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
                 YES);
         if (snapshot != nil) [snapshots addObject:snapshot];
     }
+    /*
+     * Legislated OBD-II responders are intentionally not represented as
+     * Mercedes modules. Standard SAE/EOBD live data has its own vehicle-wide
+     * PID source in PID Setup; Modules contains manufacturer ECUs only.
+     */
     return [snapshots copy];
 }
 
