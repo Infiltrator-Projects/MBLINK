@@ -52,28 +52,6 @@ static int accept_command(
         CHECK(result == MBLINK_MERCEDES_DATA_SCAN_RESULT_OK ||
               result == MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
 
-        /*
-         * Most tests care about the data operation rather than the cleanup
-         * handshake. Transparently complete a documented route teardown here,
-         * while the dedicated HU_204 regression below checks the exact 10 81.
-         */
-        if (scan->stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION) {
-            char quit_command[32];
-            char documented[5];
-            size_t quit_written = 0U;
-            MblinkElm327Response no_reply = response_no_data();
-            CHECK(mblink_mercedes_documented_route_control_command(
-                scan->config.tx_can_id, scan->config.rx_can_id,
-                scan->config.extended_id, scan->config.protocol, true,
-                documented, sizeof(documented)));
-            CHECK(mblink_mercedes_data_scan_command(
-                scan, quit_command, sizeof(quit_command), &quit_written) ==
-                MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
-            CHECK(strcmp(quit_command, documented) == 0);
-            CHECK(quit_written == strlen(documented));
-            CHECK(mblink_mercedes_data_scan_accept(scan, &no_reply) ==
-                MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
-        }
     }
     return 0;
 }

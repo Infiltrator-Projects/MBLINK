@@ -709,7 +709,7 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                 response(MBLINK_ELM327_RESULT_OK, "5801D6AA20", false);
             CHECK(mblink_mercedes_module_scan_accept(
                       &scan, &kwp_dtcs) ==
-                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
         }
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
         CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 3U);
