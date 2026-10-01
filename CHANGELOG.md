@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.284 — 2026-10-01
+
+- Finish the single-source Mercedes module identity flow so saved and live module cards resolve identity from the controller-owned canonical snapshot instead of competing UI/profile copies.
+- Re-decode saved raw startup evidence with the current decoder, prevent route-keyed startup data leaking between saved VINs, and persist source discovery evidence rather than derived presentation values.
+- Remove the legacy short-F111/F121 override and suppress startup rows only when they are exact duplicates of the canonical module field.
+
+## 0.7.283 — 2026-10-01
+
+- Unify live and saved Mercedes module identity presentation through one controller-owned canonical snapshot.
+- Merge decoded startup identity evidence into module identity without treating hardware/software numbers as hardware/software versions.
+- Preserve the controller-first PID architecture invariant while keeping startup data as read-once evidence.
+
 ## 0.7.282 — 2026-10-01
 
 - Resolve the CGW_212 three-digit F111/F121 family value `212` to the complete Mercedes hardware `2125451001` and software `2129029904` part numbers only when the exact 0x602 → 0x480 startup signature also matches hardware version 08/43.01, software version 10/29.75 and boot software version 10/29.72.
