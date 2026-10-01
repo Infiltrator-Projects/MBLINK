@@ -354,16 +354,17 @@ require(
     "the complete source-backed ECU catalogue must be retained, then explicitly classified into startup or polling without promoting capture-only raw evidence",
 )
 require(
-    "mblink.manufacturer.pidCatalogueByVehicle.v5" in model
-    and "mblink.manufacturer.pidCatalogueByVehicle.v4" not in model,
-    "pre-split manufacturer PID catalogue caches must not leak startup-only items back into PID Setup",
+    "mblink.manufacturer.pidCatalogueByVehicle" not in model
+    and "cachedManufacturerCatalogue" not in model
+    and "cacheManufacturerCatalogue" not in model,
+    "manufacturer PID Setup must not retain a second persisted catalogue cache beside the saved controller profile",
 )
 require(
     "let documentedDefinitions = controller.documentedDataDefinitions(" in model
-    and "if !documentedDefinitions.isEmpty {" in model
-    and "else if controller.isActive {" in model
-    and "let sanitized = selected.intersection(documentedStableKeys)" in model,
-    "the exact identified ECU's documented PID catalogue must be authoritative and stale selections must be pruned",
+    and "let documentedStableKeys = Set(documentedDefinitions.map" in model
+    and "let sanitized = selected.intersection(documentedStableKeys)" in model
+    and "return documentedDefinitions.map" in model,
+    "the exact identified or saved ECU profile's documented PID catalogue must be authoritative and stale selections must be pruned",
 )
 saved_marker_start = model.index("private func writeSavedPIDCatalogueRegressionMarker(")
 saved_marker_end = model.index("#endif", saved_marker_start)
