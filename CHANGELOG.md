@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.285 — 2026-10-02
+
+- Make Mercedes diagnostic-session lifetime connection-owned: dynamically discovered and identified ECU packs enter their documented session at most once per vehicle connection, and startup/live reads reuse that state instead of cycling sessions.
+- Track session-entry attempts as connection-local state, reset them on reconnect, and preserve the existing ESP automatic-session safety exception while allowing each resolved ECU family to own its documented session behaviour.
+- Make Disconnect an ordered operation: stop new polling work, let an in-flight manufacturer command finish, send each entered ECU its documented default/quit-session command, then disconnect the adapter.
+
 ## 0.7.284 — 2026-10-01
 
 - Finish the single-source Mercedes module identity flow so saved and live module cards resolve identity from the controller-owned canonical snapshot instead of competing UI/profile copies.
