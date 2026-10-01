@@ -1469,18 +1469,27 @@ private struct MBModuleDetailView: View {
                 return false
             }
             guard value.service == 0x22, let module else { return true }
+
+            let canonical: String?
             switch value.identifier {
             case 0xF111, 0xF191:
-                return module.hardwareNumber?.isEmpty != false
+                canonical = module.hardwareNumber
             case 0xF121, 0xF188:
-                return module.softwareNumber?.isEmpty != false
+                canonical = module.softwareNumber
             case 0xF187:
-                return module.partNumber?.isEmpty != false
+                canonical = module.partNumber
             case 0xF197:
-                return module.identityText?.isEmpty != false
+                canonical = module.identityText
             default:
                 return true
             }
+
+            guard let canonical else { return true }
+            let canonicalValue = canonical.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            let startupValue = value.formattedValue.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            return canonicalValue.isEmpty || canonicalValue != startupValue
         }
     }
 

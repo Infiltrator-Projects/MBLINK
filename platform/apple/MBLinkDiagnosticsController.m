@@ -336,35 +336,6 @@ MBLinkMercedesModuleIsTransmissionController(
     return YES;
 }
 
-static const char *MBLinkMercedesIdentifiedPartNumberForShortMetadata(
-    const MblinkMercedesModuleScanEntry *module,
-    const MblinkMercedesDataRecord *record)
-{
-    if (module == NULL || record == NULL ||
-        record->service != UINT8_C(0x22) ||
-        record->data_length != 3U) {
-        return NULL;
-    }
-    for (size_t index = 0U; index < record->data_length; ++index) {
-        if (record->data[index] < UINT8_C('0') ||
-            record->data[index] > UINT8_C('9')) {
-            return NULL;
-        }
-    }
-
-    if (record->identifier == UINT16_C(0xf111) &&
-        module->hardware_number_available &&
-        strlen(module->hardware_number) > record->data_length) {
-        return module->hardware_number;
-    }
-    if (record->identifier == UINT16_C(0xf121) &&
-        module->software_number_available &&
-        strlen(module->software_number) > record->data_length) {
-        return module->software_number;
-    }
-    return NULL;
-}
-
 static MblinkMercedesTransmissionFamily
 MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
 {
@@ -495,16 +466,6 @@ static BOOL MBLinkApplyMercedesDataRecordPresentation(
                 module->kind,
                 record, structured, sizeof(structured),
                 &structuredName);
-    }
-
-    const char *identifiedPartNumber =
-        MBLinkMercedesIdentifiedPartNumberForShortMetadata(module, record);
-    if (identifiedPartNumber != NULL) {
-        structuredMapped = YES;
-        structuredName = mblink_mercedes_documented_read_name(
-            record->service, record->identifier);
-        (void)snprintf(
-            structured, sizeof(structured), "%s", identifiedPartNumber);
     }
 
     const char *profileName =
@@ -1116,36 +1077,43 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
     NSString *hardware = module->hardware_number_available
         ? MBLinkStringFromCString(module->hardware_number) : nil;
 
+    NSString *startupIdentity = MBLinkMappedStartupIdentityValue(
+        startupData, UINT16_C(0xf197), @"System name");
+    NSString *startupSparePart = MBLinkMappedStartupIdentityValue(
+        startupData, UINT16_C(0xf187),
+        @"Vehicle manufacturer spare part number");
+    NSString *startupSoftware = MBLinkMappedStartupIdentityValue(
+        startupData, UINT16_C(0xf188),
+        @"Vehicle manufacturer ECU software number");
+    if (startupSoftware.length == 0U)
+        startupSoftware = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf121),
+            @"Mercedes software part number");
+    NSString *startupHardware = MBLinkMappedStartupIdentityValue(
+        startupData, UINT16_C(0xf191),
+        @"Vehicle manufacturer ECU hardware number");
+    if (startupHardware.length == 0U)
+        startupHardware = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf111),
+            @"Mercedes hardware part number");
+
     /*
      * Discovery and startup DIDs are evidence about one controller, not two
-     * competing identities. Promote only decoded complete identity fields.
-     * A short F111/F121 family identifier such as "212" stays startup evidence
-     * unless the decoder has source-backed proof for the complete part number.
+     * competing identities. Live discovery remains authoritative when it
+     * already supplied a complete field. For a saved profile, re-decoded raw
+     * startup bytes win so an older cached presentation can never override the
+     * current decoder.
      */
-    if (identity.length == 0U)
-        identity = MBLinkMappedStartupIdentityValue(
-            startupData, UINT16_C(0xf197), @"System name");
-    if (sparePart.length == 0U)
-        sparePart = MBLinkMappedStartupIdentityValue(
-            startupData, UINT16_C(0xf187),
-            @"Vehicle manufacturer spare part number");
-    if (software.length == 0U) {
-        software = MBLinkMappedStartupIdentityValue(
-            startupData, UINT16_C(0xf188),
-            @"Vehicle manufacturer ECU software number");
-        if (software.length == 0U)
-            software = MBLinkMappedStartupIdentityValue(
-                startupData, UINT16_C(0xf121),
-                @"Mercedes software part number");
-    }
-    if (hardware.length == 0U) {
-        hardware = MBLinkMappedStartupIdentityValue(
-            startupData, UINT16_C(0xf191),
-            @"Vehicle manufacturer ECU hardware number");
-        if (hardware.length == 0U)
-            hardware = MBLinkMappedStartupIdentityValue(
-                startupData, UINT16_C(0xf111),
-                @"Mercedes hardware part number");
+    if (savedProfile) {
+        if (startupIdentity.length != 0U) identity = startupIdentity;
+        if (startupSparePart.length != 0U) sparePart = startupSparePart;
+        if (startupSoftware.length != 0U) software = startupSoftware;
+        if (startupHardware.length != 0U) hardware = startupHardware;
+    } else {
+        if (identity.length == 0U) identity = startupIdentity;
+        if (sparePart.length == 0U) sparePart = startupSparePart;
+        if (software.length == 0U) software = startupSoftware;
+        if (hardware.length == 0U) hardware = startupHardware;
     }
 
     MblinkMercedesModuleScanEntry resolvedModule;
@@ -3182,6 +3150,12 @@ static void MBLinkAppendManufacturerDefinition(
 
 - (void)loadSavedVehicleProfileForVIN:(NSString *)vin
 {
+    /*
+     * Startup/manufacturer snapshots are keyed by ECU route, not VIN. Never
+     * let a previously selected saved vehicle donate identity evidence to the
+     * next vehicle that happens to use the same CAN route.
+     */
+    [_manufacturerDataByModule removeAllObjects];
     _cachedVehicleProfile = [self savedVehicleProfileForVIN:vin];
     if (_cachedVehicleProfile == nil) {
         self.vehicleProfileStatusText =
@@ -3395,19 +3369,27 @@ static void MBLinkAppendManufacturerDefinition(
             dictionary[@"controllerFamily"] =
                 MBLinkStringFromCString(module->controller_family->key);
         }
+        /*
+         * Persist source evidence, not the derived canonical presentation.
+         * The canonical snapshot is rebuilt from discovery + raw startup DIDs
+         * every time the profile is loaded.
+         */
+        if (module->identity_available)
+            dictionary[@"identity"] =
+                MBLinkStringFromCString(module->identity);
+        if (module->spare_part_number_available)
+            dictionary[@"sparePart"] =
+                MBLinkStringFromCString(module->spare_part_number);
+        if (module->software_number_available)
+            dictionary[@"software"] =
+                MBLinkStringFromCString(module->software_number);
+        if (module->hardware_number_available)
+            dictionary[@"hardware"] =
+                MBLinkStringFromCString(module->hardware_number);
+
         NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
         NSArray<MBLinkMercedesDataSnapshot *> *startupData =
             [self startupDataSnapshotsForModuleIdentifier:moduleIdentifier];
-        MBLinkMercedesModuleSnapshot *canonicalIdentity =
-            MBLinkCanonicalModuleSnapshot(module, startupData, @[], NO);
-        if (canonicalIdentity.identityText.length != 0U)
-            dictionary[@"identity"] = canonicalIdentity.identityText;
-        if (canonicalIdentity.partNumber.length != 0U)
-            dictionary[@"sparePart"] = canonicalIdentity.partNumber;
-        if (canonicalIdentity.softwareNumber.length != 0U)
-            dictionary[@"software"] = canonicalIdentity.softwareNumber;
-        if (canonicalIdentity.hardwareNumber.length != 0U)
-            dictionary[@"hardware"] = canonicalIdentity.hardwareNumber;
         if (startupData.count != 0U) {
             NSMutableArray<NSDictionary *> *savedStartup =
                 [[NSMutableArray alloc] initWithCapacity:startupData.count];

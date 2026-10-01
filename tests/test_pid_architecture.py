@@ -444,6 +444,13 @@ require(
     and '"name"' in controller,
     "saved VIN profiles must persist resolved Mercedes ECU identity",
 )
+require(
+    "MBLinkMercedesIdentifiedPartNumberForShortMetadata" not in controller
+    and "[_manufacturerDataByModule removeAllObjects];" in controller
+    and "Persist source evidence, not the derived canonical presentation." in controller
+    and "canonicalValue != startupValue" in app,
+    "module identity must have one canonical truth without stale saved-profile or broad UI deduplication shortcuts",
+)
 
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
