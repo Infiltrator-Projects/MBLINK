@@ -43,6 +43,8 @@ The same rule governs Discover. Generic scanning, transport, identification stat
 
 The same rule also governs the normal application interface. Protocols such as OBD-II, OBDonUDS, UDS and Mercedes legacy diagnostics are data sources beneath LINK's shared operator-task model; they are not competing primary navigation destinations. MBLINK may add Mercedes-specific parameters, module scans, tests, services and evidence-backed workflows without forking the shared task structure.
 
+The normal iPhone manufacturer path is controller-first. After the authoritative VIN and fitted-module map exist, each identified controller resolves one ECU pack containing two acquisition sections: startup-once static/module-card facts and user-polling live data. The central controller orchestrates those packs; it must not contain a parallel engine-specific startup probe or vehicle-specific PID policy. Startup-once facts are automatic and never appear as selectable PIDs. Recurring manufacturer reads begin only from the user's per-VIN/per-controller selections.
+
 LINK supplies shared capabilities such as language selection, measurement conversion and the standard About surface. MBLINK owns the composition and appearance of its Settings page and any genuinely Mercedes-specific settings; LINK does not own a complete Settings screen.
 
 The exact LINK revision is the `src/link` gitlink. LINK owns its nested exact Common revision. MBLINK's CMake and CI validate that recursive dependency graph rather than maintaining duplicate expected-version constants.
