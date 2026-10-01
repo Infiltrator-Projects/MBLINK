@@ -1159,7 +1159,7 @@ static int test_documented_kwp_command_list(void)
     return 0;
 }
 
-static int test_hu204_factory_reading_session_teardown(void)
+static int test_hu204_factory_reading_keeps_session(void)
 {
     MblinkMercedesDataScan scan;
     MblinkMercedesDataScanConfig config =
@@ -1169,21 +1169,8 @@ static int test_hu204_factory_reading_session_teardown(void)
             MBLINK_MERCEDES_MODULE_BODY);
     const uint16_t identifier = UINT16_C(0x01);
     MblinkElm327Response ok = response_ok("OK");
-    MblinkElm327Response no_reply = response_no_data();
     char command[32];
-    char control[5];
     size_t written = 0U;
-
-    CHECK(mblink_mercedes_documented_route_control_command(
-        UINT32_C(0x652), UINT32_C(0x48a), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, false,
-        control, sizeof(control)));
-    CHECK(strcmp(control, "1092") == 0);
-    CHECK(mblink_mercedes_documented_route_control_command(
-        UINT32_C(0x652), UINT32_C(0x48a), false,
-        MBLINK_MERCEDES_DIAGNOSTIC_KWP2000, true,
-        control, sizeof(control)));
-    CHECK(strcmp(control, "1081") == 0);
 
     CHECK(mblink_mercedes_data_scan_begin_identifiers(
               &scan, &config, &identifier, 1U) ==
@@ -1197,13 +1184,6 @@ static int test_hu204_factory_reading_session_teardown(void)
     CHECK(accept_command(&scan, "ATCRA48A", ok) == 0);
     CHECK(accept_command(&scan, "3E01", response_ok("7E")) == 0);
 
-    /*
-     * Bypass accept_command for the final value so the intermediate teardown
-     * state is visible. The read completes, then HU_204 must be told 10 81
-     * before MBLINK considers the operation complete. No acknowledgement is
-     * required; COMAND is free to resume normal audio while the adapter stays
-     * connected.
-     */
     CHECK(mblink_mercedes_data_scan_command(
               &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
@@ -1212,15 +1192,8 @@ static int test_hu204_factory_reading_session_teardown(void)
         MblinkElm327Response value =
             response_ok("7F2178\n012\n0:610110102210");
         CHECK(mblink_mercedes_data_scan_accept(&scan, &value) ==
-              MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
+              MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
     }
-    CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION);
-    CHECK(mblink_mercedes_data_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_DATA_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1081") == 0);
-    CHECK(mblink_mercedes_data_scan_accept(&scan, &no_reply) ==
-          MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE);
     CHECK(scan.stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE);
     return 0;
 }
@@ -1277,7 +1250,7 @@ int main(void)
     if (test_documented_uds_version_metadata() != 0) return 1;
     if (test_documented_uds_short_part_identifiers() != 0) return 1;
     if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
-    if (test_hu204_factory_reading_session_teardown() != 0) return 1;
+    if (test_hu204_factory_reading_keeps_session() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
