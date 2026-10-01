@@ -133,6 +133,8 @@ static size_t full_target_index_for_tx(uint32_t tx)
 static int replay_captured_full_scan_misses(void)
 {
     MblinkMercedesModuleScan scan;
+    MblinkElm327Response no_data =
+        make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
 
     CHECK(mblink_mercedes_module_scan_begin_full(&scan) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
@@ -300,8 +302,6 @@ static int replay_captured_kwp_module_faults(void)
         make_response(MBLINK_ELM327_RESULT_OK, "7F1878\n58019B51E0", false);
     MblinkElm327Response head_unit_dtcs =
         make_response(MBLINK_ELM327_RESULT_OK, "7F1878\n5800", false);
-    MblinkElm327Response no_data =
-        make_response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
     size_t orc_index;
     size_t head_unit_index;
 
