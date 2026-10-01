@@ -1058,6 +1058,46 @@ static bool format_documented_year_week_patch(
     return count >= 0 && (size_t)count < buffer_size;
 }
 
+static bool format_short_documented_part_identifier(
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    const bool hardware =
+        record != NULL &&
+        record->service == UINT8_C(0x22) &&
+        record->identifier == UINT16_C(0xf111);
+    const bool software =
+        record != NULL &&
+        record->service == UINT8_C(0x22) &&
+        record->identifier == UINT16_C(0xf121);
+
+    if ((!hardware && !software) || record->data_length != 3U)
+        return false;
+    for (size_t index = 0U; index < record->data_length; ++index) {
+        if (record->data[index] < UINT8_C('0') ||
+            record->data[index] > UINT8_C('9')) {
+            return false;
+        }
+    }
+    if (!format_ascii_payload(
+            record->data, record->data_length, buffer, buffer_size)) {
+        return false;
+    }
+
+    /*
+     * Some Mercedes controllers answer F111/F121 with only a three-digit
+     * platform/family identifier (for example "212"). That response is real,
+     * but it is not a complete Mercedes part number. Keep it decoded as text
+     * while avoiding the stronger part-number claim.
+     */
+    *name = hardware
+        ? "Mercedes hardware identifier"
+        : "Mercedes software identifier";
+    return true;
+}
+
 bool mblink_mercedes_data_record_format_known_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
@@ -1093,6 +1133,11 @@ bool mblink_mercedes_data_record_format_known_for_route(
             *name = documentedName;
             return true;
         }
+    }
+
+    if (format_short_documented_part_identifier(
+            record, buffer, buffer_size, name)) {
+        return true;
     }
 
     if (record->service == UINT8_C(0x22) &&

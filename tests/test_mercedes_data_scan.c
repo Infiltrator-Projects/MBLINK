@@ -1048,6 +1048,53 @@ static int test_documented_uds_version_metadata(void)
     return 0;
 }
 
+static int test_documented_uds_short_part_identifiers(void)
+{
+    MblinkMercedesDataRecord record;
+    char text[64];
+    const char *name = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service = UINT8_C(0x22);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C('2');
+    record.data[1] = UINT8_C('1');
+    record.data[2] = UINT8_C('2');
+
+    record.identifier = UINT16_C(0xf111);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Mercedes hardware identifier") == 0);
+    CHECK(strcmp(text, "212") == 0);
+
+    record.identifier = UINT16_C(0xf121);
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Mercedes software identifier") == 0);
+    CHECK(strcmp(text, "212") == 0);
+
+    /*
+     * A complete printable response remains a part number. Only the short
+     * three-digit family form is downgraded to an identifier.
+     */
+    record.identifier = UINT16_C(0xf111);
+    record.data_length = 10U;
+    memcpy(record.data, "2125451001", 10U);
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Mercedes hardware part number") == 0);
+    CHECK(strcmp(text, "2125451001") == 0);
+    return 0;
+}
+
 static int test_documented_route_read_union(void)
 {
     const MblinkMercedesDocumentedRead *read;
@@ -1228,6 +1275,7 @@ static int test_orc_dashboard_records_are_semantically_mapped(void)
 int main(void)
 {
     if (test_documented_uds_version_metadata() != 0) return 1;
+    if (test_documented_uds_short_part_identifiers() != 0) return 1;
     if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
     if (test_hu204_factory_reading_session_teardown() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;

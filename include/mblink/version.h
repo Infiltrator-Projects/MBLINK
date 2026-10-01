@@ -2,6 +2,6 @@
 #define MBLINK_VERSION_H
 
 /* Keep this source identity synchronized with VERSION and platform metadata. */
-#define MBLINK_VERSION_STRING "0.7.278"
+#define MBLINK_VERSION_STRING "0.7.279"
 
 #endif

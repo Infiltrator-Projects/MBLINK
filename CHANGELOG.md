@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.279 — 2026-10-01
+
+- Treat three-digit F111/F121 replies such as `212` as Mercedes hardware/software identifiers, not complete part numbers.
+- When the same module's normal UDS identification already supplied a fuller F191 hardware number or F188 software number, present that real controller number instead of the short F111/F121 identifier.
+- Keep the original F111/F121 bytes internally for evidence; user-facing startup metadata remains decoded and does not gain a duplicate RAW suffix.
+
 ## 0.7.278 — 2026-10-01
 
 - Present documented Mercedes UDS F150/F151/F153 version metadata as decoded year/week/patch values without appending duplicate raw hex to the user-facing text.

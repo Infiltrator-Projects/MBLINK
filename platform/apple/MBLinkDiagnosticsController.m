@@ -336,6 +336,35 @@ MBLinkMercedesModuleIsTransmissionController(
     return YES;
 }
 
+static const char *MBLinkMercedesIdentifiedPartNumberForShortMetadata(
+    const MblinkMercedesModuleScanEntry *module,
+    const MblinkMercedesDataRecord *record)
+{
+    if (module == NULL || record == NULL ||
+        record->service != UINT8_C(0x22) ||
+        record->data_length != 3U) {
+        return NULL;
+    }
+    for (size_t index = 0U; index < record->data_length; ++index) {
+        if (record->data[index] < UINT8_C('0') ||
+            record->data[index] > UINT8_C('9')) {
+            return NULL;
+        }
+    }
+
+    if (record->identifier == UINT16_C(0xf111) &&
+        module->hardware_number_available &&
+        strlen(module->hardware_number) > record->data_length) {
+        return module->hardware_number;
+    }
+    if (record->identifier == UINT16_C(0xf121) &&
+        module->software_number_available &&
+        strlen(module->software_number) > record->data_length) {
+        return module->software_number;
+    }
+    return NULL;
+}
+
 static MblinkMercedesTransmissionFamily
 MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
 {
@@ -2413,6 +2442,16 @@ static void MBLinkAppendManufacturerDefinition(
                     record, structured, sizeof(structured),
                     &structuredName);
         }
+        const char *identifiedPartNumber =
+            MBLinkMercedesIdentifiedPartNumberForShortMetadata(module, record);
+        if (identifiedPartNumber != NULL) {
+            structuredMapped = YES;
+            structuredName = mblink_mercedes_documented_read_name(
+                record->service, record->identifier);
+            (void)snprintf(
+                structured, sizeof(structured), "%s", identifiedPartNumber);
+        }
+
         const char *profileName =
             MBLinkMercedesModuleIsTransmissionController(module) &&
             record->service ==
