@@ -1876,6 +1876,56 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         enabledDisplayParameters
     }
 
+    private func refreshVehicleProfilePresentation() {
+        let currentVIN = isActive ? activeVehicleVIN : selectedVehicleVIN
+        mercedesVINText = currentVIN ?? "Not captured"
+        vehicleIdentity = decodeVehicleIdentity(vin: currentVIN)
+
+        if isActive {
+            mercedesProbeStatusText = controller.mercedesProbeStatusText
+            mercedesProbeEndpointText = controller.mercedesProbeEndpointText ??
+                "Source-corroborated endpoint not selected"
+            mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
+            mercedesIdentityResults = controller.mercedesIdentityResults
+            mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText
+            mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
+            mercedesUDSFaults = controller.mercedesUDSFaults
+            vehicleProfileStatusText = controller.vehicleProfileStatusText
+            return
+        }
+
+        guard let vin = selectedVehicleVIN else {
+            mercedesProbeStatusText = "Not connected"
+            mercedesProbeEndpointText = "No vehicle loaded"
+            mercedesIdentitySummaryText = "No vehicle loaded"
+            mercedesIdentityResults = []
+            mercedesCrd3SummaryText = "Not available"
+            mercedesUDSFaultStatusText = "Not scanned"
+            mercedesUDSFaults = []
+            vehicleProfileStatusText =
+                "No vehicle loaded · connect to a vehicle"
+            return
+        }
+
+        let profile = vehicleProfileStore.profile(forVIN: vin) as? [String: Any]
+        let modules = profile?["modules"] as? [[String: Any]] ?? []
+        mercedesProbeStatusText = "Disconnected · saved vehicle profile"
+        mercedesProbeEndpointText =
+            (profile?["probeEndpoint"] as? String) ??
+            "Saved profile · endpoint not recorded"
+        mercedesIdentitySummaryText =
+            "Saved vehicle profile · \(modules.count) controller" +
+            "\(modules.count == 1 ? "" : "s") · offline"
+        mercedesIdentityResults = []
+        mercedesCrd3SummaryText =
+            (profile?["crd3Summary"] as? String) ??
+            "Saved profile · identity not recorded"
+        mercedesUDSFaultStatusText =
+            "Disconnected · saved fault state not refreshed"
+        mercedesUDSFaults = []
+        vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
+    }
+
     override func productDidRefreshStandardState() {
         // Never join samples from separate sessions or vehicles in one graph.
         let liveHistoryVIN = activeVehicleVIN
@@ -1895,44 +1945,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             connectionAlertText = updatedStatus
         }
 
-        let capturedVIN = activeVehicleVIN
-        let currentVIN = isActive ? capturedVIN : selectedVehicleVIN
-        mercedesVINText = currentVIN ?? "Not captured"
-        vehicleIdentity = decodeVehicleIdentity(vin: currentVIN)
-
-        if isActive {
-            mercedesProbeStatusText = controller.mercedesProbeStatusText
-            mercedesProbeEndpointText = controller.mercedesProbeEndpointText ?? "Source-corroborated endpoint not selected"
-            mercedesIdentitySummaryText = controller.mercedesIdentitySummaryText
-            mercedesIdentityResults = controller.mercedesIdentityResults
-            mercedesCrd3SummaryText = controller.mercedesCrd3SummaryText
-            mercedesUDSFaultStatusText = controller.mercedesUDSFaultStatusText
-            mercedesUDSFaults = controller.mercedesUDSFaults
-            vehicleProfileStatusText = controller.vehicleProfileStatusText
-        } else if let vin = selectedVehicleVIN {
-            let profile = vehicleProfileStore.profile(forVIN: vin) as? [String: Any]
-            let modules = profile?["modules"] as? [[String: Any]] ?? []
-            mercedesProbeStatusText = "Disconnected · saved vehicle profile"
-            mercedesProbeEndpointText =
-                (profile?["probeEndpoint"] as? String) ?? "Saved profile · endpoint not recorded"
-            mercedesIdentitySummaryText =
-                "Saved vehicle profile · \(modules.count) controller\(modules.count == 1 ? "" : "s") · offline"
-            mercedesIdentityResults = []
-            mercedesCrd3SummaryText =
-                (profile?["crd3Summary"] as? String) ?? "Saved profile · identity not recorded"
-            mercedesUDSFaultStatusText = "Disconnected · saved fault state not refreshed"
-            mercedesUDSFaults = []
-            vehicleProfileStatusText = "Saved vehicle profile loaded · offline"
-        } else {
-            mercedesProbeStatusText = "Not connected"
-            mercedesProbeEndpointText = "No vehicle loaded"
-            mercedesIdentitySummaryText = "No vehicle loaded"
-            mercedesIdentityResults = []
-            mercedesCrd3SummaryText = "Not available"
-            mercedesUDSFaultStatusText = "Not scanned"
-            mercedesUDSFaults = []
-            vehicleProfileStatusText = "No vehicle loaded · connect to a vehicle"
-        }
+        refreshVehicleProfilePresentation()
         storedFaults = resolveFaults(storedDTCs, state: "Stored")
         pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
         permanentFaults = resolveFaults(permanentDTCs, state: "Permanent")

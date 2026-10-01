@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.269 — 2026-10-01
+
+- Extract live/saved/no-vehicle profile presentation from the central iPhone refresh callback into one focused helper.
+- Preserve the same VIN, identity, probe, CRD3, UDS-fault and saved-profile display states; this is a housekeeping-only refactor with no polling or diagnostic ownership changes.
+
 ## 0.7.268 — 2026-10-01
 
 - Move the simulated-flow regression marker construction out of the production refresh path into its CI-only helper, leaving runtime behaviour unchanged while making the main state-refresh method substantially easier to audit.
