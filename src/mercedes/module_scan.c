@@ -441,6 +441,13 @@ static bool mblink_mercedes_module_scan_try_alternate_protocol(
 
     scan->candidate_protocol_attempted_mask |=
         mblink_mercedes_module_scan_protocol_bit(scan->candidate_protocol);
+    /*
+     * Session-entry attempts are protocol-specific. If the first documented
+     * protocol was wrong for this physical ECU, the alternate protocol gets
+     * its own single opportunity rather than inheriting the first attempt.
+     */
+    scan->candidate_session_attempted = false;
+    scan->candidate_session_active = false;
     scan->vin_probe_index = 0U;
     scan->kwp_identity_fallback = false;
     scan->kwp_identity_index = 0U;

@@ -164,9 +164,13 @@ static int test_cached_resolved_egs53_skips_identity_reprobe(void)
         NULL, "0034464310", NULL, NULL, &cached));
     CHECK(cached.controller_family != NULL);
     CHECK(strcmp(cached.controller_family->key, "transmission-egs53") == 0);
+    cached.diagnostic_session_attempted = true;
+    cached.diagnostic_session_active = true;
 
     CHECK(mblink_mercedes_module_scan_begin_cached(&scan, &cached, 1U) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(!scan.modules[0].diagnostic_session_attempted);
+    CHECK(!scan.modules[0].diagnostic_session_active);
 
     /*
      * Simulate completion of cached route setup. A resolved EGS53 must proceed
@@ -188,6 +192,8 @@ static int test_cached_resolved_egs53_skips_identity_reprobe(void)
 static int test_documented_session_persists(void)
 {
     MblinkMercedesModuleScan scan;
+    MblinkElm327Response entered =
+        response(MBLINK_ELM327_RESULT_OK, "5092", false);
     char command[32];
     size_t written = 0U;
 
@@ -211,6 +217,10 @@ static int test_documented_session_persists(void)
               &scan, command, sizeof(command), &written) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(command, "1092") == 0);
+    CHECK(mblink_mercedes_module_scan_accept(&scan, &entered) ==
+          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+    CHECK(scan.modules[0].diagnostic_session_attempted);
+    CHECK(scan.modules[0].diagnostic_session_active);
 
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
     mblink_mercedes_module_scan_advance_candidate(&scan);
