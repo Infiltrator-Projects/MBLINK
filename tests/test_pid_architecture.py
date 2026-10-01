@@ -421,7 +421,7 @@ require(
     and "controllerPIDCatalogueItems" in model
     and "scopedChannelID" in model
     and "moduleStandardSelectionSet" in model
-    and "aggregateStandardPollingKeys" in model,
+    and "aggregateSelection(forVIN:" in selection_migration,
     "Mercedes Modules must remain identity-driven while PID Setup attaches exact-responder OBD channels to their physical controller",
 )
 require(
