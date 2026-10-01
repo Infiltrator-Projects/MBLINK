@@ -6,9 +6,9 @@ Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. MBLINK's 
 
 ## Shared Apple session architecture
 
-The iPhone face uses LINK 0.14.25's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is now a product adapter: it retains Mercedes VIN interpretation, read-only Mercedes UDS identity/CRD3 probing, Mercedes module inventory and Mercedes-specific presentation, and supplies those operations through LINK's manufacturer-extension callbacks.
+The iPhone face uses the exact pinned LINK revision's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is a product adapter: it owns Mercedes VIN interpretation, VIN-keyed module topology, controller/ECU-pack resolution, module-scoped startup facts, Mercedes fault acquisition and Mercedes-specific presentation through LINK's manufacturer-extension callbacks.
 
-This keeps transport/session fixes in one implementation while preserving Mercedes-specific policy in MBLINK.
+Normal Connect has no separate engine-specific Mercedes probe state machine. After the VIN and fitted-module map are known, each identified controller supplies its own documented startup-once and user-polling knowledge. This keeps transport/session fixes in one implementation while keeping Mercedes diagnostic policy with the controller/module definitions that actually own it.
 
 ## Offline Mercedes VIN / FIN / Baumuster decoder
 
@@ -25,11 +25,11 @@ The decoded facts are deliberately separated:
 
 The first populated Baumuster catalogue covers the C207 coupe family across diesel and petrol engines, including OM651, OM642, M271, M272, M273, M274, M276 and M278 variants. Unknown six-digit types still decode structurally and remain catalogue-unknown instead of being guessed. The catalogue is data-driven so additional Mercedes series can be added without changing the VIN parser or LINK.
 
-## Vehicle-family identification before ECU-family probing
+## Vehicle-family and controller identification
 
 MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
 
-When an explicit engine-evidence probe is requested, it starts from a generic read-only physical engine-ECU candidate, reads standardized identity first, and selects the narrowest supported vehicle/engine profile from evidence. CRD3-only fingerprint DIDs are gated behind that selection. This targeted probe is not part of normal Connect and is not a prerequisite for establishing the fitted-module map.
+Normal Connect is controller-first rather than engine-first. The VIN selects the authoritative vehicle profile, the bounded module census or saved-route validation establishes which physical controllers are actually fitted, and returned controller identity resolves the narrowest justified ECU pack. That pack owns the module's startup-once identity/configuration reads and its separately selectable recurring data. A route, model badge or engine family alone never creates controller semantics.
 
 C207 identification now comes from the shared offline Baumuster catalogue rather than a short hard-coded list. The catalogue carries exact model, engine code, engine family, fuel, body style, displacement and source provenance. Diagnostic selection consumes only the resulting family evidence: OM651 permits the CRD3 extension; petrol M271/M274 and other non-CRD3 families do not. Unknown Baumuster values remain structurally decoded but engine-unidentified until catalogue evidence is added.
 
@@ -174,13 +174,17 @@ On a later connection to the same VIN, MBLINK loads the known topology immediate
 
 Profiles use a schema version so an incompatible future format is ignored rather than misread. They are local application state; they are not source evidence and do not promote a module definition's provenance status.
 
-## Targeted read-only ECU evidence probe
+## Historical / research targeted ECU evidence probe
 
-This is a separate evidence/research operation. The normal iPhone Connect path
-does not run it before or during module identification, and PID Setup does not
-depend on its results.
+This is a separate engineering/replay operation, not part of the normal iPhone
+connection architecture. MBLINK 0.7.275 removed the old unreachable Apple
+engine-probe execution path. Normal Connect, module discovery, startup-once
+reads, PID Setup and recurring polling do not call this probe or depend on its
+results.
 
-`MblinkMercedesEcuProbe` owns the complete bounded engine-evidence sequence:
+The portable `MblinkMercedesEcuProbe` helper and its evidence fixtures may be
+retained for explicit research, decoder regression and non-normal tooling. When
+that explicit operation is invoked, its bounded evidence sequence is:
 
 1. configure the ELM transmit header and receive address;
 2. enable CAN automatic formatting and automatic flow control;
@@ -221,7 +225,7 @@ A dedicated external-research pass on 2026-08-27 strengthened the hardware-famil
 
 Multiple public ECU/firmware catalogues identify 2011 E 250 CDI 2.2-litre / 150 kW applications with Delphi CRD3.10-family control hardware. The strongest recurring identity set is Mercedes hardware `6519040001`, software `6519020001` and spare-part number `6519011801`. Separate C207/A207 fitment listings identify Delphi CRD3.10 units such as Mercedes `A6519003701 / A6519012101` and Delphi `28381049`, demonstrating that one model badge does not imply one immutable part number. Independent CRD3.10 tooling documentation identifies Infineon TriCore TC1797 as the processor used by this ECU family.
 
-MBLINK therefore does **not** hard-code “2011 E250 = one ECU part number.” Instead, the portable probe already reads standardized identity DIDs `F187`, `F188`, `F191` and `F197`. The CRD3 layer now has a source-corroborated hardware profile catalogue and matches those returned values against known families:
+MBLINK therefore does **not** hard-code “2011 E250 = one ECU part number.” The current controller-scoped identification/startup architecture can consume standardized identity DIDs such as `F187`, `F188`, `F191` and `F197` when they are documented for the resolved controller. The retained research probe can acquire the same identity evidence explicitly. The CRD3 layer has a source-corroborated hardware profile catalogue and matches returned typed values against known families:
 
 - a matching CRD3 system-name prefix alone is a family-level match;
 - one matching hardware/software/spare number is source-corroborated evidence;
@@ -236,17 +240,17 @@ This profile data remains in MBLINK because it is Mercedes/Delphi-specific; the 
 
 The portable CRD3 decoder understands the payload shape published by the CaesarSuite CRD3 simulator for `F100` and `F154`. `F100` carries gateway mode, a big-endian 16-bit ECU variant and the active session; `F154` carries a one-byte supplier identifier.
 
-Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31` with Delphi as the supplier. MBLINK therefore recognises gateway mode `02`, variant `2131`, supplier `64`/Delphi as an **OM651/CDID3-family signature**. The live probe decodes those fields instead of merely recording positive-response masks. That remains family evidence, not automatic C207 vehicle verification.
+Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31` with Delphi as the supplier. MBLINK therefore recognises gateway mode `02`, variant `2131`, supplier `64`/Delphi as an **OM651/CDID3-family signature**. The portable CRD3 decoder can decode those fields when explicit research/replay evidence or a documented controller-scoped startup read supplies them. Normal iPhone Connect does not launch a separate CRD3 fingerprint sweep. The decoded signature remains family evidence, not automatic C207 vehicle verification.
 
 ## Mercedes UDS fault reading
 
 `uds_dtc.h` provides the portable read-only ISO 14229 `ReadDTCInformation` codec. The request is `19 02 FF`: report DTCs by status mask with every status bit requested. Positive `59 02` responses are decoded into 24-bit UDS DTC values plus their ISO 14229 status byte; negative responses retain their NRC.
 
-This request is part of the same `MblinkMercedesEcuProbe` targeted evidence operation. Normal module identification has its own protocol-appropriate, bounded fault read for each proven responder. The iPhone Faults screen can therefore present Mercedes module faults in addition to the standard stored/pending/permanent OBD-II sections without making the CRD3 fingerprint sweep a connection prerequisite.
+The retained research probe/fixtures may use this UDS request explicitly, but the normal iPhone fault path does not depend on that probe. Module discovery/profile validation performs the protocol-appropriate bounded fault read for each proven responder, and the iPhone Faults screen presents those Mercedes module faults alongside the standard stored/pending/permanent OBD-II sections. No CRD3 fingerprint sweep is a connection prerequisite.
 
 No-response, negative-response and malformed Mercedes fault replies are classified explicitly. MBLINK must not turn any of those states into a misleading empty-fault result. It does not clear faults, alter DTC settings, enter an extended session, perform security access, write data or invoke routines.
 
-`MblinkMercedesEngineScan` remains as a compatibility/high-level wrapper around the same portable probe. It no longer issues a duplicate second DTC request.
+`MblinkMercedesEngineScan` remains only as a compatibility/high-level wrapper around the portable research probe. It is not part of the Apple normal-Connect path and it no longer issues a duplicate second DTC request.
 
 ## Mercedes fault knowledge is mandatory
 
@@ -301,7 +305,7 @@ That byte remains raw evidence until the mapping is independently recovered.
 
 The test suite contains a deterministic ELM trace-replay harness. A fixture is an ordered list of expected adapter commands and responses. The replay fails if command order changes, an unexpected request appears or a response no longer decodes through the portable layers.
 
-The current synthetic Mercedes fixture drives the entire read-only sequence through channel configuration, TesterPresent, VIN, six standardized identity DIDs, five CRD3 fingerprint DIDs and UDS `19 02 FF`. It also verifies decoded CRD3 variant/supplier evidence and the OM651/CDID3 Delphi signature. This lets development and regression testing continue before the physical adapter arrives. Synthetic fixtures prove deterministic software behaviour only; they never count as vehicle verification.
+A retained research fixture drives the explicit portable probe sequence through channel configuration, TesterPresent, VIN, six standardized identity DIDs, five CRD3 fingerprint DIDs and UDS `19 02 FF`. It verifies the probe/decoder machinery and CRD3 variant/supplier evidence, but it is not a model of normal iPhone Connect. The iPhone simulator regression separately exercises the current VIN/profile -> module identification -> startup-once -> selected-polling architecture. Synthetic fixtures prove deterministic software behaviour only; they never count as vehicle verification.
 
 When real evidence is available, the same harness is the promotion path: sanitize the captured exchange, commit it as a deterministic fixture, then promote only the endpoint/definitions that the capture actually proves.
 
@@ -571,15 +575,23 @@ included when extracting the remaining APK assets.
 
 ## iPhone evidence path
 
-The native iPhone Connect workflow is vehicle-first: after adapter
-initialisation it reads the Mode 09 VIN, selects or creates the authoritative
-VIN profile, and identifies the fitted modules. Only after that module map is
-available does it restore the standard channel and perform Mode 01 supported-PID
-discovery and the remaining standard OBD inventory. CRD3 fingerprints and
-manufacturer actual-value reads are separate targeted capabilities; they are
-not prerequisites for discovering the module map and must not be inserted into
-normal Connect as an automatic data sweep. Vehicle and Modules expose module
-identity evidence, Faults exposes fault records, and Log exports the transcript.
+The native iPhone Connect workflow is vehicle-first and controller-scoped:
+after adapter initialisation it reads the Mode 09 VIN, selects or creates the
+authoritative VIN profile, and identifies the fitted modules. Each identified
+controller then resolves its exact ECU pack. Static identity, coding,
+configuration and other module-card facts in that pack's startup-once section
+are read once after discovery when they were not already captured by
+identification; they are retained with the VIN/module profile and are never
+offered as recurring PID switches.
+
+Only after the module/startup stage does the normal flow complete the
+responder-attributed standard OBD inventory and enter recurring live operation.
+PID Setup exposes each controller's documented user-polling section and exact
+responder-advertised standard OBD choices; recurring requests begin only for
+the user's selections. CRD3 research fingerprints, arbitrary manufacturer-data
+sweeps and desktop forensic discovery are separate explicit capabilities and
+must not be inserted into normal Connect. Vehicle and Modules expose identity
+and startup facts, Faults exposes fault records, and Log exports the transcript.
 
 The Modules workspace now presents that census as structured, tappable control
 units rather than a flat transcript. Each detail view owns the module's CAN
@@ -605,18 +617,20 @@ MBLINK therefore keeps three layers distinct:
 3. an explicit user selection or separate Factory Data action may read an
    appropriate channel on that exact TX/RX route.
 
-Standard OBD/EOBD remains one vehicle-wide PID Setup catalogue. Responder
-attribution is retained as evidence and may appear in module detail, but it does
-not create a separate copy of the standard catalogue for each module.
+Standard OBD/EOBD choices are controller-scoped in PID Setup. Each discovered
+or saved physical controller shows only the standard channels advertised or
+cached for that exact responder, alongside the user-polling section of its
+resolved Mercedes ECU pack. Responder attribution is therefore preserved
+without manufacturing capabilities for another controller.
 
-The explicit Factory Data scanner can perform a bounded discovery pass over
-the source-backed Daimler actual-value neighbourhood `0x2000..0x20FF` for UDS
-ECUs. Generic KWP modules retain the existing bounded local-ID discovery path,
-but a recognised Mercedes transmission module uses a narrower source-backed
-read list instead of blindly traversing reserved identifiers: `30,31,32,33`
-and Daimler KWP records `E0..EB`. Only positive responses are retained.
-Unknown positives remain attached to the originating module as raw identifiers
-and raw response bytes; MBLINK does not invent a name, unit or scaling formula.
+On iPhone, Factory Readings consumes the same resolved ECU pack and may re-read
+documented safe commands from either its startup-once or user-polling section
+without changing the user's live selections. It does not sweep a UDS DID range
+or a generic KWP local-ID range to manufacture catalogue entries. Explicit
+Linux/Windows research tooling may perform separately bounded discovery under
+its scanner policy; unknown positives may be retained as `raw-observed`
+evidence, but they remain outside iPhone PID Setup until an online/documented
+definition establishes their meaning.
 
 Positive manufacturer identifiers are persisted against the VIN-keyed module
 profile. After one explicit successful discovery pass, a later explicit refresh
@@ -700,7 +714,7 @@ same capture exposed an incomplete multi-frame ESP fault response. These shapes
 are regression evidence; `0x7E9` remains a secondary EOBD powertrain responder
 until returned Mercedes identity or equally strong evidence identifies its family.
 
-The same run exposed the old default schedule as too aggressive for the ELM/BLE path, which is why LINK 0.14.25 lowers the default request cadences while retaining per-PID enable controls.
+The same run exposed the old default schedule as too aggressive for the ELM/BLE path. The cadence reduction first landed in LINK 0.14.25; later pinned LINK revisions retain the same per-PID enable-control principle.
 
 
 ## 0.7.109 C207 manufacturer-data capture
