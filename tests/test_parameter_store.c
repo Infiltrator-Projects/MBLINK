@@ -67,12 +67,6 @@ int main(void)
                         "duplicate stable key should be rejected");
     }
 
-    passed &= check(mblink_parameter_store_set_favourite(
-                        &store, &rpm->key, true) == MBLINK_PARAMETER_STORE_OK,
-                    "set favourite failed");
-    passed &= check(mblink_parameter_store_is_favourite(&store, &rpm->key),
-                    "favourite state missing");
-
     passed &= check(mblink_parameter_from_obd2(&obd, 10U, &parameter),
                     "OBD conversion failed");
     passed &= check(mblink_parameter_store_record(&store, &parameter) ==
@@ -107,8 +101,6 @@ int main(void)
     passed &= check(!mblink_parameter_store_latest(
                         &store, &rpm->key, &latest),
                     "clear left latest sample valid");
-    passed &= check(mblink_parameter_store_is_favourite(&store, &rpm->key),
-                    "clear should preserve favourites");
     passed &= check(mblink_parameter_store_definition_count(&store) == 2U,
                     "clear should preserve definitions");
 

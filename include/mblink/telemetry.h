@@ -30,8 +30,6 @@ typedef LinkTelemetryRecorder MblinkTelemetryRecorder;
 #define mblink_telemetry_store_history_count link_telemetry_store_history_count
 #define mblink_telemetry_store_total_sample_count link_telemetry_store_total_sample_count
 #define mblink_telemetry_store_history_at link_telemetry_store_history_at
-#define mblink_telemetry_store_set_favourite link_telemetry_store_set_favourite
-#define mblink_telemetry_store_is_favourite link_telemetry_store_is_favourite
 #define mblink_telemetry_store_transcript_count link_telemetry_store_transcript_count
 #define mblink_telemetry_store_transcript_at link_telemetry_store_transcript_at
 #define mblink_telemetry_session_metadata_init link_telemetry_session_metadata_init
@@ -45,7 +43,7 @@ bool mblink_telemetry_store_record(MblinkTelemetryStore *store, uint64_t timesta
 bool mblink_telemetry_store_record_transcript(MblinkTelemetryStore *store, uint64_t timestamp_ms, const char *command, const MblinkElm327Response *response);
 bool mblink_telemetry_recorder_begin(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);
 bool mblink_telemetry_recorder_continue(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);
-bool mblink_telemetry_recorder_record_sample(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySample *sample, bool favourite);
+bool mblink_telemetry_recorder_record_sample(MblinkTelemetryRecorder *recorder, const MblinkTelemetrySample *sample);
 bool mblink_telemetry_recorder_record_response(MblinkTelemetryRecorder *recorder, uint64_t timestamp_ms, const char *command, const MblinkElm327Response *response);
 bool mblink_telemetry_export_csv(const MblinkTelemetryStore *store, const MblinkTelemetrySessionMetadata *metadata, MblinkTelemetryTextSink sink, void *context);
 

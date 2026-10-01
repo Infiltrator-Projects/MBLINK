@@ -33,8 +33,7 @@ bool mblink_telemetry_recorder_continue(
 
 bool mblink_telemetry_recorder_record_sample(
     MblinkTelemetryRecorder *recorder,
-    const MblinkTelemetrySample *sample,
-    bool favourite)
+    const MblinkTelemetrySample *sample)
 {
     if (sample == NULL) {
         return false;
@@ -42,7 +41,6 @@ bool mblink_telemetry_recorder_record_sample(
     return link_telemetry_recorder_record_sample_named(
         recorder,
         sample,
-        favourite,
         mblink_obd2_pid_name(sample->measurement.pid),
         mblink_obd2_unit_name((MblinkObd2Unit)sample->measurement.unit));
 }
