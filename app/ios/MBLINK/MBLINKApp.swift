@@ -366,13 +366,6 @@ private enum MBParameterGroup: String, CaseIterable, Identifiable {
     }
 }
 
-private enum MBLiveScope: String, CaseIterable, Identifiable {
-    case available = "Available"
-    case favourites = "Favourites"
-    case all = "All"
-
-    var id: String { rawValue }
-}
 
 private extension LinkDiagnosticParameter {
     var brandGroup: MBParameterGroup {
@@ -1899,19 +1892,6 @@ private struct MBModuleDetailView: View {
                     .layoutPriority(2)
 
                 Spacer(minLength: 10)
-
-                Button {
-                    connection.toggleFavourite(stableKey: parameter.id)
-                } label: {
-                    Image(systemName: parameter.favourite
-                          ? "star.fill" : "star")
-                        .font(MBTypography.title3)
-                        .foregroundStyle(parameter.favourite
-                                         ? MBBrand.silverBright
-                                         : MBBrand.muted)
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(.plain)
             }
 
             Text("\(parameter.shortName) · SAE OBD-II · \(parameter.brandPidText)")
