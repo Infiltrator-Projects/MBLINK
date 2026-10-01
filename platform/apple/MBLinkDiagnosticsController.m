@@ -40,6 +40,20 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     MBLinkScheduledRestoreFilter
 };
 
+typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionMode) {
+    MBLinkConnectionSessionNone = 0,
+    MBLinkConnectionSessionEstablish,
+    MBLinkConnectionSessionTeardown
+};
+
+typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
+    MBLinkConnectionSessionStageNone = 0,
+    MBLinkConnectionSessionStageProtocol,
+    MBLinkConnectionSessionStageHeader,
+    MBLinkConnectionSessionStageReceive,
+    MBLinkConnectionSessionStageControl
+};
+
 @interface MBLinkDiagnosticsController () <LinkDiagnosticsControllerDelegate>
 @property(nonatomic, copy, readwrite) NSString *mercedesProbeStatusText;
 @property(nonatomic, copy, readwrite, nullable) NSString *mercedesProbeEndpointText;
@@ -66,6 +80,14 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
 - (void)updateMercedesModuleFaultEvidenceInProgress;
 - (void)updateMercedesModuleScanSummary;
+- (void)beginConnectionSessionEstablishment;
+- (BOOL)beginNextConnectionSessionModule;
+- (void)beginCurrentConnectionSessionCommand;
+- (void)processConnectionSessionResponse:
+    (const MblinkElm327Response *)response;
+- (void)finishConnectionSessionOperation;
+- (void)continueAfterConnectionSessionEstablishment;
+- (void)tryBeginDisconnectSessionTeardown:(NSUInteger)attempt;
 - (BOOL)beginNextStartupModuleDataRead;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
@@ -135,6 +157,9 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     NSMutableDictionary<NSString *, NSSet<NSNumber *> *> *
         _selectedManufacturerLiveCommandsByModule;
     NSUInteger _scheduledManufacturerModuleCursor;
+    MBLinkConnectionSessionMode _connectionSessionMode;
+    MBLinkConnectionSessionStage _connectionSessionStage;
+    size_t _connectionSessionModuleIndex;
 }
 
 static NSString *MBLinkStringFromCString(const char *value)
@@ -142,6 +167,72 @@ static NSString *MBLinkStringFromCString(const char *value)
     if (value == NULL) return @"unknown";
     NSString *string = [NSString stringWithUTF8String:value];
     return string != nil ? string : @"unknown";
+}
+
+static char MBLinkUpperHexCharacter(char value)
+{
+    return value >= 'a' && value <= 'f'
+        ? (char)(value - ('a' - 'A')) : value;
+}
+
+static BOOL MBLinkSimpleDiagnosticControlCommand(
+    const char *source,
+    char command[5])
+{
+    if (source == NULL || command == NULL) return NO;
+    if (source[0] == '0' && (source[1] == 'x' || source[1] == 'X'))
+        source += 2;
+    if (strlen(source) != 4U) return NO;
+    for (size_t index = 0U; index < 4U; ++index) {
+        if (mblink_mercedes_module_scan_hex_value(source[index]) < 0)
+            return NO;
+        command[index] = MBLinkUpperHexCharacter(source[index]);
+    }
+    command[4] = '\0';
+    return YES;
+}
+
+static BOOL MBLinkModuleConnectionSessionCommands(
+    const MblinkMercedesModuleScanEntry *module,
+    char enterCommand[5],
+    char quitCommand[5])
+{
+    MblinkMercedesEcuPack pack;
+    if (module == NULL ||
+        !mblink_mercedes_ecu_pack_resolve_module(module, &pack) ||
+        pack.observed_protocol_conflict ||
+        !MBLinkSimpleDiagnosticControlCommand(
+            pack.session_command, enterCommand) ||
+        !MBLinkSimpleDiagnosticControlCommand(
+            pack.quit_command, quitCommand)) {
+        return NO;
+    }
+
+    /*
+     * Keep the existing C207 ESP safety exception: field evidence shows that
+     * automatic extended-session entry can affect steering behaviour while
+     * moving. Every other exactly resolved ECU pack owns its own documented
+     * session/quit pair and can participate without a hard-coded vehicle list.
+     */
+    if (module->definition != NULL &&
+        module->definition->key != NULL &&
+        strcmp(module->definition->key, "esp") == 0) {
+        return NO;
+    }
+    return YES;
+}
+
+static BOOL MBLinkDiagnosticSessionResponsePositive(
+    const MblinkElm327Response *response)
+{
+    uint8_t pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+    size_t length = 0U;
+    return response != NULL &&
+        response->result == MBLINK_ELM327_RESULT_OK &&
+        mblink_elm327_can_decode_pdu(
+            response, pdu, sizeof(pdu), &length) ==
+            MBLINK_ELM327_CAN_RESULT_OK &&
+        length >= 2U && pdu[0] == UINT8_C(0x50);
 }
 
 static NSString *MBLinkStandardDataKey(uint8_t pid, uint32_t responder, BOOL extended)
@@ -881,6 +972,9 @@ static bool MBLinkSimulatorResponder(
     _selectedManufacturerLiveCommandsByModule =
         [[NSMutableDictionary alloc] init];
     _scheduledManufacturerModuleCursor = 0U;
+    _connectionSessionMode = MBLinkConnectionSessionNone;
+    _connectionSessionStage = MBLinkConnectionSessionStageNone;
+    _connectionSessionModuleIndex = 0U;
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -943,8 +1037,228 @@ static bool MBLinkSimulatorResponder(
                                          context:NULL];
 }
 
+- (void)beginConnectionSessionEstablishment
+{
+    _connectionSessionMode = MBLinkConnectionSessionEstablish;
+    _connectionSessionStage = MBLinkConnectionSessionStageNone;
+    _connectionSessionModuleIndex = 0U;
+    if (![self beginNextConnectionSessionModule])
+        [self finishConnectionSessionOperation];
+}
+
+- (BOOL)beginNextConnectionSessionModule
+{
+    const size_t count =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+
+    while (_connectionSessionModuleIndex < count) {
+        MblinkMercedesModuleScanEntry *module =
+            &_mercedesModuleScan.modules[_connectionSessionModuleIndex];
+        char enterCommand[5];
+        char quitCommand[5];
+
+        if (!MBLinkModuleConnectionSessionCommands(
+                module, enterCommand, quitCommand) ||
+            (_connectionSessionMode == MBLinkConnectionSessionEstablish &&
+             module->diagnostic_session_attempted) ||
+            (_connectionSessionMode == MBLinkConnectionSessionTeardown &&
+             !module->diagnostic_session_attempted)) {
+            ++_connectionSessionModuleIndex;
+            continue;
+        }
+
+        _connectionSessionStage = MBLinkConnectionSessionStageProtocol;
+        [self beginCurrentConnectionSessionCommand];
+        return YES;
+    }
+    return NO;
+}
+
+- (void)beginCurrentConnectionSessionCommand
+{
+    if (_connectionSessionMode == MBLinkConnectionSessionNone ||
+        _connectionSessionModuleIndex >=
+            mblink_mercedes_module_scan_module_count(&_mercedesModuleScan)) {
+        [self finishConnectionSessionOperation];
+        return;
+    }
+
+    MblinkMercedesModuleScanEntry *module =
+        &_mercedesModuleScan.modules[_connectionSessionModuleIndex];
+    char enterCommand[5];
+    char quitCommand[5];
+    char command[MBLINK_ELM327_MAX_COMMAND];
+    size_t written = 0U;
+
+    if (!MBLinkModuleConnectionSessionCommands(
+            module, enterCommand, quitCommand)) {
+        ++_connectionSessionModuleIndex;
+        if (![self beginNextConnectionSessionModule])
+            [self finishConnectionSessionOperation];
+        return;
+    }
+
+    switch (_connectionSessionStage) {
+    case MBLinkConnectionSessionStageProtocol:
+        (void)snprintf(
+            command, sizeof(command), "%s",
+            module->extended_id ? "ATSP7" : "ATSP6");
+        break;
+    case MBLinkConnectionSessionStageHeader:
+        if (mblink_elm327_can_format_header_command(
+                module->tx_can_id, module->extended_id,
+                command, sizeof(command)) != MBLINK_ELM327_CAN_RESULT_OK) {
+            ++_connectionSessionModuleIndex;
+            if (![self beginNextConnectionSessionModule])
+                [self finishConnectionSessionOperation];
+            return;
+        }
+        break;
+    case MBLinkConnectionSessionStageReceive:
+        if (mblink_elm327_can_format_receive_address_command(
+                module->rx_can_id, module->extended_id,
+                command, sizeof(command)) != MBLINK_ELM327_CAN_RESULT_OK) {
+            ++_connectionSessionModuleIndex;
+            if (![self beginNextConnectionSessionModule])
+                [self finishConnectionSessionOperation];
+            return;
+        }
+        break;
+    case MBLinkConnectionSessionStageControl:
+        (void)snprintf(
+            command, sizeof(command), "%s",
+            _connectionSessionMode == MBLinkConnectionSessionEstablish
+                ? enterCommand : quitCommand);
+        break;
+    case MBLinkConnectionSessionStageNone:
+        [self finishConnectionSessionOperation];
+        return;
+    }
+    written = strlen(command);
+    if (written == 0U ||
+        ![_shared beginManufacturerCommand:command timeout:4000U]) {
+        ++_connectionSessionModuleIndex;
+        if (![self beginNextConnectionSessionModule])
+            [self finishConnectionSessionOperation];
+        return;
+    }
+
+    if (_connectionSessionStage == MBLinkConnectionSessionStageControl &&
+        _connectionSessionMode == MBLinkConnectionSessionEstablish) {
+        /*
+         * Mark before waiting for the reply. If the ECU accepts the request
+         * but its reply is lost, MBLINK still must not re-enter it later in
+         * this connection; disconnect will make a best-effort default-session
+         * request to the same resolved ECU pack.
+         */
+        module->diagnostic_session_attempted = true;
+    }
+}
+
+- (void)processConnectionSessionResponse:
+    (const MblinkElm327Response *)response
+{
+    if (_connectionSessionMode == MBLinkConnectionSessionNone ||
+        _connectionSessionModuleIndex >=
+            mblink_mercedes_module_scan_module_count(&_mercedesModuleScan)) {
+        return;
+    }
+
+    MblinkMercedesModuleScanEntry *module =
+        &_mercedesModuleScan.modules[_connectionSessionModuleIndex];
+
+    if (_connectionSessionStage != MBLinkConnectionSessionStageControl) {
+        if (response == NULL ||
+            response->result != MBLINK_ELM327_RESULT_OK ||
+            !response->ok_seen) {
+            ++_connectionSessionModuleIndex;
+            if (![self beginNextConnectionSessionModule])
+                [self finishConnectionSessionOperation];
+            return;
+        }
+        _connectionSessionStage =
+            (MBLinkConnectionSessionStage)
+                (_connectionSessionStage + 1U);
+        [self beginCurrentConnectionSessionCommand];
+        return;
+    }
+
+    if (_connectionSessionMode == MBLinkConnectionSessionEstablish) {
+        module->diagnostic_session_active =
+            MBLinkDiagnosticSessionResponsePositive(response);
+    } else {
+        /*
+         * Disconnect teardown is deliberately best-effort. Once the documented
+         * quit/default-session command has been issued, continue to every
+         * other opened module even if this ECU has already gone silent.
+         */
+        module->diagnostic_session_active = false;
+        module->diagnostic_session_attempted = false;
+    }
+
+    ++_connectionSessionModuleIndex;
+    if (![self beginNextConnectionSessionModule])
+        [self finishConnectionSessionOperation];
+}
+
+- (void)finishConnectionSessionOperation
+{
+    const MBLinkConnectionSessionMode finished = _connectionSessionMode;
+    _connectionSessionMode = MBLinkConnectionSessionNone;
+    _connectionSessionStage = MBLinkConnectionSessionStageNone;
+    _connectionSessionModuleIndex = 0U;
+
+    if (finished == MBLinkConnectionSessionEstablish) {
+        [self continueAfterConnectionSessionEstablishment];
+    } else if (finished == MBLinkConnectionSessionTeardown) {
+        [_shared disconnect];
+    }
+}
+
+- (void)tryBeginDisconnectSessionTeardown:(NSUInteger)attempt
+{
+    if (!_shared.isActive) {
+        [_shared disconnect];
+        return;
+    }
+    if ([_shared beginLiveManufacturerExtension]) {
+        _connectionSessionMode = MBLinkConnectionSessionTeardown;
+        _connectionSessionStage = MBLinkConnectionSessionStageNone;
+        _connectionSessionModuleIndex = 0U;
+        if (![self beginNextConnectionSessionModule])
+            [self finishConnectionSessionOperation];
+        return;
+    }
+
+    if (attempt < 40U) {
+        dispatch_after(
+            dispatch_time(
+                DISPATCH_TIME_NOW,
+                (int64_t)UINT64_C(125) * NSEC_PER_MSEC),
+            dispatch_get_main_queue(), ^{
+                [self tryBeginDisconnectSessionTeardown:attempt + 1U];
+            });
+        return;
+    }
+
+    /* Transport is no longer available for orderly ECU teardown. */
+    [_shared disconnect];
+}
+
 - (void)disconnect
 {
+    const BOOL canTeardownSessions =
+        _shared.isActive && _shared.isReady && !_shared.isSimulated &&
+        !_moduleScanActive && !self.manufacturerDataScanActive &&
+        !_scheduledManufacturerJobActive &&
+        _scheduledManufacturerRestoreStage == MBLinkScheduledRestoreNone &&
+        _connectionSessionMode == MBLinkConnectionSessionNone;
+
+    if (_scheduledManufacturerJobRegistered) {
+        (void)[_shared setLiveManufacturerJobEnabled:NO
+            token:MBLinkScheduledTransmissionLiveJobToken];
+    }
+
     _moduleScanActive = NO;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
@@ -956,7 +1270,14 @@ static bool MBLinkSimulatorResponder(
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     ++_manufacturerDataRequestGeneration;
-    [_shared disconnect];
+
+    if (!canTeardownSessions) {
+        [_shared disconnect];
+        return;
+    }
+
+    [self setStatus:@"Closing Mercedes module diagnostic sessions"];
+    [self tryBeginDisconnectSessionTeardown:0U];
 }
 
 - (NSArray<NSNumber *> *)recentValuesForPID:(uint8_t)pid
@@ -1400,6 +1721,11 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
   didReceiveManufacturerResponse:(const LinkElm327Response *)response
 {
     (void)controller;
+    if (_connectionSessionMode != MBLinkConnectionSessionNone) {
+        [self processConnectionSessionResponse:
+            (const MblinkElm327Response *)response];
+        return;
+    }
     if (_scheduledManufacturerRestoreStage != MBLinkScheduledRestoreNone) {
         [self processScheduledManufacturerRestoreResponse:
             (const MblinkElm327Response *)response];
@@ -2832,6 +3158,24 @@ static void MBLinkAppendManufacturerDefinition(
     }
 }
 
+- (void)continueAfterConnectionSessionEstablishment
+{
+    /*
+     * Every resolved ECU pack exposes two explicit data sections: one-time
+     * startup data and user-selected recurring data. Session entry, where the
+     * ECU pack documents it, has already been attempted exactly once for this
+     * connection. Neither path below is allowed to re-enter a session.
+     */
+    _startupModuleDataPassActive = YES;
+    _startupModuleDataIndex = 0U;
+    if ([self beginNextStartupModuleDataRead])
+        return;
+    _startupModuleDataPassActive = NO;
+
+    [self updateScheduledManufacturerLiveJob];
+    [self finishMercedesExtensionRestoringAdapter:YES];
+}
+
 - (BOOL)beginNextStartupModuleDataRead
 {
     const size_t moduleCount =
@@ -2949,21 +3293,12 @@ static void MBLinkAppendManufacturerDefinition(
         _cachedModuleRefreshActive = NO;
 
         /*
-         * Module discovery is complete. Every resolved ECU pack now exposes
-         * two explicit data sections: one-time startup data and user-selected
-         * recurring data. Read the startup section here, one module at a time,
-         * before normal live polling is allowed to begin.
+         * Identification is now complete, so controller-specific ECU packs
+         * own session policy. Enter each documented module session at most once
+         * for this vehicle connection before startup data is read. Modules
+         * already entered during route discovery/cached validation are skipped.
          */
-        _startupModuleDataPassActive = YES;
-        _startupModuleDataIndex = 0U;
-        if ([self beginNextStartupModuleDataRead])
-            return;
-        _startupModuleDataPassActive = NO;
-
-        /* Recurring Mercedes work starts only after all one-time module data
-         * has either responded or been attempted. */
-        [self updateScheduledManufacturerLiveJob];
-        [self finishMercedesExtensionRestoringAdapter:YES];
+        [self beginConnectionSessionEstablishment];
         return;
     }
     if (result != MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK ||

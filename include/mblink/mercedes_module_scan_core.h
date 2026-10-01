@@ -121,6 +121,14 @@ typedef struct MblinkMercedesModuleScanEntry {
     MblinkMercedesDiagnosticProtocol protocol;
     MblinkMercedesModuleKind kind;
     bool tester_present_response;
+    /*
+     * Diagnostic-session lifetime belongs to the vehicle connection.
+     * attempted means a documented session-entry command has already been
+     * issued during this connection; active means that command returned a
+     * positive 0x50 response. Neither flag is persisted across connections.
+     */
+    bool diagnostic_session_attempted;
+    bool diagnostic_session_active;
     bool identity_available;
     char identity[64];
     bool spare_part_number_available;
@@ -156,6 +164,8 @@ typedef struct MblinkMercedesModuleScan {
     MblinkMercedesDiagnosticProtocol candidate_protocol;
     uint8_t candidate_protocol_mask;
     uint8_t candidate_protocol_attempted_mask;
+    bool candidate_session_attempted;
+    bool candidate_session_active;
     size_t vin_probe_index;
     /* First positive VIN from a physically filtered, matching VIN request. */
     char vin[LINK_OBD2_VIN_LENGTH + 1U];

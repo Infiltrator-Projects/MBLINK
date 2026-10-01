@@ -455,6 +455,8 @@ void mblink_mercedes_module_scan_set_11_candidate(MblinkMercedesModuleScan *scan
     scan->candidate_rx = tx + UINT32_C(8);
     scan->candidate_extended = false;
     scan->candidate_route_locked = false;
+    scan->candidate_session_attempted = false;
+    scan->candidate_session_active = false;
     scan->vin_probe_index = 0U;
     scan->kwp_identity_fallback = false;
     scan->kwp_identity_index = 0U;
@@ -476,6 +478,8 @@ bool mblink_mercedes_module_scan_set_gateway_target(
         UINT32_C(0x18daf100) | (uint32_t)target;
     scan->candidate_extended = true;
     scan->candidate_route_locked = true;
+    scan->candidate_session_attempted = false;
+    scan->candidate_session_active = false;
     scan->vin_probe_index = 0U;
     scan->kwp_identity_fallback = false;
     scan->kwp_identity_index = 0U;
@@ -522,6 +526,8 @@ bool mblink_mercedes_module_scan_set_full_target(
     scan->candidate_tx = target.tx_can_id;
     scan->candidate_rx = target.rx_can_id;
     scan->candidate_extended = target.extended_id;
+    scan->candidate_session_attempted = false;
+    scan->candidate_session_active = false;
     scan->vin_probe_index = 0U;
     scan->kwp_identity_fallback = false;
     scan->kwp_identity_index = 0U;
@@ -876,6 +882,10 @@ MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_record_module(MblinkM
         MblinkMercedesModuleScanEntry *module = &scan->modules[index];
         if (module->tx_can_id == scan->candidate_tx && module->rx_can_id == scan->candidate_rx && module->extended_id == scan->candidate_extended) {
             module->tester_present_response |= tester_present;
+            module->diagnostic_session_attempted |=
+                scan->candidate_session_attempted;
+            module->diagnostic_session_active |=
+                scan->candidate_session_active;
             return module;
         }
     }
@@ -891,6 +901,10 @@ MblinkMercedesModuleScanEntry *mblink_mercedes_module_scan_record_module(MblinkM
     module->protocol = mblink_mercedes_module_scan_candidate_protocol(scan);
     module->kind = mblink_mercedes_module_scan_kind(scan->candidate_tx, scan->candidate_extended);
     module->tester_present_response = tester_present;
+    module->diagnostic_session_attempted =
+        scan->candidate_session_attempted;
+    module->diagnostic_session_active =
+        scan->candidate_session_active;
     module->identification_status = MBLINK_MERCEDES_DEFINITION_CANDIDATE;
     module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
     {
@@ -1330,6 +1344,8 @@ mblink_mercedes_module_scan_begin_cached(
         }
         *destination = *source;
         destination->tester_present_response = false;
+        destination->diagnostic_session_attempted = false;
+        destination->diagnostic_session_active = false;
         destination->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NOT_ATTEMPTED;
         destination->dtc_uds_result = (MblinkUdsResult)0;
         destination->dtc_kwp_result = (MblinkKwp2000Result)0;
@@ -1702,14 +1718,18 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_EXTENDED_SESSION:
         /*
-         * A positive or valid negative UDS response proves the exact route is
-         * alive.  Lack of a response is not fatal: continue with the bounded
-         * read-only presence probes because not every Mercedes ECU requires
-         * or accepts the same diagnostic-session transition.
+         * Session ownership is connection-wide. Record that this route has
+         * already received its one automatic entry request so later startup,
+         * DTC and live-data work cannot re-enter it. A positive 0x50 response
+         * records the session as active; negative/quiet responses are never
+         * retried automatically during the same connection.
          */
+        scan->candidate_session_attempted = true;
         present = mblink_mercedes_module_scan_decode_uds(
             response, MBLINK_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
             pdu, sizeof(pdu), &pdu_length, &uds);
+        scan->candidate_session_active =
+            present && pdu_length >= 2U && pdu[0] == UINT8_C(0x50);
         if (present)
             (void)mblink_mercedes_module_scan_record_module(scan, false);
         scan->stage =
@@ -1997,11 +2017,25 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
         if (scan->dtc_index >= scan->module_count) goto failed_state;
         /*
-         * Cached source-backed routes must recreate the same transient
-         * diagnostic-session context used when they were discovered.  Treat a
-         * timeout/negative response as non-fatal and let TesterPresent decide
-         * whether the saved route is still alive.
+         * A saved-profile reconnect has no live session state, so this is the
+         * connection's one entry attempt for this module. Never loop back into
+         * session control later in the DTC/startup/live paths.
          */
+        module = &scan->modules[scan->dtc_index];
+        module->diagnostic_session_attempted = true;
+        {
+            uint8_t session_pdu[MBLINK_MERCEDES_MODULE_SCAN_PDU_CAPACITY];
+            size_t session_length = 0U;
+            if (response != NULL &&
+                response->result == MBLINK_ELM327_RESULT_OK &&
+                mblink_elm327_can_decode_pdu(
+                    response, session_pdu, sizeof(session_pdu),
+                    &session_length) == MBLINK_ELM327_CAN_RESULT_OK &&
+                session_length >= 2U &&
+                session_pdu[0] == UINT8_C(0x50)) {
+                module->diagnostic_session_active = true;
+            }
+        }
         scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE:
