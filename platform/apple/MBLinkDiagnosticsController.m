@@ -2,6 +2,7 @@
 #import "MBLinkDiagnosticsController.h"
 
 #import "../../src/link/platform/apple/LinkDiagnosticsController.h"
+#import "link/diagnostic_request.h"
 #import "mblink/elm327.h"
 #import "mblink/mercedes.h"
 #import "mblink/mercedes_module_scan.h"
