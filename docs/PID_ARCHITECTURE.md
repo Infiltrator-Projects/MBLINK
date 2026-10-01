@@ -92,11 +92,16 @@ Every resolved ECU pack exposes two explicit acquisition sections:
    them.
 
 This split belongs to the resolved ECU pack, not to route-specific scanner
-hooks and not to an extra UI filter. Classification is deliberately
-conservative: individual documented reads move into the startup section only
-when their static/identity/configuration meaning has been established. A broad
-reclassification based on old `live` flags, one vehicle capture, or a positive
-response is not permitted.
+hooks and not to an extra UI filter. The normal Apple Connect path must not
+reintroduce a separate engine-specific or controller-specific startup state
+machine outside the resolved pack. Explicit research/replay helpers may exist,
+but they are not automatic Connect prerequisites and cannot create PID Setup
+membership.
+
+Classification is deliberately conservative: individual documented reads move
+into the startup section only when their static/identity/configuration meaning
+has been established. A broad reclassification based on old `live` flags, one
+vehicle capture, or a positive response is not permitted.
 
 Known startup examples include Mode 01 PID `01`, CGW boot software
 `22 F1 53`, EGS53 variant/SCN coding `21 B1`, and ORC restraint
