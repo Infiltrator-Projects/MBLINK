@@ -122,9 +122,6 @@ static int test_startup_metadata_is_not_embedded_in_module_discovery(void)
     MblinkMercedesModuleScan scan;
     MblinkElm327Response hardware = response(
         MBLINK_ELM327_RESULT_OK, "62F19132303439303130303031", false);
-    char command[32];
-    size_t written = 0U;
-
     memset(&scan, 0, sizeof(scan));
     scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
     scan.candidate_tx = UINT32_C(0x602);
@@ -142,9 +139,9 @@ static int test_startup_metadata_is_not_embedded_in_module_discovery(void)
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
 
     /*
-     * Once identity/hardware discovery is complete the scanner leaves the
-     * controller. Optional static values such as F153 now belong to the
-     * generic per-ECU startup-data pass, never to the discovery state machine.
+     * Once identity/hardware discovery is complete the scanner advances while
+     * keeping the ECU diagnostic session alive. Optional static values such as
+     * F153 belong to the generic per-ECU startup-data pass, never to discovery.
      */
     CHECK(scan.stage ==
           MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
