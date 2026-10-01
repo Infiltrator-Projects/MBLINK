@@ -1050,7 +1050,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func standardSelectionMigrator() -> MBStandardPIDSelectionMigrator {
-        let modules = pidConfigurationModules.compactMap { module in
+        let modules: [MBStandardPIDSelectionModule] =
+            pidConfigurationModules.compactMap {
+                module -> MBStandardPIDSelectionModule? in
             guard hasStandardOBDInterface(moduleID: module.id) else {
                 return nil
             }
@@ -1066,6 +1068,11 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             modules: modules,
             savedProfileCount: vehicleProfileStore.savedProfiles.count,
             excludedStableKeys: excluded)
+    }
+
+    private func ensureControllerScopedStandardSelections() {
+        guard let vin = effectivePIDConfigurationVIN else { return }
+        _ = standardSelectionMigrator().aggregateSelection(forVIN: vin)
     }
 
     private func moduleStandardSelectionSet(
@@ -2063,8 +2070,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             ($0.id, manufacturerSelectionSet(moduleID: $0.id))
         }
         defer {
-            for (moduleID, keys) in oldStandard {
-                storeModuleStandardSelection(keys, moduleID: moduleID)
+            if let vin = effectivePIDConfigurationVIN {
+                let migrator = standardSelectionMigrator()
+                for (moduleID, keys) in oldStandard {
+                    migrator.storeSelection(
+                        keys, forVIN: vin, moduleID: moduleID)
+                }
             }
             for (moduleID, keys) in oldManufacturer {
                 storeManufacturerSelection(keys, moduleID: moduleID)
