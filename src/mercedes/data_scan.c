@@ -53,16 +53,14 @@ static MblinkMercedesDataScanResult write_text(
 
 static void finish_identifier_scan(MblinkMercedesDataScan *scan)
 {
-    char quit_command[5];
-
     if (scan == NULL) return;
-    scan->stage =
-        mblink_mercedes_documented_route_control_command(
-            scan->config.tx_can_id, scan->config.rx_can_id,
-            scan->config.extended_id, scan->config.protocol, true,
-            quit_command, sizeof(quit_command))
-            ? MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION
-            : MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
+
+    /*
+     * A startup/live read does not own the ECU session. The vehicle
+     * connection does. Leaving the session active avoids repeatedly forcing
+     * visible controllers out of and back into diagnostics between reads.
+     */
+    scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
 }
 
 static void advance_identifier(MblinkMercedesDataScan *scan)
