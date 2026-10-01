@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.272 — 2026-10-01
+
+- Extract the startup OBD readiness/status grid from the large Modules card builder into a focused SwiftUI helper.
+- Preserve the same MIL indicator, readiness colouring, labels, accessibility grouping and read-once presentation; no diagnostic or polling behaviour changes.
+
 ## 0.7.271 — 2026-10-01
 
 - Extract Bluetooth transport-boundary alert handling from the central iPhone refresh callback into a focused helper.

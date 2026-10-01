@@ -1356,50 +1356,7 @@ private struct MBModulesView: View {
             }
 
             if !startupStatus.isEmpty {
-                Divider().overlay(MBBrand.line)
-                HStack {
-                    Text("Startup OBD status")
-                        .font(MBTypography.captionBold)
-                        .foregroundStyle(MBBrand.silverBright)
-                    Spacer()
-                    Text("read once at connection")
-                        .font(MBTypography.caption2)
-                        .foregroundStyle(MBBrand.muted)
-                }
-
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), alignment: .leading),
-                        GridItem(.flexible(), alignment: .leading)
-                    ],
-                    alignment: .leading,
-                    spacing: 6
-                ) {
-                    ForEach(startupStatus, id: \.stableKey) { field in
-                        HStack(spacing: 5) {
-                            if field.stableKey ==
-                                "obd2.readiness.mil" {
-                                Circle()
-                                    .fill(
-                                        field.numericValueAvailable &&
-                                        field.numericValue != 0
-                                            ? MBBrand.fault
-                                            : MBBrand.success)
-                                    .frame(width: 10, height: 10)
-                            }
-                            Text(field.shortName)
-                                .font(MBTypography.caption2Bold)
-                                .foregroundStyle(MBBrand.silver)
-                            Spacer(minLength: 4)
-                            Text(field.formattedValue)
-                                .font(MBTypography.caption2)
-                                .foregroundStyle(startupStatusColor(field))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
+                startupStatusSection(startupStatus)
             }
         }
         .padding(15)
@@ -1409,6 +1366,56 @@ private struct MBModulesView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 17, style: .continuous)
                 .stroke(MBBrand.line, lineWidth: 1))
+    }
+
+    private func startupStatusSection(
+        _ fields: [LinkReadinessFieldSnapshot]
+    ) -> some View {
+        Group {
+            Divider().overlay(MBBrand.line)
+            HStack {
+                Text("Startup OBD status")
+                    .font(MBTypography.captionBold)
+                    .foregroundStyle(MBBrand.silverBright)
+                Spacer()
+                Text("read once at connection")
+                    .font(MBTypography.caption2)
+                    .foregroundStyle(MBBrand.muted)
+            }
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading)
+                ],
+                alignment: .leading,
+                spacing: 6
+            ) {
+                ForEach(fields, id: \.stableKey) { field in
+                    HStack(spacing: 5) {
+                        if field.stableKey == "obd2.readiness.mil" {
+                            Circle()
+                                .fill(
+                                    field.numericValueAvailable &&
+                                    field.numericValue != 0
+                                        ? MBBrand.fault
+                                        : MBBrand.success)
+                                .frame(width: 10, height: 10)
+                        }
+                        Text(field.shortName)
+                            .font(MBTypography.caption2Bold)
+                            .foregroundStyle(MBBrand.silver)
+                        Spacer(minLength: 4)
+                        Text(field.formattedValue)
+                            .font(MBTypography.caption2)
+                            .foregroundStyle(startupStatusColor(field))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
     }
 
     private func startupStatusColor(
