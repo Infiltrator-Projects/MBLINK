@@ -147,11 +147,7 @@ static int test_startup_metadata_is_not_embedded_in_module_discovery(void)
      * generic per-ECU startup-data pass, never to the discovery state machine.
      */
     CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1001") == 0);
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
     return 0;
 }
 
@@ -192,19 +188,16 @@ static int test_cached_resolved_egs53_skips_identity_reprobe(void)
     return 0;
 }
 
-static int test_documented_session_teardown(void)
+static int test_documented_session_persists(void)
 {
     MblinkMercedesModuleScan scan;
-    MblinkElm327Response no_data =
-        response(MBLINK_ELM327_RESULT_NO_DATA, "", false);
     char command[32];
     size_t written = 0U;
 
     /*
-     * HU_204/COMAND is a KWP2000 ECU. The public controller profile uses
-     * 10 92 to enter diagnostics and 10 81 to leave it. A connected scan must
-     * not leave the head unit in diagnostic mode, because that suppresses its
-     * normal audio operation.
+     * HU_204/COMAND enters its documented KWP2000 diagnostic session once.
+     * Advancing discovery must not send 10 81; the session belongs to the
+     * vehicle connection and remains active until the connection ends.
      */
     memset(&scan, 0, sizeof(scan));
     scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
@@ -224,54 +217,9 @@ static int test_documented_session_teardown(void)
 
     scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_DTC_FALLBACK;
     mblink_mercedes_module_scan_advance_candidate(&scan);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1081") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.candidate_tx == UINT32_C(0x653));
     CHECK(scan.stage ==
           MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
-
-    /* UDS controllers return to the default 10 01 session. */
-    memset(&scan, 0, sizeof(scan));
-    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_QUICK;
-    scan.candidate_tx = UINT32_C(0x612);
-    scan.candidate_rx = UINT32_C(0x482);
-    scan.candidate_protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
-    scan.candidate_protocol_mask = MBLINK_MERCEDES_ECU_PROTOCOL_UDS_MASK;
-    scan.module_count = 1U;
-    scan.modules[0].tx_can_id = UINT32_C(0x612);
-    scan.modules[0].rx_can_id = UINT32_C(0x482);
-    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_UDS;
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_HARDWARE;
-    mblink_mercedes_module_scan_advance_candidate(&scan);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1001") == 0);
-
-    /* Cached/DTC passes must perform the same HU_204 teardown. */
-    memset(&scan, 0, sizeof(scan));
-    scan.scope = MBLINK_MERCEDES_MODULE_SCAN_CACHED;
-    scan.module_count = 1U;
-    scan.dtc_index = 0U;
-    scan.modules[0].tx_can_id = UINT32_C(0x652);
-    scan.modules[0].rx_can_id = UINT32_C(0x48a);
-    scan.modules[0].protocol = MBLINK_MERCEDES_DIAGNOSTIC_KWP2000;
-    scan.stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION;
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1081") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
-    CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
 
     return 0;
 }
@@ -280,7 +228,7 @@ int main(void)
 {
     if (test_startup_metadata_is_not_embedded_in_module_discovery() != 0) return 1;
     if (test_cached_resolved_egs53_skips_identity_reprobe() != 0) return 1;
-    if (test_documented_session_teardown() != 0) return 1;
+    if (test_documented_session_persists() != 0) return 1;
     MblinkMercedesModuleScan scan;
     char command[32];
     size_t written = 0U;
@@ -357,15 +305,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(scan.modules[0].software_number, "6519020001") == 0);
     CHECK(scan.modules[0].hardware_number_available);
     CHECK(strcmp(scan.modules[0].hardware_number, "6519040001") == 0);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1001") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
     CHECK(send_ok(&scan, "ATSH7E1") == 0);
     CHECK(send_ok(&scan, "ATCRA7E9") == 0);
     CHECK(mblink_mercedes_module_scan_command(
@@ -405,14 +344,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(strcmp(mblink_mercedes_module_scan_module_name(
                      &scan.modules[1]),
                  "Transmission control unit (VGS / EGS)") == 0);
-    CHECK(scan.stage ==
-          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-    CHECK(mblink_mercedes_module_scan_command(
-              &scan, command, sizeof(command), &written) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-    CHECK(strcmp(command, "1081") == 0);
-    CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-          MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
     CHECK(scan.candidate_tx == UINT32_C(0x7e2));
     CHECK(scan.stage ==
           MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_SET_HEADER);
@@ -715,15 +646,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &dtcs) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
         CHECK(send_ok(&scan, "ATSP7") == 0);
         CHECK(send_ok(&scan, "ATSH18DA02F1") == 0);
         CHECK(send_ok(&scan, "ATCRA18DAF102") == 0);
@@ -745,19 +667,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(send_ok(&scan, "ATSH612") == 0);
         CHECK(send_ok(&scan, "ATCRA482") == 0);
         CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1003") == 0);
-        {
-            MblinkElm327Response session_response =
-                response(MBLINK_ELM327_RESULT_OK, "5003001400C8", false);
-            CHECK(mblink_mercedes_module_scan_accept(
-                      &scan, &session_response) ==
-                  MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        }
-        CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
         CHECK(mblink_mercedes_module_scan_command(
                   &scan, command, sizeof(command), &written) ==
@@ -772,15 +681,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(strcmp(command, "1902FF") == 0);
         CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
               MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-
         CHECK(send_ok(&scan, "ATSP6") == 0);
         CHECK(send_ok(&scan, "ATSH64A") == 0);
         CHECK(send_ok(&scan, "ATCRA489") == 0);
@@ -814,15 +714,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                       &scan, &kwp_dtcs) ==
                   MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         }
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1081") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
-
         CHECK(scan.stage == MBLINK_MERCEDES_MODULE_SCAN_STAGE_COMPLETE);
         CHECK(mblink_mercedes_module_scan_fresh_response_count(&scan) == 3U);
         CHECK(scan.modules[0].dtcs.count == 2U);
@@ -1248,14 +1139,6 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
                   "ESP / ABS / BAS controller") == 0);
         CHECK(accept_identity_metadata(
                   &scan, &no_data, &no_data, &no_data) == 0);
-        CHECK(scan.stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION);
-        CHECK(mblink_mercedes_module_scan_command(
-                  &scan, command, sizeof(command), &written) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
-        CHECK(strcmp(command, "1001") == 0);
-        CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
-              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.full_target_index == 1U);
         CHECK(scan.candidate_tx == UINT32_C(0x632));
         CHECK(scan.candidate_rx == UINT32_C(0x486));
