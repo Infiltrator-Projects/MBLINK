@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.273 — 2026-10-01
+
+- Extract the empty-state factory-data panel from the large module factory-data section into a focused SwiftUI helper.
+- Preserve the same scan action, disabled state and RAW/unknown-value explanation; no diagnostic discovery, polling, or decoding behaviour changes.
+
 ## 0.7.272 — 2026-10-01
 
 - Extract the startup OBD readiness/status grid from the large Modules card builder into a focused SwiftUI helper.

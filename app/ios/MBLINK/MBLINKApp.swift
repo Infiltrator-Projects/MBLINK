@@ -1672,37 +1672,7 @@ private struct MBModuleDetailView: View {
                 }
             }
         } else if manufacturerValues.isEmpty {
-            MBPanel {
-                VStack(alignment: .leading, spacing: 11) {
-                    Text("No Mercedes factory values have been discovered from this ECU yet.")
-                        .font(MBTypography.subheadline)
-                        .foregroundStyle(MBBrand.silver)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button {
-                        connection.discoverManufacturerData(moduleID: module.id)
-                    } label: {
-                        Label("Scan factory data",
-                              systemImage: "dot.radiowaves.left.and.right")
-                            .font(MBTypography.subheadlineBold)
-                            .foregroundStyle(MBBrand.background)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: 11,
-                                    style: .continuous)
-                                    .fill(MBBrand.silverBright))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!connection.isActive)
-
-                    Text("Positive identifiers are retained even when their meaning is not mapped yet; unknown values remain RAW rather than being assigned guessed DIDs.")
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            factoryDataEmptyState(module)
         } else {
             MBPanel {
                 VStack(alignment: .leading, spacing: 0) {
@@ -1776,6 +1746,43 @@ private struct MBModuleDetailView: View {
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+        }
+    }
+
+    private func factoryDataEmptyState(
+        _ module: DiagnosticModule
+    ) -> some View {
+        MBPanel {
+            VStack(alignment: .leading, spacing: 11) {
+                Text("No Mercedes factory values have been discovered from this ECU yet.")
+                    .font(MBTypography.subheadline)
+                    .foregroundStyle(MBBrand.silver)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    connection.discoverManufacturerData(moduleID: module.id)
+                } label: {
+                    Label(
+                        "Scan factory data",
+                        systemImage: "dot.radiowaves.left.and.right")
+                        .font(MBTypography.subheadlineBold)
+                        .foregroundStyle(MBBrand.background)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(
+                                cornerRadius: 11,
+                                style: .continuous)
+                                .fill(MBBrand.silverBright))
+                }
+                .buttonStyle(.plain)
+                .disabled(!connection.isActive)
+
+                Text("Positive identifiers are retained even when their meaning is not mapped yet; unknown values remain RAW rather than being assigned guessed DIDs.")
+                    .font(MBTypography.caption)
+                    .foregroundStyle(MBBrand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
