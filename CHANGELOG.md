@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.277 — 2026-10-01
+
+- Decode documented Mercedes UDS metadata DIDs F150, F151 and F153 as year/week/patch version triplets instead of exposing their three payload bytes as RAW hex.
+- Central-gateway examples such as 082B01, 0A1D4B and 0A1D48 now display as 08/43.01, 10/29.75 and 10/29.72 respectively.
+- Leave F111/F121 part-number interpretation unchanged for now; this release only corrects the three documented version fields.
+
 ## 0.7.276 — 2026-10-01
 
 - Reconcile the Markdown architecture with the rebuilt controller-first iPhone flow: VIN/profile -> module identification -> resolved ECU-pack startup-once facts -> responder-attributed OBD inventory -> explicitly selected recurring polling.

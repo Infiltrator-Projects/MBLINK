@@ -975,6 +975,32 @@ static bool format_ascii_payload(
     return true;
 }
 
+static bool format_mercedes_version_triplet(
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size)
+{
+    int count;
+
+    if (record == NULL || buffer == NULL || buffer_size == 0U ||
+        record->data_length < 3U) {
+        return false;
+    }
+
+    /*
+     * Daimler UDS metadata DIDs F150/F151/F153 encode version as three
+     * independent unsigned bytes: year, calendar week, patch level.
+     * Keep the familiar Mercedes diagnostic presentation YY/WW.PP while
+     * preserving the numeric byte values exactly.
+     */
+    count = snprintf(
+        buffer, buffer_size, "%02u/%02u.%02u",
+        (unsigned int)record->data[0],
+        (unsigned int)record->data[1],
+        (unsigned int)record->data[2]);
+    return count >= 0 && (size_t)count < buffer_size;
+}
+
 bool mblink_mercedes_data_record_format_known_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
@@ -994,11 +1020,26 @@ bool mblink_mercedes_data_record_format_known_for_route(
     }
 
     /*
-     * Startup metadata can be controller-independent. Preserve the documented
-     * name and render simple printable payloads without adding ECU-specific
-     * hooks to discovery. Binary metadata remains raw until its field layout is
-     * explicitly decoded.
+     * Startup metadata can be controller-independent. F150/F151/F153 have a
+     * documented three-byte year/week/patch layout, so decode them before the
+     * generic printable-text path. Other binary metadata remains raw until its
+     * field layout is explicitly decoded.
      */
+    if (record->service == UINT8_C(0x22) &&
+        (record->identifier == UINT16_C(0xf150) ||
+         record->identifier == UINT16_C(0xf151) ||
+         record->identifier == UINT16_C(0xf153))) {
+        const char *documentedName =
+            mblink_mercedes_documented_read_name(
+                record->service, record->identifier);
+        if (documentedName != NULL &&
+            format_mercedes_version_triplet(
+                record, buffer, buffer_size)) {
+            *name = documentedName;
+            return true;
+        }
+    }
+
     if (record->service == UINT8_C(0x22) &&
         mblink_mercedes_documented_read_is_module_metadata(
             record->service, record->identifier)) {

@@ -982,6 +982,58 @@ static int test_documented_global_ecu_catalog(void)
     CHECK(mblink_mercedes_documented_read_is_safe(0x22,0xf150));CHECK(mblink_mercedes_documented_read_is_safe(0x1a,0x86));CHECK(!mblink_mercedes_documented_read_is_safe(0x27,1));CHECK(!mblink_mercedes_documented_read_is_safe(0x31,1));
     return 0;
 }
+static int test_documented_uds_version_metadata(void)
+{
+    MblinkMercedesDataRecord record;
+    char text[64];
+    const char *name = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service = UINT8_C(0x22);
+    record.data_length = 3U;
+
+    record.identifier = UINT16_C(0xf150);
+    record.data[0] = UINT8_C(0x08);
+    record.data[1] = UINT8_C(0x2b);
+    record.data[2] = UINT8_C(0x01);
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_GATEWAY,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Hardware version") == 0);
+    CHECK(strcmp(text, "08/43.01") == 0);
+
+    record.identifier = UINT16_C(0xf151);
+    record.data[0] = UINT8_C(0x0a);
+    record.data[1] = UINT8_C(0x1d);
+    record.data[2] = UINT8_C(0x4b);
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_GATEWAY,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Software version") == 0);
+    CHECK(strcmp(text, "10/29.75") == 0);
+
+    record.identifier = UINT16_C(0xf153);
+    record.data[2] = UINT8_C(0x48);
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_GATEWAY,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Boot software version") == 0);
+    CHECK(strcmp(text, "10/29.72") == 0);
+
+    record.data_length = 2U;
+    name = NULL;
+    CHECK(!mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_GATEWAY,
+        &record, text, sizeof(text), &name));
+    return 0;
+}
+
 static int test_documented_route_read_union(void)
 {
     const MblinkMercedesDocumentedRead *read;
@@ -1161,6 +1213,7 @@ static int test_orc_dashboard_records_are_semantically_mapped(void)
 
 int main(void)
 {
+    if (test_documented_uds_version_metadata() != 0) return 1;
     if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
     if (test_hu204_factory_reading_session_teardown() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
