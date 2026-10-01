@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.282 — 2026-10-01
+
+- Resolve the CGW_212 three-digit F111/F121 family value `212` to the complete Mercedes hardware `2125451001` and software `2129029904` part numbers only when the exact 0x602 → 0x480 startup signature also matches hardware version 08/43.01, software version 10/29.75 and boot software version 10/29.72.
+- Keep unrelated or differently versioned `212` gateways abbreviated rather than guessing a part number.
+- Apply the same cross-record signature decoder to live startup data and saved VIN profiles, with regression coverage for mismatched software versions and unrelated routes.
+
 ## 0.7.279 — 2026-10-01
 
 - Treat three-digit F111/F121 replies such as `212` as Mercedes hardware/software identifiers, not complete part numbers.
