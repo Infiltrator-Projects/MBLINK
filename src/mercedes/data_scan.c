@@ -975,29 +975,89 @@ static bool format_ascii_payload(
     return true;
 }
 
-static bool format_mercedes_version_triplet(
+static bool documented_field_u8(
+    const MblinkMercedesDataRecord *record,
+    const MblinkMercedesDocumentedField *field,
+    uint8_t *value)
+{
+    size_t payload_response_byte;
+    size_t data_index;
+
+    if (record == NULL || field == NULL || value == NULL ||
+        field->bit_offset != -1 || field->bit_length != 8U) {
+        return false;
+    }
+
+    if (record->service == UINT8_C(0x22)) {
+        payload_response_byte = 4U;
+    } else if (record->service == UINT8_C(0x21) ||
+               record->service == UINT8_C(0x1a)) {
+        payload_response_byte = 3U;
+    } else {
+        return false;
+    }
+
+    if (field->response_byte < payload_response_byte) return false;
+    data_index = (size_t)field->response_byte - payload_response_byte;
+    if (data_index >= record->data_length) return false;
+
+    *value = record->data[data_index];
+    return true;
+}
+
+static bool format_documented_year_week_patch(
     const MblinkMercedesDataRecord *record,
     char *buffer,
     size_t buffer_size)
 {
+    const MblinkMercedesDocumentedField *year_field;
+    const MblinkMercedesDocumentedField *week_field;
+    const MblinkMercedesDocumentedField *patch_field;
+    uint8_t year;
+    uint8_t week;
+    uint8_t patch;
+    unsigned int full_year;
+    char raw[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
     int count;
 
     if (record == NULL || buffer == NULL || buffer_size == 0U ||
-        record->data_length < 3U) {
+        mblink_mercedes_documented_field_count(
+            record->service, record->identifier) < 3U) {
+        return false;
+    }
+
+    year_field = mblink_mercedes_documented_field_at(
+        record->service, record->identifier, 0U);
+    week_field = mblink_mercedes_documented_field_at(
+        record->service, record->identifier, 1U);
+    patch_field = mblink_mercedes_documented_field_at(
+        record->service, record->identifier, 2U);
+
+    if (!documented_field_u8(record, year_field, &year) ||
+        !documented_field_u8(record, week_field, &week) ||
+        !documented_field_u8(record, patch_field, &patch) ||
+        week == 0U || week > 53U ||
+        !mblink_mercedes_data_record_format_hex(
+            record, raw, sizeof(raw))) {
         return false;
     }
 
     /*
-     * Daimler UDS metadata DIDs F150/F151/F153 encode version as three
-     * independent unsigned bytes: year, calendar week, patch level.
-     * Keep the familiar Mercedes diagnostic presentation YY/WW.PP while
-     * preserving the numeric byte values exactly.
+     * Mercedes stores the year as two digits in these documented version
+     * records. Use the conventional rolling-century interpretation for human
+     * display while retaining the exact payload beside it.
      */
+    full_year = year <= 79U
+        ? 2000U + (unsigned int)year
+        : 1900U + (unsigned int)year;
+
     count = snprintf(
-        buffer, buffer_size, "%02u/%02u.%02u",
-        (unsigned int)record->data[0],
-        (unsigned int)record->data[1],
-        (unsigned int)record->data[2]);
+        buffer, buffer_size,
+        "%u · calendar week %u · patch %u · raw %s",
+        full_year,
+        (unsigned int)week,
+        (unsigned int)patch,
+        raw);
     return count >= 0 && (size_t)count < buffer_size;
 }
 
@@ -1020,20 +1080,18 @@ bool mblink_mercedes_data_record_format_known_for_route(
     }
 
     /*
-     * Startup metadata can be controller-independent. F150/F151/F153 have a
-     * documented three-byte year/week/patch layout, so decode them before the
-     * generic printable-text path. Other binary metadata remains raw until its
-     * field layout is explicitly decoded.
+     * Presentation semantics belong to the documented read definition, not to
+     * a controller/UI special case. A single DID can carry several fields; the
+     * catalogue supplies both their byte positions and the composite layout.
      */
-    if (record->service == UINT8_C(0x22) &&
-        (record->identifier == UINT16_C(0xf150) ||
-         record->identifier == UINT16_C(0xf151) ||
-         record->identifier == UINT16_C(0xf153))) {
+    if (mblink_mercedes_documented_read_layout(
+            record->service, record->identifier) ==
+        MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH) {
         const char *documentedName =
             mblink_mercedes_documented_read_name(
                 record->service, record->identifier);
         if (documentedName != NULL &&
-            format_mercedes_version_triplet(
+            format_documented_year_week_patch(
                 record, buffer, buffer_size)) {
             *name = documentedName;
             return true;

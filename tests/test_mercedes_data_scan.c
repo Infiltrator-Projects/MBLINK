@@ -978,6 +978,14 @@ static int test_documented_global_ecu_catalog(void)
     p=mblink_mercedes_documented_ecu_profile_for_controller_family("fuel-pump-fscu",0x6fa,0x49f,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"FSCM212")==0&&p->read_count==10U);
     p=mblink_mercedes_documented_ecu_profile_for_controller_family("engine-crd3",0x7e0,0x7e8,false,MBLINK_MERCEDES_DIAGNOSTIC_UDS);CHECK(p!=NULL&&strcmp(p->name,"CRD3")==0&&p->read_count==6U);
     CHECK(mblink_mercedes_documented_field_count(0x22,0xf150)==3U);
+    CHECK(mblink_mercedes_documented_read_layout(0x22,0xf150)==
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH);
+    CHECK(mblink_mercedes_documented_read_layout(0x22,0xf151)==
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH);
+    CHECK(mblink_mercedes_documented_read_layout(0x22,0xf153)==
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH);
+    CHECK(mblink_mercedes_documented_read_layout(0x22,0xf111)==
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_DEFAULT);
     const MblinkMercedesDocumentedField*f=mblink_mercedes_documented_field_at(0x22,0xf150,0U);CHECK(f!=NULL&&f->response_byte==4U&&strcmp(f->name,"Hardware version year")==0);
     CHECK(mblink_mercedes_documented_read_is_safe(0x22,0xf150));CHECK(mblink_mercedes_documented_read_is_safe(0x1a,0x86));CHECK(!mblink_mercedes_documented_read_is_safe(0x27,1));CHECK(!mblink_mercedes_documented_read_is_safe(0x31,1));
     return 0;
@@ -998,10 +1006,12 @@ static int test_documented_uds_version_metadata(void)
     record.data[2] = UINT8_C(0x01);
     CHECK(mblink_mercedes_data_record_format_known_for_route(
         UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_MODULE_GATEWAY,
+        MBLINK_MERCEDES_MODULE_OTHER,
         &record, text, sizeof(text), &name));
     CHECK(strcmp(name, "Hardware version") == 0);
-    CHECK(strcmp(text, "08/43.01") == 0);
+    CHECK(strcmp(
+        text,
+        "2008 · calendar week 43 · patch 1 · raw 082B01") == 0);
 
     record.identifier = UINT16_C(0xf151);
     record.data[0] = UINT8_C(0x0a);
@@ -1010,26 +1020,30 @@ static int test_documented_uds_version_metadata(void)
     name = NULL;
     CHECK(mblink_mercedes_data_record_format_known_for_route(
         UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_MODULE_GATEWAY,
+        MBLINK_MERCEDES_MODULE_OTHER,
         &record, text, sizeof(text), &name));
     CHECK(strcmp(name, "Software version") == 0);
-    CHECK(strcmp(text, "10/29.75") == 0);
+    CHECK(strcmp(
+        text,
+        "2010 · calendar week 29 · patch 75 · raw 0A1D4B") == 0);
 
     record.identifier = UINT16_C(0xf153);
     record.data[2] = UINT8_C(0x48);
     name = NULL;
     CHECK(mblink_mercedes_data_record_format_known_for_route(
         UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_MODULE_GATEWAY,
+        MBLINK_MERCEDES_MODULE_OTHER,
         &record, text, sizeof(text), &name));
     CHECK(strcmp(name, "Boot software version") == 0);
-    CHECK(strcmp(text, "10/29.72") == 0);
+    CHECK(strcmp(
+        text,
+        "2010 · calendar week 29 · patch 72 · raw 0A1D48") == 0);
 
     record.data_length = 2U;
     name = NULL;
     CHECK(!mblink_mercedes_data_record_format_known_for_route(
         UINT32_C(0x602), UINT32_C(0x480), false,
-        MBLINK_MERCEDES_MODULE_GATEWAY,
+        MBLINK_MERCEDES_MODULE_OTHER,
         &record, text, sizeof(text), &name));
     return 0;
 }

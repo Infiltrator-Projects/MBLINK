@@ -37,6 +37,11 @@ typedef struct MblinkMercedesDocumentedField {
     const char *unit;
     const char *provenance;
 } MblinkMercedesDocumentedField;
+
+typedef enum MblinkMercedesDocumentedReadLayout {
+    MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_DEFAULT = 0,
+    MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH
+} MblinkMercedesDocumentedReadLayout;
 size_t mblink_mercedes_documented_ecu_profile_count(void);
 const MblinkMercedesDocumentedEcuProfile *mblink_mercedes_documented_ecu_profile_at(size_t index);
 size_t mblink_mercedes_documented_ecu_profile_count_for_route(uint32_t tx_can_id,uint32_t rx_can_id,bool extended_id);
@@ -75,6 +80,8 @@ bool mblink_mercedes_documented_route_control_command(
     char *buffer, size_t buffer_size);
 
 const char *mblink_mercedes_documented_read_name(uint8_t service,uint16_t identifier);
+MblinkMercedesDocumentedReadLayout mblink_mercedes_documented_read_layout(
+    uint8_t service, uint16_t identifier);
 bool mblink_mercedes_documented_read_is_safe(uint8_t service,uint16_t identifier);
 /* Hardware/software identification belongs to one-time module discovery. */
 bool mblink_mercedes_documented_read_is_module_metadata(

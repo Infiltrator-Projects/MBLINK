@@ -282,6 +282,32 @@ bool mblink_mercedes_documented_route_control_command(
     return true;
 }
 
+MblinkMercedesDocumentedReadLayout mblink_mercedes_documented_read_layout(
+    uint8_t service, uint16_t identifier)
+{
+    static const struct {
+        uint8_t service;
+        uint16_t identifier;
+        MblinkMercedesDocumentedReadLayout layout;
+    } layouts[] = {
+        { UINT8_C(0x22), UINT16_C(0xf150),
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH },
+        { UINT8_C(0x22), UINT16_C(0xf151),
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH },
+        { UINT8_C(0x22), UINT16_C(0xf153),
+          MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_YEAR_WEEK_PATCH }
+    };
+
+    for (size_t index = 0U;
+         index < INFILTRATR_ARRAY_LENGTH(layouts); ++index) {
+        if (layouts[index].service == service &&
+            layouts[index].identifier == identifier) {
+            return layouts[index].layout;
+        }
+    }
+    return MBLINK_MERCEDES_DOCUMENTED_READ_LAYOUT_DEFAULT;
+}
+
 const char *mblink_mercedes_documented_read_name(uint8_t s,uint16_t id){
  if(s==0x22){switch(id){case 0xf100:return"Active diagnostic information";case 0xf111:return"Mercedes hardware part number";case 0xf121:return"Mercedes software part number";case 0xf150:return"Hardware version";case 0xf151:return"Software version";case 0xf153:return"Boot software version";case 0xf154:return"Hardware supplier";case 0xf155:return"Software supplier";case 0xf15b:return"Programming fingerprint";case 0xf18c:return"ECU serial number";case 0xf187:return"Vehicle manufacturer spare part number";case 0xf188:return"Vehicle manufacturer ECU software number";case 0xf190:return"VIN original";case 0xf191:return"Vehicle manufacturer ECU hardware number";case 0xf197:return"System name";case 0xf1a0:return"VIN current";default:return NULL;}}
  if(s==0x1a){switch(id){case 0x86:return"DCS ECU identification";case 0x87:return"Vehicle manufacturer ECU identification";case 0x88:return"Vehicle manufacturer ECU software number";case 0x89:return"ECU software version / diagnostic variant";case 0x8a:return"System supplier identifier";case 0x8b:return"ECU manufacturing date";case 0x8c:return"ECU serial number";case 0x90:return"Vehicle identification number";case 0x97:return"System name or engine type";case 0x98:return"Repair shop / tester serial";case 0x99:return"Programming date";case 0x9a:return"Calibration repair-shop / equipment serial";case 0x9b:return"ECU installation date";case 0x9c:return"Calibration equipment software number";default:return NULL;}}
