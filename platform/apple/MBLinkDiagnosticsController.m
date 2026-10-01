@@ -88,6 +88,7 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
 - (void)finishConnectionSessionOperation;
 - (void)continueAfterConnectionSessionEstablishment;
 - (void)tryBeginDisconnectSessionTeardown:(NSUInteger)attempt;
+- (void)finishCurrentWorkForDisconnect;
 - (BOOL)beginNextStartupModuleDataRead;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
@@ -160,6 +161,7 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
     MBLinkConnectionSessionMode _connectionSessionMode;
     MBLinkConnectionSessionStage _connectionSessionStage;
     size_t _connectionSessionModuleIndex;
+    BOOL _disconnectRequested;
 }
 
 static NSString *MBLinkStringFromCString(const char *value)
@@ -975,6 +977,7 @@ static bool MBLinkSimulatorResponder(
     _connectionSessionMode = MBLinkConnectionSessionNone;
     _connectionSessionStage = MBLinkConnectionSessionStageNone;
     _connectionSessionModuleIndex = 0U;
+    _disconnectRequested = NO;
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -1209,18 +1212,48 @@ static bool MBLinkSimulatorResponder(
     _connectionSessionModuleIndex = 0U;
 
     if (finished == MBLinkConnectionSessionEstablish) {
-        [self continueAfterConnectionSessionEstablishment];
+        if (_disconnectRequested) {
+            [self tryBeginDisconnectSessionTeardown:0U];
+        } else {
+            [self continueAfterConnectionSessionEstablishment];
+        }
     } else if (finished == MBLinkConnectionSessionTeardown) {
+        _disconnectRequested = NO;
         [_shared disconnect];
     }
 }
 
 - (void)tryBeginDisconnectSessionTeardown:(NSUInteger)attempt
 {
+    if (!_disconnectRequested) return;
     if (!_shared.isActive) {
+        _disconnectRequested = NO;
         [_shared disconnect];
         return;
     }
+
+    /*
+     * Never tear the transport out from under a command already on the wire.
+     * Its normal completion handler will call us again. No new scheduled work
+     * can start while _disconnectRequested is set.
+     */
+    if (_moduleScanActive ||
+        self.manufacturerDataScanActive ||
+        _scheduledManufacturerRestoreStage != MBLinkScheduledRestoreNone ||
+        _connectionSessionMode == MBLinkConnectionSessionEstablish) {
+        if (attempt < 160U) {
+            dispatch_after(
+                dispatch_time(
+                    DISPATCH_TIME_NOW,
+                    (int64_t)UINT64_C(125) * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                    [self tryBeginDisconnectSessionTeardown:attempt + 1U];
+                });
+        }
+        return;
+    }
+    if (_connectionSessionMode == MBLinkConnectionSessionTeardown) return;
+
     if ([_shared beginLiveManufacturerExtension]) {
         _connectionSessionMode = MBLinkConnectionSessionTeardown;
         _connectionSessionStage = MBLinkConnectionSessionStageNone;
@@ -1230,7 +1263,7 @@ static bool MBLinkSimulatorResponder(
         return;
     }
 
-    if (attempt < 40U) {
+    if (attempt < 160U) {
         dispatch_after(
             dispatch_time(
                 DISPATCH_TIME_NOW,
@@ -1247,36 +1280,48 @@ static bool MBLinkSimulatorResponder(
 
 - (void)disconnect
 {
-    const BOOL canTeardownSessions =
-        _shared.isActive && _shared.isReady && !_shared.isSimulated &&
-        !_moduleScanActive && !self.manufacturerDataScanActive &&
-        !_scheduledManufacturerJobActive &&
-        _scheduledManufacturerRestoreStage == MBLinkScheduledRestoreNone &&
-        _connectionSessionMode == MBLinkConnectionSessionNone;
+    if (!_shared.isActive || _shared.isSimulated) {
+        _disconnectRequested = NO;
+        [_shared disconnect];
+        return;
+    }
 
+    /*
+     * Disconnect is an ordered vehicle operation, not an immediate transport
+     * drop. Stop future scheduler work first. A manufacturer command already
+     * in flight is allowed to receive its reply; its completion path then
+     * hands directly to session teardown.
+     */
+    _disconnectRequested = YES;
     if (_scheduledManufacturerJobRegistered) {
         (void)[_shared setLiveManufacturerJobEnabled:NO
             token:MBLinkScheduledTransmissionLiveJobToken];
     }
+    _scheduledManufacturerJobRegistered = NO;
+    [self setStatus:@"Closing Mercedes module diagnostic sessions"];
+    [self tryBeginDisconnectSessionTeardown:0U];
+}
 
+- (void)finishCurrentWorkForDisconnect
+{
     _moduleScanActive = NO;
+    _cachedModuleRefreshActive = NO;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
     _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
     _startupModuleDataPassActive = NO;
     _startupModuleDataIndex = 0U;
-    _scheduledManufacturerJobRegistered = NO;
     _scheduledManufacturerJobActive = NO;
     _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
     ++_manufacturerDataRequestGeneration;
 
-    if (!canTeardownSessions) {
-        [_shared disconnect];
-        return;
-    }
-
-    [self setStatus:@"Closing Mercedes module diagnostic sessions"];
+    /*
+     * Release the currently-owned manufacturer slot without restoring the SAE
+     * channel; teardown immediately reacquires the same serialized wire and
+     * walks the module quit/default-session commands.
+     */
+    (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
     [self tryBeginDisconnectSessionTeardown:0U];
 }
 
@@ -1763,6 +1808,8 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
         _scheduledManufacturerJobActive = NO;
         _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
         ++_manufacturerDataRequestGeneration;
+        if (_disconnectRequested)
+            [self tryBeginDisconnectSessionTeardown:0U];
         [self notifyDelegate];
         return;
     }
@@ -1787,6 +1834,8 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
     }
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
+    if (_disconnectRequested)
+        [self tryBeginDisconnectSessionTeardown:0U];
     [self notifyDelegate];
 }
 
@@ -1906,7 +1955,7 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
      * already-overdue manufacturer job can become the first LIVE action and
      * hide a broken standard-polling handoff.
      */
-    if (!_shared.isActive || !_shared.isReady) return;
+    if (!_shared.isActive || !_shared.isReady || _disconnectRequested) return;
 
     const BOOL shouldEnable =
         [self selectedManufacturerModuleIdentifierAdvancing:NO].length != 0U;
@@ -1933,6 +1982,13 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
 - (void)beginScheduledTransmissionLiveJob
 {
     if (!_shared.isActive) return;
+
+    if (_disconnectRequested) {
+        _scheduledManufacturerJobActive = NO;
+        (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
+        [self tryBeginDisconnectSessionTeardown:0U];
+        return;
+    }
 
     if (self.manufacturerDataScanActive ||
         self.manufacturerDataScanModuleIdentifier.length != 0U ||
@@ -2024,7 +2080,11 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
             @"Could not resume standard diagnostics after Mercedes live job"];
         return;
     }
-    [self updateScheduledManufacturerLiveJob];
+    if (_disconnectRequested) {
+        [self tryBeginDisconnectSessionTeardown:0U];
+    } else {
+        [self updateScheduledManufacturerLiveJob];
+    }
     [self notifyDelegate];
 }
 
@@ -2999,6 +3059,12 @@ static void MBLinkAppendManufacturerDefinition(
     _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
 
+    if (_disconnectRequested) {
+        [self finishCurrentWorkForDisconnect];
+        [self notifyDelegate];
+        return;
+    }
+
     if (_startupModuleDataPassActive) {
         if ([self beginNextStartupModuleDataRead]) {
             [self notifyDelegate];
@@ -3270,6 +3336,16 @@ static void MBLinkAppendManufacturerDefinition(
          * This loads VIN-scoped choices while the current census continues. */
         (void)[_shared adoptManufacturerVIN:_mercedesModuleScan.vin];
     }
+
+    if (_disconnectRequested) {
+        if (mblink_mercedes_module_scan_module_count(&_mercedesModuleScan) != 0U) {
+            [self updateMercedesModuleFaultEvidenceInProgress];
+            [self updateMercedesModuleScanSummary];
+        }
+        [self finishCurrentWorkForDisconnect];
+        return;
+    }
+
     if (result == MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE) {
         _moduleScanActive = NO;
         [self updateMercedesModuleScanSummary];
@@ -3880,10 +3956,14 @@ static void MBLinkAppendManufacturerDefinition(
     _startupModuleDataIndex = 0U;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
-    if (![_shared completeManufacturerExtensionRestoringAdapter:restore]) {
+    if (![_shared completeManufacturerExtensionRestoringAdapter:
+            _disconnectRequested ? NO : restore]) {
         [_shared failWithStatus:
             @"Could not resume shared diagnostic flow after Mercedes extension"];
+        return;
     }
+    if (_disconnectRequested)
+        [self tryBeginDisconnectSessionTeardown:0U];
 }
 
 @end
