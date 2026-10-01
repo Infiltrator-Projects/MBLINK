@@ -84,20 +84,6 @@ mblink_mercedes_controller_family_definition_for_evidence(
     const char *software_number,
     const char *hardware_number);
 
-/*
- * Compatibility aliases for callers built against the earlier
- * development-vehicle-scoped API.
- */
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_at(size_t index);
-
-size_t mblink_mercedes_c207_module_definition_count(void);
-
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_for_key(const char *key);
-
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_for_identity(const char *identity);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.274 — 2026-10-01
+
+- Remove the obsolete C207-scoped Mercedes module-catalogue compatibility API and its four forwarding implementations.
+- The repository already uses the Mercedes-wide module-catalogue API; this is real dead compatibility-code removal, not a helper extraction or behaviour change.
+
 ## 0.7.273 — 2026-10-01
 
 - Extract the empty-state factory-data panel from the large module factory-data section into a focused SwiftUI helper.

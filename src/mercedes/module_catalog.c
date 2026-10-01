@@ -667,29 +667,3 @@ mblink_mercedes_controller_family_definition_for_evidence(
     }
 }
 
-/*
- * Compatibility aliases for callers built against the earlier development-
- * vehicle-scoped API. New code must use the Mercedes-wide names above.
- */
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_at(size_t index)
-{
-    return mblink_mercedes_module_definition_at(index);
-}
-
-size_t mblink_mercedes_c207_module_definition_count(void)
-{
-    return mblink_mercedes_module_definition_count();
-}
-
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_for_key(const char *key)
-{
-    return mblink_mercedes_module_definition_for_key(key);
-}
-
-const MblinkMercedesModuleDefinition *
-mblink_mercedes_c207_module_definition_for_identity(const char *identity)
-{
-    return mblink_mercedes_module_definition_for_identity(identity);
-}
