@@ -404,6 +404,156 @@ MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
     return MBLINK_MERCEDES_TRANSMISSION_FAMILY_UNKNOWN;
 }
 
+static BOOL MBLinkApplyMercedesDataRecordPresentation(
+    MBLinkMercedesDataSnapshot *snapshot,
+    const MblinkMercedesModuleScanEntry *module,
+    const MblinkMercedesDataRecord *record)
+{
+    if (snapshot == nil || module == NULL || record == NULL ||
+        record->data_length > MBLINK_MERCEDES_DATA_SCAN_MAX_DATA) {
+        return NO;
+    }
+
+    char code[64];
+    char raw[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
+    if (!mblink_mercedes_data_record_format_code(
+            record, code, sizeof(code))) {
+        (void)snprintf(
+            code, sizeof(code), "Data ID 0x%04X",
+            (unsigned int)record->identifier);
+    }
+    if (!mblink_mercedes_data_record_format_hex(
+            record, raw, sizeof(raw))) {
+        return NO;
+    }
+
+    snapshot.identifier = record->identifier;
+    snapshot.service = record->service;
+    snapshot.codeText = MBLinkStringFromCString(code);
+    snapshot.rawHex = MBLinkStringFromCString(raw);
+    snapshot.rawData = [NSData dataWithBytes:record->data
+                                     length:record->data_length];
+
+    double numeric = 0.0;
+    const char *numericName = NULL;
+    const char *unit = NULL;
+    char structured[1024];
+    const char *structuredName = NULL;
+    const MblinkMercedesTransmissionFamily transmissionFamily =
+        MBLinkTransmissionFamilyForModule(module);
+    const BOOL transmissionMetadata =
+        module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
+        record->identifier >= UINT16_C(0x00e0) &&
+        record->identifier <= UINT16_C(0x00eb);
+    const BOOL allowOemTransmissionValueDecode =
+        module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION ||
+        transmissionMetadata ||
+        transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
+        transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+    const BOOL numericMapped =
+        allowOemTransmissionValueDecode &&
+        mblink_mercedes_data_record_decode_known_numeric_for_route(
+            module->tx_can_id,
+            module->rx_can_id,
+            module->extended_id,
+            module->kind,
+            record, &numeric, &numericName, &unit);
+    BOOL structuredMapped = NO;
+    const BOOL egs53VariantCoding =
+        transmissionFamily ==
+            MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
+        record->identifier == UINT16_C(0x00b1);
+    if (egs53VariantCoding) {
+        structuredMapped =
+            mblink_mercedes_transmission_format_egs53_variant_coding(
+                record->data, record->data_length,
+                structured, sizeof(structured));
+        if (structuredMapped)
+            structuredName = "EGS53 variant / SCN coding";
+    } else if (allowOemTransmissionValueDecode) {
+        structuredMapped =
+            mblink_mercedes_data_record_format_known_for_route(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                module->kind,
+                record, structured, sizeof(structured),
+                &structuredName);
+    }
+
+    const char *identifiedPartNumber =
+        MBLinkMercedesIdentifiedPartNumberForShortMetadata(module, record);
+    if (identifiedPartNumber != NULL) {
+        structuredMapped = YES;
+        structuredName = mblink_mercedes_documented_read_name(
+            record->service, record->identifier);
+        (void)snprintf(
+            structured, sizeof(structured), "%s", identifiedPartNumber);
+    }
+
+    const char *profileName =
+        MBLinkMercedesModuleIsTransmissionController(module) &&
+        record->service ==
+            MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER
+            ? mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
+                transmissionFamily, (uint8_t)record->identifier)
+            : mblink_mercedes_documented_read_name(
+                record->service, record->identifier);
+
+    if (numericMapped || structuredMapped) {
+        snapshot.mapped = YES;
+        snapshot.numericValueAvailable = numericMapped;
+        snapshot.numericValue = numericMapped ? numeric : 0.0;
+        snapshot.name = MBLinkStringFromCString(
+            structuredName != NULL ? structuredName : numericName);
+        snapshot.unit = numericMapped
+            ? MBLinkStringFromCString(unit) : nil;
+        if (structuredMapped) {
+            snapshot.formattedValue = MBLinkStringFromCString(structured);
+        } else {
+            snapshot.formattedValue =
+                [snapshot.unit isEqualToString:@"°C"]
+                    ? [NSString stringWithFormat:
+                        @"%.1f %@", numeric, snapshot.unit]
+                    : [NSString stringWithFormat:
+                        @"%.3f %@", numeric, snapshot.unit];
+        }
+    } else {
+        snapshot.mapped = NO;
+        snapshot.numericValueAvailable = NO;
+        snapshot.numericValue = 0.0;
+        snapshot.name = profileName != NULL
+            ? MBLinkStringFromCString(profileName) : nil;
+        snapshot.unit = nil;
+        snapshot.formattedValue = [NSString stringWithFormat:
+            @"RAW %@", snapshot.rawHex];
+    }
+    return YES;
+}
+
+static BOOL MBLinkRedecodePersistedMercedesDataSnapshot(
+    MBLinkMercedesDataSnapshot *snapshot,
+    const MblinkMercedesModuleScanEntry *module)
+{
+    if (snapshot == nil || module == NULL ||
+        snapshot.rawData.length == 0U ||
+        snapshot.rawData.length > MBLINK_MERCEDES_DATA_SCAN_MAX_DATA) {
+        return NO;
+    }
+
+    MblinkMercedesDataRecord record = {0};
+    record.identifier = snapshot.identifier;
+    record.service = snapshot.service;
+    record.data_length = snapshot.rawData.length;
+    memcpy(record.data, snapshot.rawData.bytes, record.data_length);
+    return MBLinkApplyMercedesDataRecordPresentation(
+        snapshot, module, &record);
+}
+
 /*
  * Exact-route evidence can authorise a safe 21 30 read while family
  * identity is unresolved. A positively identified incompatible family
@@ -2377,123 +2527,11 @@ static void MBLinkAppendManufacturerDefinition(
                 &_manufacturerDataScan, index);
         if (record == NULL) continue;
 
-        char code[64];
-        char raw[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
-        if (!mblink_mercedes_data_record_format_code(
-                record, code, sizeof(code))) {
-            (void)snprintf(
-                code, sizeof(code), "Data ID 0x%04X",
-                (unsigned int)record->identifier);
-        }
-        if (!mblink_mercedes_data_record_format_hex(
-                record, raw, sizeof(raw))) {
-            (void)snprintf(raw, sizeof(raw), "%s", "<truncated>");
-        }
-
         MBLinkMercedesDataSnapshot *snapshot =
             [[MBLinkMercedesDataSnapshot alloc] init];
-        snapshot.identifier = record->identifier;
-        snapshot.service = record->service;
-        snapshot.codeText = MBLinkStringFromCString(code);
-        snapshot.rawHex = MBLinkStringFromCString(raw);
-        snapshot.rawData = [NSData dataWithBytes:record->data
-                                         length:record->data_length];
-
-        double numeric = 0.0;
-        const char *numericName = NULL;
-        const char *unit = NULL;
-        char structured[1024];
-        const char *structuredName = NULL;
-        const MblinkMercedesTransmissionFamily transmissionFamily =
-            MBLinkTransmissionFamilyForModule(module);
-        const BOOL transmissionMetadata =
-            module->kind == MBLINK_MERCEDES_MODULE_TRANSMISSION &&
-            record->service ==
-                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
-            record->identifier >= UINT16_C(0x00e0) &&
-            record->identifier <= UINT16_C(0x00eb);
-        const BOOL allowOemTransmissionValueDecode =
-            module->kind != MBLINK_MERCEDES_MODULE_TRANSMISSION ||
-            transmissionMetadata ||
-            transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
-            transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
-        const BOOL numericMapped =
-            allowOemTransmissionValueDecode &&
-            mblink_mercedes_data_record_decode_known_numeric_for_route(
-                module->tx_can_id,
-                module->rx_can_id,
-                module->extended_id,
-                module->kind,
-                record, &numeric, &numericName, &unit);
-        BOOL structuredMapped = NO;
-        const BOOL egs53VariantCoding =
-            transmissionFamily ==
-                MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
-            record->service ==
-                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
-            record->identifier == UINT16_C(0x00b1);
-        if (egs53VariantCoding) {
-            structuredMapped =
-                mblink_mercedes_transmission_format_egs53_variant_coding(
-                    record->data, record->data_length,
-                    structured, sizeof(structured));
-            if (structuredMapped)
-                structuredName = "EGS53 variant / SCN coding";
-        } else if (allowOemTransmissionValueDecode) {
-            structuredMapped =
-                mblink_mercedes_data_record_format_known_for_route(
-                    module->tx_can_id,
-                    module->rx_can_id,
-                    module->extended_id,
-                    module->kind,
-                    record, structured, sizeof(structured),
-                    &structuredName);
-        }
-        const char *identifiedPartNumber =
-            MBLinkMercedesIdentifiedPartNumberForShortMetadata(module, record);
-        if (identifiedPartNumber != NULL) {
-            structuredMapped = YES;
-            structuredName = mblink_mercedes_documented_read_name(
-                record->service, record->identifier);
-            (void)snprintf(
-                structured, sizeof(structured), "%s", identifiedPartNumber);
-        }
-
-        const char *profileName =
-            MBLinkMercedesModuleIsTransmissionController(module) &&
-            record->service ==
-                MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER
-                ? mblink_mercedes_transmission_kwp_read_identifier_name_for_family(
-                    transmissionFamily, (uint8_t)record->identifier)
-                : mblink_mercedes_documented_read_name(
-                    record->service, record->identifier);
-
-        if (numericMapped || structuredMapped) {
-            snapshot.mapped = YES;
-            snapshot.numericValueAvailable = numericMapped;
-            snapshot.numericValue = numericMapped ? numeric : 0.0;
-            snapshot.name = MBLinkStringFromCString(
-                structuredName != NULL ? structuredName : numericName);
-            snapshot.unit = numericMapped
-                ? MBLinkStringFromCString(unit) : nil;
-            if (structuredMapped) {
-                snapshot.formattedValue =
-                    MBLinkStringFromCString(structured);
-            } else {
-                snapshot.formattedValue =
-                    [snapshot.unit isEqualToString:@"°C"]
-                        ? [NSString stringWithFormat:@"%.1f %@", numeric, snapshot.unit]
-                        : [NSString stringWithFormat:@"%.3f %@", numeric, snapshot.unit];
-            }
-        } else {
-            snapshot.mapped = NO;
-            snapshot.numericValueAvailable = NO;
-            snapshot.numericValue = 0.0;
-            snapshot.name = profileName != NULL
-                ? MBLinkStringFromCString(profileName) : nil;
-            snapshot.unit = nil;
-            snapshot.formattedValue = [NSString stringWithFormat:
-                @"RAW %@", snapshot.rawHex];
+        if (!MBLinkApplyMercedesDataRecordPresentation(
+                snapshot, module, record)) {
+            continue;
         }
         [values addObject:snapshot];
     }
@@ -3091,7 +3129,18 @@ static void MBLinkAppendManufacturerDefinition(
             for (id savedData in savedStartup) {
                 MBLinkMercedesDataSnapshot *snapshot =
                     MBLinkMercedesDataSnapshotFromProfile(savedData);
-                if (snapshot != nil) [restored addObject:snapshot];
+                if (snapshot != nil) {
+                    /*
+                     * Cached profiles keep the original raw response bytes.
+                     * Re-run them through today's decoder so historical data
+                     * automatically benefits from corrected DID semantics.
+                     * Profiles too old to contain raw bytes retain their saved
+                     * presentation instead of inventing a replacement.
+                     */
+                    (void)MBLinkRedecodePersistedMercedesDataSnapshot(
+                        snapshot, &module);
+                    [restored addObject:snapshot];
+                }
             }
             if (restored.count != 0U) {
                 _manufacturerDataByModule[
