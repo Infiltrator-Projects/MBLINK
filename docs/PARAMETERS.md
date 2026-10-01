@@ -40,16 +40,18 @@ the `0x7E9` transmission candidate is explicitly labelled as a standard SAE
 Mode 01 reply from that responder; it does not imply that a Mercedes VGS/EGS
 factory DID or exact module identity has been proved.
 
-The iPhone VIN profile now persists the observed PID set for every responder.
-A module that has supplied live Mode 01 data therefore remains visible after a
-later Mercedes UDS probe returns `NO DATA`, and its page can immediately show
-which standard values that ECU has proved it supplies. Dashboard values are
-explicitly sourced from the `0x7E8` engine responder when it is available;
-module pages use their own response address and never substitute another ECU's
-sample. State-dependent values such as the captured `0x2F` fuel-level report
-are displayed raw with a quality note rather than silently corrected.
+The iPhone VIN profile persists the observed/capability PID set for every
+physical responder. A module that has supplied Mode 01 data therefore remains
+attributable even if later Mercedes module validation or a documented
+manufacturer read returns `NO DATA`. Module pages use their own response
+address and never substitute another ECU's sample. State-dependent values such
+as the captured `0x2F` fuel-level report are displayed raw with a quality note
+rather than silently corrected.
 
-This responder-specific view is evidence/presentation, not a second
-configuration architecture. PID Setup contains one vehicle-wide Standard OBD
-catalogue; physical responder attribution remains attached to capability and
-sample records underneath it.
+PID Setup uses that responder attribution directly. Each discovered or saved
+physical controller exposes only the Standard OBD channels advertised or
+cached for that exact responder, alongside the user-polling section of its
+resolved Mercedes ECU pack. A standards-defined PID may therefore appear under
+more than one controller only when each physical responder genuinely advertises
+it; this is controller-scoped capability, not a guessed duplicate catalogue.
+Startup-once module facts remain outside PID Setup.
