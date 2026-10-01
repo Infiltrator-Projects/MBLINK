@@ -6,6 +6,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Release pushes are deliberately accepted by the same workflow as ordinary
+# main pushes; the commit subject selects the non-cancellable release lane.
+
 permissions:
   contents: read
 
