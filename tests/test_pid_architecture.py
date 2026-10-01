@@ -80,6 +80,9 @@ app = (ROOT / "app/ios/MBLINK/MBLINKApp.swift").read_text(encoding="utf-8")
 model = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
     encoding="utf-8"
 )
+selection_migration = (
+    ROOT / "app/ios/MBLINK/StandardPIDSelectionMigrator.swift"
+).read_text(encoding="utf-8")
 controller = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
     encoding="utf-8"
 )
@@ -244,7 +247,8 @@ require(
 require(
     "moduleStartupReadinessFields" in model
     and "startupReadinessFieldMask" in model
-    and "sanitizedStandardPollingKeys" in model
+    and "excludedStableKeys" in selection_migration
+    and "standardStableKey(for: 0x01)" in model
     and "controller.setPollingFieldMask(0, forPID: pid)" in model
     and "if pid == 0x01 { continue }" in model
     and "Startup OBD status" in modules_view
