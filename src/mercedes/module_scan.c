@@ -775,8 +775,6 @@ void mblink_mercedes_module_scan_finish_discovery(MblinkMercedesModuleScan *scan
 void mblink_mercedes_module_scan_advance_candidate(
     MblinkMercedesModuleScan *scan)
 {
-    char quit_command[5];
-
     if (scan == NULL) return;
 
     /*
@@ -791,22 +789,12 @@ void mblink_mercedes_module_scan_advance_candidate(
     }
 
     /*
-     * A Mercedes ECU can change externally visible behaviour while a
-     * diagnostic session is active. Always send the documented route-specific
-     * quit/default-session command after a responding ECU before moving on.
-     * HU_204/COMAND on 0x652 -> 0x48A is KWP2000 and explicitly requires
-     * 10 81; leaving it in diagnostics suppresses normal audio operation.
+     * Do not tear down a responding ECU's diagnostic session here. Session
+     * lifetime belongs to the vehicle connection, not to an individual
+     * discovery read. Repeatedly returning an ECU to its default session and
+     * entering diagnostics again makes user-visible controllers such as
+     * COMAND and the instrument cluster cycle modes during one connection.
      */
-    if (scan->stage !=
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION &&
-        mblink_mercedes_module_scan_find_candidate(scan) != NULL &&
-        mblink_mercedes_module_scan_candidate_control_command(
-            scan, true, quit_command)) {
-        scan->stage =
-            MBLINK_MERCEDES_MODULE_SCAN_STAGE_DISCOVERY_QUIT_SESSION;
-        return;
-    }
-
     if (scan->scope == MBLINK_MERCEDES_MODULE_SCAN_QUICK) {
         if (scan->candidate_tx < UINT32_C(0x7e7)) {
             mblink_mercedes_module_scan_set_11_candidate(
@@ -2010,10 +1998,13 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
             const MblinkMercedesKnownRoute *route =
                 mblink_mercedes_module_scan_known_entry_route(
                     &scan->modules[scan->dtc_index]);
-            scan->stage =
-                mblink_mercedes_known_route_allows_automatic_extended_session(route)
-                    ? MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION
-                    : MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
+            /*
+             * Discovery already established the controller's diagnostic
+             * session. Keep that session for the connection instead of
+             * re-entering it for the DTC pass.
+             */
+            (void)route;
+            scan->stage = MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE;
         }
         break;
     case MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION:
@@ -2040,16 +2031,6 @@ MblinkMercedesModuleScanResult mblink_mercedes_module_scan_accept_core(MblinkMer
             goto failed_state;
         mblink_mercedes_module_scan_capture_dtc(
             &scan->modules[scan->dtc_index], response);
-        {
-            char quit_command[5];
-            if (mblink_mercedes_module_scan_entry_control_command(
-                    &scan->modules[scan->dtc_index],
-                    true, quit_command)) {
-                scan->stage =
-                    MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_QUIT_SESSION;
-                break;
-            }
-        }
         ++scan->dtc_index;
         scan->stage = scan->single_module_refresh ||
                       scan->dtc_index >= scan->module_count
