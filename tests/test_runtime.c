@@ -167,8 +167,6 @@ static int test_telemetry(void)
 {
     MblinkTelemetryStore store;
     mblink_telemetry_store_init(&store);
-    mblink_telemetry_store_set_favourite(&store, 0x0cU, true);
-
     for (size_t index = 0U;
          index < MBLINK_TELEMETRY_HISTORY_CAPACITY + 3U;
          ++index) {
@@ -194,9 +192,6 @@ static int test_telemetry(void)
     MblinkTelemetrySample latest;
     CHECK(mblink_telemetry_store_latest(&store, 0x0cU, &latest));
     CHECK(latest.measurement.pid == 0x0cU);
-    CHECK(mblink_telemetry_store_is_favourite(&store, 0x0cU));
-    CHECK(!mblink_telemetry_store_is_favourite(&store, 0x05U));
-
     MblinkElm327Response response = {
         .result = MBLINK_ELM327_RESULT_OK,
         .length = 8U
@@ -218,7 +213,7 @@ static int test_telemetry(void)
     TextBuffer output = { { 0 }, 0U };
     CHECK(mblink_telemetry_export_csv(
               &store, &metadata, text_sink, &output));
-    CHECK(strstr(output.data, "# mblink_csv_version,1\n") != NULL);
+    CHECK(strstr(output.data, "# mblink_csv_version,2\n") != NULL);
 #ifdef TEST_EXPECTED_PRODUCT_REVISION
     CHECK(strstr(output.data, "# mblink_build_revision,\"" TEST_EXPECTED_PRODUCT_REVISION "\"\n") != NULL);
 #endif
@@ -236,7 +231,7 @@ static int test_telemetry(void)
     CHECK(strstr(output.data,
                  "# adapter_identifier,\"ELM327, test \"\"adapter\"\"\"\n") != NULL);
     CHECK(strstr(output.data,
-                 "sequence,timestamp_ms,pid,name,value,unit,favourite\n") != NULL);
+                 "sequence,timestamp_ms,pid,name,value,unit\n") != NULL);
     CHECK(strstr(output.data, ",0x0C,\"Engine RPM\",") != NULL);
     CHECK(strstr(output.data, "# diagnostic_transcript\n") != NULL);
     CHECK(strstr(output.data,
@@ -250,11 +245,11 @@ static int test_telemetry(void)
     CHECK(mblink_telemetry_recorder_begin(
               &recorder, &metadata, text_sink, &stream));
     CHECK(mblink_telemetry_recorder_record_sample(
-              &recorder, &latest, true));
+              &recorder, &latest));
     CHECK(mblink_telemetry_recorder_record_response(
               &recorder, 2000U, "010C", &response));
     CHECK(mblink_telemetry_recorder_finish(&recorder, 9000U));
-    CHECK(strstr(stream.data, "# mblink_session_stream_version,2\n") != NULL);
+    CHECK(strstr(stream.data, "# mblink_session_stream_version,3\n") != NULL);
     {
         char expected_link_version[96];
         const char *first_link_version;
@@ -267,7 +262,7 @@ static int test_telemetry(void)
         CHECK(strstr(stream.data, "# mblink_build_profile,\"") != NULL);
     }
     CHECK(strstr(stream.data,
-                 "record_type,sequence,timestamp_ms,pid,name,value,unit,favourite,responder_can_id,responder_extended,command,result,response\n") != NULL);
+                 "record_type,sequence,timestamp_ms,pid,name,value,unit,responder_can_id,responder_extended,command,result,response\n") != NULL);
     CHECK(strstr(stream.data, "sample,") != NULL);
     CHECK(strstr(stream.data, "transcript,,2000,") != NULL);
     CHECK(strstr(stream.data, "# session_ended_epoch_ms,9000\n") != NULL);
@@ -278,10 +273,10 @@ static int test_telemetry(void)
               &recorder, 3000U, "ATI", &response));
     CHECK(mblink_telemetry_recorder_finish(&recorder, 10000U));
     const char *stream_header = strstr(
-        stream.data, "# mblink_session_stream_version,2\n");
+        stream.data, "# mblink_session_stream_version,3\n");
     CHECK(stream_header != NULL);
     CHECK(strstr(stream_header + 1,
-                 "# mblink_session_stream_version,2\n") == NULL);
+                 "# mblink_session_stream_version,3\n") == NULL);
 
     FailingTextBuffer failing = { .fail_on_write = SIZE_MAX };
     mblink_telemetry_recorder_init(&recorder);
@@ -289,7 +284,7 @@ static int test_telemetry(void)
               &recorder, &metadata, failing_text_sink, &failing));
     failing.fail_on_write = failing.writes + 1U;
     CHECK(!mblink_telemetry_recorder_record_sample(
-              &recorder, &latest, true));
+              &recorder, &latest));
     CHECK(recorder.failed);
     CHECK(!mblink_telemetry_recorder_record_response(
               &recorder, 2000U, "010C", &response));
