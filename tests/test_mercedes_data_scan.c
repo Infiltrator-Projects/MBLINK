@@ -1011,7 +1011,7 @@ static int test_documented_uds_version_metadata(void)
     CHECK(strcmp(name, "Hardware version") == 0);
     CHECK(strcmp(
         text,
-        "2008 · calendar week 43 · patch 1") == 0);
+        "08/43.01") == 0);
 
     record.identifier = UINT16_C(0xf151);
     record.data[0] = UINT8_C(0x0a);
@@ -1025,7 +1025,7 @@ static int test_documented_uds_version_metadata(void)
     CHECK(strcmp(name, "Software version") == 0);
     CHECK(strcmp(
         text,
-        "2010 · calendar week 29 · patch 75") == 0);
+        "10/29.75") == 0);
 
     record.identifier = UINT16_C(0xf153);
     record.data[2] = UINT8_C(0x48);
@@ -1037,7 +1037,7 @@ static int test_documented_uds_version_metadata(void)
     CHECK(strcmp(name, "Boot software version") == 0);
     CHECK(strcmp(
         text,
-        "2010 · calendar week 29 · patch 72") == 0);
+        "10/29.72") == 0);
 
     record.data_length = 2U;
     name = NULL;
