@@ -21,7 +21,7 @@ A first VIN may still perform the bounded module census required to establish a 
 
 ## Ownership boundary
 
-LINK owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard OBD-II sequencing, VIN/DTC/live-data flow and the generic manufacturer-extension boundary. MBLINK's Apple compatibility transport compiles LINK's shared provider rather than maintaining an independent protocol stack. `MBLinkDiagnosticsController` owns the Mercedes-specific read-only probe and the VIN-keyed module-learning pass and presents their evidence to SwiftUI.
+LINK owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard OBD-II sequencing, VIN/DTC/live-data flow and the generic manufacturer-extension boundary. MBLINK's Apple compatibility transport compiles LINK's shared provider rather than maintaining an independent protocol stack. `MBLinkDiagnosticsController` orchestrates the VIN-keyed Mercedes module-learning/validation pass, controller-pack startup-once reads and Mercedes-specific results presented to SwiftUI. It does not own a separate engine-specific startup probe.
 
 The shared LINK query timeout includes the longer first cold `ATSP0` protocol-acquisition allowance, so MBLINK no longer carries a product-private timeout override.
 
@@ -34,28 +34,35 @@ ELM initialization
   → standard VIN as the first vehicle request
   → select / create the authoritative VIN profile
   → validate saved Mercedes controller routes, or run the first-VIN identity-first census
-  → adapter restore
-  → standard PID capability discovery
+  → resolve each identified controller's exact ECU pack
+  → read remaining documented startup-once module facts
+  → adapter restore / standards-defined OBD inventory
+  → responder-attributed standard PID capability discovery
   → stored / pending / permanent standard DTC inventory
-  → readiness / freeze-frame context
-  → normal live-data polling
+  → readiness / freeze-frame startup context
+  → poll only the user's explicitly selected live channels
 ```
 
 The VIN/profile decision and module identification are deliberately ahead of
 the broader standard OBD inventory. Immediately after adapter initialisation,
-LINK reads Mode 09 VIN only. MBLINK then selects the authoritative VIN profile
-and validates or learns its module map. Mode 01 supported-PID discovery and the
-remaining standard OBD fault/readiness work begin only after that module stage
-and adapter restoration. Their responder-specific capability evidence is then
-persisted back into the same VIN profile.
+LINK reads Mode 09 VIN only. MBLINK then selects the authoritative VIN profile,
+validates or learns its module map, resolves each identified controller's ECU
+pack and performs only the documented startup-once facts not already captured
+during identification. Mode 01 supported-PID discovery and the remaining
+standard OBD fault/readiness work follow that module stage. Responder-specific
+capability evidence and startup facts are persisted back into the same VIN
+profile. Startup-once items never become selectable live PIDs.
 
 On a new VIN, iPhone walks the bounded 57-target mobile plan once: the compact
 47-slot Mercedes gateway lattice, source-backed exceptions and the eight
 legislated OBD physical slots. Dead addresses receive only a minimal read-only
 presence probe; deeper DTC and identity reads run only after a responder is
 proven. It does not run the wider workstation FULL address sweep and does not
-sweep manufacturer data identifiers during Connect. Later connections validate
-and refresh only the saved module routes. Linux/desktop FULL keeps the broader
+sweep arbitrary manufacturer data identifiers during Connect. The only
+post-discovery manufacturer reads permitted automatically are documented
+startup-once entries owned by the resolved controller pack. There is no
+parallel engine-specific probe path. Later connections validate and refresh
+only the saved module routes. Linux/desktop FULL keeps the broader
 forensic workflow. MBLINK preserves Mercedes evidence captured before a
 manufacturer-scan interruption. LINK attempts a bounded prompt-safe ELM
 resynchronisation after an interrupted manufacturer request and resumes the
