@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.276 — 2026-10-01
+
+- Reconcile the Markdown architecture with the rebuilt controller-first iPhone flow: VIN/profile -> module identification -> resolved ECU-pack startup-once facts -> responder-attributed OBD inventory -> explicitly selected recurring polling.
+- Mark the retired Apple engine-probe execution path as historical/research-only while retaining documentation for portable research/replay helpers and previously saved profile evidence.
+- Correct stale documentation that still described one vehicle-wide Standard OBD PID catalogue or iPhone range-scanning; PID Setup is controller-scoped and Factory Readings re-read documented ECU-pack commands without manufacturing catalogue entries.
+
 ## 0.7.275 — 2026-10-01
 
 - Remove the unreachable legacy Apple Mercedes engine-probe execution path, its private state machine, response dispatcher, probe-only formatting helpers and impossible live-probe fallback branches.
