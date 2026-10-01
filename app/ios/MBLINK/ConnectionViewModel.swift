@@ -1959,89 +1959,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
         applyConfiguredPollingIfNeeded()
 #if MBLINK_CI_SIMULATED_FLOW
-        if ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
-           isSimulationActive {
-            let liveVIN = controller.mercedesVINText ?? ""
-            let selectionVIN = effectivePIDConfigurationVIN ?? ""
-            let standardSelectionPairs = pidConfigurationModules.flatMap {
-                module in moduleStandardSelectionSet(moduleID: module.id).map {
-                    "\(module.id)=\($0)"
-                }
-            }.sorted()
-            let standardSelectionKeys = selectionVIN.count == 17
-                ? standardSelectionMigrator()
-                    .aggregateSelection(forVIN: selectionVIN).sorted()
-                : []
-            let standardSelectionCount = pidConfigurationModules.reduce(0) {
-                $0 + moduleStandardSelectionSet(moduleID: $1.id).count
-            }
-            let standardSelectionScoped = selectionVIN.count == 17 &&
-                standardSelectionMigrator().migrationComplete(
-                    vin: selectionVIN)
-            let transmissionCatalogueCount = manufacturerPIDCatalogueItems(
-                moduleID: Self.ciTransmissionModuleID).count
-            let espCatalogueCount = manufacturerPIDCatalogueItems(
-                moduleID: Self.ciESPModuleID).count
-            let orcCatalogueCount = manufacturerPIDCatalogueItems(
-                moduleID: Self.ciORCModuleID).count
-            let udsServiceCatalogueCount = udsServiceCatalogue.count
-            let udsDTCReportCatalogueCount = udsDTCReportCatalogue.count
-            let unavailableFuelObserved = (controller.csvSnapshot() ?? "")
-                .contains("\"012F\",\"no-data\"")
-            // Readiness contributes to recordedSampleCount too. Require
-            // repeated live replies and their saved responder evidence before
-            // CI terminates the app for its cold-launch profile check.
-            let livePollingVerified = [UInt8(0x0C), UInt8(0x0D)].allSatisfy {
-                controller.recentValues(
-                    forPID: $0, responderCANIdentifier: 0x7E8,
-                    extendedID: false, limit: 3).count >= 3
-            }
-            let savedProfile = vehicleProfileStore.profile(forVIN: liveVIN)
-            let savedPIDs = Set(LinkVehicleProfileStandardResponders(
-                savedProfile ?? [:]).filter {
-                    !$0.isExtendedID && $0.responderCANIdentifier == 0x7E8
-                }.flatMap { $0.pids.map(\.uint8Value) })
-            let liveProfileVerified = savedPIDs.contains(0x0C) &&
-                savedPIDs.contains(0x0D)
-            let failed = controller.statusText.localizedCaseInsensitiveContains("failed")
-            let state = isReady && liveVIN.count == 17
-                ? "ready" : (failed ? "failed" : "pending")
-            let marker = "state=\(state)\n" +
-                "vin=\(liveVIN)\n" +
-                "active=\(isActive)\n" +
-                "ready=\(isReady)\n" +
-                "status=\(controller.statusText)\n" +
-                "fault_status=\(faultScanStatusText)\n" +
-                "stored_codes=\(storedFaults.map(\.code).joined(separator: ","))\n" +
-                "stored_states=\(storedFaults.map(\.state).joined(separator: ","))\n" +
-                "stored_faults=\(storedFaults.map(\.displayText).joined(separator: " | "))\n" +
-                "probe=\(controller.mercedesProbeStatusText)\n" +
-                "profile=\(controller.vehicleProfileStatusText)\n" +
-                "standard_selection_vin=\(selectionVIN)\n" +
-                "standard_selection_count=\(standardSelectionCount)\n" +
-                "standard_selection_keys=\(standardSelectionKeys.joined(separator: ","))\n" +
-                "standard_selection_pairs=\(standardSelectionPairs.joined(separator: ","))\n" +
-                "standard_selection_scoped=\(standardSelectionScoped)\n" +
-                "unavailable_fuel_observed=\(unavailableFuelObserved)\n" +
-                "live_polling_verified=\(livePollingVerified)\n" +
-                "live_profile_verified=\(liveProfileVerified)\n" +
-                "module_count=\(diagnosticModules.count)\n" +
-                "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
-                "esp_catalogue_count=\(espCatalogueCount)\n" +
-                "orc_catalogue_count=\(orcCatalogueCount)\n" +
-                "uds_service_catalogue_count=\(udsServiceCatalogueCount)\n" +
-                "uds_dtc_report_catalogue_count=\(udsDTCReportCatalogueCount)\n" +
-                "recorded_samples=\(recordedSampleCount)\n"
-            if let directory = FileManager.default.urls(
-                    for: .documentDirectory, in: .userDomainMask).first {
-                try? FileManager.default.createDirectory(
-                    at: directory, withIntermediateDirectories: true)
-                try? marker.write(
-                    to: directory.appendingPathComponent(
-                        "mblink-ci-simulated-flow.ok"),
-                    atomically: true, encoding: .utf8)
-            }
-        }
+        writeLiveSimulationRegressionMarkerIfNeeded()
 #endif
         manufacturerDataScanActive = controller.isManufacturerDataScanActive
         manufacturerDataScanStatusText = controller.manufacturerDataScanStatusText
@@ -2053,6 +1971,91 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private static let ciESPModuleID = "11:00000632:00000486"
     private static let ciORCModuleID = "11:0000064A:00000489"
     private var ciDisplaySelectionFailure = ""
+
+    private func writeLiveSimulationRegressionMarkerIfNeeded() {
+        guard ProcessInfo.processInfo.environment["MBLINK_CI_SIMULATED_FLOW"] == "1",
+              isSimulationActive else { return }
+
+        let liveVIN = controller.mercedesVINText ?? ""
+        let selectionVIN = effectivePIDConfigurationVIN ?? ""
+        let standardSelectionPairs = pidConfigurationModules.flatMap {
+            module in moduleStandardSelectionSet(moduleID: module.id).map {
+                "\(module.id)=\($0)"
+            }
+        }.sorted()
+        let standardSelectionKeys = selectionVIN.count == 17
+            ? standardSelectionMigrator()
+                .aggregateSelection(forVIN: selectionVIN).sorted()
+            : []
+        let standardSelectionCount = pidConfigurationModules.reduce(0) {
+            $0 + moduleStandardSelectionSet(moduleID: $1.id).count
+        }
+        let standardSelectionScoped = selectionVIN.count == 17 &&
+            standardSelectionMigrator().migrationComplete(vin: selectionVIN)
+        let transmissionCatalogueCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciTransmissionModuleID).count
+        let espCatalogueCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciESPModuleID).count
+        let orcCatalogueCount = manufacturerPIDCatalogueItems(
+            moduleID: Self.ciORCModuleID).count
+        let unavailableFuelObserved = (controller.csvSnapshot() ?? "")
+            .contains("\"012F\",\"no-data\"")
+
+        let livePollingVerified = [UInt8(0x0C), UInt8(0x0D)].allSatisfy {
+            controller.recentValues(
+                forPID: $0, responderCANIdentifier: 0x7E8,
+                extendedID: false, limit: 3).count >= 3
+        }
+        let savedProfile = vehicleProfileStore.profile(forVIN: liveVIN)
+        let savedPIDs = Set(LinkVehicleProfileStandardResponders(
+            savedProfile ?? [:]).filter {
+                !$0.isExtendedID && $0.responderCANIdentifier == 0x7E8
+            }.flatMap { $0.pids.map(\.uint8Value) })
+        let liveProfileVerified =
+            savedPIDs.contains(0x0C) && savedPIDs.contains(0x0D)
+        let failed = controller.statusText
+            .localizedCaseInsensitiveContains("failed")
+        let state = isReady && liveVIN.count == 17
+            ? "ready" : (failed ? "failed" : "pending")
+
+        let marker = "state=\(state)\n" +
+            "vin=\(liveVIN)\n" +
+            "active=\(isActive)\n" +
+            "ready=\(isReady)\n" +
+            "status=\(controller.statusText)\n" +
+            "fault_status=\(faultScanStatusText)\n" +
+            "stored_codes=\(storedFaults.map(\.code).joined(separator: ","))\n" +
+            "stored_states=\(storedFaults.map(\.state).joined(separator: ","))\n" +
+            "stored_faults=\(storedFaults.map(\.displayText).joined(separator: " | "))\n" +
+            "probe=\(controller.mercedesProbeStatusText)\n" +
+            "profile=\(controller.vehicleProfileStatusText)\n" +
+            "standard_selection_vin=\(selectionVIN)\n" +
+            "standard_selection_count=\(standardSelectionCount)\n" +
+            "standard_selection_keys=\(standardSelectionKeys.joined(separator: ","))\n" +
+            "standard_selection_pairs=\(standardSelectionPairs.joined(separator: ","))\n" +
+            "standard_selection_scoped=\(standardSelectionScoped)\n" +
+            "unavailable_fuel_observed=\(unavailableFuelObserved)\n" +
+            "live_polling_verified=\(livePollingVerified)\n" +
+            "live_profile_verified=\(liveProfileVerified)\n" +
+            "module_count=\(diagnosticModules.count)\n" +
+            "transmission_catalogue_count=\(transmissionCatalogueCount)\n" +
+            "esp_catalogue_count=\(espCatalogueCount)\n" +
+            "orc_catalogue_count=\(orcCatalogueCount)\n" +
+            "uds_service_catalogue_count=\(udsServiceCatalogue.count)\n" +
+            "uds_dtc_report_catalogue_count=\(udsDTCReportCatalogue.count)\n" +
+            "recorded_samples=\(recordedSampleCount)\n"
+
+        guard let directory = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask).first
+        else { return }
+        try? FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        try? marker.write(
+            to: directory.appendingPathComponent(
+                "mblink-ci-simulated-flow.ok"),
+            atomically: true,
+            encoding: .utf8)
+    }
 
     private func verifySingleDisplaySelection() -> Bool {
         ciDisplaySelectionFailure = ""

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.268 — 2026-10-01
+
+- Move the simulated-flow regression marker construction out of the production refresh path into its CI-only helper, leaving runtime behaviour unchanged while making the main state-refresh method substantially easier to audit.
+- Keep the exact same simulator evidence fields and release checks; this is a housekeeping-only iPhone refactor.
+
 ## 0.7.267 — 2026-10-01
 
 - Finish the interrupted iPhone housekeeping pass: remove the redundant manufacturer PID catalogue cache and resolve offline catalogues directly from the saved controller profile/ECU pack.
