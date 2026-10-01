@@ -560,12 +560,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     func manufacturerPIDCatalogueItems(moduleID: String) -> [MBPIDCatalogueItem] {
-        let definitions = controller.documentedDataDefinitions(
+        let documentedDefinitions = controller.documentedDataDefinitions(
             forModuleIdentifier: moduleID)
         var selected = manufacturerSelectionSet(moduleID: moduleID)
 
-        if !definitions.isEmpty {
-            let documentedStableKeys = Set(definitions.map {
+        if !documentedDefinitions.isEmpty {
+            let documentedStableKeys = Set(documentedDefinitions.map {
                 canonicalManufacturerStableKey($0.stableKey)
             })
             let sanitized = selected.intersection(documentedStableKeys)
@@ -575,7 +575,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
             }
         }
 
-        return definitions.map { definition in
+        return documentedDefinitions.map { definition in
             let service = definition.service
             let identifier = definition.identifier
             let rawProvenance = definition.provenance
