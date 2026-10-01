@@ -32,29 +32,36 @@ later diagnostic and screen-layout documents must not silently reorder it.
    Mercedes module routes. For a new or invalidated profile, MBLINK runs the
    bounded identity-first mobile module census once. This produces the module
    map before standard OBD PID capability discovery begins.
-8. MBLINK restores the adapter to the standard OBD channel.
-9. LINK completes the standards-defined OBD inventory: responder-attributed
-   supported-PID bitmaps, stored/pending/permanent faults, readiness and
-   supported freeze-frame context. Reading a supported-PID bitmap identifies
-   capability; it does not read or begin polling every live PID.
-10. MBLINK is now ready with one authoritative VIN and one identified module
+8. For every identified controller, MBLINK resolves the narrowest justified
+   ECU pack and runs its remaining documented startup-once reads. Identity,
+   coding, configuration and other static/module-card facts are retained with
+   that VIN/controller profile and never become selectable recurring PIDs.
+9. MBLINK restores the adapter to the standard OBD channel.
+10. LINK completes the standards-defined OBD inventory: responder-attributed
+    supported-PID bitmaps, stored/pending/permanent faults, one-shot readiness
+    context and supported freeze-frame context. Reading a supported-PID bitmap
+    identifies capability; it does not read or begin polling every live PID.
+11. MBLINK is now ready with one authoritative VIN and one identified module
     map. No manufacturer live-data record or arbitrary data identifier has
     been swept as part of reaching this state.
-11. PID Setup presents one complete vehicle-wide Standard OBD/EOBD catalogue
-    first, followed by one Mercedes catalogue section for each module discovered
-    or restored from the VIN profile.
-12. Normal live polling begins only for channels the user explicitly selected
-    for this VIN. No live channel is silently enabled on a clean installation.
+12. PID Setup is controller-first. Each discovered or VIN-profiled physical
+    controller exposes its exact responder-advertised Standard OBD choices
+    where applicable, alongside the user-polling section of its resolved
+    Mercedes ECU pack. Startup-once entries are not shown as selectable PIDs.
+13. Normal live polling begins only for channels the user explicitly selected
+    for this VIN/controller. No live channel is silently enabled on a clean
+    installation.
 
 The simulated source must exercise the same application-level VIN, profile,
 fault, module and presentation rules using deterministic test responses. It
 must not change the remembered real vehicle or create a real adapter-to-VIN
 association.
 
-In short, the diagnostic order is **VIN -> module identification -> standard
-OBD PID capability/fault inventory -> selected live polling**. The fact that
-Mode 09 carries the VIN must never be used to move Mode 01 PID discovery ahead
-of module identification.
+In short, the diagnostic order is **VIN -> module identification -> resolved
+controller packs/startup-once facts -> standard OBD capability/fault context ->
+selected live polling**. The fact that Mode 09 carries the VIN must never be
+used to move Mode 01 PID discovery ahead of module identification, and no
+engine-specific shortcut may bypass the controller/module stage.
 
 ### Required gates
 
@@ -62,7 +69,7 @@ of module identification.
 | --- | --- | --- |
 | User selected a source | Initialise that physical adapter, or start deterministic test data | Initialising an unselected adapter |
 | Valid live VIN captured | Select or create the authoritative vehicle profile | Applying another VIN's module or PID choices |
-| Module identification complete | Restore standard OBD and discover supported-PID bitmaps/fault context | Manufacturer actual-value sweeps or live polling |
+| Module identification complete | Resolve controller packs, read documented startup-once facts, restore standard OBD and discover supported-PID bitmaps/fault context | Arbitrary manufacturer sweeps or recurring live polling |
 | User selected live channels | Poll only the records needed by those selections | Automatically enabling a discovered module or PID |
 
 ### What automatic module identification is
@@ -156,11 +163,12 @@ route/session setup
 UDS identity uses the relevant F18x/F19x identifiers, including F197/F187/F188/F191. KWP2000 identity tries Daimler `1A 87` first, followed by bounded read-only `1A 86` and `1A 89` fallbacks. Identity evidence may classify a controller only when the returned data supports that classification; a CAN address alone must not manufacture an ECU family.
 
 SAE Mode 01 capability evidence and live replies retain their physical responder
-attribution. That evidence may be shown inside an individual control-unit detail
-screen, but it must not create duplicated responder-specific PID Setup
-catalogues. PID Setup owns one complete vehicle-wide Standard OBD/EOBD catalogue;
-Mercedes module sections use only the separately documented manufacturer
-catalogue appropriate to that module.
+attribution. PID Setup is controller-first: a physical controller exposes only
+the Standard OBD channels advertised or cached for that exact responder, and
+its Mercedes rows come only from the user-polling section of the resolved ECU
+pack. The same standards-defined PID may therefore appear under more than one
+physical controller when each responder genuinely advertises it; that is
+responder attribution, not a guessed duplicate catalogue.
 
 ## Required implementation contract
 
@@ -201,8 +209,12 @@ The state machine should remain covered by regression tests for at least these c
 11. use saved-route validation for an existing VIN and the bounded mobile census
     only for a new/invalidated VIN;
 12. never turn the normal Connect path into a factory-data or forensic sweep;
-13. show the vehicle-wide Standard OBD catalogue before Mercedes module
-    catalogues; and
-14. begin polling only the selections belonging to the authoritative VIN; and
-15. distinguish the initial Mode 09 VIN read, later supported-PID bitmap
-    discovery and still-later live PID reads as three separate stages.
+13. show controller-scoped Standard OBD choices only for the exact responder
+    that advertised them, alongside that controller's Mercedes user-polling
+    catalogue;
+14. keep startup-once module facts out of PID Setup and recurring scheduling;
+15. begin polling only the selections belonging to the authoritative
+    VIN/controller; and
+16. distinguish the initial Mode 09 VIN read, module/startup-once work, later
+    supported-PID bitmap discovery and still-later live PID reads as separate
+    stages.
