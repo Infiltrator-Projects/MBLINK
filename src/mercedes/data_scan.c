@@ -158,8 +158,6 @@ const char *mblink_mercedes_data_scan_stage_name(
         return "tester-present";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_READ_IDENTIFIER:
         return "read-identifier";
-    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION:
-        return "quit-session";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE: return "complete";
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_FAILED: return "failed";
     }
@@ -409,16 +407,6 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_command(
         if(count<0||(size_t)count>=sizeof(command))return MBLINK_MERCEDES_DATA_SCAN_RESULT_BUFFER_TOO_SMALL;
         return write_text(command,buffer,buffer_size,written);
     }
-    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION: {
-        char quit_command[5];
-        if (!mblink_mercedes_documented_route_control_command(
-                scan->config.tx_can_id, scan->config.rx_can_id,
-                scan->config.extended_id, scan->config.protocol, true,
-                quit_command, sizeof(quit_command))) {
-            return MBLINK_MERCEDES_DATA_SCAN_RESULT_FAILED_STATE;
-        }
-        return write_text(quit_command, buffer, buffer_size, written);
-    }
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE:
         if (buffer_size != 0U) buffer[0] = '\0';
         *written = 0U;
@@ -657,15 +645,6 @@ MblinkMercedesDataScanResult mblink_mercedes_data_scan_accept(
         return scan->stage == MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE
             ? MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE
             : MBLINK_MERCEDES_DATA_SCAN_RESULT_OK;
-    case MBLINK_MERCEDES_DATA_SCAN_STAGE_QUIT_SESSION:
-        /*
-         * Teardown is best-effort: a controller is allowed to return to normal
-         * operation without acknowledging its default/quit-session command.
-         * Do not keep retransmitting the command and accidentally hold an
-         * infotainment ECU such as HU_204 in diagnostics.
-         */
-        scan->stage = MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE;
-        return MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_COMPLETE:
         return MBLINK_MERCEDES_DATA_SCAN_RESULT_COMPLETE;
     case MBLINK_MERCEDES_DATA_SCAN_STAGE_FAILED:

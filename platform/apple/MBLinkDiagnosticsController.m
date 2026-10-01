@@ -2764,6 +2764,11 @@ static void MBLinkAppendManufacturerDefinition(
                 module->extended_id,
                 mblink_mercedes_module_scan_entry_protocol(module),
                 module->kind);
+        /*
+         * Discovery/saved-profile validation owns the diagnostic-session
+         * transition for this connection. Startup metadata must reuse it.
+         */
+        config.request_extended_session = false;
         if (mblink_mercedes_data_scan_begin_documented_commands(
                 &_manufacturerDataScan, &config,
                 commands, commandCount) !=
