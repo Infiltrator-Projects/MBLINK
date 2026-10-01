@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0225CCC3B437D6F9864CF259 /* MBLINKApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38A74E05685528DF94F3FED /* MBLINKApp.swift */; };
 		66B05F8E65443E6407074F75 /* ConnectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */; };
+		D26700000000000000000001 /* StandardPIDSelectionMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26700000000000000000002 /* StandardPIDSelectionMigrator.swift */; };
 		C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */ = {isa = PBXBuildFile; fileRef = BC3EA22A6C914BF98DE5FC4E /* BLETransport.m */; };
 		42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */ = {isa = PBXBuildFile; fileRef = 82715A34A1DA0E87C553301D /* Diagnostics.m */; };
 		8A0FD079A23C3A8155E827F5 /* mblink.c in Sources */ = {isa = PBXBuildFile; fileRef = 9B110E710D124AB4D19370DA /* mblink.c */; };
@@ -102,6 +103,7 @@
 /* Begin PBXFileReference section */
 		C38A74E05685528DF94F3FED /* MBLINKApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MBLINKApp.swift"; path = "MBLINK/MBLINKApp.swift"; sourceTree = SOURCE_ROOT; };
 		9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ConnectionViewModel.swift"; path = "MBLINK/ConnectionViewModel.swift"; sourceTree = SOURCE_ROOT; };
+		D26700000000000000000002 /* StandardPIDSelectionMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StandardPIDSelectionMigrator.swift"; path = "MBLINK/StandardPIDSelectionMigrator.swift"; sourceTree = SOURCE_ROOT; };
 		152DBA6BC3FE7288A1725A47 /* Bridging */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLINK-Bridging-Header.h"; path = "MBLINK/MBLINK-Bridging-Header.h"; sourceTree = SOURCE_ROOT; };
 		89138232D47027A270684020 /* BLETransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkBLETransport.h"; path = "../../platform/apple/MBLinkBLETransport.h"; sourceTree = SOURCE_ROOT; };
 		10A6BF01640F09B29BEA8B24 /* BLETransportPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MBLinkBLETransport+MBLINK.h"; path = "../../platform/apple/MBLinkBLETransport+MBLINK.h"; sourceTree = SOURCE_ROOT; };
@@ -226,6 +228,7 @@
 			children = (
 				C38A74E05685528DF94F3FED /* MBLINKApp.swift */,
 				9026C4BA44795B23ABC260F9 /* ConnectionViewModel.swift */,
+				D26700000000000000000002 /* StandardPIDSelectionMigrator.swift */,
 				152DBA6BC3FE7288A1725A47 /* MBLINK-Bridging-Header.h */,
 				A1B2C3D4E5F60718293C0002 /* Assets.xcassets */,
 				D1A900000000000000000005 /* Localizable.strings */,
@@ -514,6 +517,7 @@
 			files = (
 				0225CCC3B437D6F9864CF259 /* MBLINKApp.swift in Sources */,
 				66B05F8E65443E6407074F75 /* ConnectionViewModel.swift in Sources */,
+				D26700000000000000000001 /* StandardPIDSelectionMigrator.swift in Sources */,
 				C8E3DBC6EDB9C2C65A738DF5 /* BLETransport.m in Sources */,
 				42DBCBEE84FEC92D06F02262 /* Diagnostics.m in Sources */,
 				E0A1B2C3D4E5F60718293B99 /* LinkDiagnosticUI.swift in Sources */,
@@ -639,7 +643,7 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"20016ad8428fa9f83c4c4ef6637bc5c60aaf785a\\\"",
+					"LINK_SOURCE_REVISION=\\\"70ee5c587cf8912817729ff6d367499459b30380\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
@@ -678,7 +682,7 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"20016ad8428fa9f83c4c4ef6637bc5c60aaf785a\\\"",
+					"LINK_SOURCE_REVISION=\\\"70ee5c587cf8912817729ff6d367499459b30380\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",

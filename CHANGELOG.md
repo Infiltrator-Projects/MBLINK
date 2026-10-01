@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.267 — 2026-10-01
+
+- Finish the interrupted iPhone housekeeping pass: remove the redundant manufacturer PID catalogue cache and resolve offline catalogues directly from the saved controller profile/ECU pack.
+- Move legacy standard-PID selection migration out of ConnectionViewModel, preserve explicit per-controller choices including deliberate all-off selections, and stop recreating the retired vehicle-wide standard selection bucket during migration.
+- Pin LINK 0.15.89 at 70ee5c587cf8912817729ff6d367499459b30380: MBLINK now owns its controller/VIN-scoped polling policy directly, and its replacement table/dashboard presentation no longer makes LINK build generic lists that are immediately discarded.
+
 ## 0.7.266 — 2026-10-01
 
 - Fix simulation stopping with obd2-error when a selected documented reading has no simulated sample, such as fuel level 01 2F. LINK 0.15.88 returns NO DATA for those valid requests so the session keeps polling.
