@@ -663,6 +663,19 @@ MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(send_ok(&scan, "ATSP6") == 0);
         CHECK(send_ok(&scan, "ATSH612") == 0);
         CHECK(send_ok(&scan, "ATCRA482") == 0);
+        /*
+         * A cached reconnect has not inherited the previous physical
+         * connection's ECU session. Enter EIS extended diagnostics once,
+         * then retain it for the rest of this connection.
+         */
+        CHECK(scan.stage ==
+              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION);
+        CHECK(mblink_mercedes_module_scan_command(
+                  &scan, command, sizeof(command), &written) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
+        CHECK(strcmp(command, "1003") == 0);
+        CHECK(mblink_mercedes_module_scan_accept(&scan, &tester) ==
+              MBLINK_MERCEDES_MODULE_SCAN_RESULT_OK);
         CHECK(scan.stage ==
               MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
         CHECK(mblink_mercedes_module_scan_command(

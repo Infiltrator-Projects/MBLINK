@@ -203,14 +203,13 @@ static int idscan_finish_saved_transmission(MblinkMercedesModuleScan *scan)
     if (scan->stage ==
         MBLINK_MERCEDES_MODULE_SCAN_STAGE_CACHED_IDENTITY_RESTORE_TIMEOUT) {
         CHECK(idscan_send_ok(scan, "ATST20") == 0);
-    } else {
-        CHECK(scan->stage ==
-              MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION);
     }
-    if (scan->stage ==
-        MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_EXTENDED_SESSION) {
-        CHECK(idscan_send_response(scan, "1092", &present) == 0);
-    }
+    /*
+     * 7E1/7E9 is vehicle-verified for KWP transmission reads, but the
+     * controller catalogue does not have one unambiguous automatic session
+     * command for every generation sharing that route. Do not invent 10 92;
+     * validate the saved ECU with TesterPresent and use the proven reads.
+     */
     CHECK(scan->stage ==
           MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
     CHECK(idscan_send_response(scan, "3E01", &present) == 0);
