@@ -1073,6 +1073,74 @@ static int test_documented_uds_short_part_identifiers(void)
     return 0;
 }
 
+static int test_cgw212_resolved_part_identifiers(void)
+{
+    MblinkMercedesDataRecord records[5];
+    char text[64];
+    const char *name = NULL;
+
+    memset(records, 0, sizeof(records));
+    for (size_t index = 0U; index < 5U; ++index)
+        records[index].service = UINT8_C(0x22);
+
+    records[0].identifier = UINT16_C(0xf111);
+    records[0].data_length = 3U;
+    memcpy(records[0].data, "212", 3U);
+    records[1].identifier = UINT16_C(0xf121);
+    records[1].data_length = 3U;
+    memcpy(records[1].data, "212", 3U);
+
+    records[2].identifier = UINT16_C(0xf150);
+    records[2].data_length = 3U;
+    records[2].data[0] = UINT8_C(0x08);
+    records[2].data[1] = UINT8_C(0x2b);
+    records[2].data[2] = UINT8_C(0x01);
+
+    records[3].identifier = UINT16_C(0xf151);
+    records[3].data_length = 3U;
+    records[3].data[0] = UINT8_C(0x0a);
+    records[3].data[1] = UINT8_C(0x1d);
+    records[3].data[2] = UINT8_C(0x4b);
+
+    records[4].identifier = UINT16_C(0xf153);
+    records[4].data_length = 3U;
+    records[4].data[0] = UINT8_C(0x0a);
+    records[4].data[1] = UINT8_C(0x1d);
+    records[4].data[2] = UINT8_C(0x48);
+
+    CHECK(mblink_mercedes_data_record_format_resolved_identifier(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        records, 5U, &records[0],
+        text, sizeof(text), &name));
+    CHECK(strcmp(name, "Mercedes hardware part number") == 0);
+    CHECK(strcmp(text, "2125451001") == 0);
+
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_resolved_identifier(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        records, 5U, &records[1],
+        text, sizeof(text), &name));
+    CHECK(strcmp(name, "Mercedes software part number") == 0);
+    CHECK(strcmp(text, "2129029904") == 0);
+
+    /* A different CGW_212 software signature must never inherit this mapping. */
+    records[3].data[2] = UINT8_C(0x41);
+    name = NULL;
+    CHECK(!mblink_mercedes_data_record_format_resolved_identifier(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        records, 5U, &records[1],
+        text, sizeof(text), &name));
+    records[3].data[2] = UINT8_C(0x4b);
+
+    /* Route coincidence is part of the proof; unrelated ECUs stay abbreviated. */
+    name = NULL;
+    CHECK(!mblink_mercedes_data_record_format_resolved_identifier(
+        UINT32_C(0x612), UINT32_C(0x482), false,
+        records, 5U, &records[0],
+        text, sizeof(text), &name));
+    return 0;
+}
+
 static int test_documented_route_read_union(void)
 {
     const MblinkMercedesDocumentedRead *read;
@@ -1227,6 +1295,7 @@ int main(void)
 {
     if (test_documented_uds_version_metadata() != 0) return 1;
     if (test_documented_uds_short_part_identifiers() != 0) return 1;
+    if (test_cgw212_resolved_part_identifiers() != 0) return 1;
     if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
     if (test_hu204_factory_reading_keeps_session() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;

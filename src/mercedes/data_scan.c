@@ -1069,6 +1069,123 @@ static bool format_short_documented_part_identifier(
     return true;
 }
 
+static const MblinkMercedesDataRecord *find_startup_record(
+    const MblinkMercedesDataRecord *records,
+    size_t record_count,
+    uint16_t identifier)
+{
+    if (records == NULL) return NULL;
+    for (size_t index = 0U; index < record_count; ++index) {
+        if (records[index].service == UINT8_C(0x22) &&
+            records[index].identifier == identifier) {
+            return &records[index];
+        }
+    }
+    return NULL;
+}
+
+static bool startup_record_equals(
+    const MblinkMercedesDataRecord *record,
+    const uint8_t *expected,
+    size_t expected_length)
+{
+    return record != NULL &&
+           expected != NULL &&
+           record->data_length == expected_length &&
+           memcmp(record->data, expected, expected_length) == 0;
+}
+
+static bool startup_record_is_ascii_212(
+    const MblinkMercedesDataRecord *record)
+{
+    static const uint8_t value[] = {
+        UINT8_C('2'), UINT8_C('1'), UINT8_C('2')
+    };
+    return startup_record_equals(record, value, sizeof(value));
+}
+
+bool mblink_mercedes_data_record_format_resolved_identifier(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    const MblinkMercedesDataRecord *records,
+    size_t record_count,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    static const uint8_t hardware_version[] = {
+        UINT8_C(0x08), UINT8_C(0x2b), UINT8_C(0x01)
+    };
+    static const uint8_t software_version[] = {
+        UINT8_C(0x0a), UINT8_C(0x1d), UINT8_C(0x4b)
+    };
+    static const uint8_t boot_software_version[] = {
+        UINT8_C(0x0a), UINT8_C(0x1d), UINT8_C(0x48)
+    };
+    const MblinkMercedesDataRecord *f111;
+    const MblinkMercedesDataRecord *f121;
+    const MblinkMercedesDataRecord *f150;
+    const MblinkMercedesDataRecord *f151;
+    const MblinkMercedesDataRecord *f153;
+    const bool hardware =
+        record != NULL &&
+        record->service == UINT8_C(0x22) &&
+        record->identifier == UINT16_C(0xf111);
+    const bool software =
+        record != NULL &&
+        record->service == UINT8_C(0x22) &&
+        record->identifier == UINT16_C(0xf121);
+    const char *part_number;
+    size_t part_length;
+
+    if (name != NULL) *name = NULL;
+    if ((!hardware && !software) ||
+        buffer == NULL || buffer_size == 0U || name == NULL ||
+        extended_id ||
+        tx_can_id != UINT32_C(0x602) ||
+        rx_can_id != UINT32_C(0x480) ||
+        !startup_record_is_ascii_212(record)) {
+        return false;
+    }
+
+    f111 = find_startup_record(records, record_count, UINT16_C(0xf111));
+    f121 = find_startup_record(records, record_count, UINT16_C(0xf121));
+    f150 = find_startup_record(records, record_count, UINT16_C(0xf150));
+    f151 = find_startup_record(records, record_count, UINT16_C(0xf151));
+    f153 = find_startup_record(records, record_count, UINT16_C(0xf153));
+
+    /*
+     * CGW_212 signature observed for the Bosch gateway set whose Xentry
+     * identity is hardware A 212 545 10 01 / software A 212 902 99 04:
+     * F111/F121 = "212", HW 08/43.01, SW 10/29.75, boot SW 10/29.72.
+     *
+     * Do not expand "212" by family alone. The same CGW hardware family exists
+     * with other software part numbers, so every companion version record is
+     * required before replacing the ECU's abbreviated identifier.
+     */
+    if (!startup_record_is_ascii_212(f111) ||
+        !startup_record_is_ascii_212(f121) ||
+        !startup_record_equals(
+            f150, hardware_version, sizeof(hardware_version)) ||
+        !startup_record_equals(
+            f151, software_version, sizeof(software_version)) ||
+        !startup_record_equals(
+            f153, boot_software_version, sizeof(boot_software_version))) {
+        return false;
+    }
+
+    part_number = hardware ? "2125451001" : "2129029904";
+    part_length = strlen(part_number);
+    if (part_length + 1U > buffer_size) return false;
+    memcpy(buffer, part_number, part_length + 1U);
+    *name = hardware
+        ? "Mercedes hardware part number"
+        : "Mercedes software part number";
+    return true;
+}
+
 bool mblink_mercedes_data_record_format_known_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,

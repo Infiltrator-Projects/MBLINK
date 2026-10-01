@@ -407,6 +407,8 @@ MBLinkTransmissionFamilyForModule(const MblinkMercedesModuleScanEntry *module)
 static BOOL MBLinkApplyMercedesDataRecordPresentation(
     MBLinkMercedesDataSnapshot *snapshot,
     const MblinkMercedesModuleScanEntry *module,
+    const MblinkMercedesDataRecord *contextRecords,
+    size_t contextRecordCount,
     const MblinkMercedesDataRecord *record)
 {
     if (snapshot == nil || module == NULL || record == NULL ||
@@ -460,21 +462,31 @@ static BOOL MBLinkApplyMercedesDataRecordPresentation(
             module->extended_id,
             module->kind,
             record, &numeric, &numericName, &unit);
-    BOOL structuredMapped = NO;
+    BOOL structuredMapped =
+        mblink_mercedes_data_record_format_resolved_identifier(
+            module->tx_can_id,
+            module->rx_can_id,
+            module->extended_id,
+            contextRecords,
+            contextRecordCount,
+            record,
+            structured,
+            sizeof(structured),
+            &structuredName);
     const BOOL egs53VariantCoding =
         transmissionFamily ==
             MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&
         record->service ==
             MBLINK_KWP2000_SERVICE_READ_DATA_BY_LOCAL_IDENTIFIER &&
         record->identifier == UINT16_C(0x00b1);
-    if (egs53VariantCoding) {
+    if (!structuredMapped && egs53VariantCoding) {
         structuredMapped =
             mblink_mercedes_transmission_format_egs53_variant_coding(
                 record->data, record->data_length,
                 structured, sizeof(structured));
         if (structuredMapped)
             structuredName = "EGS53 variant / SCN coding";
-    } else if (allowOemTransmissionValueDecode) {
+    } else if (!structuredMapped && allowOemTransmissionValueDecode) {
         structuredMapped =
             mblink_mercedes_data_record_format_known_for_route(
                 module->tx_can_id,
@@ -537,7 +549,9 @@ static BOOL MBLinkApplyMercedesDataRecordPresentation(
 
 static BOOL MBLinkRedecodePersistedMercedesDataSnapshot(
     MBLinkMercedesDataSnapshot *snapshot,
-    const MblinkMercedesModuleScanEntry *module)
+    const MblinkMercedesModuleScanEntry *module,
+    const MblinkMercedesDataRecord *contextRecords,
+    size_t contextRecordCount)
 {
     if (snapshot == nil || module == NULL ||
         snapshot.rawData.length == 0U ||
@@ -551,7 +565,7 @@ static BOOL MBLinkRedecodePersistedMercedesDataSnapshot(
     record.data_length = snapshot.rawData.length;
     memcpy(record.data, snapshot.rawData.bytes, record.data_length);
     return MBLinkApplyMercedesDataRecordPresentation(
-        snapshot, module, &record);
+        snapshot, module, contextRecords, contextRecordCount, &record);
 }
 
 /*
@@ -2530,7 +2544,11 @@ static void MBLinkAppendManufacturerDefinition(
         MBLinkMercedesDataSnapshot *snapshot =
             [[MBLinkMercedesDataSnapshot alloc] init];
         if (!MBLinkApplyMercedesDataRecordPresentation(
-                snapshot, module, record)) {
+                snapshot, module,
+                _manufacturerDataScan.records,
+                mblink_mercedes_data_scan_record_count(
+                    &_manufacturerDataScan),
+                record)) {
             continue;
         }
         [values addObject:snapshot];
@@ -3126,21 +3144,44 @@ static void MBLinkAppendManufacturerDefinition(
         if (savedStartup.count != 0U) {
             NSMutableArray<MBLinkMercedesDataSnapshot *> *restored =
                 [[NSMutableArray alloc] initWithCapacity:savedStartup.count];
+            MblinkMercedesDataRecord
+                savedRecords[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS] = {{0}};
+            size_t savedRecordCount = 0U;
+
             for (id savedData in savedStartup) {
                 MBLinkMercedesDataSnapshot *snapshot =
                     MBLinkMercedesDataSnapshotFromProfile(savedData);
-                if (snapshot != nil) {
-                    /*
-                     * Cached profiles keep the original raw response bytes.
-                     * Re-run them through today's decoder so historical data
-                     * automatically benefits from corrected DID semantics.
-                     * Profiles too old to contain raw bytes retain their saved
-                     * presentation instead of inventing a replacement.
-                     */
-                    (void)MBLinkRedecodePersistedMercedesDataSnapshot(
-                        snapshot, &module);
-                    [restored addObject:snapshot];
+                if (snapshot == nil) continue;
+                [restored addObject:snapshot];
+                if (snapshot.rawData.length == 0U ||
+                    snapshot.rawData.length >
+                        MBLINK_MERCEDES_DATA_SCAN_MAX_DATA ||
+                    savedRecordCount >=
+                        MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS) {
+                    continue;
                 }
+
+                MblinkMercedesDataRecord *savedRecord =
+                    &savedRecords[savedRecordCount++];
+                savedRecord->identifier = snapshot.identifier;
+                savedRecord->service = snapshot.service;
+                savedRecord->data_length = snapshot.rawData.length;
+                memcpy(
+                    savedRecord->data,
+                    snapshot.rawData.bytes,
+                    savedRecord->data_length);
+            }
+
+            /*
+             * Cached profiles retain the original response bytes. Re-run the
+             * complete startup set through today's decoder so cross-record
+             * identity signatures (not only single-DID decoders) also improve
+             * historical profiles without inventing data.
+             */
+            for (MBLinkMercedesDataSnapshot *snapshot in restored) {
+                (void)MBLinkRedecodePersistedMercedesDataSnapshot(
+                    snapshot, &module,
+                    savedRecords, savedRecordCount);
             }
             if (restored.count != 0U) {
                 _manufacturerDataByModule[

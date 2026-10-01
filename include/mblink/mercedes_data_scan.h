@@ -331,6 +331,23 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
  * DaimlerChrysler KWP2000 identification records E0-EB. Unknown records return
  * false and remain raw.
  */
+/**
+ * Resolve a short Mercedes F111/F121 family identifier to a complete,
+ * source-backed part number only when the surrounding startup records match a
+ * known exact controller signature. Unknown or incomplete signatures return
+ * false and must retain the ECU-provided value.
+ */
+bool mblink_mercedes_data_record_format_resolved_identifier(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    const MblinkMercedesDataRecord *records,
+    size_t record_count,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name);
+
 bool mblink_mercedes_data_record_format_known_for_route(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
