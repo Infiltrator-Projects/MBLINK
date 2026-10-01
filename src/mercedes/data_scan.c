@@ -1017,7 +1017,6 @@ static bool format_documented_year_week_patch(
     uint8_t week;
     uint8_t patch;
     unsigned int full_year;
-    char raw[MBLINK_MERCEDES_DATA_SCAN_MAX_DATA * 2U + 1U];
     int count;
 
     if (record == NULL || buffer == NULL || buffer_size == 0U ||
@@ -1036,16 +1035,15 @@ static bool format_documented_year_week_patch(
     if (!documented_field_u8(record, year_field, &year) ||
         !documented_field_u8(record, week_field, &week) ||
         !documented_field_u8(record, patch_field, &patch) ||
-        week == 0U || week > 53U ||
-        !mblink_mercedes_data_record_format_hex(
-            record, raw, sizeof(raw))) {
+        week == 0U || week > 53U) {
         return false;
     }
 
     /*
      * Mercedes stores the year as two digits in these documented version
-     * records. Use the conventional rolling-century interpretation for human
-     * display while retaining the exact payload beside it.
+     * records. Use the conventional rolling-century interpretation for the
+     * user-facing value. The original bytes remain available separately in
+     * the diagnostic snapshot's rawHex field.
      */
     full_year = year <= 79U
         ? 2000U + (unsigned int)year
@@ -1053,11 +1051,10 @@ static bool format_documented_year_week_patch(
 
     count = snprintf(
         buffer, buffer_size,
-        "%u · calendar week %u · patch %u · raw %s",
+        "%u · calendar week %u · patch %u",
         full_year,
         (unsigned int)week,
-        (unsigned int)patch,
-        raw);
+        (unsigned int)patch);
     return count >= 0 && (size_t)count < buffer_size;
 }
 

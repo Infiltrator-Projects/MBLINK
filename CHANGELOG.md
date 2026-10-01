@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.278 — 2026-10-01
+
+- Present documented Mercedes UDS F150/F151/F153 version metadata as decoded year/week/patch values without appending duplicate raw hex to the user-facing text.
+- Keep the original payload bytes available internally in the diagnostic snapshot rawHex field for evidence and debugging.
+
 ## 0.7.277 — 2026-10-01
 
 - Add catalogue-owned presentation metadata for documented multi-field diagnostic reads instead of teaching the iPhone UI or controller about individual DIDs.
