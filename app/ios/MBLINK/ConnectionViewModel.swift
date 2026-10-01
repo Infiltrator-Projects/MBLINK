@@ -578,6 +578,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         return definitions.map { definition in
             let service = definition.service
             let identifier = definition.identifier
+            let rawProvenance = definition.provenance
             let stableKey = canonicalManufacturerStableKey(
                 definition.stableKey)
             return MBPIDCatalogueItem(
@@ -592,7 +593,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 shortName: definition.shortName,
                 title: definition.title,
                 provenance: manufacturerPIDPresentationProvenance(
-                    raw: definition.provenance,
+                    raw: rawProvenance,
                     service: service,
                     identifier: identifier),
                 pollingEnabled: selected.contains(stableKey),
