@@ -1016,7 +1016,6 @@ static bool format_documented_year_week_patch(
     uint8_t year;
     uint8_t week;
     uint8_t patch;
-    unsigned int full_year;
     int count;
 
     if (record == NULL || buffer == NULL || buffer_size == 0U ||
@@ -1040,19 +1039,14 @@ static bool format_documented_year_week_patch(
     }
 
     /*
-     * Mercedes stores the year as two digits in these documented version
-     * records. Use the conventional rolling-century interpretation for the
-     * user-facing value. The original bytes remain available separately in
-     * the diagnostic snapshot's rawHex field.
+     * Xentry presents these three version bytes as YY/WW.PP.  The bytes are
+     * binary numeric fields, not BCD and not a calendar date: for example
+     * 08 2B 01 is 08/43.01 and 0A 1D 4B is 10/29.75.
      */
-    full_year = year <= 79U
-        ? 2000U + (unsigned int)year
-        : 1900U + (unsigned int)year;
-
     count = snprintf(
         buffer, buffer_size,
-        "%u · calendar week %u · patch %u",
-        full_year,
+        "%02u/%02u.%02u",
+        (unsigned int)year,
         (unsigned int)week,
         (unsigned int)patch);
     return count >= 0 && (size_t)count < buffer_size;
