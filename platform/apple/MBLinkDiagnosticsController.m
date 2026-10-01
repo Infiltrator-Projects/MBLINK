@@ -2149,6 +2149,13 @@ static void MBLinkAppendManufacturerDefinition(
             module->extended_id,
             mblink_mercedes_module_scan_entry_protocol(module),
             module->kind);
+    /*
+     * The module census owns diagnostic-session entry for this live vehicle
+     * connection. Scheduled/startup reads must reuse that session rather than
+     * issuing 10 03 again on every polling visit.
+     */
+    config.request_extended_session = false;
+
     MblinkMercedesEcuPack ecuPack;
     const BOOL hasEcuPack =
         mblink_mercedes_ecu_pack_resolve_module(module, &ecuPack);
