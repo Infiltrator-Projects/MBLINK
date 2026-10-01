@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.271 — 2026-10-01
+
+- Extract Bluetooth transport-boundary alert handling from the central iPhone refresh callback into a focused helper.
+- Preserve the exact alert conditions and duplicate-suppression behaviour; no connection, polling, decoding, or vehicle-profile behaviour changes.
+
 ## 0.7.270 — 2026-10-01
 
 - Extract manufacturer-history session reset from the central iPhone refresh callback into a focused helper.

@@ -1876,6 +1876,17 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         enabledDisplayParameters
     }
 
+    private func refreshTransportBoundaryAlert() {
+        let updatedStatus = statusText
+        let isTransportBoundary =
+            updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||
+            updatedStatus.contains("No compatible BLE diagnostic adapter found")
+        guard isTransportBoundary,
+              updatedStatus != lastConnectionAlertText else { return }
+        lastConnectionAlertText = updatedStatus
+        connectionAlertText = updatedStatus
+    }
+
     private func refreshManufacturerHistorySession() {
         // Never join samples from separate sessions or vehicles in one graph.
         let liveVIN = activeVehicleVIN
@@ -1940,15 +1951,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     override func productDidRefreshStandardState() {
         refreshManufacturerHistorySession()
-        let updatedStatus = statusText
-        let isTransportBoundary =
-            updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||
-            updatedStatus.contains("No compatible BLE diagnostic adapter found")
-        if isTransportBoundary && updatedStatus != lastConnectionAlertText {
-            lastConnectionAlertText = updatedStatus
-            connectionAlertText = updatedStatus
-        }
-
+        refreshTransportBoundaryAlert()
         refreshVehicleProfilePresentation()
         storedFaults = resolveFaults(storedDTCs, state: "Stored")
         pendingFaults = resolveFaults(pendingDTCs, state: "Pending")
