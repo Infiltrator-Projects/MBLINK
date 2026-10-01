@@ -1876,6 +1876,18 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         enabledDisplayParameters
     }
 
+    private func refreshManufacturerHistorySession() {
+        // Never join samples from separate sessions or vehicles in one graph.
+        let liveVIN = activeVehicleVIN
+        if !isActive || !manufacturerHistorySessionActive ||
+            manufacturerHistoryVIN != liveVIN {
+            manufacturerNumericHistory.removeAll()
+            manufacturerLastRawByParameter.removeAll()
+        }
+        manufacturerHistorySessionActive = isActive
+        manufacturerHistoryVIN = isActive ? liveVIN : nil
+    }
+
     private func refreshVehicleProfilePresentation() {
         let currentVIN = isActive ? activeVehicleVIN : selectedVehicleVIN
         mercedesVINText = currentVIN ?? "Not captured"
@@ -1927,15 +1939,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     override func productDidRefreshStandardState() {
-        // Never join samples from separate sessions or vehicles in one graph.
-        let liveHistoryVIN = activeVehicleVIN
-        if !isActive || !manufacturerHistorySessionActive ||
-            manufacturerHistoryVIN != liveHistoryVIN {
-            manufacturerNumericHistory.removeAll()
-            manufacturerLastRawByParameter.removeAll()
-        }
-        manufacturerHistorySessionActive = isActive
-        manufacturerHistoryVIN = isActive ? liveHistoryVIN : nil
+        refreshManufacturerHistorySession()
         let updatedStatus = statusText
         let isTransportBoundary =
             updatedStatus.contains("Bluetooth Classic Mercedes adapter") ||

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.270 — 2026-10-01
+
+- Extract manufacturer-history session reset from the central iPhone refresh callback into a focused helper.
+- Preserve the existing rule that graph history is cleared across disconnects and vehicle/session changes; no polling, decoding, or presentation behaviour changes.
+
 ## 0.7.269 — 2026-10-01
 
 - Extract live/saved/no-vehicle profile presentation from the central iPhone refresh callback into one focused helper.
