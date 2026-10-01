@@ -2,16 +2,13 @@
 #import "MBLinkDiagnosticsController.h"
 
 #import "../../src/link/platform/apple/LinkDiagnosticsController.h"
-#import "link/diagnostic_request.h"
 #import "mblink/elm327.h"
 #import "mblink/mercedes.h"
-#import "mblink/mercedes_probe.h"
 #import "mblink/mercedes_module_scan.h"
 #import "mblink/mercedes_data_scan.h"
 #import "mblink/mercedes_ecu_pack.h"
 #import "mblink/mercedes_documented_ecus.h"
 #import "mblink/mercedes_transmission.h"
-#import "mblink/uds_dtc.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -63,9 +60,6 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
 - (void)setStatus:(NSString *)status;
 - (void)markFlowFailure:(NSString *)status;
 - (void)beginStartupModuleDiscovery;
-- (void)beginMercedesProbe;
-- (void)beginCurrentMercedesProbeCommand;
-- (void)processMercedesProbeResponse:(const MblinkElm327Response *)response;
 - (void)beginMercedesModuleScan;
 - (void)beginCurrentMercedesModuleScanCommand;
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response;
@@ -113,14 +107,10 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     (uint32_t)responderCANIdentifier
                                                       extendedID:(BOOL)extendedID;
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore;
-- (void)updateMercedesProbeEvidenceSummary;
-- (NSString *)mercedesProbeFailureText;
 @end
 
 @implementation MBLinkDiagnosticsController {
     LinkVehicleProfileStore *_vehicleProfileStore;
-    MblinkMercedesEcuProbe _mercedesProbe;
-    BOOL _manufacturerProbeActive;
     MblinkMercedesModuleScan _mercedesModuleScan;
     BOOL _moduleScanActive;
     BOOL _cachedModuleRefreshActive;
@@ -144,16 +134,6 @@ typedef NS_ENUM(NSUInteger, MBLinkScheduledRestoreStage) {
     NSMutableDictionary<NSString *, NSSet<NSNumber *> *> *
         _selectedManufacturerLiveCommandsByModule;
     NSUInteger _scheduledManufacturerModuleCursor;
-}
-
-static unsigned int MBLinkBitCount32(uint32_t value)
-{
-    unsigned int count = 0U;
-    while (value != 0U) {
-        count += value & 1U;
-        value >>= 1U;
-    }
-    return count;
 }
 
 static NSString *MBLinkStringFromCString(const char *value)
@@ -491,21 +471,6 @@ static BOOL MBLinkDecodeTransmissionLive2130(
         family, data, dataLength, fieldMask, decoded);
 }
 
-static NSString *MBLinkMercedesEndpointText(
-    const MblinkMercedesEcuEndpointDefinition *endpoint)
-{
-    if (endpoint == NULL) return nil;
-    NSString *name = MBLinkStringFromCString(endpoint->name);
-    if (endpoint->address.tx_extended_id) {
-        return [NSString stringWithFormat:@"%@ · 0x%08X → 0x%08X", name,
-            (unsigned int)endpoint->address.tx_can_id,
-            (unsigned int)endpoint->address.rx_can_id];
-    }
-    return [NSString stringWithFormat:@"%@ · 0x%03X → 0x%03X", name,
-        (unsigned int)endpoint->address.tx_can_id,
-        (unsigned int)endpoint->address.rx_can_id];
-}
-
 static BOOL MBLinkPopulateModuleEntryFromProfile(
     NSDictionary *dictionary,
     MblinkMercedesModuleScanEntry *entry)
@@ -561,26 +526,6 @@ static BOOL MBLinkPopulateModuleEntryFromProfile(
     const uint32_t maxID = entry->extended_id
         ? UINT32_C(0x1fffffff) : UINT32_C(0x7ff);
     return entry->tx_can_id <= maxID && entry->rx_can_id <= maxID;
-}
-
-static NSArray<NSString *> *MBLinkMercedesUDSDTCStrings(
-    const MblinkUdsDtcList *list)
-{
-    if (list == NULL || list->count == 0U) return @[];
-    NSMutableArray<NSString *> *values =
-        [[NSMutableArray alloc] initWithCapacity:list->count];
-    for (size_t index = 0U; index < list->count; ++index) {
-        char code[7];
-        if (!mblink_uds_dtc_format_hex(
-                list->records[index].code, code, sizeof(code))) {
-            continue;
-        }
-        [values addObject:[NSString stringWithFormat:
-            @"%@ · status 0x%02X",
-            MBLinkStringFromCString(code),
-            (unsigned int)list->records[index].status]];
-    }
-    return [values copy];
 }
 
 static void MBLinkAppendMercedesModuleFaultStrings(
@@ -663,82 +608,6 @@ static NSString *MBLinkMercedesModuleFaultStatus(
         return @"Incomplete or invalid fault response";
     }
     return @"Unknown fault state";
-}
-
-static NSString *MBLinkProbeASCIIValue(
-    const MblinkMercedesEcuProbe *probe,
-    size_t requestIndex)
-{
-    if (probe == NULL) return nil;
-    const LinkEcuProbeDidResult *result =
-        link_ecu_probe_did_result_at(&probe->shared, requestIndex);
-    if (result == NULL || result->status != LINK_ECU_PROBE_READ_AVAILABLE ||
-        result->data_length == 0U) {
-        return nil;
-    }
-    size_t length = result->data_length;
-    while (length > 0U &&
-           (result->data[length - 1U] == UINT8_C(0xff) ||
-            result->data[length - 1U] == UINT8_C(0x00))) {
-        --length;
-    }
-    if (length == 0U) return nil;
-    for (size_t index = 0U; index < length; ++index) {
-        if (result->data[index] < UINT8_C(0x20) ||
-            result->data[index] > UINT8_C(0x7e)) {
-            return nil;
-        }
-    }
-    return [[NSString alloc]
-        initWithBytes:result->data
-               length:length
-             encoding:NSASCIIStringEncoding];
-}
-
-static NSString *MBLinkProbeHexValue(
-    const MblinkMercedesEcuProbe *probe,
-    size_t requestIndex)
-{
-    if (probe == NULL) return nil;
-    const LinkEcuProbeDidResult *result =
-        link_ecu_probe_did_result_at(&probe->shared, requestIndex);
-    if (result == NULL || result->status != LINK_ECU_PROBE_READ_AVAILABLE ||
-        result->data_length == 0U) {
-        return nil;
-    }
-    NSMutableString *value = [[NSMutableString alloc] init];
-    for (size_t index = 0U; index < result->data_length; ++index) {
-        if (index != 0U) [value appendString:@" "];
-        [value appendFormat:@"%02X", (unsigned int)result->data[index]];
-    }
-    return [value copy];
-}
-
-static NSArray<NSString *> *MBLinkEngineProbeEvidence(
-    const MblinkMercedesEcuProbe *probe)
-{
-    if (probe == NULL) return @[];
-    NSMutableArray<NSString *> *values = [[NSMutableArray alloc] init];
-    NSString *serial = MBLinkProbeASCIIValue(probe, 1U);
-    NSString *erotan = MBLinkProbeASCIIValue(
-        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 3U);
-    NSString *f100 = MBLinkProbeHexValue(
-        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 1U);
-    NSString *f154 = MBLinkProbeHexValue(
-        probe, MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT + 2U);
-    if (serial.length != 0U)
-        [values addObject:[NSString stringWithFormat:
-            @"ECU serial (F18C) · %@", serial]];
-    if (erotan.length != 0U)
-        [values addObject:[NSString stringWithFormat:
-            @"EROTAN (F196) · %@", erotan]];
-    if (f100.length != 0U)
-        [values addObject:[NSString stringWithFormat:
-            @"Session / variant (F100) raw · %@", f100]];
-    if (f154.length != 0U)
-        [values addObject:[NSString stringWithFormat:
-            @"Supplier identifier (F154) raw · %@", f154]];
-    return [values copy];
 }
 
 static bool MBLinkSimulatorResponder(
@@ -832,12 +701,10 @@ static bool MBLinkSimulatorResponder(
     self.mercedesIdentitySummaryText = @"Not attempted";
     self.mercedesIdentityResults = @[];
     self.mercedesCrd3SummaryText = @"Not attempted";
-    self.mercedesUDSFaultStatusText = @"Waiting for Mercedes ECU probe";
+    self.mercedesUDSFaultStatusText = @"Waiting for Mercedes module scan";
     self.mercedesUDSFaults = @[];
     self.vehicleProfileStatusText = @"Waiting for VIN";
-    _mercedesProbe = (MblinkMercedesEcuProbe){0};
     _mercedesModuleScan = (MblinkMercedesModuleScan){0};
-    _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
     _startupModuleDiscoveryStarted = NO;
@@ -876,7 +743,6 @@ static bool MBLinkSimulatorResponder(
 
 - (void)markFlowFailure:(NSString *)status
 {
-    _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     [_shared failWithStatus:status];
 }
@@ -924,7 +790,6 @@ static bool MBLinkSimulatorResponder(
 
 - (void)disconnect
 {
-    _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
@@ -985,14 +850,10 @@ static bool MBLinkSimulatorResponder(
     return [[pids array] sortedArrayUsingSelector:@selector(compare:)];
 }
 
-- (NSArray<NSString *> *)currentEngineProbeEvidence
+- (NSArray<NSString *> *)cachedEngineEvidence
 {
-    NSArray<NSString *> *evidence = MBLinkEngineProbeEvidence(&_mercedesProbe);
-    if (evidence.count == 0U &&
-        [_cachedVehicleProfile[@"engineEvidence"] isKindOfClass:[NSArray class]]) {
-        evidence = _cachedVehicleProfile[@"engineEvidence"];
-    }
-    return evidence ?: @[];
+    id evidence = _cachedVehicleProfile[@"engineEvidence"];
+    return [evidence isKindOfClass:[NSArray class]] ? evidence : @[];
 }
 
 - (NSString *)resolvedMercedesModuleNameForRequestCANIdentifier:
@@ -1031,7 +892,7 @@ static bool MBLinkSimulatorResponder(
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
     NSMutableArray<MBLinkMercedesModuleSnapshot *> *snapshots =
         [[NSMutableArray alloc] initWithCapacity:count];
-    NSArray<NSString *> *engineEvidence = [self currentEngineProbeEvidence];
+    NSArray<NSString *> *engineEvidence = [self cachedEngineEvidence];
 
     for (size_t index = 0U; index < count; ++index) {
         const MblinkMercedesModuleScanEntry *module =
@@ -1043,28 +904,18 @@ static bool MBLinkSimulatorResponder(
         if (!module->extended_id &&
             module->tx_can_id == UINT32_C(0x7e0) &&
             module->rx_can_id == UINT32_C(0x7e8)) {
-            const char *identity =
-                module->identity_available ? module->identity :
-                (_mercedesProbe.ecu_system_name_available
-                    ? _mercedesProbe.ecu_system_name : NULL);
-            const char *part =
-                module->spare_part_number_available ? module->spare_part_number :
-                (_mercedesProbe.ecu_spare_part_number_available
-                    ? _mercedesProbe.ecu_spare_part_number : NULL);
-            const char *software =
-                module->software_number_available ? module->software_number :
-                (_mercedesProbe.ecu_software_number_available
-                    ? _mercedesProbe.ecu_software_number : NULL);
-            const char *hardware =
-                module->hardware_number_available ? module->hardware_number :
-                (_mercedesProbe.ecu_hardware_number_available
-                    ? _mercedesProbe.ecu_hardware_number : NULL);
             (void)mblink_mercedes_module_scan_resolve_controller(
                 module->tx_can_id,
                 module->rx_can_id,
                 module->extended_id,
                 mblink_mercedes_module_scan_entry_protocol(module),
-                identity, part, software, hardware,
+                module->identity_available ? module->identity : NULL,
+                module->spare_part_number_available
+                    ? module->spare_part_number : NULL,
+                module->software_number_available
+                    ? module->software_number : NULL,
+                module->hardware_number_available
+                    ? module->hardware_number : NULL,
                 &resolvedModule);
         }
 
@@ -1100,26 +951,6 @@ static bool MBLinkSimulatorResponder(
             ? MBLinkStringFromCString(module->hardware_number) : nil;
         if (!module->extended_id &&
             module->tx_can_id == UINT32_C(0x7e0)) {
-            if (snapshot.identityText.length == 0U &&
-                _mercedesProbe.ecu_system_name_available) {
-                snapshot.identityText = MBLinkStringFromCString(
-                    _mercedesProbe.ecu_system_name);
-            }
-            if (snapshot.partNumber.length == 0U &&
-                _mercedesProbe.ecu_spare_part_number_available) {
-                snapshot.partNumber = MBLinkStringFromCString(
-                    _mercedesProbe.ecu_spare_part_number);
-            }
-            if (snapshot.softwareNumber.length == 0U &&
-                _mercedesProbe.ecu_software_number_available) {
-                snapshot.softwareNumber = MBLinkStringFromCString(
-                    _mercedesProbe.ecu_software_number);
-            }
-            if (snapshot.hardwareNumber.length == 0U &&
-                _mercedesProbe.ecu_hardware_number_available) {
-                snapshot.hardwareNumber = MBLinkStringFromCString(
-                    _mercedesProbe.ecu_hardware_number);
-            }
             snapshot.evidenceDetails = engineEvidence;
         } else if (!module->extended_id &&
                    module->tx_can_id == UINT32_C(0x7e1) &&
@@ -1272,8 +1103,8 @@ static bool MBLinkSimulatorResponder(
     /*
      * Module identification and saved-profile validation are startup-only.
      * They may run once for each connection, before the live scheduler starts.
-     * Every path that can enter module discovery, including the legacy engine
-     * probe completion path, comes through this single gate.
+     * Every startup path that can enter module discovery comes through this
+     * single gate.
      */
     if (_startupModuleDiscoveryStarted) {
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
@@ -1321,13 +1152,8 @@ static bool MBLinkSimulatorResponder(
             (const MblinkElm327Response *)response];
         return;
     }
-    if (_manufacturerProbeActive) {
-        [self processMercedesProbeResponse:
-            (const MblinkElm327Response *)response];
-        return;
-    }
     [_shared failWithStatus:
-        @"Mercedes manufacturer response arrived without an active probe"];
+        @"Mercedes manufacturer response arrived without an active operation"];
 }
 
 - (void)linkDiagnosticsController:(LinkDiagnosticsController *)controller
@@ -1369,17 +1195,7 @@ static bool MBLinkSimulatorResponder(
         self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
             @"Partial · %zu module routes · %zu Mercedes factory fault record%@ retained · next connection will validate again",
             capturedModules, capturedFaults, capturedFaults == 1U ? @"" : @"s"];
-    } else if (_manufacturerProbeActive) {
-        self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Mercedes ECU probe interrupted: %@", status];
-        self.mercedesIdentitySummaryText = @"Probe did not complete";
-        if (_mercedesProbe.stage ==
-            MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
-            self.mercedesUDSFaultStatusText =
-                @"Mercedes UDS fault read interrupted";
-        }
     }
-    _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
     [self notifyDelegate];
@@ -1531,8 +1347,7 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
 
     if (self.manufacturerDataScanActive ||
         self.manufacturerDataScanModuleIdentifier.length != 0U ||
-        _moduleScanActive ||
-        _manufacturerProbeActive || _cachedModuleRefreshActive) {
+        _moduleScanActive || _cachedModuleRefreshActive) {
         _scheduledManufacturerJobActive = NO;
         (void)[_shared completeManufacturerExtensionRestoringAdapter:NO];
         return;
@@ -2717,142 +2532,6 @@ static void MBLinkAppendManufacturerDefinition(
     [self notifyDelegate];
 }
 
-- (void)beginMercedesProbe
-{
-    const MblinkMercedesEcuEndpointDefinition *endpoint =
-        mblink_mercedes_generic_engine_endpoint();
-    if (endpoint == NULL || !mblink_mercedes_ecu_endpoint_is_valid(endpoint)) {
-        self.mercedesProbeStatusText = @"Generic Mercedes engine endpoint unavailable";
-        self.mercedesIdentitySummaryText = @"Not attempted";
-        self.mercedesCrd3SummaryText = @"Not attempted";
-        self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self finishMercedesExtensionRestoringAdapter:NO];
-        return;
-    }
-
-    self.mercedesProbeEndpointText = MBLinkMercedesEndpointText(endpoint);
-    MblinkMercedesEcuProbeResult result =
-        mblink_mercedes_ecu_probe_begin(&_mercedesProbe, endpoint);
-    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK) {
-        self.mercedesProbeStatusText = [NSString stringWithFormat:@"Probe could not start: %@",
-            MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
-        self.mercedesIdentitySummaryText = @"Not attempted";
-        self.mercedesCrd3SummaryText = @"Not attempted";
-        self.mercedesUDSFaultStatusText = @"Not attempted";
-        [self finishMercedesExtensionRestoringAdapter:NO];
-        return;
-    }
-
-    _manufacturerProbeActive = YES;
-    self.mercedesProbeStatusText = @"Identifying Mercedes engine ECU with read-only UDS";
-    self.mercedesIdentitySummaryText = @"Waiting for VIN and standard ECU identity";
-    self.mercedesCrd3SummaryText = @"Family-specific fingerprint pending identification";
-    self.mercedesUDSFaultStatusText = @"Waiting for Mercedes UDS fault read";
-    [self setStatus:@"Probing Mercedes engine ECU"];
-    [self notifyDelegate];
-    [self beginCurrentMercedesProbeCommand];
-}
-
-- (void)beginCurrentMercedesProbeCommand
-{
-    char command[MBLINK_ELM327_MAX_COMMAND];
-    size_t written = 0U;
-    MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_command(
-        &_mercedesProbe, command, sizeof(command), &written);
-    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK || written == 0U) {
-        self.mercedesProbeStatusText = [NSString stringWithFormat:@"Probe command failed: %@",
-            MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(result))];
-        self.mercedesIdentitySummaryText = @"Probe did not complete";
-        [self finishMercedesExtensionRestoringAdapter:YES];
-        return;
-    }
-
-    if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_VIN) {
-        self.mercedesProbeStatusText = @"UDS endpoint confirmed; reading standardized VIN (F190)";
-        self.mercedesIdentitySummaryText = @"Reading standardized vehicle identity";
-        [self notifyDelegate];
-    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_STANDARD_IDENTITY) {
-        const size_t index = _mercedesProbe.identity_index;
-        const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
-        const char *name = mblink_mercedes_ecu_probe_identity_did_name(index);
-        self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Reading standardized ECU identity %zu/%u · %04X · %@", index + 1U,
-            (unsigned int)MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT,
-            (unsigned int)did, MBLinkStringFromCString(name)];
-        self.mercedesIdentitySummaryText = [NSString stringWithFormat:
-            @"Standard identity sweep in progress · %zu/%u", index + 1U,
-            (unsigned int)MBLINK_MERCEDES_PROBE_IDENTITY_DID_COUNT];
-        [self notifyDelegate];
-    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_CRD3_FINGERPRINT) {
-        const size_t index = _mercedesProbe.crd3_index;
-        const uint16_t did = mblink_mercedes_ecu_probe_crd3_did_at(index);
-        const char *name = mblink_mercedes_ecu_probe_crd3_did_name(index);
-        self.mercedesProbeStatusText = [NSString stringWithFormat:
-            @"Reading CRD3 fingerprint %zu/%u · %04X · %@", index + 1U,
-            (unsigned int)MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT,
-            (unsigned int)did, MBLinkStringFromCString(name)];
-        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-            @"CRD3 fingerprint in progress · %zu/%u", index + 1U,
-            (unsigned int)MBLINK_MERCEDES_PROBE_CRD3_DID_COUNT];
-        [self notifyDelegate];
-    } else if (_mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_READ_DTC_INFORMATION) {
-        self.mercedesProbeStatusText = @"Reading Mercedes UDS fault memory (19 02 FF)";
-        self.mercedesUDSFaultStatusText = @"Reading Mercedes UDS fault memory";
-        [self notifyDelegate];
-    }
-    if (![_shared beginManufacturerCommand:command timeout:4000U]) {
-        _manufacturerProbeActive = NO;
-        self.mercedesProbeStatusText =
-            @"Mercedes engine probe command could not be sent";
-        self.mercedesIdentitySummaryText = @"Probe did not complete";
-        [self notifyDelegate];
-        [self finishMercedesExtensionRestoringAdapter:YES];
-    }
-}
-
-- (void)processMercedesProbeResponse:(const MblinkElm327Response *)response
-{
-    MblinkMercedesEcuProbeResult result = mblink_mercedes_ecu_probe_accept(&_mercedesProbe, response);
-    if (result == MBLINK_MERCEDES_ECU_PROBE_RESULT_COMPLETE) {
-        [self updateMercedesProbeEvidenceSummary];
-        [self beginStartupModuleDiscovery];
-        return;
-    }
-    if (result != MBLINK_MERCEDES_ECU_PROBE_RESULT_OK ||
-        _mercedesProbe.stage == MBLINK_MERCEDES_ECU_PROBE_STAGE_FAILED) {
-        NSString *failureText = [self mercedesProbeFailureText];
-        self.mercedesProbeStatusText = failureText;
-
-        /*
-         * The official Mercedes me VIN cascade does not make complete vehicle
-         * discovery depend on one 7E0/7E8 UDS TesterPresent path.  If that
-         * endpoint is simply silent or returns an undecodable diagnostic PDU,
-         * continue into the source-backed multi-route census.  Channel/setup
-         * failures remain fatal because they indicate the adapter itself is
-         * not ready for another ECU request.
-         */
-        if (_mercedesProbe.failure ==
-                MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR ||
-            _mercedesProbe.failure ==
-                MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR) {
-            self.mercedesIdentitySummaryText =
-                @"Engine-specific UDS probe unavailable; continuing Mercedes production module census";
-            self.mercedesCrd3SummaryText =
-                @"Engine fingerprint deferred until a responding ECU is identified";
-            self.mercedesUDSFaultStatusText =
-                @"Engine probe unavailable; continuing multi-route Mercedes discovery";
-            [self notifyDelegate];
-            [self beginStartupModuleDiscovery];
-            return;
-        }
-
-        self.mercedesIdentitySummaryText = @"Probe did not complete";
-        [self finishMercedesExtensionRestoringAdapter:YES];
-        return;
-    }
-    [self beginCurrentMercedesProbeCommand];
-}
-
 - (void)beginMercedesModuleScan
 {
     if (_shared.isSimulated) {
@@ -2871,9 +2550,7 @@ static void MBLinkAppendManufacturerDefinition(
             module->identity, sizeof(module->identity), "%s", "CRD3-SIM");
         module->identity_available = true;
         mblink_mercedes_module_scan_classify_identity(module);
-        module->dtcs = _mercedesProbe.dtcs;
-        module->dtc_result = _mercedesProbe.dtc_result == MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE
-  ? MBLINK_MERCEDES_MODULE_DTC_AVAILABLE : MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
+        module->dtc_result = MBLINK_MERCEDES_MODULE_DTC_NO_RESPONSE;
 
         module = &_mercedesModuleScan.modules[1];
         module->tx_can_id = UINT32_C(0x7e1);
@@ -3560,7 +3237,7 @@ static void MBLinkAppendManufacturerDefinition(
         ![self.mercedesCrd3SummaryText isEqualToString:@"Not attempted"]) {
         profile[@"crd3Summary"] = self.mercedesCrd3SummaryText;
     }
-    NSArray<NSString *> *engineEvidence = [self currentEngineProbeEvidence];
+    NSArray<NSString *> *engineEvidence = [self cachedEngineEvidence];
     if (engineEvidence.count != 0U)
         profile[@"engineEvidence"] = engineEvidence;
 
@@ -3639,7 +3316,6 @@ static void MBLinkAppendManufacturerDefinition(
 
 - (void)finishMercedesExtensionRestoringAdapter:(BOOL)restore
 {
-    _manufacturerProbeActive = NO;
     _moduleScanActive = NO;
     _cachedModuleRefreshActive = NO;
     _startupModuleDataPassActive = NO;
@@ -3648,217 +3324,8 @@ static void MBLinkAppendManufacturerDefinition(
     self.manufacturerDataScanModuleIdentifier = nil;
     if (![_shared completeManufacturerExtensionRestoringAdapter:restore]) {
         [_shared failWithStatus:
-            @"Could not resume shared diagnostic flow after Mercedes probe"];
+            @"Could not resume shared diagnostic flow after Mercedes extension"];
     }
 }
-
-- (void)updateMercedesProbeEvidenceSummary
-{
-    NSString *standardOBDVIN = self.mercedesVINText;
-    NSArray<NSString *> *standardOBDIdentity = self.mercedesIdentityResults;
-    const BOOL mercedesVINAvailable =
-        _mercedesProbe.vin_result == MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE &&
-        _mercedesProbe.vin[0] != '\0';
-    const unsigned int positive = MBLinkBitCount32(_mercedesProbe.identity_positive_mask);
-    const unsigned int negative = MBLinkBitCount32(_mercedesProbe.identity_negative_mask);
-    const unsigned int noResponse = MBLinkBitCount32(_mercedesProbe.identity_no_response_mask);
-    const unsigned int invalid = MBLinkBitCount32(_mercedesProbe.identity_invalid_mask);
-    const size_t total = mblink_mercedes_ecu_probe_identity_did_count();
-    self.mercedesIdentitySummaryText = [NSString stringWithFormat:
-        @"%u/%zu positive · %u negative · %u no response · %u invalid",
-        positive, total, negative, noResponse, invalid];
-
-    NSMutableArray<NSString *> *identityResults = [[NSMutableArray alloc] initWithCapacity:total];
-    if (!mercedesVINAvailable) {
-        for (NSString *line in standardOBDIdentity ?: @[]) {
-            if ([line hasPrefix:@"VIN ·"] ||
-                [line hasPrefix:@"ENGINE ·"] ||
-                [line hasPrefix:@"BUILD ·"]) {
-                [identityResults addObject:line];
-            }
-        }
-    }
-    for (size_t index = 0U; index < total; ++index) {
-        const uint32_t bit = (uint32_t)1U << index;
-        const uint16_t did = mblink_mercedes_ecu_probe_identity_did_at(index);
-        NSString *name = MBLinkStringFromCString(mblink_mercedes_ecu_probe_identity_did_name(index));
-        NSString *state = @"not classified";
-        if ((_mercedesProbe.identity_positive_mask & bit) != 0U) state = @"response captured";
-        else if ((_mercedesProbe.identity_negative_mask & bit) != 0U) state = @"negative response";
-        else if ((_mercedesProbe.identity_no_response_mask & bit) != 0U) state = @"no response";
-        else if ((_mercedesProbe.identity_invalid_mask & bit) != 0U) state = @"invalid response";
-        [identityResults addObject:[NSString stringWithFormat:@"%04X · %@ · %@", (unsigned int)did, name, state]];
-    }
-    if (mercedesVINAvailable) {
-        MblinkMercedesVinDecode decoded;
-        if (mblink_mercedes_vin_decode(_mercedesProbe.vin, &decoded)) {
-            if (decoded.baumuster_definition != NULL) {
-                [identityResults addObject:[NSString stringWithFormat:
-                    @"VIN · %@ · %@ · %@ · %@",
-                    MBLinkStringFromCString(decoded.baumuster),
-                    MBLinkStringFromCString(decoded.baumuster_definition->chassis_family),
-                    MBLinkStringFromCString(decoded.baumuster_definition->model),
-                    MBLinkStringFromCString(decoded.baumuster_definition->engine_code)]];
-                [identityResults addObject:[NSString stringWithFormat:
-                    @"ENGINE · %@ · %u cc · %@",
-                    MBLinkStringFromCString(decoded.baumuster_definition->engine_code),
-                    decoded.baumuster_definition->displacement_cc,
-                    MBLinkStringFromCString(
-                        mblink_mercedes_fuel_type_name(
-                            decoded.baumuster_definition->fuel))]];
-            } else if (decoded.baumuster_available) {
-                [identityResults addObject:[NSString stringWithFormat:
-                    @"VIN · Baumuster %@ · series %@ · catalogue entry unavailable",
-                    MBLinkStringFromCString(decoded.baumuster),
-                    MBLinkStringFromCString(decoded.series_number)]];
-            }
-            if (decoded.plant_definition != NULL) {
-                [identityResults addObject:[NSString stringWithFormat:
-                    @"BUILD · %@, %@ · %@ · serial %@",
-                    MBLinkStringFromCString(decoded.plant_definition->plant),
-                    MBLinkStringFromCString(decoded.plant_definition->country),
-                    MBLinkStringFromCString(
-                        mblink_mercedes_steering_name(decoded.steering)),
-                    MBLinkStringFromCString(decoded.serial_number)]];
-            }
-        }
-    }
-    self.mercedesIdentityResults = [identityResults copy];
-
-    NSString *vinSummary = nil;
-    if (mercedesVINAvailable) {
-        self.mercedesVINText = MBLinkStringFromCString(_mercedesProbe.vin);
-        [_shared setVehicleIdentifier:_mercedesProbe.vin];
-        [self loadSavedVehicleProfileForVIN:self.mercedesVINText];
-        vinSummary = [NSString stringWithFormat:
-            @"Mercedes ECU VIN %@", self.mercedesVINText];
-    } else {
-        switch (_mercedesProbe.vin_result) {
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_NO_RESPONSE:
-            vinSummary = @"Mercedes ECU VIN did not respond"; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_NEGATIVE_RESPONSE:
-            vinSummary = [NSString stringWithFormat:@"Mercedes ECU VIN negative response NRC 0x%02X",
-                (unsigned int)_mercedesProbe.vin_negative_response_code]; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_INVALID_RESPONSE:
-            vinSummary = @"Mercedes ECU VIN was not a valid 17-character VIN"; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_NOT_ATTEMPTED:
-            vinSummary = @"Mercedes ECU VIN was not attempted"; break;
-        case MBLINK_MERCEDES_ECU_PROBE_VIN_AVAILABLE:
-            vinSummary = @"Mercedes ECU VIN response was empty"; break;
-        }
-        if (standardOBDVIN.length != 0U) {
-            self.mercedesVINText = standardOBDVIN;
-            vinSummary = [NSString stringWithFormat:
-                @"%@; standard OBD VIN %@ retained",
-                vinSummary, standardOBDVIN];
-        } else {
-            self.mercedesVINText = nil;
-        }
-    }
-
-    if (_mercedesProbe.crd3_session_variant_available && _mercedesProbe.crd3_supplier_available) {
-        NSString *supplier = MBLinkStringFromCString(_mercedesProbe.crd3_supplier.supplier_name);
-        if (mblink_mercedes_ecu_probe_matches_om651_cdid3_delphi_signature(&_mercedesProbe)) {
-            self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-                @"OM651/CDID3 signature matched · %@ · diagnostic version %02X %02X %02X",
-                supplier,
-                (unsigned int)_mercedesProbe.crd3_session_variant.gateway_mode,
-                (unsigned int)(_mercedesProbe.crd3_session_variant.variant >> 8U),
-                (unsigned int)(_mercedesProbe.crd3_session_variant.variant & 0xffU)];
-        } else {
-            self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-                @"CRD3 fingerprint · %@ · gateway 0x%02X · variant 0x%04X · session 0x%02X",
-                supplier,
-                (unsigned int)_mercedesProbe.crd3_session_variant.gateway_mode,
-                (unsigned int)_mercedesProbe.crd3_session_variant.variant,
-                (unsigned int)_mercedesProbe.crd3_session_variant.session];
-        }
-    } else if (_mercedesProbe.crd3_session_variant_available) {
-        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-            @"CRD3 variant 0x%04X captured; supplier unavailable",
-            (unsigned int)_mercedesProbe.crd3_session_variant.variant];
-    } else if (_mercedesProbe.crd3_supplier_available) {
-        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-            @"CRD3 supplier %@ captured; variant unavailable",
-            MBLinkStringFromCString(_mercedesProbe.crd3_supplier.supplier_name)];
-    } else if (!_mercedesProbe.crd3_fingerprint_attempted) {
-        NSString *family = _mercedesProbe.identified_profile != NULL
-            ? MBLinkStringFromCString(_mercedesProbe.identified_profile->engine_family)
-            : @"unidentified";
-        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-            @"CRD3 fingerprint not selected · identified engine family %@",
-            family];
-    } else {
-        self.mercedesCrd3SummaryText = @"CRD3 fingerprint attempted but no decodable F100/F154 identity returned";
-    }
-
-    if (_mercedesProbe.crd3_hardware_profile != NULL) {
-        NSString *family = MBLinkStringFromCString(
-            _mercedesProbe.crd3_hardware_profile->ecu_family);
-        NSString *mcu = MBLinkStringFromCString(
-            _mercedesProbe.crd3_hardware_profile->microcontroller);
-        NSString *match = MBLinkStringFromCString(
-            mblink_mercedes_crd3_profile_match_name(
-                _mercedesProbe.crd3_hardware_match));
-        self.mercedesCrd3SummaryText = [NSString stringWithFormat:
-            @"%@ · source profile %@ · %@ · %@",
-            self.mercedesCrd3SummaryText, family, mcu, match];
-    }
-
-    self.mercedesUDSFaults = MBLinkMercedesUDSDTCStrings(&_mercedesProbe.dtcs);
-    switch (_mercedesProbe.dtc_result) {
-    case MBLINK_MERCEDES_ECU_PROBE_DTC_AVAILABLE:
-        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"Complete · %lu Mercedes UDS fault record%@ · availability 0x%02X%@",
-            (unsigned long)self.mercedesUDSFaults.count,
-            self.mercedesUDSFaults.count == 1U ? @"" : @"s",
-            (unsigned int)_mercedesProbe.dtcs.availability_mask,
-            _mercedesProbe.dtcs.truncated ? @" · truncated" : @""];
-        break;
-    case MBLINK_MERCEDES_ECU_PROBE_DTC_NO_RESPONSE:
-        self.mercedesUDSFaultStatusText = @"No response to Mercedes UDS fault read"; break;
-    case MBLINK_MERCEDES_ECU_PROBE_DTC_NEGATIVE_RESPONSE:
-        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"Mercedes UDS fault read negative response · NRC 0x%02X",
-            (unsigned int)_mercedesProbe.dtc_negative_response_code]; break;
-    case MBLINK_MERCEDES_ECU_PROBE_DTC_INVALID_RESPONSE:
-        self.mercedesUDSFaultStatusText = [NSString stringWithFormat:
-            @"Mercedes UDS fault response invalid · %@",
-            MBLinkStringFromCString(mblink_uds_result_name(_mercedesProbe.dtc_uds_result))]; break;
-    case MBLINK_MERCEDES_ECU_PROBE_DTC_NOT_ATTEMPTED:
-        self.mercedesUDSFaultStatusText = @"Mercedes UDS fault read not attempted"; break;
-    }
-
-    self.mercedesProbeStatusText = [NSString stringWithFormat:
-        @"Positive UDS endpoint response captured; %@; %@; Mercedes UDS fault read %@; endpoint remains a candidate pending fixture verification",
-        vinSummary, self.mercedesCrd3SummaryText,
-        MBLinkStringFromCString(mblink_mercedes_ecu_probe_dtc_result_name(_mercedesProbe.dtc_result))];
-}
-
-- (NSString *)mercedesProbeFailureText
-{
-    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_UDS_ERROR) {
-        if (_mercedesProbe.uds_negative_response_code != 0U) {
-            return [NSString stringWithFormat:
-                @"UDS endpoint replied with negative response NRC 0x%02X; candidate not promoted",
-                (unsigned int)_mercedesProbe.uds_negative_response_code];
-        }
-        return [NSString stringWithFormat:@"UDS response validation failed: %@",
-            MBLinkStringFromCString(mblink_uds_result_name(_mercedesProbe.uds_failure))];
-    }
-    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_PDU_ERROR) {
-        return [NSString stringWithFormat:@"No valid UDS PDU from candidate: %@ (%@)",
-            MBLinkStringFromCString(mblink_elm327_can_result_name(_mercedesProbe.elm_can_failure)),
-            MBLinkStringFromCString(mblink_elm327_result_name(_mercedesProbe.elm_failure))];
-    }
-    if (_mercedesProbe.failure == MBLINK_MERCEDES_ECU_PROBE_RESULT_CHANNEL_ERROR) {
-        return [NSString stringWithFormat:@"Could not configure candidate CAN channel: %@ (%@)",
-            MBLinkStringFromCString(mblink_elm327_can_result_name(_mercedesProbe.elm_can_failure)),
-            MBLinkStringFromCString(mblink_elm327_result_name(_mercedesProbe.elm_failure))];
-    }
-    return [NSString stringWithFormat:@"Mercedes probe failed: %@",
-        MBLinkStringFromCString(mblink_mercedes_ecu_probe_result_name(_mercedesProbe.failure))];
-}
-
 
 @end

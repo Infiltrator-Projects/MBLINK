@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.275 — 2026-10-01
+
+- Remove the unreachable legacy Apple Mercedes engine-probe execution path, its private state machine, response dispatcher, probe-only formatting helpers and impossible live-probe fallback branches.
+- Keep old saved-profile engine evidence, probe-endpoint and CRD3-summary fields readable so existing vehicle profiles remain useful; startup identification remains on the current module-census / cached-profile architecture.
+- This is dead-code removal: no polling, module discovery, saved-profile validation or live diagnostic ownership was moved to a replacement path.
+
 ## 0.7.274 — 2026-10-01
 
 - Remove the obsolete C207-scoped Mercedes module-catalogue compatibility API and its four forwarding implementations.
