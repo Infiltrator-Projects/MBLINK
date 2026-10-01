@@ -1213,7 +1213,15 @@ static bool MBLinkSimulatorResponder(
 
     if (finished == MBLinkConnectionSessionEstablish) {
         if (_disconnectRequested) {
-            [self tryBeginDisconnectSessionTeardown:0U];
+            /*
+             * Establishment runs inside the startup manufacturer extension.
+             * Do not release/reacquire the wire here: turn the same serialized
+             * operation directly around and close every session we just opened.
+             */
+            _connectionSessionMode = MBLinkConnectionSessionTeardown;
+            _connectionSessionModuleIndex = 0U;
+            if (![self beginNextConnectionSessionModule])
+                [self finishConnectionSessionOperation];
         } else {
             [self continueAfterConnectionSessionEstablishment];
         }
