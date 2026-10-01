@@ -1080,85 +1080,140 @@ static bool MBLinkSimulatorResponder(
         mblink_mercedes_module_scan_module_name(&resolved));
 }
 
-- (NSArray<MBLinkMercedesModuleSnapshot *> *)mercedesModuleSnapshots
+
+static NSString *MBLinkMappedStartupIdentityValue(
+    NSArray<MBLinkMercedesDataSnapshot *> *values,
+    uint16_t identifier,
+    NSString *expectedName)
 {
-    const size_t count =
-        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
-    NSMutableArray<MBLinkMercedesModuleSnapshot *> *snapshots =
-        [[NSMutableArray alloc] initWithCapacity:count];
-    NSArray<NSString *> *engineEvidence = [self cachedEngineEvidence];
-
-    for (size_t index = 0U; index < count; ++index) {
-        const MblinkMercedesModuleScanEntry *module =
-            mblink_mercedes_module_scan_module_at(
-                &_mercedesModuleScan, index);
-        if (module == NULL) continue;
-
-        MblinkMercedesModuleScanEntry resolvedModule = *module;
-        if (!module->extended_id &&
-            module->tx_can_id == UINT32_C(0x7e0) &&
-            module->rx_can_id == UINT32_C(0x7e8)) {
-            (void)mblink_mercedes_module_scan_resolve_controller(
-                module->tx_can_id,
-                module->rx_can_id,
-                module->extended_id,
-                mblink_mercedes_module_scan_entry_protocol(module),
-                module->identity_available ? module->identity : NULL,
-                module->spare_part_number_available
-                    ? module->spare_part_number : NULL,
-                module->software_number_available
-                    ? module->software_number : NULL,
-                module->hardware_number_available
-                    ? module->hardware_number : NULL,
-                &resolvedModule);
+    for (MBLinkMercedesDataSnapshot *value in values ?: @[]) {
+        if (value.service != UINT8_C(0x22) ||
+            value.identifier != identifier ||
+            !value.isMapped ||
+            value.formattedValue.length == 0U ||
+            ![value.name isEqualToString:expectedName]) {
+            continue;
         }
+        return value.formattedValue;
+    }
+    return nil;
+}
 
-        MBLinkMercedesModuleSnapshot *snapshot =
-            [[MBLinkMercedesModuleSnapshot alloc] init];
-        snapshot.identifier = MBLinkMercedesModuleIdentifier(module);
-        snapshot.name = MBLinkStringFromCString(
-            mblink_mercedes_module_scan_module_name(&resolvedModule));
-        snapshot.kind = MBLinkStringFromCString(
-            mblink_mercedes_module_kind_name(resolvedModule.kind));
-        snapshot.protocolName = MBLinkStringFromCString(
-            mblink_mercedes_diagnostic_protocol_name(
-                mblink_mercedes_module_scan_entry_protocol(&resolvedModule)));
-        snapshot.requestCANIdentifier = module->tx_can_id;
-        snapshot.responseCANIdentifier = module->rx_can_id;
-        snapshot.extendedID = module->extended_id;
-        snapshot.designation = resolvedModule.definition != NULL &&
-                resolvedModule.definition->component_designation != NULL
-            ? MBLinkStringFromCString(
-                resolvedModule.definition->component_designation)
+static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
+    const MblinkMercedesModuleScanEntry *module,
+    NSArray<MBLinkMercedesDataSnapshot *> *startupData,
+    NSArray<NSString *> *engineEvidence,
+    BOOL savedProfile)
+{
+    if (module == NULL) return nil;
+
+    NSString *identity = module->identity_available
+        ? MBLinkStringFromCString(module->identity) : nil;
+    NSString *sparePart = module->spare_part_number_available
+        ? MBLinkStringFromCString(module->spare_part_number) : nil;
+    NSString *software = module->software_number_available
+        ? MBLinkStringFromCString(module->software_number) : nil;
+    NSString *hardware = module->hardware_number_available
+        ? MBLinkStringFromCString(module->hardware_number) : nil;
+
+    /*
+     * Discovery and startup DIDs are evidence about one controller, not two
+     * competing identities. Promote only decoded complete identity fields.
+     * A short F111/F121 family identifier such as "212" stays startup evidence
+     * unless the decoder has source-backed proof for the complete part number.
+     */
+    if (identity.length == 0U)
+        identity = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf197), @"System name");
+    if (sparePart.length == 0U)
+        sparePart = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf187),
+            @"Vehicle manufacturer spare part number");
+    if (software.length == 0U) {
+        software = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf188),
+            @"Vehicle manufacturer ECU software number");
+        if (software.length == 0U)
+            software = MBLinkMappedStartupIdentityValue(
+                startupData, UINT16_C(0xf121),
+                @"Mercedes software part number");
+    }
+    if (hardware.length == 0U) {
+        hardware = MBLinkMappedStartupIdentityValue(
+            startupData, UINT16_C(0xf191),
+            @"Vehicle manufacturer ECU hardware number");
+        if (hardware.length == 0U)
+            hardware = MBLinkMappedStartupIdentityValue(
+                startupData, UINT16_C(0xf111),
+                @"Mercedes hardware part number");
+    }
+
+    MblinkMercedesModuleScanEntry resolvedModule;
+    if (!mblink_mercedes_module_scan_resolve_controller(
+            module->tx_can_id,
+            module->rx_can_id,
+            module->extended_id,
+            mblink_mercedes_module_scan_entry_protocol(module),
+            identity.UTF8String,
+            sparePart.UTF8String,
+            software.UTF8String,
+            hardware.UTF8String,
+            &resolvedModule)) {
+        resolvedModule = *module;
+    }
+
+    MBLinkMercedesModuleSnapshot *snapshot =
+        [[MBLinkMercedesModuleSnapshot alloc] init];
+    snapshot.identifier = MBLinkMercedesModuleIdentifier(module);
+    snapshot.name = MBLinkStringFromCString(
+        mblink_mercedes_module_scan_module_name(&resolvedModule));
+    snapshot.kind = MBLinkStringFromCString(
+        mblink_mercedes_module_kind_name(resolvedModule.kind));
+    snapshot.protocolName = MBLinkStringFromCString(
+        mblink_mercedes_diagnostic_protocol_name(
+            mblink_mercedes_module_scan_entry_protocol(&resolvedModule)));
+    snapshot.requestCANIdentifier = module->tx_can_id;
+    snapshot.responseCANIdentifier = module->rx_can_id;
+    snapshot.extendedID = module->extended_id;
+    snapshot.designation = resolvedModule.definition != NULL &&
+            resolvedModule.definition->component_designation != NULL
+        ? MBLinkStringFromCString(
+            resolvedModule.definition->component_designation)
+        : (savedProfile
+            ? @"Saved vehicle controller"
             : ([snapshot.name hasPrefix:@"Likely "]
-                ? @"Online candidate · not yet C207-confirmed" : @"");
-        snapshot.network = resolvedModule.definition != NULL &&
-                resolvedModule.definition->network != NULL
-            ? MBLinkStringFromCString(resolvedModule.definition->network) : @"";
-        snapshot.identityText = module->identity_available
-            ? MBLinkStringFromCString(module->identity) : nil;
-        snapshot.partNumber = module->spare_part_number_available
-            ? MBLinkStringFromCString(module->spare_part_number) : nil;
-        snapshot.softwareNumber = module->software_number_available
-            ? MBLinkStringFromCString(module->software_number) : nil;
-        snapshot.hardwareNumber = module->hardware_number_available
-            ? MBLinkStringFromCString(module->hardware_number) : nil;
-        if (!module->extended_id &&
-            module->tx_can_id == UINT32_C(0x7e0)) {
-            snapshot.evidenceDetails = engineEvidence;
-        } else if (!module->extended_id &&
-                   module->tx_can_id == UINT32_C(0x7e1) &&
-                   module->rx_can_id == UINT32_C(0x7e9)) {
-            snapshot.evidenceDetails = @[
-                @"Mercedes GS route · D_RQ_GS 0x7E1 → D_RS_GS 0x7E9",
-                @"Read-only 21 30 · ATF temperature + current-gear candidate",
-                @"Passive GS 0x218 · target/actual gear · converter · shift · limp · overheat · kickdown",
-                @"Passive GS 0x338 · gearbox output speed + turbine-speed raw values",
-                @"Passive GS 0x418 · selector/program · temperature raw · target/actual gear"
-            ];
-        } else {
-            snapshot.evidenceDetails = @[];
-        }
+                ? @"Online candidate · not yet C207-confirmed" : @""));
+    snapshot.network = resolvedModule.definition != NULL &&
+            resolvedModule.definition->network != NULL
+        ? MBLinkStringFromCString(resolvedModule.definition->network)
+        : (savedProfile ? @"Saved VIN profile" : @"");
+
+    snapshot.identityText = identity.length != 0U ? identity : nil;
+    snapshot.partNumber = sparePart.length != 0U ? sparePart : nil;
+    snapshot.softwareNumber = software.length != 0U ? software : nil;
+    snapshot.hardwareNumber = hardware.length != 0U ? hardware : nil;
+
+    if (!module->extended_id && module->tx_can_id == UINT32_C(0x7e0)) {
+        snapshot.evidenceDetails = engineEvidence ?: @[];
+    } else if (!module->extended_id &&
+               module->tx_can_id == UINT32_C(0x7e1) &&
+               module->rx_can_id == UINT32_C(0x7e9)) {
+        snapshot.evidenceDetails = @[
+            @"Mercedes GS route · D_RQ_GS 0x7E1 → D_RS_GS 0x7E9",
+            @"Read-only 21 30 · ATF temperature + current-gear candidate",
+            @"Passive GS 0x218 · target/actual gear · converter · shift · limp · overheat · kickdown",
+            @"Passive GS 0x338 · gearbox output speed + turbine-speed raw values",
+            @"Passive GS 0x418 · selector/program · temperature raw · target/actual gear"
+        ];
+    } else {
+        snapshot.evidenceDetails = @[];
+    }
+
+    if (savedProfile) {
+        snapshot.faultStatus = @"Saved vehicle profile";
+        snapshot.faultCount = 0U;
+        snapshot.faults = @[];
+    } else {
         snapshot.faultStatus = MBLinkMercedesModuleFaultStatus(module);
         snapshot.faultCount =
             mblink_mercedes_module_scan_entry_dtc_count(module);
@@ -1173,14 +1228,55 @@ static bool MBLinkSimulatorResponder(
         MBLinkAppendMercedesModuleFaultStrings(
             faults, module, snapshot.name, address);
         snapshot.faults = [faults copy];
-        [snapshots addObject:snapshot];
+    }
+    return snapshot;
+}
+
+- (NSArray<MBLinkMercedesModuleSnapshot *> *)mercedesModuleSnapshots
+{
+    const size_t liveCount =
+        mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
+    NSArray<NSString *> *engineEvidence = [self cachedEngineEvidence];
+    NSMutableArray<MBLinkMercedesModuleSnapshot *> *snapshots =
+        [[NSMutableArray alloc] init];
+
+    if (liveCount != 0U) {
+        for (size_t index = 0U; index < liveCount; ++index) {
+            const MblinkMercedesModuleScanEntry *module =
+                mblink_mercedes_module_scan_module_at(
+                    &_mercedesModuleScan, index);
+            if (module == NULL) continue;
+            NSString *identifier = MBLinkMercedesModuleIdentifier(module);
+            MBLinkMercedesModuleSnapshot *snapshot =
+                MBLinkCanonicalModuleSnapshot(
+                    module,
+                    _manufacturerDataByModule[identifier] ?: @[],
+                    engineEvidence,
+                    NO);
+            if (snapshot != nil) [snapshots addObject:snapshot];
+        }
+        return [snapshots copy];
     }
 
-    /*
-     * Legislated OBD-II responders are intentionally not represented as
-     * Mercedes modules. Standard SAE/EOBD live data has its own vehicle-wide
-     * PID source in PID Setup; Modules contains manufacturer ECUs only.
-     */
+    NSArray *savedModules =
+        [_cachedVehicleProfile[@"modules"] isKindOfClass:[NSArray class]]
+            ? _cachedVehicleProfile[@"modules"] : @[];
+    for (id value in savedModules) {
+        if (![value isKindOfClass:[NSDictionary class]]) continue;
+        MblinkMercedesModuleScanEntry module;
+        if (!MBLinkPopulateModuleEntryFromProfile(
+                (NSDictionary *)value, &module)) {
+            continue;
+        }
+        NSString *identifier = MBLinkMercedesModuleIdentifier(&module);
+        MBLinkMercedesModuleSnapshot *snapshot =
+            MBLinkCanonicalModuleSnapshot(
+                &module,
+                _manufacturerDataByModule[identifier] ?: @[],
+                engineEvidence,
+                YES);
+        if (snapshot != nil) [snapshots addObject:snapshot];
+    }
     return [snapshots copy];
 }
 
@@ -3294,21 +3390,19 @@ static void MBLinkAppendManufacturerDefinition(
             dictionary[@"controllerFamily"] =
                 MBLinkStringFromCString(module->controller_family->key);
         }
-        if (module->identity_available)
-            dictionary[@"identity"] =
-                MBLinkStringFromCString(module->identity);
-        if (module->spare_part_number_available)
-            dictionary[@"sparePart"] =
-                MBLinkStringFromCString(module->spare_part_number);
-        if (module->software_number_available)
-            dictionary[@"software"] =
-                MBLinkStringFromCString(module->software_number);
-        if (module->hardware_number_available)
-            dictionary[@"hardware"] =
-                MBLinkStringFromCString(module->hardware_number);
         NSString *moduleIdentifier = MBLinkMercedesModuleIdentifier(module);
         NSArray<MBLinkMercedesDataSnapshot *> *startupData =
             [self startupDataSnapshotsForModuleIdentifier:moduleIdentifier];
+        MBLinkMercedesModuleSnapshot *canonicalIdentity =
+            MBLinkCanonicalModuleSnapshot(module, startupData, @[], NO);
+        if (canonicalIdentity.identityText.length != 0U)
+            dictionary[@"identity"] = canonicalIdentity.identityText;
+        if (canonicalIdentity.partNumber.length != 0U)
+            dictionary[@"sparePart"] = canonicalIdentity.partNumber;
+        if (canonicalIdentity.softwareNumber.length != 0U)
+            dictionary[@"software"] = canonicalIdentity.softwareNumber;
+        if (canonicalIdentity.hardwareNumber.length != 0U)
+            dictionary[@"hardware"] = canonicalIdentity.hardwareNumber;
         if (startupData.count != 0U) {
             NSMutableArray<NSDictionary *> *savedStartup =
                 [[NSMutableArray alloc] initWithCapacity:startupData.count];

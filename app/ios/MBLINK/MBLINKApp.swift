@@ -1464,8 +1464,23 @@ private struct MBModuleDetailView: View {
     }
 
     private var startupCardValues: [MercedesModuleDataValue] {
-        startupValues.filter {
-            !($0.service == 0x21 && $0.identifier == 0x00B1)
+        startupValues.filter { value in
+            if value.service == 0x21 && value.identifier == 0x00B1 {
+                return false
+            }
+            guard value.service == 0x22, let module else { return true }
+            switch value.identifier {
+            case 0xF111, 0xF191:
+                return module.hardwareNumber?.isEmpty != false
+            case 0xF121, 0xF188:
+                return module.softwareNumber?.isEmpty != false
+            case 0xF187:
+                return module.partNumber?.isEmpty != false
+            case 0xF197:
+                return module.identityText?.isEmpty != false
+            default:
+                return true
+            }
         }
     }
 
@@ -1543,13 +1558,13 @@ private struct MBModuleDetailView: View {
                     label: "ECU identity",
                     value: moduleIdentityValue(module.identityText))
                 MBInfoRow(
-                    label: "Part number",
+                    label: "Spare part number",
                     value: moduleIdentityValue(module.partNumber))
                 MBInfoRow(
-                    label: "Software version",
+                    label: "Software number",
                     value: moduleIdentityValue(module.softwareNumber))
                 MBInfoRow(
-                    label: "Hardware version",
+                    label: "Hardware number",
                     value: moduleIdentityValue(module.hardwareNumber))
             }
         }

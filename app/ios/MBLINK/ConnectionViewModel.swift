@@ -1568,64 +1568,47 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         var support = [String: Set<UInt8>]()
         var seenResponderKeys = Set<String>()
 
-        if let savedModules = profile["modules"] as? [[String: Any]] {
-            for saved in savedModules {
-                guard let txNumber = saved["tx"] as? NSNumber,
-                      let rxNumber = saved["rx"] as? NSNumber else { continue }
-                let tx = txNumber.uint32Value
-                let rx = rxNumber.uint32Value
-                let extended =
-                    (saved["extended"] as? NSNumber)?.boolValue ?? false
-                let kind = (saved["kind"] as? NSNumber)?.intValue ?? 0
-                let moduleID = String(
-                    format: "%@:%08X:%08X",
-                    extended ? "29" : "11", tx, rx)
-                let responderKey = String(
-                    format: "%@:%08X", extended ? "29" : "11", rx)
-                let pids = responderPIDs[responderKey] ?? []
-                seenResponderKeys.insert(responderKey)
-                support[moduleID] = pids
-
-                let identityText = saved["identity"] as? String
-                let partNumber = saved["sparePart"] as? String
-                let softwareNumber = saved["software"] as? String
-                let hardwareNumber = saved["hardware"] as? String
-                let protocolValue =
-                    (saved["protocol"] as? NSNumber)?.uintValue ?? 0
-                let offlineName = offlineModuleName(
-                    tx: tx,
-                    rx: rx,
-                    extended: extended,
-                    kind: kind,
-                    protocolValue: protocolValue,
-                    identityText: identityText,
-                    partNumber: partNumber,
-                    softwareNumber: softwareNumber,
-                    hardwareNumber: hardwareNumber)
-                modules.append(DiagnosticModule(
-                    id: moduleID,
-                    name: offlineName,
-                    designation: "Saved vehicle controller",
-                    network: "Saved VIN profile",
-                    kind: offlineName.lowercased(),
-                    protocolName: offlineMercedesProtocolName(protocolValue),
-                    requestCANIdentifier: tx,
-                    responseCANIdentifier: rx,
-                    extendedID: extended,
-                    identityText: identityText,
-                    partNumber: partNumber,
-                    softwareNumber: softwareNumber,
-                    hardwareNumber: hardwareNumber,
-                    faultStatus: "Saved vehicle profile",
-                    faultCount: 0,
-                    faults: [],
-                    evidenceDetails: [],
-                    obdAdvertisedPIDCount: pids.count,
-                    livePIDCount: pids.filter {
-                        ($0 & 0x1F) != 0 &&
-                        mblink_obd2_pid_definition(0x01, $0) != nil
-                    }.count))
-            }
+        /*
+         * Mercedes identity has one owner: MBLinkDiagnosticsController.
+         * It merges saved route evidence with re-decoded startup DIDs, so the
+         * offline UI cannot disagree with the startup-data presentation.
+         */
+        if !controller.isActive {
+            controller.loadSavedVehicleProfileForPIDConfiguration(vin: vin)
+        }
+        for snapshot in controller.mercedesModuleSnapshots {
+            let tx = snapshot.requestCANIdentifier
+            let rx = snapshot.responseCANIdentifier
+            let extended = snapshot.isExtendedID
+            let moduleID = snapshot.identifier
+            let responderKey = String(
+                format: "%@:%08X", extended ? "29" : "11", rx)
+            let pids = responderPIDs[responderKey] ?? []
+            seenResponderKeys.insert(responderKey)
+            support[moduleID] = pids
+            modules.append(DiagnosticModule(
+                id: moduleID,
+                name: snapshot.name,
+                designation: snapshot.designation,
+                network: snapshot.network,
+                kind: snapshot.kind,
+                protocolName: snapshot.protocolName,
+                requestCANIdentifier: tx,
+                responseCANIdentifier: rx,
+                extendedID: extended,
+                identityText: snapshot.identityText,
+                partNumber: snapshot.partNumber,
+                softwareNumber: snapshot.softwareNumber,
+                hardwareNumber: snapshot.hardwareNumber,
+                faultStatus: snapshot.faultStatus,
+                faultCount: Int(snapshot.faultCount),
+                faults: snapshot.faults,
+                evidenceDetails: snapshot.evidenceDetails,
+                obdAdvertisedPIDCount: pids.count,
+                livePIDCount: pids.filter {
+                    ($0 & 0x1F) != 0 &&
+                    mblink_obd2_pid_definition(0x01, $0) != nil
+                }.count))
         }
 
         /*
