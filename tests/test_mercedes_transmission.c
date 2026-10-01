@@ -449,7 +449,8 @@ static int test_late_transmission_preserves_module_map(void)
     CHECK(idscan_send_response(&scan, "1A86", &no_data) == 0);
     CHECK(idscan_send_response(&scan, "1A89", &no_data) == 0);
     CHECK(idscan_send_ok(&scan, "ATST20") == 0);
-    CHECK(idscan_send_response(&scan, "1092", &no_data) == 0);
+    CHECK(scan.stage ==
+          MBLINK_MERCEDES_MODULE_SCAN_STAGE_DTC_VALIDATE);
     CHECK(idscan_send_response(&scan, "3E01", &no_data) == 0);
     CHECK(mblink_mercedes_module_scan_accept(&scan, &no_data) ==
           MBLINK_MERCEDES_MODULE_SCAN_RESULT_COMPLETE);
