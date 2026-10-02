@@ -36,6 +36,7 @@ static int test_ic204_pack(void)
     bool saw_f111 = false;
     bool saw_f150 = false;
     bool saw_assyst_daily = false;
+    bool saw_assyst_workshop = false;
     bool saw_assyst_overfill = false;
     bool saw_assyst_maintenance = false;
     size_t advertised = 0U;
@@ -119,6 +120,14 @@ static int test_ic204_pack(void)
                 MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
         }
         if (item.service == UINT8_C(0x22) &&
+            item.identifier == UINT16_C(0x0306)) {
+            saw_assyst_workshop = true;
+            CHECK(item.name != NULL);
+            CHECK(strcmp(item.name, "Next service") == 0);
+            CHECK(item.acquisition ==
+                MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
+        }
+        if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0x0406)) {
             saw_assyst_overfill = true;
             CHECK(item.name != NULL);
@@ -152,12 +161,16 @@ static int test_ic204_pack(void)
     }
     CHECK(advertised == 59U);
     CHECK(saw_f111 && saw_f150);
-    CHECK(saw_assyst_daily && saw_assyst_overfill &&
-          saw_assyst_maintenance);
+    CHECK(saw_assyst_daily && saw_assyst_workshop &&
+          saw_assyst_overfill && saw_assyst_maintenance);
     CHECK(pack_section_contains(
         &pack, true, UINT8_C(0x22), UINT16_C(0x0302)));
     CHECK(!pack_section_contains(
         &pack, false, UINT8_C(0x22), UINT16_C(0x0302)));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x22), UINT16_C(0x0306)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x22), UINT16_C(0x0306)));
     return 0;
 }
 

@@ -150,6 +150,35 @@ static int test_ic204_assyst_average_daily_distance(void)
     return 0;
 }
 
+static int test_ic204_assyst_workshop_code_service_a(void)
+{
+    MblinkMercedesDataRecord record;
+    char text[64];
+    const char *name = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service = MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER;
+    record.identifier = UINT16_C(0x0306);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C('5');
+    record.data[1] = UINT8_C('0');
+    record.data[2] = UINT8_C('5');
+
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Next service") == 0);
+    CHECK(strcmp(text, "Service A") == 0);
+
+    name = NULL;
+    CHECK(!mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        &record, text, sizeof(text), &name));
+    return 0;
+}
+
 static int test_targeted_positive_identifier_refresh(void)
 {
     MblinkMercedesDataScan scan;
@@ -1331,6 +1360,7 @@ int main(void)
     if (test_hu204_factory_reading_keeps_session() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
     if (test_ic204_assyst_average_daily_distance() != 0) return 1;
+    if (test_ic204_assyst_workshop_code_service_a() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
     if (test_full_rli30_numeric_prefers_full_layout() != 0) return 1;

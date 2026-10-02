@@ -719,7 +719,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private func isVehicleOwnedStartupValue(
         _ value: MercedesModuleDataValue
     ) -> Bool {
-        value.service == 0x22 && value.identifier == 0x0302
+        guard value.service == 0x22 else { return false }
+        return value.identifier == 0x0302 || value.identifier == 0x0306
     }
 
     func startupModuleData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -729,18 +730,31 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     var vehicleServiceFacts: [MercedesVehicleServiceFact] {
+        var facts = [MercedesVehicleServiceFact]()
+        var seen = Set<UInt16>()
+
         for module in pidConfigurationModules {
-            if let value = allStartupModuleData(moduleID: module.id)
-                .first(where: { isVehicleOwnedStartupValue($0) }) {
-                return [
-                    MercedesVehicleServiceFact(
+            for value in allStartupModuleData(moduleID: module.id)
+            where isVehicleOwnedStartupValue(value) && !seen.contains(value.identifier) {
+                switch value.identifier {
+                case 0x0302:
+                    facts.append(MercedesVehicleServiceFact(
                         id: "assyst-average-daily-distance",
                         label: "Average daily distance",
-                        value: value.formattedValue)
-                ]
+                        value: value.formattedValue))
+                    seen.insert(value.identifier)
+                case 0x0306:
+                    facts.append(MercedesVehicleServiceFact(
+                        id: "assyst-next-service",
+                        label: "Next service",
+                        value: value.formattedValue))
+                    seen.insert(value.identifier)
+                default:
+                    break
+                }
             }
         }
-        return []
+        return facts
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {

@@ -977,6 +977,47 @@ static bool format_ascii_payload(
     return true;
 }
 
+static bool format_assyst_plus_workshop_code(
+    uint32_t tx_can_id,
+    uint32_t rx_can_id,
+    bool extended_id,
+    MblinkMercedesModuleKind module_kind,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    char code[16];
+
+    if (record == NULL || buffer == NULL || buffer_size == 0U ||
+        name == NULL || extended_id ||
+        tx_can_id != UINT32_C(0x60a) ||
+        rx_can_id != UINT32_C(0x481) ||
+        module_kind != MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER ||
+        record->service != MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER ||
+        record->identifier != UINT16_C(0x0306) ||
+        !format_ascii_payload(
+            record->data, record->data_length, code, sizeof(code))) {
+        return false;
+    }
+
+    /*
+     * ASSYST PLUS workshop code 505 maps to display/service scope A
+     * (service items 1 and 3). Keep unknown workshop codes unmapped until
+     * their service-scope mapping is independently established.
+     */
+    if (strcmp(code, "505") == 0) {
+        const char *service = "Service A";
+        const size_t length = strlen(service);
+        if (length + 1U > buffer_size) return false;
+        memcpy(buffer, service, length + 1U);
+        *name = "Next service";
+        return true;
+    }
+
+    return false;
+}
+
 static bool documented_field_u8(
     const MblinkMercedesDataRecord *record,
     const MblinkMercedesDocumentedField *field,
@@ -1249,6 +1290,12 @@ bool mblink_mercedes_data_record_format_known_for_route(
     }
 
     if (format_short_documented_part_identifier(
+            record, buffer, buffer_size, name)) {
+        return true;
+    }
+
+    if (format_assyst_plus_workshop_code(
+            tx_can_id, rx_can_id, extended_id, module_kind,
             record, buffer, buffer_size, name)) {
         return true;
     }
