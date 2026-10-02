@@ -174,6 +174,74 @@ static int test_ic204_pack(void)
     return 0;
 }
 
+static int test_ic204_pack_owned_assyst_decode(void)
+{
+    MblinkMercedesEcuPack pack;
+    MblinkMercedesDataRecord record;
+    double value = 0.0;
+    const char *name = NULL;
+    const char *unit = NULL;
+    char text[64];
+
+    CHECK(mblink_mercedes_ecu_pack_resolve(
+        "instrument-cluster", "cluster-ic204",
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_DIAGNOSTIC_UDS, &pack));
+
+    memset(&record, 0, sizeof(record));
+    record.service = UINT8_C(0x22);
+    record.identifier = UINT16_C(0x0302);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x00);
+    record.data[1] = UINT8_C(0x41);
+    record.data[2] = UINT8_C(0x63);
+
+    CHECK(mblink_mercedes_ecu_pack_decode_numeric_value(
+        &pack, &record, &value, &name, &unit));
+    CHECK(value > 16.738 && value < 16.740);
+    CHECK(strcmp(name, "Average daily distance") == 0);
+    CHECK(strcmp(unit, "km/day") == 0);
+
+    record.identifier = UINT16_C(0x0306);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C('5');
+    record.data[1] = UINT8_C('0');
+    record.data[2] = UINT8_C('5');
+    name = NULL;
+    CHECK(mblink_mercedes_ecu_pack_format_value(
+        &pack, &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Next service") == 0);
+    CHECK(strcmp(text, "Service A") == 0);
+
+    record.data[0] = UINT8_C('E');
+    record.data[1] = UINT8_C('0');
+    record.data[2] = UINT8_C('E');
+    name = NULL;
+    CHECK(mblink_mercedes_ecu_pack_format_value(
+        &pack, &record, text, sizeof(text), &name));
+    CHECK(strcmp(text, "Service B1") == 0);
+
+    record.data[0] = UINT8_C('X');
+    record.data[1] = UINT8_C('Y');
+    record.data[2] = UINT8_C('Z');
+    name = NULL;
+    CHECK(mblink_mercedes_ecu_pack_format_value(
+        &pack, &record, text, sizeof(text), &name));
+    CHECK(strcmp(text, "Workshop code XYZ") == 0);
+
+    {
+        MblinkMercedesEcuPack other;
+        CHECK(mblink_mercedes_ecu_pack_resolve(
+            "gateway", "gateway-cgw204",
+            UINT32_C(0x602), UINT32_C(0x480), false,
+            MBLINK_MERCEDES_DIAGNOSTIC_UDS, &other));
+        CHECK(!mblink_mercedes_ecu_pack_format_value(
+            &other, &record, text, sizeof(text), &name));
+    }
+
+    return 0;
+}
+
 static int test_egs53_pack(void)
 {
     MblinkMercedesModuleScanEntry module;
@@ -875,6 +943,7 @@ static int test_20260928_capture_routes_under_new_engine(void)
 
 int main(void)
 {
+    if (test_ic204_pack_owned_assyst_decode() != 0) return 1;
     if (test_ic204_pack() != 0) return 1;
     if (test_egs53_pack() != 0) return 1;
     if (test_raw_observation_stays_unadvertised() != 0) return 1;

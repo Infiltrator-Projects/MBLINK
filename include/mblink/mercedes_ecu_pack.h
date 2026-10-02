@@ -119,6 +119,27 @@ bool mblink_mercedes_ecu_pack_next_item(
     size_t *cursor,
     MblinkMercedesEcuDataItem *item);
 
+/*
+ * Controller-family-owned presentation hooks.
+ *
+ * These are intentionally pack-scoped rather than route-scoped: two Mercedes
+ * generations can reuse the same DID/workshop code with different semantics.
+ * A decoder therefore runs only after controller identity resolves an ECU pack.
+ */
+bool mblink_mercedes_ecu_pack_decode_numeric_value(
+    const MblinkMercedesEcuPack *pack,
+    const MblinkMercedesDataRecord *record,
+    double *value,
+    const char **name,
+    const char **unit);
+
+bool mblink_mercedes_ecu_pack_format_value(
+    const MblinkMercedesEcuPack *pack,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name);
+
 const MblinkMercedesDocumentedField *mblink_mercedes_ecu_pack_field_at(
     const MblinkMercedesEcuDataItem *item,
     size_t index);

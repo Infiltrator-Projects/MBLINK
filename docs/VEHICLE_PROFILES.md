@@ -34,8 +34,14 @@ later diagnostic and screen-layout documents must not silently reorder it.
    map before standard OBD PID capability discovery begins.
 8. For every identified controller, MBLINK resolves the narrowest justified
    ECU pack and runs its remaining documented startup-once reads. Identity,
-   coding, configuration and other static/module-card facts are retained with
-   that VIN/controller profile and never become selectable recurring PIDs.
+   coding, configuration and other static facts are retained with that
+   VIN/controller profile and never become selectable recurring PIDs. The
+   resolved ECU pack also owns generation-specific decoders for those values;
+   shared DID numbers or workshop codes are never interpreted by one
+   Mercedes-wide table. Startup facts that describe the whole vehicle (for
+   example IC_204 ASSYST average daily distance or next-service scope) may be
+   surfaced on the Vehicle screen while remaining owned, decoded and acquired
+   by the source controller's ECU pack.
 9. MBLINK restores the adapter to the standard OBD channel.
 10. LINK completes the standards-defined OBD inventory: responder-attributed
     supported-PID bitmaps, stored/pending/permanent faults, one-shot readiness

@@ -751,31 +751,6 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
         return false;
 
     /*
-     * IC_204 ASSYST PLUS average daily distance (22 0302).
-     *
-     * The captured three-byte value 00 41 63 is provisionally interpreted as
-     * a big-endian thousandths-of-km/day value: 0x4163 = 16739 -> 16.739
-     * km/day. Keep the rule exact-route and exact-length so the working
-     * scaling assumption cannot leak into unrelated controller data.
-     */
-    if (!extended_id &&
-        tx_can_id == UINT32_C(0x60a) &&
-        rx_can_id == UINT32_C(0x481) &&
-        module_kind == MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER &&
-        record->service == MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER &&
-        record->identifier == UINT16_C(0x0302) &&
-        record->data_length == 3U) {
-        const uint32_t raw =
-            ((uint32_t)record->data[0] << 16U) |
-            ((uint32_t)record->data[1] << 8U) |
-            (uint32_t)record->data[2];
-        *value = (double)raw / 1000.0;
-        *name = "Average daily distance";
-        *unit = "km/day";
-        return true;
-    }
-
-    /*
      * Current source-backed actual-value mapping from the C207/OM651 CRD3
      * evidence catalogue: DT_2007_IN_Battery_voltage.
      */
@@ -975,114 +950,6 @@ static bool format_ascii_payload(
     }
     buffer[length] = '\0';
     return true;
-}
-
-typedef struct MblinkAssystWorkshopCodeMap {
-    const char *workshop_code;
-    const char *service_code;
-} MblinkAssystWorkshopCodeMap;
-
-/*
- * Published ASSYST PLUS mappings relevant to the 204/212-era instrument
- * cluster family.  The workshop code itself is vehicle/service-scope data and
- * is not globally one-to-one across every Mercedes generation, so only
- * unambiguous mappings corroborated for this generation are promoted here.
- * Unknown codes remain readable ASCII instead of being mislabeled RAW.
- */
-static const MblinkAssystWorkshopCodeMap assyst_workshop_code_map[] = {
-    { "505", "A" },
-    { "D0D", "A1" },
-    { "550A", "A3" },
-    { "D50J", "A4" },
-    { "DD0S", "A6" },
-    { "G50M", "A7" },
-    { "Q50V", "A8" },
-    { "GD0V", "A9" },
-    { "850D", "A0" },
-    { "QD051", "AC" },
-    { "KD001", "AF" },
-    { "801050E", "AH" },
-    { "VD0A1", "AG" },
-    { "10D0E", "AK" },
-    { "15D0K", "AP" },
-    { "606", "B" },
-    { "E0E", "B1" },
-    { "8E0N", "B2" },
-    { "560B", "B3" },
-    { "B60H", "B4" },
-    { "5E0K", "B5" },
-    { "3E0H", "B5" },
-    { "DE0T", "B6" },
-    { "G60N", "B7" },
-    { "GN061", "B7" },
-    { "Q60W", "B8" },
-    { "GE0W", "B9" },
-    { "1607", "B0" },
-    { "960F", "B0" },
-    { "TE091", "BC" },
-    { "M60T", "BD" },
-    { "V6031", "BE" },
-    { "ME031", "BF" },
-    { "KE011", "BF" },
-    { "10607", "BH" },
-    { "1460B", "BH" },
-    { "10E0F", "BK" },
-    { "14E0K", "BK" },
-    { "15E0L", "BP" },
-    { "1XE0E1", "BQ" },
-    { "1Q60X", "BS" },
-    { "10405", "CH" }
-};
-
-static bool format_assyst_plus_workshop_code(
-    uint32_t tx_can_id,
-    uint32_t rx_can_id,
-    bool extended_id,
-    MblinkMercedesModuleKind module_kind,
-    const MblinkMercedesDataRecord *record,
-    char *buffer,
-    size_t buffer_size,
-    const char **name)
-{
-    char code[16];
-
-    if (record == NULL || buffer == NULL || buffer_size == 0U ||
-        name == NULL || extended_id ||
-        tx_can_id != UINT32_C(0x60a) ||
-        rx_can_id != UINT32_C(0x481) ||
-        module_kind != MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER ||
-        record->service != MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER ||
-        record->identifier != UINT16_C(0x0306) ||
-        !format_ascii_payload(
-            record->data, record->data_length, code, sizeof(code))) {
-        return false;
-    }
-
-    for (size_t index = 0U;
-         index < sizeof(assyst_workshop_code_map) /
-                     sizeof(assyst_workshop_code_map[0]);
-         ++index) {
-        if (strcmp(
-                code,
-                assyst_workshop_code_map[index].workshop_code) == 0) {
-            const int count = snprintf(
-                buffer, buffer_size, "Service %s",
-                assyst_workshop_code_map[index].service_code);
-            if (count < 0 || (size_t)count >= buffer_size)
-                return false;
-            *name = "Next service";
-            return true;
-        }
-    }
-
-    {
-        const int count = snprintf(
-            buffer, buffer_size, "Workshop code %s", code);
-        if (count < 0 || (size_t)count >= buffer_size)
-            return false;
-        *name = "Next service";
-        return true;
-    }
 }
 
 static bool documented_field_u8(
@@ -1357,12 +1224,6 @@ bool mblink_mercedes_data_record_format_known_for_route(
     }
 
     if (format_short_documented_part_identifier(
-            record, buffer, buffer_size, name)) {
-        return true;
-    }
-
-    if (format_assyst_plus_workshop_code(
-            tx_can_id, rx_can_id, extended_id, module_kind,
             record, buffer, buffer_size, name)) {
         return true;
     }

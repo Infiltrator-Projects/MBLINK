@@ -3,6 +3,7 @@
 
 #include "mblink/mercedes_transmission.h"
 
+#include <stdio.h>
 #include <string.h>
 
 typedef struct MblinkMercedesCanonicalTransmissionSignal {
@@ -74,6 +75,184 @@ static bool is_identification_read(uint8_t service, uint16_t identifier)
 static void clear_item(MblinkMercedesEcuDataItem *item)
 {
     if (item != NULL) memset(item, 0, sizeof(*item));
+}
+
+typedef struct MblinkMercedesAssystWorkshopCodeMap {
+    const char *workshop_code;
+    const char *service_code;
+} MblinkMercedesAssystWorkshopCodeMap;
+
+/*
+ * IC_204 / 204-212-era ASSYST PLUS mapping.
+ *
+ * This table belongs to the resolved controller family, not to Mercedes
+ * globally. Other ASSYST generations may reuse workshop-code strings with
+ * different service-display semantics and must therefore supply their own
+ * ECU-pack mapping.
+ */
+static const MblinkMercedesAssystWorkshopCodeMap
+    ic204_assyst_workshop_code_map[] = {
+    { "505", "A" },
+    { "D0D", "A1" },
+    { "550A", "A3" },
+    { "D50J", "A4" },
+    { "DD0S", "A6" },
+    { "G50M", "A7" },
+    { "Q50V", "A8" },
+    { "GD0V", "A9" },
+    { "850D", "A0" },
+    { "QD051", "AC" },
+    { "KD001", "AF" },
+    { "801050E", "AH" },
+    { "VD0A1", "AG" },
+    { "10D0E", "AK" },
+    { "15D0K", "AP" },
+    { "606", "B" },
+    { "E0E", "B1" },
+    { "8E0N", "B2" },
+    { "560B", "B3" },
+    { "B60H", "B4" },
+    { "5E0K", "B5" },
+    { "3E0H", "B5" },
+    { "DE0T", "B6" },
+    { "G60N", "B7" },
+    { "GN061", "B7" },
+    { "Q60W", "B8" },
+    { "GE0W", "B9" },
+    { "1607", "B0" },
+    { "960F", "B0" },
+    { "TE091", "BC" },
+    { "M60T", "BD" },
+    { "V6031", "BE" },
+    { "ME031", "BF" },
+    { "KE011", "BF" },
+    { "10607", "BH" },
+    { "1460B", "BH" },
+    { "10E0F", "BK" },
+    { "14E0K", "BK" },
+    { "15E0L", "BP" },
+    { "1XE0E1", "BQ" },
+    { "1Q60X", "BS" },
+    { "10405", "CH" }
+};
+
+static bool ecu_pack_is_family(
+    const MblinkMercedesEcuPack *pack,
+    const char *family_key)
+{
+    return pack != NULL && family_key != NULL &&
+        pack->controller_family != NULL &&
+        pack->controller_family->key != NULL &&
+        strcmp(pack->controller_family->key, family_key) == 0;
+}
+
+static bool ecu_pack_ascii_payload(
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size)
+{
+    size_t length;
+
+    if (record == NULL || buffer == NULL || buffer_size == 0U)
+        return false;
+    length = record->data_length;
+    while (length > 0U &&
+           (record->data[length - 1U] == UINT8_C(0x00) ||
+            record->data[length - 1U] == UINT8_C(0xff))) {
+        --length;
+    }
+    if (length == 0U || length + 1U > buffer_size) return false;
+    for (size_t index = 0U; index < length; ++index) {
+        if (record->data[index] < UINT8_C(0x20) ||
+            record->data[index] > UINT8_C(0x7e)) {
+            return false;
+        }
+        buffer[index] = (char)record->data[index];
+    }
+    buffer[length] = '\0';
+    return true;
+}
+
+bool mblink_mercedes_ecu_pack_decode_numeric_value(
+    const MblinkMercedesEcuPack *pack,
+    const MblinkMercedesDataRecord *record,
+    double *value,
+    const char **name,
+    const char **unit)
+{
+    if (value != NULL) *value = 0.0;
+    if (name != NULL) *name = NULL;
+    if (unit != NULL) *unit = NULL;
+    if (pack == NULL || record == NULL ||
+        value == NULL || name == NULL || unit == NULL) {
+        return false;
+    }
+
+    if (ecu_pack_is_family(pack, "cluster-ic204") &&
+        record->service == UINT8_C(0x22) &&
+        record->identifier == UINT16_C(0x0302) &&
+        record->data_length == 3U) {
+        const uint32_t raw =
+            ((uint32_t)record->data[0] << 16U) |
+            ((uint32_t)record->data[1] << 8U) |
+            (uint32_t)record->data[2];
+        *value = (double)raw / 1000.0;
+        *name = "Average daily distance";
+        *unit = "km/day";
+        return true;
+    }
+
+    return false;
+}
+
+bool mblink_mercedes_ecu_pack_format_value(
+    const MblinkMercedesEcuPack *pack,
+    const MblinkMercedesDataRecord *record,
+    char *buffer,
+    size_t buffer_size,
+    const char **name)
+{
+    char code[16];
+
+    if (name != NULL) *name = NULL;
+    if (buffer != NULL && buffer_size != 0U) buffer[0] = '\0';
+    if (pack == NULL || record == NULL ||
+        buffer == NULL || buffer_size == 0U || name == NULL) {
+        return false;
+    }
+
+    if (!ecu_pack_is_family(pack, "cluster-ic204") ||
+        record->service != UINT8_C(0x22) ||
+        record->identifier != UINT16_C(0x0306) ||
+        !ecu_pack_ascii_payload(record, code, sizeof(code))) {
+        return false;
+    }
+
+    for (size_t index = 0U;
+         index < sizeof(ic204_assyst_workshop_code_map) /
+                     sizeof(ic204_assyst_workshop_code_map[0]);
+         ++index) {
+        if (strcmp(
+                code,
+                ic204_assyst_workshop_code_map[index].workshop_code) == 0) {
+            const int count = snprintf(
+                buffer, buffer_size, "Service %s",
+                ic204_assyst_workshop_code_map[index].service_code);
+            if (count < 0 || (size_t)count >= buffer_size)
+                return false;
+            *name = "Next service";
+            return true;
+        }
+    }
+
+    {
+        const int count = snprintf(
+            buffer, buffer_size, "Workshop code %s", code);
+        if (count < 0 || (size_t)count >= buffer_size)
+            return false;
+        *name = "Next service";
+        return true;
+    }
 }
 
 typedef struct MblinkMercedesEcuPackDataPolicy {

@@ -518,25 +518,39 @@ static BOOL MBLinkApplyMercedesDataRecordPresentation(
         transmissionMetadata ||
         transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS52 ||
         transmissionFamily == MBLINK_MERCEDES_TRANSMISSION_FAMILY_VGS_NAG2;
+    MblinkMercedesEcuPack pack;
+    const BOOL packResolved =
+        mblink_mercedes_ecu_pack_resolve_module(module, &pack);
+    const BOOL packNumericMapped =
+        packResolved &&
+        mblink_mercedes_ecu_pack_decode_numeric_value(
+            &pack, record, &numeric, &numericName, &unit);
     const BOOL numericMapped =
-        allowOemTransmissionValueDecode &&
-        mblink_mercedes_data_record_decode_known_numeric_for_route(
+        packNumericMapped ||
+        (allowOemTransmissionValueDecode &&
+         mblink_mercedes_data_record_decode_known_numeric_for_route(
             module->tx_can_id,
             module->rx_can_id,
             module->extended_id,
             module->kind,
-            record, &numeric, &numericName, &unit);
+            record, &numeric, &numericName, &unit));
     BOOL structuredMapped =
-        mblink_mercedes_data_record_format_resolved_identifier(
-            module->tx_can_id,
-            module->rx_can_id,
-            module->extended_id,
-            contextRecords,
-            contextRecordCount,
-            record,
-            structured,
-            sizeof(structured),
-            &structuredName);
+        packResolved &&
+        mblink_mercedes_ecu_pack_format_value(
+            &pack, record, structured, sizeof(structured), &structuredName);
+    if (!structuredMapped) {
+        structuredMapped =
+            mblink_mercedes_data_record_format_resolved_identifier(
+                module->tx_can_id,
+                module->rx_can_id,
+                module->extended_id,
+                contextRecords,
+                contextRecordCount,
+                record,
+                structured,
+                sizeof(structured),
+                &structuredName);
+    }
     const BOOL egs53VariantCoding =
         transmissionFamily ==
             MBLINK_MERCEDES_TRANSMISSION_FAMILY_EGS53 &&

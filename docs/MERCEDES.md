@@ -29,7 +29,7 @@ The first populated Baumuster catalogue covers the C207 coupe family across dies
 
 MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
 
-Normal Connect is controller-first rather than engine-first. The VIN selects the authoritative vehicle profile, the bounded module census or saved-route validation establishes which physical controllers are actually fitted, and returned controller identity resolves the narrowest justified ECU pack. That pack owns the module's startup-once identity/configuration reads and its separately selectable recurring data. A route, model badge or engine family alone never creates controller semantics.
+Normal Connect is controller-first rather than engine-first. The VIN selects the authoritative vehicle profile, the bounded module census or saved-route validation establishes which physical controllers are actually fitted, and returned controller identity resolves the narrowest justified ECU pack. That pack owns the module's startup-once identity/configuration reads, its separately selectable recurring data, and any controller-generation-specific presentation/decoding rules. A route, DID number, model badge or engine family alone never creates controller semantics. If two Mercedes generations reuse the same identifier or code with different meanings, they must be decoded by different resolved ECU packs rather than by one Mercedes-wide lookup table.
 
 C207 identification now comes from the shared offline Baumuster catalogue rather than a short hard-coded list. The catalogue carries exact model, engine code, engine family, fuel, body style, displacement and source provenance. Diagnostic selection consumes only the resulting family evidence: OM651 permits the CRD3 extension; petrol M271/M274 and other non-CRD3 families do not. Unknown Baumuster values remain structurally decoded but engine-unidentified until catalogue evidence is added.
 
@@ -601,6 +601,8 @@ Modules without verified live mappings remain useful identity/fault cards and
 show no invented measurements.
 
 SwiftUI remains a view layer. Mercedes protocol state, CRD3 decoding, UDS fault parsing and Mercedes fault lookup/knowledge belong below the UI so the same evidence rules, definitions and replay tests can be used on other platforms.
+
+Controller-family-specific values follow the same rule. For example, IC_204 owns the 204/212-era ASSYST PLUS `22 0302` average-daily-distance scale and `22 0306` workshop-code/service mapping. Those rules live with the resolved `cluster-ic204` ECU pack, not in the generic data scanner or Vehicle UI. Another ASSYST generation must provide its own pack mapping. Unknown printable workshop codes remain decoded text (`Workshop code ...`) rather than being guessed into a service letter. Vehicle-wide startup facts such as average daily distance and next service may be presented on the Vehicle screen, but they remain startup-once data and never become live PID selections.
 
 ## Per-module Mercedes manufacturer-data discovery
 
