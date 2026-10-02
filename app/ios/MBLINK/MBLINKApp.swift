@@ -1066,6 +1066,19 @@ private struct MBVehicleView: View {
                             }
                         }
                     }
+                    if !connection.vehicleServiceFacts.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                MBSectionHeader(
+                                    title: "Service data",
+                                    kicker: "ASSYST PLUS · startup reading")
+                                MBVehicleFactGrid(facts:
+                                    connection.vehicleServiceFacts.map {
+                                        MBVehicleFact(label: $0.label, value: $0.value)
+                                    })
+                            }
+                        }
+                    }
                     if !buildFacts.isEmpty {
                         MBPanel {
                             VStack(alignment: .leading, spacing: 12) {

@@ -76,6 +76,12 @@ struct MercedesModuleDataValue: Identifiable {
 
 typealias DiagnosticFault = LinkDiagnosticFault
 
+struct MercedesVehicleServiceFact: Identifiable {
+    let id: String
+    let label: String
+    let value: String
+}
+
 struct EGS53VariantCodingFact: Identifiable {
     let id: String
     let label: String
@@ -686,7 +692,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
     }
 
-    func startupModuleData(moduleID: String) -> [MercedesModuleDataValue] {
+    private func allStartupModuleData(
+        moduleID: String
+    ) -> [MercedesModuleDataValue] {
         controller.startupDataSnapshots(forModuleIdentifier: moduleID)
             .map { snapshot in
                 let code = snapshot.codeText
@@ -706,6 +714,33 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     numericValue: snapshot.isNumericValueAvailable
                         ? snapshot.numericValue : nil)
             }
+    }
+
+    private func isVehicleOwnedStartupValue(
+        _ value: MercedesModuleDataValue
+    ) -> Bool {
+        value.service == 0x22 && value.identifier == 0x0302
+    }
+
+    func startupModuleData(moduleID: String) -> [MercedesModuleDataValue] {
+        allStartupModuleData(moduleID: moduleID).filter {
+            !isVehicleOwnedStartupValue($0)
+        }
+    }
+
+    var vehicleServiceFacts: [MercedesVehicleServiceFact] {
+        for module in pidConfigurationModules {
+            if let value = allStartupModuleData(moduleID: module.id)
+                .first(where: { isVehicleOwnedStartupValue($0) }) {
+                return [
+                    MercedesVehicleServiceFact(
+                        id: "assyst-average-daily-distance",
+                        label: "Average daily distance",
+                        value: value.formattedValue)
+                ]
+            }
+        }
+        return []
     }
 
     func manufacturerData(moduleID: String) -> [MercedesModuleDataValue] {

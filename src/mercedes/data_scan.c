@@ -751,6 +751,31 @@ bool mblink_mercedes_data_record_decode_known_numeric_for_route(
         return false;
 
     /*
+     * IC_204 ASSYST PLUS average daily distance (22 0302).
+     *
+     * The captured three-byte value 00 41 63 is provisionally interpreted as
+     * a big-endian thousandths-of-km/day value: 0x4163 = 16739 -> 16.739
+     * km/day. Keep the rule exact-route and exact-length so the working
+     * scaling assumption cannot leak into unrelated controller data.
+     */
+    if (!extended_id &&
+        tx_can_id == UINT32_C(0x60a) &&
+        rx_can_id == UINT32_C(0x481) &&
+        module_kind == MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER &&
+        record->service == MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER &&
+        record->identifier == UINT16_C(0x0302) &&
+        record->data_length == 3U) {
+        const uint32_t raw =
+            ((uint32_t)record->data[0] << 16U) |
+            ((uint32_t)record->data[1] << 8U) |
+            (uint32_t)record->data[2];
+        *value = (double)raw / 1000.0;
+        *name = "Average daily distance";
+        *unit = "km/day";
+        return true;
+    }
+
+    /*
      * Current source-backed actual-value mapping from the C207/OM651 CRD3
      * evidence catalogue: DT_2007_IN_Battery_voltage.
      */

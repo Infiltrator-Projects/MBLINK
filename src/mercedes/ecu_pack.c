@@ -93,6 +93,9 @@ typedef struct MblinkMercedesEcuPackDataPolicy {
  * the discovery state machine or the generic startup scheduler.
  */
 static const MblinkMercedesEcuPackDataPolicy pack_data_policies[] = {
+    { "cluster-ic204", UINT8_C(0x22), UINT16_C(0x0302),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "Average daily distance" },
     { "restraints-orc204", UINT8_C(0x21), UINT16_C(0x0002),
       MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
       "Restraint equipment configuration" },

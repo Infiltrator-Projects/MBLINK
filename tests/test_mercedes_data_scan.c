@@ -119,6 +119,37 @@ static int test_uds_data_scan(void)
     return 0;
 }
 
+static int test_ic204_assyst_average_daily_distance(void)
+{
+    MblinkMercedesDataRecord record;
+    double value = 0.0;
+    const char *name = NULL;
+    const char *unit = NULL;
+
+    memset(&record, 0, sizeof(record));
+    record.service = MBLINK_UDS_SERVICE_READ_DATA_BY_IDENTIFIER;
+    record.identifier = UINT16_C(0x0302);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x00);
+    record.data[1] = UINT8_C(0x41);
+    record.data[2] = UINT8_C(0x63);
+
+    CHECK(mblink_mercedes_data_record_decode_known_numeric_for_route(
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER,
+        &record, &value, &name, &unit));
+    CHECK(value > 16.738 && value < 16.740);
+    CHECK(strcmp(name, "Average daily distance") == 0);
+    CHECK(strcmp(unit, "km/day") == 0);
+
+    /* Never apply the provisional scale to a different physical controller. */
+    CHECK(!mblink_mercedes_data_record_decode_known_numeric_for_route(
+        UINT32_C(0x602), UINT32_C(0x480), false,
+        MBLINK_MERCEDES_MODULE_OTHER,
+        &record, &value, &name, &unit));
+    return 0;
+}
+
 static int test_targeted_positive_identifier_refresh(void)
 {
     MblinkMercedesDataScan scan;
@@ -1299,6 +1330,7 @@ int main(void)
     if (test_orc_dashboard_records_are_semantically_mapped() != 0) return 1;
     if (test_hu204_factory_reading_keeps_session() != 0) return 1;
     if (test_uds_data_scan() != 0) return 1;
+    if (test_ic204_assyst_average_daily_distance() != 0) return 1;
     if (test_kwp_local_identifier_scan() != 0) return 1;
     if (test_7e1_transmission_temperature_candidate() != 0) return 1;
     if (test_full_rli30_numeric_prefers_full_layout() != 0) return 1;
