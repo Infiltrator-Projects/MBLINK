@@ -238,11 +238,11 @@ bool mblink_mercedes_ecu_pack_format_value(
         record->data[0] == UINT8_C(0x00) &&
         record->data[2] == UINT8_C(0x00)) {
         const int count = snprintf(
-            buffer, buffer_size, "Approximately %u days remaining",
+            buffer, buffer_size, "%u days",
             (unsigned int)record->data[1]);
         if (count < 0 || (size_t)count >= buffer_size)
             return false;
-        *name = "ASSYST remaining-service interval";
+        *name = "Service due in";
         return true;
     }
 

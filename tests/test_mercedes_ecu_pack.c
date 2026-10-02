@@ -133,7 +133,7 @@ static int test_ic204_pack(void)
             saw_assyst_wia = true;
             CHECK(item.name != NULL);
             CHECK(strcmp(item.name,
-                "ASSYST remaining-service interval") == 0);
+                "Service due in") == 0);
             CHECK(item.acquisition ==
                 MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
         }
@@ -224,8 +224,8 @@ static int test_ic204_pack_owned_assyst_decode(void)
     name = NULL;
     CHECK(mblink_mercedes_ecu_pack_format_value(
         &pack, &record, text, sizeof(text), &name));
-    CHECK(strcmp(name, "ASSYST remaining-service interval") == 0);
-    CHECK(strcmp(text, "Approximately 117 days remaining") == 0);
+    CHECK(strcmp(name, "Service due in") == 0);
+    CHECK(strcmp(text, "117 days") == 0);
 
     record.identifier = UINT16_C(0x0306);
     record.data_length = 3U;

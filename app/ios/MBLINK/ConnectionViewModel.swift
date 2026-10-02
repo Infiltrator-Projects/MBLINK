@@ -754,7 +754,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                 case 0x0402:
                     facts.append(MercedesVehicleServiceFact(
                         id: "assyst-remaining-service-interval",
-                        label: "ASSYST remaining-service interval",
+                        label: "Service due in",
                         value: value.formattedValue))
                     seen.insert(value.identifier)
                 default:
