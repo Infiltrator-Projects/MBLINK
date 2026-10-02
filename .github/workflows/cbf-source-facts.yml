@@ -95,11 +95,17 @@ jobs:
           cp /tmp/CaesarSuite/Caesar/Caesar/Flash/*.cs /tmp/cbf-assyst-probe/Flash/
           cp tools/mblink-cbf-assyst-probe.cs /tmp/cbf-assyst-probe/Program.cs
           dotnet add /tmp/cbf-assyst-probe package Newtonsoft.Json --version 12.0.3 >/dev/null
+          set +e
           dotnet run --project /tmp/cbf-assyst-probe --configuration Release -- \
             /tmp/cbf/IC_204.cbf \
-            > cbf-facts/ic_204-assyst-presentations.txt
+            > cbf-facts/ic_204-assyst-presentations.txt \
+            2> cbf-facts/ic_204-assyst-probe.stderr
+          probe_status=$?
+          set -e
 
           cat cbf-facts/ic_204-assyst-presentations.txt
+          cat cbf-facts/ic_204-assyst-probe.stderr
+          echo "probe_exit_status=$probe_status"
 
       - name: Extract direct read-only Data facts
         shell: bash
