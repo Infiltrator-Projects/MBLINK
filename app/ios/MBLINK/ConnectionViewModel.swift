@@ -720,7 +720,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         _ value: MercedesModuleDataValue
     ) -> Bool {
         guard value.service == 0x22 else { return false }
-        return value.identifier == 0x0302 || value.identifier == 0x0306
+        return value.identifier == 0x0302 ||
+            value.identifier == 0x0306 ||
+            value.identifier == 0x0402
     }
 
     func startupModuleData(moduleID: String) -> [MercedesModuleDataValue] {
@@ -747,6 +749,12 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     facts.append(MercedesVehicleServiceFact(
                         id: "assyst-next-service",
                         label: "Next service",
+                        value: value.formattedValue))
+                    seen.insert(value.identifier)
+                case 0x0402:
+                    facts.append(MercedesVehicleServiceFact(
+                        id: "assyst-remaining-service-interval",
+                        label: "ASSYST remaining-service interval",
                         value: value.formattedValue))
                     seen.insert(value.identifier)
                 default:

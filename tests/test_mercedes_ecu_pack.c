@@ -37,6 +37,7 @@ static int test_ic204_pack(void)
     bool saw_f150 = false;
     bool saw_assyst_daily = false;
     bool saw_assyst_workshop = false;
+    bool saw_assyst_wia = false;
     bool saw_assyst_overfill = false;
     bool saw_assyst_maintenance = false;
     size_t advertised = 0U;
@@ -128,6 +129,15 @@ static int test_ic204_pack(void)
                 MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
         }
         if (item.service == UINT8_C(0x22) &&
+            item.identifier == UINT16_C(0x0402)) {
+            saw_assyst_wia = true;
+            CHECK(item.name != NULL);
+            CHECK(strcmp(item.name,
+                "ASSYST remaining-service interval") == 0);
+            CHECK(item.acquisition ==
+                MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
+        }
+        if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0x0406)) {
             saw_assyst_overfill = true;
             CHECK(item.name != NULL);
@@ -161,7 +171,7 @@ static int test_ic204_pack(void)
     }
     CHECK(advertised == 59U);
     CHECK(saw_f111 && saw_f150);
-    CHECK(saw_assyst_daily && saw_assyst_workshop &&
+    CHECK(saw_assyst_daily && saw_assyst_workshop && saw_assyst_wia &&
           saw_assyst_overfill && saw_assyst_maintenance);
     CHECK(pack_section_contains(
         &pack, true, UINT8_C(0x22), UINT16_C(0x0302)));
@@ -171,6 +181,10 @@ static int test_ic204_pack(void)
         &pack, true, UINT8_C(0x22), UINT16_C(0x0306)));
     CHECK(!pack_section_contains(
         &pack, false, UINT8_C(0x22), UINT16_C(0x0306)));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x22), UINT16_C(0x0402)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x22), UINT16_C(0x0402)));
     return 0;
 }
 
@@ -201,6 +215,17 @@ static int test_ic204_pack_owned_assyst_decode(void)
     CHECK(value > 16.738 && value < 16.740);
     CHECK(strcmp(name, "Average daily distance") == 0);
     CHECK(strcmp(unit, "km/day") == 0);
+
+    record.identifier = UINT16_C(0x0402);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x00);
+    record.data[1] = UINT8_C(0x75);
+    record.data[2] = UINT8_C(0x00);
+    name = NULL;
+    CHECK(mblink_mercedes_ecu_pack_format_value(
+        &pack, &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "ASSYST remaining-service interval") == 0);
+    CHECK(strcmp(text, "Approximately 117 days remaining") == 0);
 
     record.identifier = UINT16_C(0x0306);
     record.data_length = 3U;

@@ -222,8 +222,31 @@ bool mblink_mercedes_ecu_pack_format_value(
     }
 
     if (!ecu_pack_is_family(pack, "cluster-ic204") ||
-        record->service != UINT8_C(0x22) ||
-        record->identifier != UINT16_C(0x0306) ||
+        record->service != UINT8_C(0x22)) {
+        return false;
+    }
+
+    /*
+     * IC_204 ASSYST/WIA measured-value record (22 0402).
+     * Captured 00 75 00 is interpreted as an inferred WIA remaining-time
+     * record: the middle byte is the day count while the surrounding bytes
+     * are currently zero state/mode fields. Keep the decoder deliberately
+     * narrow until additional captures establish those outer fields.
+     */
+    if (record->identifier == UINT16_C(0x0402) &&
+        record->data_length == 3U &&
+        record->data[0] == UINT8_C(0x00) &&
+        record->data[2] == UINT8_C(0x00)) {
+        const int count = snprintf(
+            buffer, buffer_size, "Approximately %u days remaining",
+            (unsigned int)record->data[1]);
+        if (count < 0 || (size_t)count >= buffer_size)
+            return false;
+        *name = "ASSYST remaining-service interval";
+        return true;
+    }
+
+    if (record->identifier != UINT16_C(0x0306) ||
         !ecu_pack_ascii_payload(record, code, sizeof(code))) {
         return false;
     }
@@ -278,6 +301,9 @@ static const MblinkMercedesEcuPackDataPolicy pack_data_policies[] = {
     { "cluster-ic204", UINT8_C(0x22), UINT16_C(0x0306),
       MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
       "Next service" },
+    { "cluster-ic204", UINT8_C(0x22), UINT16_C(0x0402),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "ASSYST remaining-service interval" },
     { "restraints-orc204", UINT8_C(0x21), UINT16_C(0x0002),
       MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
       "Restraint equipment configuration" },
