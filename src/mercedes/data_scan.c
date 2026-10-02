@@ -977,6 +977,63 @@ static bool format_ascii_payload(
     return true;
 }
 
+typedef struct MblinkAssystWorkshopCodeMap {
+    const char *workshop_code;
+    const char *service_code;
+} MblinkAssystWorkshopCodeMap;
+
+/*
+ * Published ASSYST PLUS mappings relevant to the 204/212-era instrument
+ * cluster family.  The workshop code itself is vehicle/service-scope data and
+ * is not globally one-to-one across every Mercedes generation, so only
+ * unambiguous mappings corroborated for this generation are promoted here.
+ * Unknown codes remain readable ASCII instead of being mislabeled RAW.
+ */
+static const MblinkAssystWorkshopCodeMap assyst_workshop_code_map[] = {
+    { "505", "A" },
+    { "D0D", "A1" },
+    { "550A", "A3" },
+    { "D50J", "A4" },
+    { "DD0S", "A6" },
+    { "G50M", "A7" },
+    { "Q50V", "A8" },
+    { "GD0V", "A9" },
+    { "850D", "A0" },
+    { "QD051", "AC" },
+    { "KD001", "AF" },
+    { "801050E", "AH" },
+    { "VD0A1", "AG" },
+    { "10D0E", "AK" },
+    { "15D0K", "AP" },
+    { "606", "B" },
+    { "E0E", "B1" },
+    { "8E0N", "B2" },
+    { "560B", "B3" },
+    { "B60H", "B4" },
+    { "5E0K", "B5" },
+    { "3E0H", "B5" },
+    { "DE0T", "B6" },
+    { "G60N", "B7" },
+    { "GN061", "B7" },
+    { "Q60W", "B8" },
+    { "GE0W", "B9" },
+    { "1607", "B0" },
+    { "960F", "B0" },
+    { "TE091", "BC" },
+    { "M60T", "BD" },
+    { "V6031", "BE" },
+    { "ME031", "BF" },
+    { "KE011", "BF" },
+    { "10607", "BH" },
+    { "1460B", "BH" },
+    { "10E0F", "BK" },
+    { "14E0K", "BK" },
+    { "15E0L", "BP" },
+    { "1XE0E1", "BQ" },
+    { "1Q60X", "BS" },
+    { "10405", "CH" }
+};
+
 static bool format_assyst_plus_workshop_code(
     uint32_t tx_can_id,
     uint32_t rx_can_id,
@@ -1001,21 +1058,31 @@ static bool format_assyst_plus_workshop_code(
         return false;
     }
 
-    /*
-     * ASSYST PLUS workshop code 505 maps to display/service scope A
-     * (service items 1 and 3). Keep unknown workshop codes unmapped until
-     * their service-scope mapping is independently established.
-     */
-    if (strcmp(code, "505") == 0) {
-        const char *service = "Service A";
-        const size_t length = strlen(service);
-        if (length + 1U > buffer_size) return false;
-        memcpy(buffer, service, length + 1U);
+    for (size_t index = 0U;
+         index < sizeof(assyst_workshop_code_map) /
+                     sizeof(assyst_workshop_code_map[0]);
+         ++index) {
+        if (strcmp(
+                code,
+                assyst_workshop_code_map[index].workshop_code) == 0) {
+            const int count = snprintf(
+                buffer, buffer_size, "Service %s",
+                assyst_workshop_code_map[index].service_code);
+            if (count < 0 || (size_t)count >= buffer_size)
+                return false;
+            *name = "Next service";
+            return true;
+        }
+    }
+
+    {
+        const int count = snprintf(
+            buffer, buffer_size, "Workshop code %s", code);
+        if (count < 0 || (size_t)count >= buffer_size)
+            return false;
         *name = "Next service";
         return true;
     }
-
-    return false;
 }
 
 static bool documented_field_u8(

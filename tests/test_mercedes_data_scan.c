@@ -171,6 +171,31 @@ static int test_ic204_assyst_workshop_code_service_a(void)
     CHECK(strcmp(name, "Next service") == 0);
     CHECK(strcmp(text, "Service A") == 0);
 
+    /* Another published W212-era mapping must not fall back to 505/A. */
+    record.data_length = 3U;
+    record.data[0] = UINT8_C('E');
+    record.data[1] = UINT8_C('0');
+    record.data[2] = UINT8_C('E');
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Next service") == 0);
+    CHECK(strcmp(text, "Service B1") == 0);
+
+    /* Unknown-but-printable workshop codes remain decoded ASCII, never RAW. */
+    record.data[0] = UINT8_C('X');
+    record.data[1] = UINT8_C('Y');
+    record.data[2] = UINT8_C('Z');
+    name = NULL;
+    CHECK(mblink_mercedes_data_record_format_known_for_route(
+        UINT32_C(0x60a), UINT32_C(0x481), false,
+        MBLINK_MERCEDES_MODULE_INSTRUMENT_CLUSTER,
+        &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Next service") == 0);
+    CHECK(strcmp(text, "Workshop code XYZ") == 0);
+
     name = NULL;
     CHECK(!mblink_mercedes_data_record_format_known_for_route(
         UINT32_C(0x602), UINT32_C(0x480), false,
