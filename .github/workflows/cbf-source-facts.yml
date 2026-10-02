@@ -78,6 +78,29 @@ jobs:
             'Public source: SmartLand/Carmasters W204 CBF archive' \
             > cbf-facts/w204-source.txt
 
+      - name: Probe IC_204 ASSYST presentation metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          caesar_commit=f8e8463f94aaa7b1b509bbae68578579aa0df5cb
+          git clone --quiet https://github.com/jglim/CaesarSuite.git /tmp/CaesarSuite
+          git -C /tmp/CaesarSuite checkout --quiet "$caesar_commit"
+
+          rm -rf /tmp/cbf-assyst-probe
+          dotnet new console --framework net8.0 --output /tmp/cbf-assyst-probe >/dev/null
+          find /tmp/CaesarSuite/Caesar/Caesar -maxdepth 1 -type f -name '*.cs' \
+            ! -name 'Program.cs' -exec cp {} /tmp/cbf-assyst-probe/ \;
+          mkdir -p /tmp/cbf-assyst-probe/Flash
+          cp /tmp/CaesarSuite/Caesar/Caesar/Flash/*.cs /tmp/cbf-assyst-probe/Flash/
+          cp tools/mblink-cbf-assyst-probe.cs /tmp/cbf-assyst-probe/Program.cs
+          dotnet add /tmp/cbf-assyst-probe package Newtonsoft.Json --version 12.0.3 >/dev/null
+          dotnet run --project /tmp/cbf-assyst-probe --configuration Release -- \
+            /tmp/cbf/IC_204.cbf \
+            > cbf-facts/ic_204-assyst-presentations.txt
+
+          cat cbf-facts/ic_204-assyst-presentations.txt
+
       - name: Extract direct read-only Data facts
         shell: bash
         run: |
