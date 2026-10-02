@@ -149,7 +149,9 @@ static int test_ic204_pack(void)
             saw_assyst_maintenance = true;
             CHECK(item.name != NULL);
             CHECK(strcmp(item.name,
-                "ASSYST maintenance 1 hex dump data") == 0);
+                "Service A maintenance") == 0);
+            CHECK(item.acquisition ==
+                MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE);
         }
         if (item.service == UINT8_C(0x22) &&
             item.identifier == UINT16_C(0xf111)) {
@@ -185,6 +187,10 @@ static int test_ic204_pack(void)
         &pack, true, UINT8_C(0x22), UINT16_C(0x0402)));
     CHECK(!pack_section_contains(
         &pack, false, UINT8_C(0x22), UINT16_C(0x0402)));
+    CHECK(pack_section_contains(
+        &pack, true, UINT8_C(0x22), UINT16_C(0x0408)));
+    CHECK(!pack_section_contains(
+        &pack, false, UINT8_C(0x22), UINT16_C(0x0408)));
     return 0;
 }
 
@@ -226,6 +232,17 @@ static int test_ic204_pack_owned_assyst_decode(void)
         &pack, &record, text, sizeof(text), &name));
     CHECK(strcmp(name, "Service due in") == 0);
     CHECK(strcmp(text, "117 days") == 0);
+
+    record.identifier = UINT16_C(0x0408);
+    record.data_length = 3U;
+    record.data[0] = UINT8_C(0x61);
+    record.data[1] = UINT8_C(0xA8);
+    record.data[2] = UINT8_C(0x61);
+    name = NULL;
+    CHECK(mblink_mercedes_ecu_pack_format_value(
+        &pack, &record, text, sizeof(text), &name));
+    CHECK(strcmp(name, "Service A maintenance") == 0);
+    CHECK(strcmp(text, "Tracked by ASSYST") == 0);
 
     record.identifier = UINT16_C(0x0306);
     record.data_length = 3U;

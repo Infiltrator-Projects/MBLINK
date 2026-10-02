@@ -246,6 +246,23 @@ bool mblink_mercedes_ecu_pack_format_value(
         return true;
     }
 
+    /*
+     * IC_204 CBF names 22 0408 as ASSYST maintenance 1. Mercedes service
+     * documentation defines Service 1 as the minor basic service / Service A.
+     * The three captured bytes are still an unresolved packed state record, so
+     * present only the source-backed semantic identity and keep the raw bytes
+     * as evidence rather than inventing subfield meanings.
+     */
+    if (record->identifier == UINT16_C(0x0408) &&
+        record->data_length == 3U) {
+        const char *status = "Tracked by ASSYST";
+        const size_t length = strlen(status);
+        if (length + 1U > buffer_size) return false;
+        memcpy(buffer, status, length + 1U);
+        *name = "Service A maintenance";
+        return true;
+    }
+
     if (record->identifier != UINT16_C(0x0306) ||
         !ecu_pack_ascii_payload(record, code, sizeof(code))) {
         return false;
@@ -303,7 +320,10 @@ static const MblinkMercedesEcuPackDataPolicy pack_data_policies[] = {
       "Next service" },
     { "cluster-ic204", UINT8_C(0x22), UINT16_C(0x0402),
       MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
-      "ASSYST remaining-service interval" },
+      "Service due in" },
+    { "cluster-ic204", UINT8_C(0x22), UINT16_C(0x0408),
+      MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
+      "Service A maintenance" },
     { "restraints-orc204", UINT8_C(0x21), UINT16_C(0x0002),
       MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
       "Restraint equipment configuration" },

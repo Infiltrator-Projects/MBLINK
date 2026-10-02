@@ -965,6 +965,7 @@ private struct MBPIDCatalogueSection: View {
 
 private struct MBVehicleView: View {
     @EnvironmentObject private var connection: ConnectionViewModel
+    @State private var selectedSection = 0
 
     private var identityFacts: [MBVehicleFact] {
         guard let identity = connection.vehicleIdentity else { return [] }
@@ -1013,77 +1014,91 @@ private struct MBVehicleView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     vehicleHero
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Vehicle profile", kicker: "Saved vehicle")
-                            if let selectedVIN = connection.selectedVehicleVIN {
-                                MBInfoRow(label: "Loaded VIN", value: selectedVIN, monospaced: true)
-                            } else {
-                                Text("No saved VIN profile is loaded yet.")
-                                    .font(MBTypography.subheadline)
-                                    .foregroundStyle(MBBrand.muted)
-                            }
 
-                            Text("Use the home-screen Connect button to identify the live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.")
-                                .font(MBTypography.caption)
-                                .foregroundStyle(MBBrand.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                    Picker("Vehicle section", selection: $selectedSection) {
+                        Text("Vehicle").tag(0)
+                        Text("Service").tag(1)
                     }
-                    MBPanel {
-                        VStack(alignment: .leading, spacing: 12) {
-                            MBSectionHeader(title: "Vehicle", kicker: "Decoded VIN")
-                            if identityFacts.isEmpty {
-                                Text("Decoded Mercedes vehicle details will appear here after VIN identification.")
-                                    .font(MBTypography.subheadline)
-                                    .foregroundStyle(MBBrand.muted)
-                            } else {
-                                MBVehicleFactGrid(facts: identityFacts)
-                            }
-                        }
-                    }
-                    if !engineFacts.isEmpty {
+                    .pickerStyle(.segmented)
+
+                    if selectedSection == 0 {
                         MBPanel {
                             VStack(alignment: .leading, spacing: 12) {
-                                MBSectionHeader(title: "Powertrain", kicker: "Factory specification")
-                                MBVehicleFactGrid(facts: engineFacts)
-                            }
-                        }
-                    }
-                    if !connection.vehicleConfigurationFacts.isEmpty {
-                        MBPanel {
-                            VStack(alignment: .leading, spacing: 12) {
-                                MBSectionHeader(
-                                    title: "Vehicle configuration",
-                                    kicker: "Saved startup readings")
-                                MBVehicleFactGrid(facts:
-                                    connection.vehicleConfigurationFacts.map {
-                                        MBVehicleFact(label: $0.label, value: $0.value)
-                                    })
-                                Text("Decoded from the vehicle's transmission coding.")
+                                MBSectionHeader(title: "Vehicle profile", kicker: "Saved vehicle")
+                                if let selectedVIN = connection.selectedVehicleVIN {
+                                    MBInfoRow(label: "Loaded VIN", value: selectedVIN, monospaced: true)
+                                } else {
+                                    Text("No saved VIN profile is loaded yet.")
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+
+                                Text("Use the home-screen Connect button to identify the live vehicle. A matching VIN profile is loaded automatically; a new VIN profile is created when needed.")
                                     .font(MBTypography.caption)
                                     .foregroundStyle(MBBrand.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                    }
-                    if !connection.vehicleServiceFacts.isEmpty {
+                        MBPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                MBSectionHeader(title: "Vehicle", kicker: "Decoded VIN")
+                                if identityFacts.isEmpty {
+                                    Text("Decoded Mercedes vehicle details will appear here after VIN identification.")
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.muted)
+                                } else {
+                                    MBVehicleFactGrid(facts: identityFacts)
+                                }
+                            }
+                        }
+                        if !engineFacts.isEmpty {
+                            MBPanel {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    MBSectionHeader(title: "Powertrain", kicker: "Factory specification")
+                                    MBVehicleFactGrid(facts: engineFacts)
+                                }
+                            }
+                        }
+                        if !connection.vehicleConfigurationFacts.isEmpty {
+                            MBPanel {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    MBSectionHeader(
+                                        title: "Vehicle configuration",
+                                        kicker: "Saved startup readings")
+                                    MBVehicleFactGrid(facts:
+                                        connection.vehicleConfigurationFacts.map {
+                                            MBVehicleFact(label: $0.label, value: $0.value)
+                                        })
+                                    Text("Decoded from the vehicle's transmission coding.")
+                                        .font(MBTypography.caption)
+                                        .foregroundStyle(MBBrand.muted)
+                                }
+                            }
+                        }
+                        if !buildFacts.isEmpty {
+                            MBPanel {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    MBSectionHeader(title: "Build", kicker: "Production identity")
+                                    MBVehicleFactGrid(facts: buildFacts)
+                                }
+                            }
+                        }
+                    } else {
                         MBPanel {
                             VStack(alignment: .leading, spacing: 12) {
                                 MBSectionHeader(
-                                    title: "Service data",
-                                    kicker: "ASSYST PLUS · startup reading")
-                                MBVehicleFactGrid(facts:
-                                    connection.vehicleServiceFacts.map {
-                                        MBVehicleFact(label: $0.label, value: $0.value)
-                                    })
-                            }
-                        }
-                    }
-                    if !buildFacts.isEmpty {
-                        MBPanel {
-                            VStack(alignment: .leading, spacing: 12) {
-                                MBSectionHeader(title: "Build", kicker: "Production identity")
-                                MBVehicleFactGrid(facts: buildFacts)
+                                    title: "Service",
+                                    kicker: "ASSYST PLUS")
+                                if connection.vehicleServiceFacts.isEmpty {
+                                    Text("ASSYST PLUS service data will appear here after the instrument cluster startup readings complete.")
+                                        .font(MBTypography.subheadline)
+                                        .foregroundStyle(MBBrand.muted)
+                                } else {
+                                    MBVehicleFactGrid(facts:
+                                        connection.vehicleServiceFacts.map {
+                                            MBVehicleFact(label: $0.label, value: $0.value)
+                                        })
+                                }
                             }
                         }
                     }
