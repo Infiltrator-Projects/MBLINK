@@ -513,6 +513,20 @@ static int test_documented_identification_reads_are_startup_data(void)
         }
     }
     CHECK(saw_identity);
+
+    /* These calibration-identification requests repeated in the 0.7.285
+     * COMAND capture. They belong on the module card, not in recurring PIDs. */
+    static const uint16_t calibration_identifiers[] = {
+        UINT16_C(0x9a), UINT16_C(0x9c)
+    };
+    for (size_t index = 0U;
+         index < sizeof(calibration_identifiers) /
+                     sizeof(calibration_identifiers[0]); ++index) {
+        CHECK(pack_section_contains(
+            &pack, true, UINT8_C(0x1a), calibration_identifiers[index]));
+        CHECK(!pack_section_contains(
+            &pack, false, UINT8_C(0x1a), calibration_identifiers[index]));
+    }
     return 0;
 }
 

@@ -338,9 +338,11 @@ bool mblink_mercedes_documented_read_is_module_metadata(
             return false;
         }
     }
+    /* KWP identification also includes serial/date/calibration records above
+     * 0x89. Keep the whole identification block out of recurring polling. */
     return service == UINT8_C(0x1a) &&
            identifier >= UINT16_C(0x0086) &&
-           identifier <= UINT16_C(0x0089);
+           identifier <= UINT16_C(0x009f);
 }
 size_t mblink_mercedes_documented_field_count(uint8_t s,uint16_t id){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i)if(mblink_documented_fields[i].service==s&&mblink_documented_fields[i].identifier==id)++n;return n;}
 const MblinkMercedesDocumentedField *mblink_mercedes_documented_field_at(uint8_t s,uint16_t id,size_t wanted){size_t n=0U;for(size_t i=0U;i<INFILTRATR_ARRAY_LENGTH(mblink_documented_fields);++i){const MblinkMercedesDocumentedField*f=&mblink_documented_fields[i];if(f->service!=s||f->identifier!=id)continue;if(n++==wanted)return f;}return NULL;}

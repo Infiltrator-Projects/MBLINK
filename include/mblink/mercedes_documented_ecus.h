@@ -83,7 +83,7 @@ const char *mblink_mercedes_documented_read_name(uint8_t service,uint16_t identi
 MblinkMercedesDocumentedReadLayout mblink_mercedes_documented_read_layout(
     uint8_t service, uint16_t identifier);
 bool mblink_mercedes_documented_read_is_safe(uint8_t service,uint16_t identifier);
-/* Hardware/software identification belongs to one-time module discovery. */
+/* Hardware/software/calibration identification belongs to startup-once data. */
 bool mblink_mercedes_documented_read_is_module_metadata(
     uint8_t service, uint16_t identifier);
 size_t mblink_mercedes_documented_field_count(uint8_t service,uint16_t identifier);
