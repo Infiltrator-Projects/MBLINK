@@ -13,10 +13,10 @@ permissions:
   contents: read
 
 # Rapid ordinary development pushes may cancel one another. Release commits use
-# their own non-cancellable lane so publication cannot be interrupted by a newer
-# development commit.
+# their own commit lane so publication cannot be interrupted by a newer
+# development commit. Preflight retires superseded attempts of the same version.
 concurrency:
-  group: mblink-ci-${{ github.ref }}-${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ') && 'release' || 'ordinary' }}
+  group: mblink-ci-${{ github.ref }}-${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ') && format('release-{0}', github.sha) || 'ordinary' }}
   cancel-in-progress: ${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ')) }}
 
 jobs:
@@ -24,6 +24,9 @@ jobs:
     name: Preflight / repository invariants
     runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
     outputs:
       version: ${{ steps.meta.outputs.version }}
       is_release: ${{ steps.meta.outputs.is_release }}
@@ -53,6 +56,36 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
           echo "CI mode: $([[ "$is_release" == true ]] && echo release || echo development)"
+      - name: Retire superseded attempts of this release version
+        if: steps.meta.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+          base = f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs"
+          headers = {"Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                     "Accept": "application/vnd.github+json"}
+          request = urllib.request.Request(base + "?per_page=30", headers=headers)
+          with urllib.request.urlopen(request, timeout=30) as response:
+              runs = json.load(response)["workflow_runs"]
+          prefix = "Release " + os.environ["VERSION"]
+          for run in runs:
+              subject = ((run.get("head_commit") or {}).get("message") or "").split("\n", 1)[0]
+              if (run["name"] != "MBLINK CI" or int(run["id"]) >= int(os.environ["GITHUB_RUN_ID"])
+                  or run["head_branch"] != os.environ["GITHUB_REF_NAME"]
+                  or run["head_sha"] == os.environ["GITHUB_SHA"] or run["status"] == "completed"
+                  or not (subject == prefix or subject.startswith(prefix + ":"))):
+                  continue
+              request = urllib.request.Request(f"{base}/{run['id']}/cancel", data=b"", headers=headers)
+              try:
+                  with urllib.request.urlopen(request, timeout=30):
+                      print(f"Retired superseded release attempt {run['id']}")
+              except urllib.error.HTTPError as error:
+                  if error.code != 409:
+                      raise
+          PY
 
   portable-core:
     name: Linux / C11
@@ -198,35 +231,12 @@ jobs:
   windows-discover:
     name: Windows / Discover build and metadata
     needs: preflight
-    runs-on: [self-hosted, Windows, ARM64]
+    runs-on: windows-latest
     timeout-minutes: 20
     defaults:
       run:
         shell: powershell
-    env:
-      PSExecutionPolicyPreference: RemoteSigned
     steps:
-      - name: Discover Windows build tools and Git Bash
-        if: runner.os == 'Windows' && runner.environment == 'self-hosted'
-        shell: powershell
-        run: |
-          $git = (Get-Command git.exe -ErrorAction Stop).Source
-          $gitRoot = Split-Path (Split-Path $git -Parent) -Parent
-          $dirs = @((Join-Path $gitRoot 'bin'), (Join-Path $gitRoot 'usr\bin'), (Join-Path $env:ProgramFiles 'CMake\bin'))
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (Test-Path $vswhere) {
-            $vs = & $vswhere -latest -products '*' -property installationPath
-            if ($vs) { $dirs += Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin' }
-          }
-          foreach ($dir in $dirs) {
-            if (Test-Path $dir) {
-              $dir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-              $env:PATH = "$dir;$env:PATH"
-            }
-          }
-          Get-ExecutionPolicy -List
-          cmake --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
@@ -274,8 +284,7 @@ jobs:
   windows-launch:
     name: Windows / Discover launch
     needs: [preflight, windows-discover]
-    # Compile on the self-hosted pool and launch its exact artifact on a
-    # hosted runner; the current ARM runner denies Start-Process.
+    # Launch the exact executable artifact produced by the Windows build.
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -286,7 +295,7 @@ jobs:
         with:
           name: MBLINK-${{ needs.preflight.outputs.version }}-windows-discover
           path: release-assets
-      - name: Prove the self-hosted executable launches
+      - name: Prove the release executable launches
         shell: powershell
         run: |
           & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe' -ExpectedTitle 'MBLINK Discover'
