@@ -264,7 +264,7 @@ jobs:
           cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
           cmake --build build-macos --config Release --parallel
           ctest --test-dir build-macos --build-config Release --output-on-failure
-      - name: Verify manufacturer live freshness and retained startup data
+      - name: Verify manufacturer freshness, retained startup data and CSV evidence
         shell: bash
         run: |
           set -euo pipefail

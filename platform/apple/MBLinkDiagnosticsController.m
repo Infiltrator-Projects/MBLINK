@@ -100,6 +100,13 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
                                                     liveOnly:(BOOL)liveOnly
                                            candidateCommands:
             (nullable NSArray<NSNumber *> *)candidateCommands;
+- (void)startManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
+                                            forceFullScan:(BOOL)forceFullScan
+                                                 liveOnly:(BOOL)liveOnly
+                                        candidateCommands:
+            (nullable NSArray<NSNumber *> *)candidateCommands;
+- (void)completeManufacturerDataScanWithStatus:(NSString *)status;
+- (NSMutableData *)manufacturerEvidenceRows;
 - (void)tryBeginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
                                              generation:(NSUInteger)generation
                                                 attempt:(NSUInteger)attempt
@@ -162,7 +169,11 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
     MBLinkConnectionSessionStage _connectionSessionStage;
     size_t _connectionSessionModuleIndex;
     BOOL _disconnectRequested;
+    NSMutableData *_manufacturerEvidenceRows;
+    NSString *_Nullable _manufacturerEvidenceLiveModuleIdentifier;
 }
+
+#include "MBLinkDiagnosticsEvidence.inc"
 
 static NSString *MBLinkStringFromCString(const char *value)
 {
@@ -2685,7 +2696,7 @@ static void MBLinkAppendManufacturerDefinition(
                                        candidateCommands:nil];
 }
 
-- (void)beginManufacturerDataOperationForModuleIdentifier:
+- (void)startManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
                                                forceFullScan:(BOOL)forceFullScan
                                                     liveOnly:(BOOL)liveOnly
@@ -3043,7 +3054,7 @@ static void MBLinkAppendManufacturerDefinition(
         _manufacturerDataByModule[identifier] ?: @[], values, requestedLiveCommands);
 }
 
-- (void)finishManufacturerDataScanWithStatus:(NSString *)status
+- (void)completeManufacturerDataScanWithStatus:(NSString *)status
 {
     [self publishManufacturerDataScanResults];
     /*

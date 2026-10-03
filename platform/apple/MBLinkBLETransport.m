@@ -5,5 +5,3 @@
  */
 #import "MBLinkBLETransport+MBLINK.h"
 #include "../../src/link/platform/apple/LinkBLETransport.m"
-
-#include "MBLinkDiagnosticsEvidence.inc"

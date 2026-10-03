@@ -8,27 +8,8 @@
  * transcript at export time. This keeps the raw command/response evidence and
  * adds one named row per Table value without teaching LINK Mercedes semantics.
  */
-#import "MBLinkDiagnosticsController.h"
-
-#import <objc/runtime.h>
-
-/* Keep the nullability region within this fragment, after all imports. */
+/* Included inside the diagnostics controller implementation. */
 NS_ASSUME_NONNULL_BEGIN
-
-static const void *MBLinkEvidenceRowsKey = &MBLinkEvidenceRowsKey;
-static const void *MBLinkEvidenceLiveModuleKey = &MBLinkEvidenceLiveModuleKey;
-
-static NSMutableData *MBLinkEvidenceRows(MBLinkDiagnosticsController *controller)
-{
-    NSMutableData *rows = objc_getAssociatedObject(controller, MBLinkEvidenceRowsKey);
-    if (rows == nil) {
-        rows = [[NSMutableData alloc] init];
-        objc_setAssociatedObject(
-            controller, MBLinkEvidenceRowsKey, rows,
-            OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    return rows;
-}
 
 static NSString *MBLinkEvidenceCSVField(NSString *value)
 {
@@ -132,6 +113,7 @@ static NSString *MBLinkEvidenceCatalogueTitle(
 
 static void MBLinkEvidenceAppendRow(
     MBLinkDiagnosticsController *controller,
+    NSMutableData *rows,
     uint64_t timestamp,
     MBLinkMercedesModuleSnapshot *module,
     NSString *code,
@@ -168,52 +150,28 @@ static void MBLinkEvidenceAppendRow(
     if (bytes.length == 0U) return;
 
     @synchronized (controller) {
-        [MBLinkEvidenceRows(controller) appendData:bytes];
+        [rows appendData:bytes];
     }
 }
 
-@interface MBLinkDiagnosticsController (MBLinkEvidencePrivate)
-- (void)beginManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
-                                            forceFullScan:(BOOL)forceFullScan
-                                                 liveOnly:(BOOL)liveOnly
-                                        candidateCommands:
-                                            (NSArray<NSNumber *> * _Nullable)candidateCommands;
-- (void)finishManufacturerDataScanWithStatus:(NSString *)status;
-@end
-
-@implementation MBLinkDiagnosticsController (MBLinkNamedEvidence)
-
-+ (void)load
+- (NSMutableData *)manufacturerEvidenceRows
 {
-    Method beginOriginal = class_getInstanceMethod(
-        self,
-        @selector(beginManufacturerDataOperationForModuleIdentifier:
-            forceFullScan:liveOnly:candidateCommands:));
-    Method beginReplacement = class_getInstanceMethod(
-        self,
-        @selector(mblink_evidence_beginManufacturerDataOperationForModuleIdentifier:
-            forceFullScan:liveOnly:candidateCommands:));
-    if (beginOriginal != NULL && beginReplacement != NULL) {
-        method_exchangeImplementations(beginOriginal, beginReplacement);
-    }
-
-    Method finishOriginal = class_getInstanceMethod(
-        self, @selector(finishManufacturerDataScanWithStatus:));
-    Method finishReplacement = class_getInstanceMethod(
-        self, @selector(mblink_evidence_finishManufacturerDataScanWithStatus:));
-    if (finishOriginal != NULL && finishReplacement != NULL) {
-        method_exchangeImplementations(finishOriginal, finishReplacement);
+    @synchronized (self) {
+        if (_manufacturerEvidenceRows == nil)
+            _manufacturerEvidenceRows = [[NSMutableData alloc] init];
+        return _manufacturerEvidenceRows;
     }
 }
 
-- (void)mblink_evidence_beginManufacturerDataOperationForModuleIdentifier:
+- (void)beginManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
                                             forceFullScan:(BOOL)forceFullScan
                                                  liveOnly:(BOOL)liveOnly
                                         candidateCommands:
             (NSArray<NSNumber *> * _Nullable)candidateCommands
 {
-    [self mblink_evidence_beginManufacturerDataOperationForModuleIdentifier:
+    // Record only an accepted live operation, after its normal start path.
+    [self startManufacturerDataOperationForModuleIdentifier:
         identifier
         forceFullScan:forceFullScan
         liveOnly:liveOnly
@@ -224,15 +182,14 @@ static void MBLinkEvidenceAppendRow(
         [self.manufacturerDataScanModuleIdentifier isEqualToString:identifier]) {
         liveModule = [identifier copy];
     }
-    objc_setAssociatedObject(
-        self, MBLinkEvidenceLiveModuleKey, liveModule,
-        OBJC_ASSOCIATION_COPY_NONATOMIC);
+    _manufacturerEvidenceLiveModuleIdentifier = liveModule;
 }
 
-- (void)mblink_evidence_finishManufacturerDataScanWithStatus:(NSString *)status
+- (void)finishManufacturerDataScanWithStatus:(NSString *)status
 {
-    NSString *moduleIdentifier = objc_getAssociatedObject(
-        self, MBLinkEvidenceLiveModuleKey);
+    // Completion clears the scan and may start another module. Capture this
+    // selection first, then append after every completion path has returned.
+    NSString *moduleIdentifier = _manufacturerEvidenceLiveModuleIdentifier;
     const BOOL selectedLiveRefresh = moduleIdentifier.length != 0U &&
         [self.manufacturerDataScanModuleIdentifier
             isEqualToString:moduleIdentifier];
@@ -241,14 +198,11 @@ static void MBLinkEvidenceAppendRow(
             moduleIdentifier] copy]
         : @[];
 
-    [self mblink_evidence_finishManufacturerDataScanWithStatus:status];
+    [self completeManufacturerDataScanWithStatus:status];
 
-    NSString *currentLiveModule = objc_getAssociatedObject(
-        self, MBLinkEvidenceLiveModuleKey);
-    if ([currentLiveModule isEqualToString:moduleIdentifier]) {
-        objc_setAssociatedObject(
-            self, MBLinkEvidenceLiveModuleKey, nil,
-            OBJC_ASSOCIATION_COPY_NONATOMIC);
+    if ([_manufacturerEvidenceLiveModuleIdentifier
+            isEqualToString:moduleIdentifier]) {
+        _manufacturerEvidenceLiveModuleIdentifier = nil;
     }
     if (!selectedLiveRefresh || selectedCommands.count == 0U) return;
 
@@ -296,7 +250,8 @@ static void MBLinkEvidenceAppendRow(
                     NSCharacterSet.whitespaceAndNewlineCharacterSet];
             const BOOL raw = [unit containsString:@"raw"];
             MBLinkEvidenceAppendRow(
-                self, timestamp, module, @"21 30", item.title,
+                self, [self manufacturerEvidenceRows], timestamp, module,
+                @"21 30", item.title,
                 item.formattedValue,
                 unit,
                 raw ? @"raw" : @"decoded",
@@ -314,7 +269,8 @@ static void MBLinkEvidenceAppendRow(
             continue;
 
         MBLinkEvidenceAppendRow(
-            self, timestamp, module, snapshot.codeText,
+            self, [self manufacturerEvidenceRows], timestamp, module,
+            snapshot.codeText,
             MBLinkEvidenceCatalogueTitle(definitions, snapshot),
             snapshot.formattedValue,
             snapshot.unit ?: @"",
@@ -330,7 +286,7 @@ static void MBLinkEvidenceAppendRow(
 
     NSData *extra;
     @synchronized (self) {
-        extra = [MBLinkEvidenceRows(self) copy];
+        extra = [[self manufacturerEvidenceRows] copy];
     }
     if (extra.length == 0U) return base;
 
@@ -352,7 +308,5 @@ static void MBLinkEvidenceAppendRow(
     if (data == nil) return nil;
     return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 }
-
-@end
 
 NS_ASSUME_NONNULL_END
