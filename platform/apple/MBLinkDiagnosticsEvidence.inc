@@ -12,6 +12,9 @@
 
 #import <objc/runtime.h>
 
+/* Keep the nullability region within this fragment, after all imports. */
+NS_ASSUME_NONNULL_BEGIN
+
 static const void *MBLinkEvidenceRowsKey = &MBLinkEvidenceRowsKey;
 static const void *MBLinkEvidenceLiveModuleKey = &MBLinkEvidenceLiveModuleKey;
 
@@ -42,7 +45,7 @@ static NSString *MBLinkEvidenceCSVField(NSString *value)
  * The expression is deliberately narrow so a corrected future LINK row is
  * left untouched.
  */
-static NSData *MBLinkEvidenceNormalizeBaseCSV(NSData *base)
+static NSData * _Nullable MBLinkEvidenceNormalizeBaseCSV(NSData * _Nullable base)
 {
     if (base.length == 0U) return base;
     NSString *text = [[NSString alloc] initWithData:base
@@ -101,7 +104,7 @@ static NSString *MBLinkEvidenceCANAddress(
         : [NSString stringWithFormat:@"0x%03X", (unsigned int)identifier];
 }
 
-static MBLinkMercedesModuleSnapshot *MBLinkEvidenceModule(
+static MBLinkMercedesModuleSnapshot * _Nullable MBLinkEvidenceModule(
     MBLinkDiagnosticsController *controller,
     NSString *identifier)
 {
@@ -320,7 +323,7 @@ static void MBLinkEvidenceAppendRow(
     }
 }
 
-- (NSData *)csvDataSnapshot
+- (nullable NSData *)csvDataSnapshot
 {
     NSData *base = MBLinkEvidenceNormalizeBaseCSV([super csvDataSnapshot]);
     if (base == nil) return nil;
@@ -343,7 +346,7 @@ static void MBLinkEvidenceAppendRow(
     return [combined copy];
 }
 
-- (NSString *)csvSnapshot
+- (nullable NSString *)csvSnapshot
 {
     NSData *data = [self csvDataSnapshot];
     if (data == nil) return nil;
@@ -351,3 +354,5 @@ static void MBLinkEvidenceAppendRow(
 }
 
 @end
+
+NS_ASSUME_NONNULL_END
