@@ -35,6 +35,37 @@ static NSString *MBLinkEvidenceCSVField(NSString *value)
     return [NSString stringWithFormat:@"\"%@\"", safe];
 }
 
+/*
+ * LINK 0.15.90 emits one surplus empty field in transcript stream rows:
+ * the schema has 12 columns, while transcript rows contain 13. Preserve the
+ * lossless transcript and repair only that exact prefix at product export.
+ * The expression is deliberately narrow so a corrected future LINK row is
+ * left untouched.
+ */
+static NSData *MBLinkEvidenceNormalizeBaseCSV(NSData *base)
+{
+    if (base.length == 0U) return base;
+    NSString *text = [[NSString alloc] initWithData:base
+                                           encoding:NSUTF8StringEncoding];
+    if (text.length == 0U) return base;
+
+    NSError *error = nil;
+    NSRegularExpression *pattern = [NSRegularExpression
+        regularExpressionWithPattern:@"(?m)^transcript,,([0-9]+),,,,,,,,"
+                               options:0
+                                 error:&error];
+    if (pattern == nil || error != nil) return base;
+
+    NSString *normalized = [pattern
+        stringByReplacingMatchesInString:text
+                                  options:0
+                                    range:NSMakeRange(0, text.length)
+                             withTemplate:@"transcript,,$1,,,,,,,"];
+    if ([normalized isEqualToString:text]) return base;
+    NSData *bytes = [normalized dataUsingEncoding:NSUTF8StringEncoding];
+    return bytes != nil ? bytes : base;
+}
+
 static uint64_t MBLinkEvidenceLatestTranscriptTimestamp(NSData *base)
 {
     if (base.length == 0U) return 0U;
@@ -291,7 +322,7 @@ static void MBLinkEvidenceAppendRow(
 
 - (NSData *)csvDataSnapshot
 {
-    NSData *base = [super csvDataSnapshot];
+    NSData *base = MBLinkEvidenceNormalizeBaseCSV([super csvDataSnapshot]);
     if (base == nil) return nil;
 
     NSData *extra;
