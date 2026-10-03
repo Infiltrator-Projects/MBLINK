@@ -165,7 +165,6 @@ static void MBLinkEvidenceAppendRow(
 
 - (void)beginManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
-                                            forceFullScan:(BOOL)forceFullScan
                                                  liveOnly:(BOOL)liveOnly
                                         candidateCommands:
             (NSArray<NSNumber *> * _Nullable)candidateCommands
@@ -173,7 +172,6 @@ static void MBLinkEvidenceAppendRow(
     // Record only an accepted live operation, after its normal start path.
     [self startManufacturerDataOperationForModuleIdentifier:
         identifier
-        forceFullScan:forceFullScan
         liveOnly:liveOnly
         candidateCommands:candidateCommands];
 

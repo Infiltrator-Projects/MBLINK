@@ -168,7 +168,7 @@ dashboard, graph, table, Factory Readings, module-wide, or other shortcuts that
 can turn live channels on or off. A bulk reset inside PID Setup may turn all
 channels off, but nothing is selected automatically.
 
-Factory Readings is manual diagnostics only. Reading, refreshing or rescanning a
+Factory Readings is manual diagnostics only. Reading or refreshing a
 module there must never change live-PID selections or create recurring polling.
 
 Selections are stored per VIN and, where relevant, per controller/module. Reconnecting to the same VIN restores the user's own choices. Loading a saved VIN profile offline must expose the same configuration without pretending a live vehicle is attached.
@@ -298,7 +298,7 @@ A release satisfies this design only when all of the following are true:
 - Live polling reads only the documented PIDs the user selected; it never probes candidate identifiers to create new PIDs.
 - Factory Readings re-reads documented commands for the identified ECU and never scans a PID range.
 - No route-wide fallback catalogue is exposed when ECU identity is unresolved.
-- Factory Readings read/refresh/rescan operations never alter live selections.
+- Factory Readings read/refresh operations never alter live selections.
 - No starter-reading or module-wide polling enable shortcut exists.
 - LINK remains the sole scheduler/transport owner for shared generic and manufacturer jobs.
 

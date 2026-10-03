@@ -1759,37 +1759,11 @@ private struct MBModuleDetailView: View {
                     .disabled(!connection.isActive)
                     .opacity(connection.isActive ? 1.0 : 0.45)
 
-                    Text("Refresh re-reads every identifier previously proven positive. A timeout or NO DATA on this pass does not delete earlier discovery evidence.")
+                    Text("Refresh reads the documented commands for this identified ECU. A timeout or NO DATA does not delete earlier received values.")
                         .font(MBTypography.caption)
                         .foregroundStyle(MBBrand.muted)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Divider().overlay(MBBrand.line)
-
-                    Button {
-                        connection.rescanManufacturerData(moduleID: module.id)
-                    } label: {
-                        Label(
-                            "Rescan full module data range",
-                            systemImage: "dot.radiowaves.left.and.right")
-                            .font(MBTypography.subheadlineBold)
-                            .foregroundStyle(MBBrand.silverBright)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: 11,
-                                    style: .continuous)
-                                    .fill(MBBrand.panelRaised))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!connection.isActive)
-                    .opacity(connection.isActive ? 1.0 : 0.45)
-
-                    Text("Rescan repeats the complete bounded read-only sweep so new factory identifiers can be added without erasing values discovered on earlier passes.")
-                        .font(MBTypography.caption)
-                        .foregroundStyle(MBBrand.muted)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -1809,7 +1783,7 @@ private struct MBModuleDetailView: View {
                     connection.discoverManufacturerData(moduleID: module.id)
                 } label: {
                     Label(
-                        "Scan factory data",
+                        "Read documented data",
                         systemImage: "dot.radiowaves.left.and.right")
                         .font(MBTypography.subheadlineBold)
                         .foregroundStyle(MBBrand.background)

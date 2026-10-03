@@ -137,19 +137,10 @@ NS_ASSUME_NONNULL_BEGIN
     NS_SWIFT_NAME(displayTemperatureUnit());
 
 /**
- * Discover read-only Mercedes manufacturer data identifiers on one exact ECU
- * route. Positive UDS DIDs / KWP local identifiers are retained per module;
- * unknown identifiers remain raw instead of being mislabeled as SAE OBD-II.
+ * Read the resolved ECU pack's documented commands on one exact route.
+ * Positive replies are retained per module; unknown values remain raw.
  */
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier;
-
-/**
- * Force a complete bounded manufacturer-data discovery pass on one exact ECU
- * route. This is intentionally distinct from refresh: refresh re-reads the
- * identifiers already proven positive, while rescan searches the full safe
- * range again for newly responding identifiers.
- */
-- (void)rescanManufacturerDataForModuleIdentifier:(NSString *)identifier;
 
 - (NSArray<MBLinkMercedesDataSnapshot *> *)
     manufacturerDataSnapshotsForModuleIdentifier:(NSString *)identifier;

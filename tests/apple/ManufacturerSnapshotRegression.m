@@ -40,10 +40,10 @@ static MBLinkMercedesDataSnapshot *sample(uint8_t service, uint16_t identifier)
 @property(nonatomic) BOOL rejectBegin;
 @property(nonatomic, copy) NSString *nextLiveModule;
 - (void)beginManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
-    forceFullScan:(BOOL)forceFullScan liveOnly:(BOOL)liveOnly
+    liveOnly:(BOOL)liveOnly
     candidateCommands:(NSArray<NSNumber *> *)candidateCommands;
 - (void)startManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
-    forceFullScan:(BOOL)forceFullScan liveOnly:(BOOL)liveOnly
+    liveOnly:(BOOL)liveOnly
     candidateCommands:(NSArray<NSNumber *> *)candidateCommands;
 - (void)finishManufacturerDataScanWithStatus:(NSString *)status;
 - (void)completeManufacturerDataScanWithStatus:(NSString *)status;
@@ -64,7 +64,7 @@ static MBLinkMercedesDataSnapshot *sample(uint8_t service, uint16_t identifier)
 #undef MBLinkDiagnosticsController
 
 - (void)startManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
-    forceFullScan:(BOOL)forceFullScan liveOnly:(BOOL)liveOnly
+    liveOnly:(BOOL)liveOnly
     candidateCommands:(NSArray<NSNumber *> *)candidateCommands
 {
     if (!self.rejectBegin) self.manufacturerDataScanModuleIdentifier = identifier;
@@ -76,7 +76,7 @@ static MBLinkMercedesDataSnapshot *sample(uint8_t service, uint16_t identifier)
         NSString *next = self.nextLiveModule;
         self.nextLiveModule = nil;
         [self beginManufacturerDataOperationForModuleIdentifier:next
-            forceFullScan:NO liveOnly:YES candidateCommands:nil];
+            liveOnly:YES candidateCommands:nil];
     }
 }
 - (NSArray<NSNumber *> *)manufacturerLivePollingCommandsForModuleIdentifier:(NSString *)identifier
@@ -92,7 +92,7 @@ static MBLinkMercedesDataSnapshot *sample(uint8_t service, uint16_t identifier)
 static void refresh(EvidenceController *controller, BOOL live)
 {
     [controller beginManufacturerDataOperationForModuleIdentifier:@"GS"
-        forceFullScan:NO liveOnly:live candidateCommands:nil];
+        liveOnly:live candidateCommands:nil];
     [controller finishManufacturerDataScanWithStatus:@"Complete"];
 }
 

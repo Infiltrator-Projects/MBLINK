@@ -196,7 +196,7 @@ jobs:
           retention-days: 30
 
   windows-discover:
-    name: Windows / MBLINK Discover build-verified
+    name: Windows / Discover build and metadata
     needs: preflight
     runs-on: [self-hosted, Windows, ARM64]
     timeout-minutes: 20
@@ -236,10 +236,6 @@ jobs:
       - name: Build MBLINK Discover
         shell: powershell
         run: cmake --build build-win32 --config Release --target mblink-discover --parallel
-      - name: Prove executable launches
-        shell: powershell
-        run: |
-          & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'build-win32/Release/mblink-discover.exe' -ExpectedTitle 'MBLINK Discover'
       - name: Verify release executable metadata
         if: needs.preflight.outputs.is_release == 'true'
         shell: powershell
@@ -262,13 +258,11 @@ jobs:
           if ($null -eq $icon) { throw 'Executable has no associated icon' }
           $icon.Dispose()
       - name: Stage Windows release executable
-        if: needs.preflight.outputs.is_release == 'true'
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe"
       - name: Upload Windows release executable
-        if: needs.preflight.outputs.is_release == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: MBLINK-${{ needs.preflight.outputs.version }}-windows-discover
@@ -276,6 +270,26 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+  windows-launch:
+    name: Windows / Discover launch
+    needs: [preflight, windows-discover]
+    # Compile on the self-hosted pool and launch its exact artifact on a
+    # hosted runner; the current ARM runner denies Start-Process.
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: MBLINK-${{ needs.preflight.outputs.version }}-windows-discover
+          path: release-assets
+      - name: Prove the self-hosted executable launches
+        shell: powershell
+        run: |
+          & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe' -ExpectedTitle 'MBLINK Discover'
 
   apple-ios:
     name: Apple / C11 + iOS simulator
@@ -452,7 +466,7 @@ jobs:
 
   release:
     name: Publish complete atomic release
-    needs: [preflight, portable-core, sanitizers, linux-app, windows-discover, apple-ios]
+    needs: [preflight, portable-core, sanitizers, linux-app, windows-discover, windows-launch, apple-ios]
     if: needs.preflight.outputs.is_release == 'true'
     runs-on: ubuntu-24.04
     permissions:

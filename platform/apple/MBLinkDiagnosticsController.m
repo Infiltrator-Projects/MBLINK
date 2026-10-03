@@ -92,16 +92,12 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
 - (BOOL)beginNextStartupModuleDataRead;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
-- (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
-                                        forceFullScan:(BOOL)forceFullScan;
 - (void)beginManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
-                                               forceFullScan:(BOOL)forceFullScan
                                                     liveOnly:(BOOL)liveOnly
                                            candidateCommands:
             (nullable NSArray<NSNumber *> *)candidateCommands;
 - (void)startManufacturerDataOperationForModuleIdentifier:(NSString *)identifier
-                                            forceFullScan:(BOOL)forceFullScan
                                                  liveOnly:(BOOL)liveOnly
                                         candidateCommands:
             (nullable NSArray<NSNumber *> *)candidateCommands;
@@ -155,7 +151,6 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
     NSMutableDictionary<NSNumber *, MBLinkStandardDataSnapshot *> *
         _standardDataLatest;
     NSUInteger _manufacturerDataRequestGeneration;
-    BOOL _manufacturerDataForceFullScan;
     BOOL _manufacturerDataScanLiveOnly;
     BOOL _startupModuleDataPassActive;
     size_t _startupModuleDataIndex;
@@ -989,7 +984,6 @@ static bool MBLinkSimulatorResponder(
     _manufacturerDataByModule = [[NSMutableDictionary alloc] init];
     _standardDataByResponder = [[NSMutableDictionary alloc] init];
     _standardDataLatest = [[NSMutableDictionary alloc] init];
-    _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
     _startupModuleDataPassActive = NO;
     _startupModuleDataIndex = 0U;
@@ -1341,7 +1335,6 @@ static bool MBLinkSimulatorResponder(
     _cachedModuleRefreshActive = NO;
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
-    _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
     _startupModuleDataPassActive = NO;
     _startupModuleDataIndex = 0U;
@@ -1836,7 +1829,6 @@ static MBLinkMercedesModuleSnapshot *MBLinkCanonicalModuleSnapshot(
             mblink_mercedes_data_scan_record_count(&_manufacturerDataScan)];
         self.manufacturerDataScanActive = NO;
         self.manufacturerDataScanModuleIdentifier = nil;
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         _scheduledManufacturerJobActive = NO;
         _scheduledManufacturerRestoreStage = MBLinkScheduledRestoreNone;
@@ -2066,7 +2058,6 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
     _scheduledManufacturerJobActive = YES;
     [self beginManufacturerDataOperationForModuleIdentifier:
         moduleIdentifier
-                                          forceFullScan:NO
                                                liveOnly:YES
                                    candidateCommands:documented];
 }
@@ -2677,28 +2668,13 @@ static void MBLinkAppendManufacturerDefinition(
 
 - (void)discoverManufacturerDataForModuleIdentifier:(NSString *)identifier
 {
-    [self beginManufacturerDataScanForModuleIdentifier:identifier
-                                         forceFullScan:NO];
-}
-
-- (void)rescanManufacturerDataForModuleIdentifier:(NSString *)identifier
-{
-    [self beginManufacturerDataScanForModuleIdentifier:identifier
-                                         forceFullScan:NO];
-}
-
-- (void)beginManufacturerDataScanForModuleIdentifier:(NSString *)identifier
-                                        forceFullScan:(BOOL)forceFullScan
-{
     [self beginManufacturerDataOperationForModuleIdentifier:identifier
-                                              forceFullScan:forceFullScan
                                                    liveOnly:NO
                                        candidateCommands:nil];
 }
 
 - (void)startManufacturerDataOperationForModuleIdentifier:
             (NSString *)identifier
-                                               forceFullScan:(BOOL)forceFullScan
                                                     liveOnly:(BOOL)liveOnly
                                         candidateCommands:
             (nullable NSArray<NSNumber *> *)candidateCommands
@@ -2716,13 +2692,8 @@ static void MBLinkAppendManufacturerDefinition(
         return;
     }
 
-    /*
-     * Manual refresh is deliberately non-destructive and re-reads identifiers
-     * already proven positive. A full rescan can still search the bounded safe
-     * range. The automatic live path is narrower again: it uses only proven
-     * runtime identifiers or a one-shot controller-family candidate list.
-     */
-    _manufacturerDataForceFullScan = forceFullScan;
+    /* Manual refresh reads the resolved pack's documented commands without
+     * changing selections. Scheduled live work reads only selected commands. */
     _manufacturerDataScanLiveOnly = liveOnly;
     const NSUInteger generation = ++_manufacturerDataRequestGeneration;
     self.manufacturerDataScanModuleIdentifier = identifier;
@@ -2758,7 +2729,6 @@ static void MBLinkAppendManufacturerDefinition(
         self.manufacturerDataScanStatusText =
             @"The selected Mercedes module is no longer in the active VIN profile";
         self.manufacturerDataScanModuleIdentifier = nil;
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
         if (liveOnly && _scheduledManufacturerJobActive) {
@@ -2788,7 +2758,6 @@ static void MBLinkAppendManufacturerDefinition(
         self.manufacturerDataScanStatusText =
             @"Could not pause standard live polling for the documented Mercedes read";
         self.manufacturerDataScanModuleIdentifier = nil;
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
         return;
@@ -2906,7 +2875,6 @@ static void MBLinkAppendManufacturerDefinition(
         self.manufacturerDataScanStatusText =
             @"No selected documented Mercedes PIDs remain for this module";
         self.manufacturerDataScanModuleIdentifier = nil;
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         ++_manufacturerDataRequestGeneration;
         [self updateScheduledManufacturerLiveJob];
@@ -2921,7 +2889,6 @@ static void MBLinkAppendManufacturerDefinition(
             MBLinkStringFromCString(
                 mblink_mercedes_data_scan_result_name(result))];
         self.manufacturerDataScanModuleIdentifier = nil;
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         [self notifyDelegate];
         return;
@@ -3088,7 +3055,6 @@ static void MBLinkAppendManufacturerDefinition(
 
     self.manufacturerDataScanActive = NO;
     self.manufacturerDataScanModuleIdentifier = nil;
-    _manufacturerDataForceFullScan = NO;
     _manufacturerDataScanLiveOnly = NO;
     ++_manufacturerDataRequestGeneration;
 
@@ -3347,7 +3313,6 @@ static void MBLinkAppendManufacturerDefinition(
         self.manufacturerDataScanActive = YES;
         self.manufacturerDataScanModuleIdentifier =
             MBLinkMercedesModuleIdentifier(module);
-        _manufacturerDataForceFullScan = NO;
         _manufacturerDataScanLiveOnly = NO;
         self.manufacturerDataScanStatusText = [NSString stringWithFormat:
             @"Reading startup module data · %zu item%@",
