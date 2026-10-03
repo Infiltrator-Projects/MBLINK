@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.287 — 2026-10-03
+
+- Coalesce high-frequency iPhone diagnostics callbacks so expensive vehicle/profile/module/PID presentation rebuilds run at no more than 10 Hz instead of once per controller update.
+- Advance the single canonical dependency edge to LINK 0.15.91 and Infiltratr Common 1.19.38; keep Common owned by LINK rather than adding a competing MBLINK pin.
+- Bring the Linux face back onto the InfiltratorOS design contract by deriving cockpit/trace semantic colours from Common and dropping local font-size overrides on shared LINK widgets.
+- Retain intentional compatibility migrations, C207 replay verification and recovered Mercedes-adapter evidence while removing stale dependency documentation rather than deleting active compatibility paths as presumed legacy code.
+
 ## 0.7.285 — 2026-10-02
 
 - Make Mercedes diagnostic-session lifetime connection-owned: dynamically discovered and identified ECU packs enter their documented session at most once per vehicle connection, and startup/live reads reuse that state instead of cycling sessions.

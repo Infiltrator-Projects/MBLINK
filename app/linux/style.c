@@ -225,23 +225,20 @@ static void build_metrics_css(
         css,
         ".link-titlebar-label { font-family: \"%s\"; font-weight: %u; }",
         type->ui_family, (unsigned int)type->ui_bold_weight);
-    g_string_append(
+    /* Product composition stays local; semantic colours come from Common. */
+    g_string_append_printf(
         css,
-        "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }");
-
-    /*
-     * These cockpit/trace shades are deliberately MBLINK-specific composition,
-     * not duplicate Common semantic roles. Preserve them exactly.
-     */
-    g_string_append(
-        css,
-        ".mblink-cockpit-card { background: linear-gradient(155deg,#20262c,#11161b 58%,#080a0d); border-color: #4a525b; }");
+        ".mblink-cockpit-card { background: linear-gradient(155deg,#%06x,#%06x 58%%,#%06x); border-color: #%06x; }",
+        css_rgb(palette->card_rgb), css_rgb(palette->surface_rgb),
+        css_rgb(palette->background_rgb), css_rgb(palette->border_rgb));
     g_string_append_printf(
         css, ".mblink-cockpit-flow, .mblink-trace-flow { margin-top: %upx; }",
         (unsigned int)metrics->compact_spacing);
     g_string_append_printf(
         css,
-        ".mblink-cockpit-gauge { background: linear-gradient(155deg,#171c21,#0b0e11); border: 1px solid #394149; border-radius: %upx; padding: %upx %upx %upx %upx; }",
+        ".mblink-cockpit-gauge { background: linear-gradient(155deg,#%06x,#%06x); border: 1px solid #%06x; border-radius: %upx; padding: %upx %upx %upx %upx; }",
+        css_rgb(palette->card_rgb), css_rgb(palette->surface_rgb),
+        css_rgb(palette->border_rgb),
         (unsigned int)metrics->card_radius,
         (unsigned int)metrics->control_spacing,
         (unsigned int)metrics->control_spacing,
@@ -252,14 +249,18 @@ static void build_metrics_css(
         ".mblink-gauge-value { color: #%06x; font-family: \"%s\"; font-size: 20px; font-weight: %u; }",
         css_rgb(palette->title_rgb), type->ui_family,
         (unsigned int)type->ui_bold_weight);
-    g_string_append(css, ".mblink-gauge-pid { color: #7f8991; font-size: 10px; }");
+    g_string_append_printf(
+        css, ".mblink-gauge-pid { color: #%06x; font-size: 10px; }",
+        css_rgb(palette->subtle_rgb));
     g_string_append_printf(
         css,
-        ".mblink-gauge-title { color: #dce2e6; font-size: 13px; font-weight: %u; }",
-        (unsigned int)type->ui_bold_weight);
-    g_string_append(
+        ".mblink-gauge-title { color: #%06x; font-size: 13px; font-weight: %u; }",
+        css_rgb(palette->title_rgb), (unsigned int)type->ui_bold_weight);
+    g_string_append_printf(
         css,
-        ".mblink-trace-card { background: linear-gradient(155deg,#171c21,#0b0e11); border-color: #3e464f; min-width: 300px; }");
+        ".mblink-trace-card { background: linear-gradient(155deg,#%06x,#%06x); border-color: #%06x; min-width: 300px; }",
+        css_rgb(palette->card_rgb), css_rgb(palette->surface_rgb),
+        css_rgb(palette->border_rgb));
     g_string_append_printf(
         css,
         ".mblink-trace-card .link-card-note { color: #%06x; font-size: 14px; }",
@@ -274,7 +275,7 @@ static void build_metrics_css(
         type->ui_family, (unsigned int)type->ui_bold_weight);
     g_string_append_printf(
         css,
-        ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"%s\"; font-size: 14px; }",
+        ".link-about-dialog label, .link-about-dialog textview, .link-about-dialog textview text { font-family: \"%s\"; }",
         type->ui_family);
     g_string_append_printf(
         css,

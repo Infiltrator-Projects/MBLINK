@@ -267,6 +267,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var manufacturerHistorySessionActive = false
     private var appliedPollingConfigurationKey: String?
     private var livePollingReadyRearmSignature: String?
+    private var controllerRefreshScheduled = false
     /*
      * v2 changes first-run policy from an automatic core set to explicit
      * opt-in. Existing user choices are preserved, but the old untouched
@@ -919,8 +920,19 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
     }
 
+    private func scheduleControllerRefresh() {
+        guard !controllerRefreshScheduled else { return }
+        controllerRefreshScheduled = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard let self else { return }
+            self.controllerRefreshScheduled = false
+            self.refreshStandardState()
+        }
+    }
+
     nonisolated func diagnosticsControllerDidUpdate(_ controller: MBLinkDiagnosticsController) {
-        Task { @MainActor [weak self] in self?.refreshStandardState() }
+        Task { @MainActor [weak self] in self?.scheduleControllerRefresh() }
     }
 
     private var activeVehicleVIN: String? {
