@@ -81,6 +81,21 @@ static MBLinkMercedesModuleSnapshot *MBLinkEvidenceModule(
     return nil;
 }
 
+static NSString *MBLinkEvidenceCatalogueTitle(
+    NSArray<MBLinkManufacturerPIDDefinitionSnapshot *> *definitions,
+    MBLinkMercedesDataSnapshot *snapshot)
+{
+    for (MBLinkManufacturerPIDDefinitionSnapshot *definition in definitions) {
+        if (definition.service == snapshot.service &&
+            definition.identifier == snapshot.identifier &&
+            definition.title.length != 0U) {
+            return definition.title;
+        }
+    }
+    if (snapshot.name.length != 0U) return snapshot.name;
+    return [NSString stringWithFormat:@"Mercedes %@", snapshot.codeText];
+}
+
 static void MBLinkEvidenceAppendRow(
     MBLinkDiagnosticsController *controller,
     uint64_t timestamp,
@@ -194,9 +209,13 @@ static void MBLinkEvidenceAppendRow(
 
     [self mblink_evidence_finishManufacturerDataScanWithStatus:status];
 
-    objc_setAssociatedObject(
-        self, MBLinkEvidenceLiveModuleKey, nil,
-        OBJC_ASSOCIATION_COPY_NONATOMIC);
+    NSString *currentLiveModule = objc_getAssociatedObject(
+        self, MBLinkEvidenceLiveModuleKey);
+    if ([currentLiveModule isEqualToString:moduleIdentifier]) {
+        objc_setAssociatedObject(
+            self, MBLinkEvidenceLiveModuleKey, nil,
+            OBJC_ASSOCIATION_COPY_NONATOMIC);
+    }
     if (!selectedLiveRefresh || selectedCommands.count == 0U) return;
 
     NSData *base = [super csvDataSnapshot];
@@ -206,15 +225,38 @@ static void MBLinkEvidenceAppendRow(
     if (module == nil) return;
 
     NSSet<NSNumber *> *selected = [NSSet setWithArray:selectedCommands];
+    NSArray<MBLinkMercedesDataSnapshot *> *snapshots =
+        [self manufacturerDataSnapshotsForModuleIdentifier:moduleIdentifier];
+    NSArray<MBLinkManufacturerPIDDefinitionSnapshot *> *definitions =
+        [self documentedDataDefinitionsForModuleIdentifier:moduleIdentifier];
+
     const uint32_t transmissionRLI30Token =
         ((uint32_t)UINT8_C(0x21) << 16U) | UINT16_C(0x0030);
+    MBLinkMercedesDataSnapshot *rli30 = nil;
+    if ([selected containsObject:@(transmissionRLI30Token)]) {
+        for (MBLinkMercedesDataSnapshot *snapshot in snapshots) {
+            if (snapshot.service == UINT8_C(0x21) &&
+                snapshot.identifier == UINT16_C(0x0030) &&
+                !snapshot.isStale) {
+                rli30 = snapshot;
+                break;
+            }
+        }
+    }
+
     NSArray<MBLinkTransmissionLiveValueSnapshot *> *transmissionValues = @[];
-    NSString *kind = module.kind.lowercaseString;
-    if ([selected containsObject:@(transmissionRLI30Token)] &&
-        [kind containsString:@"transmission"]) {
-        transmissionValues = [self transmissionLiveValueSnapshots];
-        for (MBLinkTransmissionLiveValueSnapshot *item in transmissionValues) {
+    if (rli30 != nil) {
+        NSArray<MBLinkTransmissionLiveValueSnapshot *> *decoded =
+            [self transmissionLiveValueSnapshots];
+        NSMutableArray<MBLinkTransmissionLiveValueSnapshot *> *matching =
+            [[NSMutableArray alloc] init];
+        for (MBLinkTransmissionLiveValueSnapshot *item in decoded) {
             if ([item.formattedValue hasPrefix:@"Stale · "]) continue;
+            if (rli30.rawHex.length != 0U &&
+                ![item.rawHex isEqualToString:rli30.rawHex]) {
+                continue;
+            }
+            [matching addObject:item];
             NSString *unit = [item.suffix
                 stringByTrimmingCharactersInSet:
                     NSCharacterSet.whitespaceAndNewlineCharacterSet];
@@ -226,10 +268,10 @@ static void MBLinkEvidenceAppendRow(
                 raw ? @"raw" : @"decoded",
                 item.rawHex);
         }
+        transmissionValues = [matching copy];
     }
 
-    for (MBLinkMercedesDataSnapshot *snapshot in
-         [self manufacturerDataSnapshotsForModuleIdentifier:moduleIdentifier]) {
+    for (MBLinkMercedesDataSnapshot *snapshot in snapshots) {
         const uint32_t token =
             ((uint32_t)snapshot.service << 16U) |
             (uint32_t)snapshot.identifier;
@@ -237,11 +279,9 @@ static void MBLinkEvidenceAppendRow(
         if (token == transmissionRLI30Token && transmissionValues.count != 0U)
             continue;
 
-        NSString *title = snapshot.name.length != 0U
-            ? snapshot.name
-            : [NSString stringWithFormat:@"Mercedes %@", snapshot.codeText];
         MBLinkEvidenceAppendRow(
-            self, timestamp, module, snapshot.codeText, title,
+            self, timestamp, module, snapshot.codeText,
+            MBLinkEvidenceCatalogueTitle(definitions, snapshot),
             snapshot.formattedValue,
             snapshot.unit ?: @"",
             snapshot.isMapped ? @"decoded" : @"raw",
