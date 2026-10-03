@@ -14,6 +14,29 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Startup and manual reads share filtering, but keep their own acquisition
+ * policy and pack order. Services are part of a command's identity. */
+static size_t MBLinkAppendDocumentedReadCommand(
+    MblinkMercedesDataProbeCommand *commands,
+    size_t count,
+    uint8_t service,
+    uint16_t identifier)
+{
+    if (count >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS ||
+        !mblink_mercedes_documented_read_is_safe(service, identifier)) {
+        return count;
+    }
+    for (size_t seen = 0U; seen < count; ++seen) {
+        if (commands[seen].service == service &&
+            commands[seen].identifier == identifier) {
+            return count;
+        }
+    }
+    commands[count].service = service;
+    commands[count].identifier = identifier;
+    return count + 1U;
+}
+
 #import "MBLinkDiagnosticsModels.inc"
 
 static NSString * const MBLinkVehicleProfilesDefaultsKey =
@@ -2822,27 +2845,6 @@ static void MBLinkAppendManufacturerDefinition(
             commands[MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS];
         size_t commandCount = 0U;
 
-#define APPEND_READ_COMMAND(SERVICE, IDENTIFIER) do { \
-        const uint8_t appendService = (SERVICE); \
-        const uint16_t appendIdentifier = (IDENTIFIER); \
-        BOOL duplicate = NO; \
-        for (size_t seenIndex = 0U; seenIndex < commandCount; ++seenIndex) { \
-            if (commands[seenIndex].service == appendService && \
-                commands[seenIndex].identifier == appendIdentifier) { \
-                duplicate = YES; \
-                break; \
-            } \
-        } \
-        if (!duplicate && \
-            commandCount < MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS && \
-            mblink_mercedes_documented_read_is_safe( \
-                appendService, appendIdentifier)) { \
-            commands[commandCount].service = appendService; \
-            commands[commandCount].identifier = appendIdentifier; \
-            ++commandCount; \
-        } \
-    } while (0)
-
         for (size_t itemIndex = 0U;
              itemIndex < ecuPackItemCount; ++itemIndex) {
             MblinkMercedesEcuDataItem item;
@@ -2850,10 +2852,9 @@ static void MBLinkAppendManufacturerDefinition(
                     &ecuPack, itemIndex, &item)) {
                 continue;
             }
-            APPEND_READ_COMMAND(item.service, item.identifier);
+            commandCount = MBLinkAppendDocumentedReadCommand(
+                commands, commandCount, item.service, item.identifier);
         }
-
-#undef APPEND_READ_COMMAND
 
         if (commandCount != 0U) {
             result = mblink_mercedes_data_scan_begin_documented_commands(
@@ -3265,29 +3266,9 @@ static void MBLinkAppendManufacturerDefinition(
         while (mblink_mercedes_ecu_pack_next_item(
                 &pack, MBLINK_MERCEDES_ECU_DATA_STARTUP_ONCE,
                 &cursor, &item)) {
-            BOOL duplicate = NO;
-
-            if (item.acquired_during_identification ||
-                !mblink_mercedes_documented_read_is_safe(
-                    item.service, item.identifier)) {
-                continue;
-            }
-
-            for (size_t seen = 0U; seen < commandCount; ++seen) {
-                if (commands[seen].service == item.service &&
-                    commands[seen].identifier == item.identifier) {
-                    duplicate = YES;
-                    break;
-                }
-            }
-            if (duplicate ||
-                commandCount >= MBLINK_MERCEDES_DATA_SCAN_MAX_RECORDS) {
-                continue;
-            }
-
-            commands[commandCount].service = item.service;
-            commands[commandCount].identifier = item.identifier;
-            ++commandCount;
+            if (item.acquired_during_identification) continue;
+            commandCount = MBLinkAppendDocumentedReadCommand(
+                commands, commandCount, item.service, item.identifier);
         }
 
         if (commandCount == 0U) continue;
