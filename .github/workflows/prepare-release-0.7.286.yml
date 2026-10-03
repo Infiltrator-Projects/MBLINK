@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Prepare MBLINK 0.7.286 release metadata
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.event.head_commit.message == 'Prepare 0.7.286 release metadata'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Synchronize release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/#define MBLINK_VERSION_STRING "0\.7\.285"/#define MBLINK_VERSION_STRING "0.7.286"/' include/mblink/version.h
+          sed -i 's/MARKETING_VERSION = 0\.7\.285;/MARKETING_VERSION = 0.7.286;/g' app/ios/MBLINK.xcodeproj/project.pbxproj
+          rm .github/workflows/prepare-release-0.7.286.yml
+          python3 scripts/preflight.py
+          grep -Fxq '#define MBLINK_VERSION_STRING "0.7.286"' include/mblink/version.h
+          test "$(grep -Fc 'MARKETING_VERSION = 0.7.286;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
+      - name: Stage release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Shannon Smith'
+          git config user.email 'infiltratr@yandex.com'
+          git add VERSION include/mblink/version.h app/ios/MBLINK.xcodeproj/project.pbxproj .github/workflows/prepare-release-0.7.286.yml
+          git commit -m 'Release 0.7.286: fix Apple evidence nullability context'
+          git push --force origin HEAD:refs/heads/release-staging-0.7.286
