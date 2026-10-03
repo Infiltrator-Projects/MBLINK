@@ -4,6 +4,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 LINK_COMMIT = "c7009e913e8bd074542b54737cc49cd937a54696"
+OLD_LINK_COMMIT = "34e449011a54c9d54603d20a5e2ce14c06d5206b"
 OLD_VERSION = "0.7.286"
 NEW_VERSION = "0.7.287"
 
@@ -34,16 +35,18 @@ if (ROOT / "src/link/VERSION").read_text(encoding="utf-8").strip() != "0.15.91":
 if (ROOT / "src/link/src/infiltratr-common/VERSION").read_text(encoding="utf-8").strip() != "1.19.38":
     raise SystemExit("Common pin did not resolve to 1.19.38")
 
-# Release identity.
+# Release identity and the exact LINK source revision recorded by both iOS configs.
 replace_exact(ROOT / "VERSION", OLD_VERSION + "\n", NEW_VERSION + "\n")
 replace_exact(
     ROOT / "include/mblink/version.h",
     f'#define MBLINK_VERSION_STRING "{OLD_VERSION}"',
     f'#define MBLINK_VERSION_STRING "{NEW_VERSION}"')
+project = ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj"
 replace_at_least_one(
-    ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj",
+    project,
     f"MARKETING_VERSION = {OLD_VERSION};",
     f"MARKETING_VERSION = {NEW_VERSION};")
+replace_exact(project, OLD_LINK_COMMIT, LINK_COMMIT, expected=2)
 
 # Coalesce high-frequency controller callbacks before rebuilding the complete
 # presentation model. This keeps expensive profile/module/PID work off the
