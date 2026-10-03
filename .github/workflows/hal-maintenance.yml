@@ -20,7 +20,9 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Apply forensic maintenance patch
-        run: python3 scripts/hal-maintenance-patch.py
+        run: |
+          python3 scripts/hal-maintenance-patch.py
+          git add -A
       - name: Validate repository invariants
         run: |
           python3 scripts/preflight.py
