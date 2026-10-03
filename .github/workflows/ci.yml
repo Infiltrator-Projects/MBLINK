@@ -22,11 +22,13 @@ concurrency:
 jobs:
   preflight:
     name: Preflight / repository invariants
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 5
     outputs:
       version: ${{ steps.meta.outputs.version }}
       is_release: ${{ steps.meta.outputs.is_release }}
+    env:
+      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,8 +58,10 @@ jobs:
     name: Linux / C11
     needs: preflight
     # Recursive checkout needs git on every run, including development builds.
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 15
+    env:
+      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,8 +74,7 @@ jobs:
   sanitizers:
     name: Linux / ASan + UBSan
     needs: preflight
-    # Development runners may lack git, which prevents recursive checkout.
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, linux-native]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -195,25 +198,28 @@ jobs:
   windows-discover:
     name: Windows / MBLINK Discover build-verified
     needs: preflight
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, ARM64]
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
       - name: Configure Win32 build
-        shell: pwsh
+        shell: powershell
         run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
       - name: Build MBLINK Discover
-        shell: pwsh
+        shell: powershell
         run: cmake --build build-win32 --config Release --target mblink-discover --parallel
       - name: Prove executable launches
-        shell: pwsh
+        shell: powershell
         run: |
           & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'build-win32/Release/mblink-discover.exe' -ExpectedTitle 'MBLINK Discover'
       - name: Verify release executable metadata
         if: needs.preflight.outputs.is_release == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (-not (Test-Path $vswhere)) { throw 'vswhere.exe is unavailable' }
@@ -234,7 +240,7 @@ jobs:
           $icon.Dispose()
       - name: Stage Windows release executable
         if: needs.preflight.outputs.is_release == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe"
@@ -567,3 +573,4 @@ jobs:
             sleep 10
           done
           echo "::warning::GitHub release is published; central APT catalogue propagation is still pending."
+
