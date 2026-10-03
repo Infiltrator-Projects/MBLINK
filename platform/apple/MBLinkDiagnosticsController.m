@@ -112,7 +112,7 @@ typedef NS_ENUM(NSUInteger, MBLinkConnectionSessionStage) {
 - (void)continueAfterConnectionSessionEstablishment;
 - (void)tryBeginDisconnectSessionTeardown:(NSUInteger)attempt;
 - (void)finishCurrentWorkForDisconnect;
-- (BOOL)beginNextStartupModuleDataRead;
+- (void)beginNextStartupModuleDataRead;
 - (nullable const MblinkMercedesModuleScanEntry *)
     moduleEntryForIdentifier:(NSString *)identifier;
 - (void)beginManufacturerDataOperationForModuleIdentifier:
@@ -3066,17 +3066,7 @@ static void MBLinkAppendManufacturerDefinition(
     }
 
     if (_startupModuleDataPassActive) {
-        if ([self beginNextStartupModuleDataRead]) {
-            [self notifyDelegate];
-            return;
-        }
-        _startupModuleDataPassActive = NO;
-        _scheduledManufacturerJobActive = NO;
-        if (![_shared completeManufacturerExtensionRestoringAdapter:YES]) {
-            [_shared failWithStatus:
-                @"Could not resume standard diagnostics after startup module data"];
-        }
-        [self updateScheduledManufacturerLiveJob];
+        [self beginNextStartupModuleDataRead];
         [self notifyDelegate];
         return;
     }
@@ -3234,15 +3224,10 @@ static void MBLinkAppendManufacturerDefinition(
      */
     _startupModuleDataPassActive = YES;
     _startupModuleDataIndex = 0U;
-    if ([self beginNextStartupModuleDataRead])
-        return;
-    _startupModuleDataPassActive = NO;
-
-    [self updateScheduledManufacturerLiveJob];
-    [self finishMercedesExtensionRestoringAdapter:YES];
+    [self beginNextStartupModuleDataRead];
 }
 
-- (BOOL)beginNextStartupModuleDataRead
+- (void)beginNextStartupModuleDataRead
 {
     const size_t moduleCount =
         mblink_mercedes_module_scan_module_count(&_mercedesModuleScan);
@@ -3301,10 +3286,13 @@ static void MBLinkAppendManufacturerDefinition(
         [self setStatus:@"Reading one-time Mercedes module data"];
         [self notifyDelegate];
         [self beginCurrentMercedesDataScanCommand];
-        return YES;
+        return;
     }
 
-    return NO;
+    /* All startup passes finish here, including an empty catalogue. LINK's
+     * became_ready event registers selected polling after standard startup. */
+    _scheduledManufacturerJobActive = NO;
+    [self finishMercedesExtensionRestoringAdapter:YES];
 }
 
 - (void)processMercedesModuleScanResponse:(const MblinkElm327Response *)response
