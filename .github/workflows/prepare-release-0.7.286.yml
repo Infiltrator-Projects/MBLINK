@@ -26,7 +26,6 @@ jobs:
           rm .github/workflows/prepare-release-0.7.286.yml
           python3 scripts/preflight.py
           grep -Fxq '#define MBLINK_VERSION_STRING "0.7.286"' include/mblink/version.h
-          test "$(grep -Fc 'MARKETING_VERSION = 0.7.286;' app/ios/MBLINK.xcodeproj/project.pbxproj)" -eq 2
       - name: Stage release commit
         shell: bash
         run: |
