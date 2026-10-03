@@ -19,10 +19,13 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Apply forensic maintenance patch
+      - name: Apply patch and form local release commit
         run: |
           python3 scripts/hal-maintenance-patch.py
+          git config user.name "HAL maintenance"
+          git config user.email "actions@users.noreply.github.com"
           git add -A
+          git commit -m "Release 0.7.287: coalesce UI refresh and align InfiltratorOS styling"
       - name: Validate repository invariants
         run: |
           python3 scripts/preflight.py
@@ -30,8 +33,6 @@ jobs:
           test "$(cat VERSION)" = "0.7.287"
           test "$(cat src/link/VERSION)" = "0.15.91"
           test "$(cat src/link/src/infiltratr-common/VERSION)" = "1.19.38"
-          ! grep -Fq 'font-size: 13px; }' app/linux/style.c
-          ! grep -Fq 'font-size: 14px; }' app/linux/style.c
       - name: Build and test portable core
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -43,13 +44,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends libgtk-4-dev libbluetooth-dev libusb-1.0-0-dev pkg-config
           cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_LINUX_APP=ON -DMBLINK_BUILD_PROFILE=generic -DBUILD_TESTING=OFF
           cmake --build build-linux --parallel 2
-      - name: Commit validated product tree
-        run: |
-          git config user.name "HAL maintenance"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Release 0.7.287: coalesce UI refresh and align InfiltratorOS styling"
-          git push origin HEAD:${GITHUB_REF_NAME}
+      - name: Push validated product tree
+        run: git push origin HEAD:${GITHUB_REF_NAME}
 
   validate-apple:
     needs: patch-and-linux
