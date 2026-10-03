@@ -159,7 +159,7 @@ static void build_base_css(
     g_string_append(css, ".mblink-settings-row dropdown { min-width: 210px; }");
     g_string_append_printf(
         css,
-        ".mblink-settings-note { color: #%06x; font-family: \"%s\"; font-size: 11px; font-weight: %u; }",
+        ".mblink-settings-note { color: #%06x; font-family: \"%s\"; font-size: 12px; font-weight: %u; }",
         css_rgb(palette->subtle_rgb), type->ui_family,
         (unsigned int)type->ui_regular_weight);
 }
@@ -230,18 +230,21 @@ static void build_metrics_css(
         "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }");
 
     /*
-     * These cockpit/trace shades are deliberately MBLINK-specific composition,
-     * not duplicate Common semantic roles. Preserve them exactly.
+     * Cockpit/trace background composition remains deliberately MBLINK-specific.
+     * Semantic border/text roles stay on Common so the product cannot drift
+     * away from the Infiltratr visual contract as the shared palette evolves.
      */
-    g_string_append(
+    g_string_append_printf(
         css,
-        ".mblink-cockpit-card { background: linear-gradient(155deg,#20262c,#11161b 58%,#080a0d); border-color: #4a525b; }");
+        ".mblink-cockpit-card { background: linear-gradient(155deg,#20262c,#11161b 58%%,#080a0d); border-color: #%06x; }",
+        css_rgb(palette->border_rgb));
     g_string_append_printf(
         css, ".mblink-cockpit-flow, .mblink-trace-flow { margin-top: %upx; }",
         (unsigned int)metrics->compact_spacing);
     g_string_append_printf(
         css,
-        ".mblink-cockpit-gauge { background: linear-gradient(155deg,#171c21,#0b0e11); border: 1px solid #394149; border-radius: %upx; padding: %upx %upx %upx %upx; }",
+        ".mblink-cockpit-gauge { background: linear-gradient(155deg,#171c21,#0b0e11); border: 1px solid #%06x; border-radius: %upx; padding: %upx %upx %upx %upx; }",
+        css_rgb(palette->border_rgb),
         (unsigned int)metrics->card_radius,
         (unsigned int)metrics->control_spacing,
         (unsigned int)metrics->control_spacing,
@@ -252,19 +255,22 @@ static void build_metrics_css(
         ".mblink-gauge-value { color: #%06x; font-family: \"%s\"; font-size: 20px; font-weight: %u; }",
         css_rgb(palette->title_rgb), type->ui_family,
         (unsigned int)type->ui_bold_weight);
-    g_string_append(css, ".mblink-gauge-pid { color: #7f8991; font-size: 10px; }");
+    g_string_append_printf(
+        css, ".mblink-gauge-pid { color: #%06x; font-size: 10px; }",
+        css_rgb(palette->subtle_rgb));
     g_string_append_printf(
         css,
-        ".mblink-gauge-title { color: #dce2e6; font-size: 13px; font-weight: %u; }",
+        ".mblink-gauge-title { color: #%06x; font-size: 13px; font-weight: %u; }",
+        css_rgb(palette->title_rgb),
         (unsigned int)type->ui_bold_weight);
-    g_string_append(
+    g_string_append_printf(
         css,
-        ".mblink-trace-card { background: linear-gradient(155deg,#171c21,#0b0e11); border-color: #3e464f; min-width: 300px; }");
+        ".mblink-trace-card { background: linear-gradient(155deg,#171c21,#0b0e11); border-color: #%06x; min-width: 300px; }",
+        css_rgb(palette->border_rgb));
     g_string_append_printf(
         css,
         ".mblink-trace-card .link-card-note { color: #%06x; font-size: 14px; }",
         css_rgb(palette->neutral_accent_rgb));
-    g_string_append(css, ".mblink-settings-note { font-size: 12px; }");
     g_string_append_printf(
         css, ".link-about-dialog { background: #%06x; }",
         css_rgb(palette->background_rgb));
