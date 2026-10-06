@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: One-shot main iOS repair
+
+on:
+  push:
+    branches: [hal/forensic-ui-0.7.287]
+    paths: [.github/workflows/one-shot-main-ios-repair.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  repair-main:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove obsolete recovered rescan wrapper only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
+          text = path.read_text(encoding='utf-8')
+          obsolete = '''    func rescanManufacturerData(moduleID: String) {
+              guard isActive else { return }
+              controller.rescanManufacturerData(
+                  forModuleIdentifier: moduleID)
+              refreshStandardState()
+          }
+
+          '''
+          if text.count(obsolete) != 1:
+              raise SystemExit('expected exactly one obsolete rescan wrapper')
+
+          text = text.replace(obsolete, '', 1)
+
+          required = (
+              'private var controllerRefreshScheduled = false',
+              'private func scheduleControllerRefresh()',
+              'Task.sleep(nanoseconds: 100_000_000)',
+              'self?.scheduleControllerRefresh()',
+          )
+          missing = [marker for marker in required if marker not in text]
+          if missing:
+              raise SystemExit('coalescer marker missing: ' + ', '.join(missing))
+          if 'rescanManufacturerData(moduleID:' in text:
+              raise SystemExit('obsolete Swift rescan wrapper still present')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit repair directly to main
+        shell: bash
+        run: |
+          git diff --check
+          git diff -- app/ios/MBLINK/ConnectionViewModel.swift
+          git config user.name "HAL maintenance"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/ios/MBLINK/ConnectionViewModel.swift
+          test "$(git diff --cached --name-only)" = "app/ios/MBLINK/ConnectionViewModel.swift"
+          git commit -m "Fix recovered iOS refresh coalescer build" -m "Remove the obsolete rescan wrapper accidentally reintroduced from the stale 0.7.287 branch while preserving the 100 ms diagnostics refresh coalescer."
+          git push origin HEAD:main
