@@ -28,18 +28,15 @@ jobs:
 
           path = Path('app/ios/MBLINK/ConnectionViewModel.swift')
           text = path.read_text(encoding='utf-8')
-          obsolete = '''    func rescanManufacturerData(moduleID: String) {
-              guard isActive else { return }
-              controller.rescanManufacturerData(
-                  forModuleIdentifier: moduleID)
-              refreshStandardState()
-          }
-
-          '''
-          if text.count(obsolete) != 1:
+          marker = '\n    func rescanManufacturerData(moduleID: String) {'
+          if text.count(marker) != 1:
               raise SystemExit('expected exactly one obsolete rescan wrapper')
-
-          text = text.replace(obsolete, '', 1)
+          start = text.index(marker)
+          next_marker = '\n    func refreshPresentation() {'
+          end = text.find(next_marker, start)
+          if end < 0:
+              raise SystemExit('refreshPresentation boundary not found after rescan wrapper')
+          text = text[:start] + text[end:]
 
           required = (
               'private var controllerRefreshScheduled = false',
