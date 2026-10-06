@@ -909,13 +909,6 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         refreshStandardState()
     }
 
-    func rescanManufacturerData(moduleID: String) {
-        guard isActive else { return }
-        controller.rescanManufacturerData(
-            forModuleIdentifier: moduleID)
-        refreshStandardState()
-    }
-
     func refreshPresentation() {
         refreshStandardState()
     }
