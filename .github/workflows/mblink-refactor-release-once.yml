@@ -39,6 +39,41 @@ jobs:
       - name: Apply architecture refactor
         run: python3 tools/refactor-0.7.292.py
 
+      - name: Normalize imported diagnostic flow enum comparisons
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/ios/MBLINK/MBLinkDiagnosticsDomain.swift')
+          text = path.read_text()
+          constants = [
+              'LINK_DIAGNOSTIC_FLOW_FAILED',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION',
+              'LINK_DIAGNOSTIC_FLOW_RESTORING_AFTER_MANUFACTURER',
+              'LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN',
+              'LINK_DIAGNOSTIC_FLOW_READING_READINESS',
+              'LINK_DIAGNOSTIC_FLOW_READING_FREEZE_FRAME',
+              'LINK_DIAGNOSTIC_FLOW_LIVE',
+              'LINK_DIAGNOSTIC_FLOW_READING_LIVE',
+              'LINK_DIAGNOSTIC_FLOW_INITIALIZING',
+              'LINK_DIAGNOSTIC_FLOW_CONFIGURING_PID_DISCOVERY_HEADERS',
+              'LINK_DIAGNOSTIC_FLOW_DISCOVERING_PIDS',
+              'LINK_DIAGNOSTIC_FLOW_RESTORING_PID_DISCOVERY_HEADERS',
+              'LINK_DIAGNOSTIC_FLOW_CONFIGURING_LIVE_HEADERS',
+          ]
+          for constant in constants:
+              text = text.replace(
+                  f'flow.stage == {constant}',
+                  f'flow.stage.rawValue == {constant}.rawValue')
+              text = text.replace(
+                  f'stage == {constant}',
+                  f'stage.rawValue == {constant}.rawValue')
+          path.write_text(text)
+          PY
+
       - name: Keep PID architecture guard at API boundary
         shell: bash
         run: |
