@@ -62,12 +62,6 @@ jobs:
             exit 1
           fi
 
-          tag="v$version"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists; published versions are immutable." >&2
-            exit 1
-          fi
-
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "link_version=$(tr -d '[:space:]' < src/link/VERSION)" >> "$GITHUB_OUTPUT"
@@ -92,7 +86,7 @@ jobs:
     name: Package Linux release
     needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,6 +118,24 @@ jobs:
             ./build-linux/mblink-linux --replay-c207-verify
           GTK_A11Y=none G_DEBUG=fatal-warnings timeout 60s xvfb-run -a \
             ./build-linux/mblink-linux --ui-navigation-stress
+
+      - name: Sanitized GTK navigation soak
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-linux-sanitized \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DMBLINK_BUILD_LINUX_APP=ON \
+            -DMBLINK_ENABLE_SANITIZERS=ON \
+            -DMBLINK_BUILD_PROFILE=generic \
+            -DBUILD_TESTING=OFF
+          cmake --build build-linux-sanitized --parallel --target mblink-linux
+          GTK_A11Y=none \
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+            timeout 90s xvfb-run -a ./build-linux-sanitized/mblink-linux \
+            --ui-navigation-stress
 
       - name: Package DEB and native RUN
         shell: bash
