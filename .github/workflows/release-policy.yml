@@ -11,6 +11,15 @@ on:
       - 'VERSION'
       - 'include/mblink/version.h'
       - 'app/ios/MBLINK.xcodeproj/project.pbxproj'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/preflight.py'
+      - 'tests/test_pid_architecture.py'
+      - 'VERSION'
+      - 'include/mblink/version.h'
+      - 'app/ios/MBLINK.xcodeproj/project.pbxproj'
 
 permissions:
   contents: read
