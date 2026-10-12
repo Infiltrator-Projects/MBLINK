@@ -39,6 +39,20 @@ jobs:
       - name: Apply architecture refactor
         run: python3 tools/refactor-0.7.292.py
 
+      - name: Keep PID architecture guard at API boundary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/test_pid_architecture.py')
+          text = path.read_text()
+          old = '''require(\n    "pollable" not in model\n    and "pollable" not in app\n    and "documentedDefinitions.map" in model\n    and ".filter { selected.contains($0.selectionKey) }" in model,\n    "iPhone PID Setup must remain documentation-driven; startup-vs-polling ownership belongs to the ECU pack, not an extra UI gate",\n)'''
+          new = '''require(\n    "pollable" not in model\n    and "pollable" not in app\n    and "documentedDataDefinitionsForModuleIdentifier" in apple_api\n    and "setManufacturerLivePollingCommands" in apple_api,\n    "iPhone PID Setup must remain documentation-driven; startup-vs-polling ownership belongs to the ECU-pack API, not an extra UI gate",\n)'''
+          if old not in text:
+              raise SystemExit('PID architecture guard changed unexpectedly')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Fast repository invariants
         run: python3 scripts/preflight.py
 
