@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.292 — 2026-10-12
+
+- Split iPhone diagnostic presentation/persistence concerns out of ConnectionViewModel into typed domain services for UDS catalogue projection, manufacturer selection persistence and DTC resolution; keep a strongly typed MBLINK controller reference instead of force-casting the generic controller.
+- Replace fault/connection behaviour inferred from human-readable status strings with machine state from LINK's diagnostic flow and an explicit Mercedes fault-scan state.
+- Move Mercedes connection-owned ECU session state plus enter/quit command and positive-response policy into a tested portable lifecycle module, reducing temporal state and ECU-pack policy inside the Apple diagnostics controller.
+- Run release-critical Linux validation on GitHub-hosted runners so publication no longer waits on an offline local runner.
+
 ## 0.7.285 — 2026-10-02
 
 - Make Mercedes diagnostic-session lifetime connection-owned: dynamically discovered and identified ECU packs enter their documented session at most once per vehicle connection, and startup/live reads reuse that state instead of cycling sessions.

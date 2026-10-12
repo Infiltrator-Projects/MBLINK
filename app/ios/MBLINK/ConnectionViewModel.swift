@@ -195,68 +195,16 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     @Published private(set) var mercedesTargetSignals = [MercedesTargetSignal]()
     @Published private(set) var mercedesNativeDataIdentities = [MercedesNativeDataIdentity]()
 
-    /// Complete product-neutral UDS codec catalogue from LINK.  Safety is
-    /// evaluated independently for each SID through LINK's deny-by-default
-    /// Discover classifier; no request is transmitted by constructing this
-    /// presentation model.
     var udsServiceCatalogue: [MBUDSServiceCatalogueItem] {
-        var items = [MBUDSServiceCatalogueItem]()
-        let count = Int(link_uds_standard_service_count())
-        items.reserveCapacity(count)
-
-        for index in 0..<count {
-            guard let pointer = link_uds_standard_service_at(index) else {
-                continue
-            }
-            let definition = pointer.pointee
-            let name = definition.name.map { String(cString: $0) } ?? "Unknown"
-            let effect = link_uds_service_effect_name(definition.effect)
-                .map { String(cString: $0) } ?? "unknown"
-
-            var sid = definition.service
-            let safety = withUnsafePointer(to: &sid) {
-                link_safety_classify($0, 1)
-            }
-            let reason = link_safety_reason_string(safety.reason)
-                .map { String(cString: $0) } ?? "unknown safety decision"
-            let allowed = safety.decision == LINK_SAFETY_ALLOW_READ_ONLY
-            let policy = allowed
-                ? "Read-only allowed · \(reason)"
-                : "Codec only · \(reason)"
-
-            items.append(MBUDSServiceCatalogueItem(
-                id: definition.service,
-                name: name,
-                effect: effect,
-                transmissionPolicy: policy,
-                readOnlyTransmissionAllowed: allowed))
-        }
-        return items
+        MBUDSCatalogueProvider.services()
     }
 
-    /// Complete ReadDTCInformation catalogue from LINK.  These entries mean
-    /// that the generic codec can construct/validate the report; they do not
-    /// claim that the connected Mercedes ECU implements the report type.
     var udsDTCReportCatalogue: [MBUDSDTCReportCatalogueItem] {
-        var items = [MBUDSDTCReportCatalogueItem]()
-        let count = Int(link_uds_dtc_report_definition_count())
-        items.reserveCapacity(count)
-        for index in 0..<count {
-            guard let pointer = link_uds_dtc_report_definition_at(index) else {
-                continue
-            }
-            let definition = pointer.pointee
-            items.append(MBUDSDTCReportCatalogueItem(
-                id: definition.subfunction,
-                name: definition.name.map { String(cString: $0) } ?? "Unknown",
-                withdrawnIn2020: definition.withdrawn_in_2020))
-        }
-        return items
+        MBUDSCatalogueProvider.dtcReports()
     }
 
-    private var controller: MBLinkDiagnosticsController {
-        productController as! MBLinkDiagnosticsController
-    }
+    private let mblinkController: MBLinkDiagnosticsController
+    private var controller: MBLinkDiagnosticsController { mblinkController }
     private var pidSelectionStore: LinkPIDSelectionStore {
         pollingSelectionStore
     }
@@ -268,68 +216,33 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     private var appliedPollingConfigurationKey: String?
     private var livePollingReadyRearmSignature: String?
     private var controllerRefreshScheduled = false
-    /*
-     * v2 changes first-run policy from an automatic core set to explicit
-     * opt-in. Existing user choices are preserved, but the old untouched
-     * automatic default is recognised and migrated to an empty selection.
-     */
-    private static let manufacturerSelectionDefaultsKey =
-        "mblink.manufacturer.pidSelectionsByVehicle.v1"
+    private let manufacturerSelections = MBManufacturerSelectionStore()
     private static let moduleStatusMILStableKey = "obd2.readiness.mil"
-    private static let manufacturerStableKeyAliases = [
-        "mercdes.transmission.actual_gear":
-            "mercedes.transmission.actual_gear",
-        "mercdes.transmission.selector_position":
-            "mercedes.transmission.selector_position",
-        "mercdes.transmission.drive_program":
-            "mercedes.transmission.drive_program"
-    ]
     private var pidSupportByModule = [String: Set<UInt8>]()
 
     var obdFaultScanComplete: Bool {
-        faultScanStatusText.hasPrefix("Complete ·") || faultScanStatusText == "Complete"
+        MBConnectionStateResolver.standardFaultState(controller: controller) == .complete
     }
 
     var obdFaultScanFailed: Bool {
-        let value = faultScanStatusText.lowercased()
-        return value.contains("timed out") || value.contains("error") || value.contains("failed")
+        MBConnectionStateResolver.standardFaultState(controller: controller) == .failed
     }
 
     var mercedesFaultScanComplete: Bool {
-        mercedesUDSFaultStatusText.hasPrefix("Complete ·")
+        controller.mercedesFaultScanState == .complete
     }
 
     var mercedesFaultScanFailed: Bool {
-        let value = mercedesUDSFaultStatusText.lowercased()
-        return value.contains("partial") || value.contains("interrupted") ||
-            value.contains("incomplete") || value.contains("failed")
+        controller.mercedesFaultScanState == .failed
     }
 
     var connectionPhaseTitle: String {
-        let value = statusText.lowercased()
-        if value.contains("retry") || value.contains("scanning") {
-            return "Finding Bluetooth adapter"
-        }
-        if value.contains("connecting") || value.contains("discovering") ||
-            value.contains("validating") {
-            return "Opening adapter channel"
-        }
-        if value.contains("initial") || value.contains("elm327") {
-            return "Initialising diagnostic adapter"
-        }
-        if value.contains("module") || value.contains("mercedes") ||
-            value.contains("probe") {
-            return "Reading Mercedes control units"
-        }
-        if value.contains("vin") || value.contains("fault") ||
-            value.contains("pid") {
-            return "Reading vehicle diagnostics"
-        }
-        return "Preparing diagnostic session"
+        MBConnectionStateResolver.connectionPhase(controller: controller).title
     }
 
     init() {
         let controller = MBLinkDiagnosticsController()
+        mblinkController = controller
         let version = mblink_version().map { String(cString: $0) } ?? "Unknown"
         super.init(
             controller: controller,
@@ -679,13 +592,9 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
         standardSelectionMigrator().resetSelections(forVIN: vin)
 
-        // Remove the entire per-VIN Mercedes selection subtree, including
-        // selections for modules that are no longer present in the current map.
-        let defaults = UserDefaults.standard
-        var vehicles = defaults.dictionary(
-            forKey: Self.manufacturerSelectionDefaultsKey) ?? [:]
-        vehicles.removeValue(forKey: vin)
-        defaults.set(vehicles, forKey: Self.manufacturerSelectionDefaultsKey)
+        // Remove every saved Mercedes selection for this VIN, including
+        // controllers no longer present in the current topology.
+        manufacturerSelections.reset(vin: vin)
 
         appliedPollingConfigurationKey = nil
         applyConfiguredPollingIfNeeded(force: true)
@@ -946,18 +855,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
 
     private func manufacturerSelectionSet(moduleID: String) -> Set<String> {
         guard let vin = effectivePIDConfigurationVIN else { return [] }
-        let defaults = UserDefaults.standard
-        guard let vehicles = defaults.dictionary(
-                forKey: Self.manufacturerSelectionDefaultsKey),
-              let modules = vehicles[vin] as? [String: Any],
-              let values = modules[moduleID] as? [String]
-        else { return [] }
-        let stored = Set(values)
-        let canonical = Set(values.map(canonicalManufacturerStableKey))
-        if canonical != stored {
-            storeManufacturerSelection(canonical, moduleID: moduleID)
-        }
-        return canonical
+        return manufacturerSelections.selection(vin: vin, moduleID: moduleID)
     }
 
     private func storeManufacturerSelection(
@@ -965,13 +863,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         moduleID: String
     ) {
         guard let vin = effectivePIDConfigurationVIN else { return }
-        let defaults = UserDefaults.standard
-        var vehicles = defaults.dictionary(
-            forKey: Self.manufacturerSelectionDefaultsKey) ?? [:]
-        var modules = vehicles[vin] as? [String: Any] ?? [:]
-        modules[moduleID] = Array(selection).sorted()
-        vehicles[vin] = modules
-        defaults.set(vehicles, forKey: Self.manufacturerSelectionDefaultsKey)
+        manufacturerSelections.store(selection, vin: vin, moduleID: moduleID)
     }
 
     private func applyManufacturerPollingSelection(moduleID: String) {
@@ -1039,7 +931,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     }
 
     private func canonicalManufacturerStableKey(_ stableKey: String) -> String {
-        Self.manufacturerStableKeyAliases[stableKey] ?? stableKey
+        manufacturerSelections.canonical(stableKey)
     }
 
     /*
@@ -1217,71 +1109,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         }
     }
 
-    private func resolveFault(_ code: String, state: String) -> DiagnosticFault {
-        var knowledge = LinkDtcKnowledge()
-        let resolved = code.withCString { rawCode in link_dtc_resolve(rawCode, &knowledge) }
-        guard resolved else {
-            return DiagnosticFault(code: code,
-                                   title: "Invalid diagnostic trouble code",
-                                   system: "Unknown",
-                                   category: "Unclassified",
-                                   origin: "Unknown",
-                                   source: "Invalid raw code",
-                                   state: state,
-                                   definitionKnown: false)
-        }
-
-        let normalizedCode = stringFromFixedCString(knowledge.code)
-        let system = string(from: link_dtc_system_name(knowledge.system))
-        let origin = string(from: link_dtc_origin_name(knowledge.origin))
-        let source = string(from: link_dtc_source_name(knowledge.source))
-        let known = knowledge.definition_known
-        if !known && knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC {
-            var mercedes = MblinkMercedesReferenceDtcKnowledge()
-            let referenceFound = code.withCString {
-                mblink_mercedes_reference_dtc_resolve($0, &mercedes)
-            }
-            if referenceFound {
-                let referenceTitle = stringFromFixedCString(mercedes.title)
-                let referenceArea = stringFromFixedCString(mercedes.area)
-                let referenceSource = stringFromFixedCString(mercedes.source)
-                return DiagnosticFault(
-                    code: normalizedCode.isEmpty ? code : normalizedCode,
-                    title: referenceTitle.isEmpty
-                        ? "Mercedes reference definition unavailable"
-                        : referenceTitle,
-                    system: system,
-                    category: referenceArea.isEmpty ? "Mercedes reference" : referenceArea,
-                    origin: mercedes.ambiguous
-                        ? "Mercedes manufacturer reference · ambiguous"
-                        : "Mercedes manufacturer reference",
-                    source: referenceSource.isEmpty
-                        ? "Supplied Mercedes reference catalogue"
-                        : referenceSource,
-                    state: state,
-                    definitionKnown: !mercedes.ambiguous
-                )
-            }
-        }
-
-        let title = known
-            ? stringFromFixedCString(knowledge.title)
-            : (knowledge.origin == LINK_DTC_ORIGIN_MANUFACTURER_SPECIFIC
-                ? "Manufacturer-specific definition not yet mapped"
-                : "Diagnostic definition not yet mapped")
-        let category = known ? stringFromFixedCString(knowledge.category) : "Unmapped"
-        return DiagnosticFault(code: normalizedCode.isEmpty ? code : normalizedCode,
-                               title: title,
-                               system: system,
-                               category: category,
-                               origin: origin,
-                               source: source,
-                               state: state,
-                               definitionKnown: known)
-    }
-
     private func resolveFaults(_ codes: [String], state: String) -> [DiagnosticFault] {
-        codes.map { resolveFault($0, state: state) }
+        MBFaultResolver.resolve(codes, state: state)
     }
 
     private func displayScalar(pid: UInt8, rawValue: Double) -> Double {
