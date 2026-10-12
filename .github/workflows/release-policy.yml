@@ -25,10 +25,17 @@ jobs:
         with:
           fetch-depth: 2
           submodules: recursive
-      - name: Reject obsolete parallel release workflow
+
+      - name: Require explicit release workflow only
         shell: bash
-        run: test ! -e .github/workflows/auto-release.yml
+        run: |
+          set -euo pipefail
+          test -e .github/workflows/release.yml
+          test ! -e .github/workflows/auto-release.yml
+          test ! -e .github/workflows/mblink-refactor-release-once.yml
+
       - name: Run canonical preflight
         run: python3 scripts/preflight.py
+
       - name: Verify stable PID architecture contract
         run: python3 tests/test_pid_architecture.py
