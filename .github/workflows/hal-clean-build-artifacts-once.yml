@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL clean build artifacts once
+
+on:
+  push:
+    branches: [hal/simplify-coupling-and-release]
+    paths:
+      - '.github/workflows/hal-clean-build-artifacts-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: hal/simplify-coupling-and-release
+          fetch-depth: 0
+
+      - name: Remove generated build tree and prevent recurrence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r build-hal
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.gitignore')
+          lines = path.read_text().splitlines()
+          if 'build-*/' not in lines:
+              lines.insert(1, 'build-*/')
+          path.write_text('\n'.join(lines) + '\n')
+          PY
+          rm -f .github/workflows/hal-clean-build-artifacts-once.yml
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'HAL maintenance'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep generated build trees out of MBLINK source'
+          git push origin HEAD:hal/simplify-coupling-and-release
