@@ -99,6 +99,52 @@ def check_gitlinks() -> None:
         fail("every iOS configuration must record the exact LINK gitlink")
 
 
+def check_release_structure() -> None:
+    """Keep publication explicit and separate from ordinary validation.
+
+    These are deliberately coarse, stable invariants. Detailed behaviour is
+    exercised by CI/release jobs themselves; preflight only prevents a future
+    edit from quietly re-coupling validation, tagging and publication.
+    """
+    workflows = ROOT / ".github/workflows"
+    required = {
+        "ci.yml": "ordinary CI",
+        "release.yml": "explicit release publication",
+        "apt-publication.yml": "downstream APT publication",
+    }
+    for filename, purpose in required.items():
+        if not (workflows / filename).is_file():
+            fail(f"missing {purpose} workflow: .github/workflows/{filename}")
+
+    deprecated = [
+        "auto-release.yml",
+        "mblink-refactor-release-once.yml",
+    ]
+    present = [name for name in deprecated if (workflows / name).exists()]
+    if present:
+        fail("deprecated self-modifying release workflow present: " + ", ".join(present))
+
+    ci = (workflows / "ci.yml").read_text(encoding="utf-8")
+    forbidden_ci_tokens = [
+        "head_commit.message",
+        "is_release",
+        "contents: write",
+    ]
+    leaked = [token for token in forbidden_ci_tokens if token in ci]
+    if leaked:
+        fail("ordinary CI must not infer or publish releases: " + ", ".join(leaked))
+
+    release = (workflows / "release.yml").read_text(encoding="utf-8")
+    if "workflow_dispatch:" not in release:
+        fail("release publication must remain an explicit workflow dispatch")
+    if "Publish atomic GitHub release" not in release:
+        fail("release workflow must retain one explicit publication job")
+
+    apt = (workflows / "apt-publication.yml").read_text(encoding="utf-8")
+    if "types: [published]" not in apt:
+        fail("APT publication must remain downstream of a published GitHub release")
+
+
 def check_whitespace() -> None:
     parent = run("git", "rev-parse", "HEAD^", check=False)
     if parent.returncode == 0:
@@ -137,6 +183,7 @@ def check_stable_architecture_contract() -> None:
 def main() -> int:
     version = check_versions()
     check_gitlinks()
+    check_release_structure()
     check_whitespace()
     check_stable_architecture_contract()
     print(f"MBLINK preflight OK: version={version}")
