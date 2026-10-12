@@ -33,6 +33,9 @@ jobs:
           test -e .github/workflows/release.yml
           test ! -e .github/workflows/auto-release.yml
           test ! -e .github/workflows/mblink-refactor-release-once.yml
+          ! grep -Fq 'head_commit.message' .github/workflows/ci.yml
+          ! grep -Fq 'is_release' .github/workflows/ci.yml
+          ! grep -Fq 'contents: write' .github/workflows/ci.yml
 
       - name: Run canonical preflight
         run: python3 scripts/preflight.py
