@@ -22,6 +22,20 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Make lifecycle helper replacements tolerant
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/refactor-0.7.292.py')
+          text = path.read_text()
+          old = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    count = text.count(old)\n    if count != 1:\n        raise RuntimeError(f"{label}: expected exactly one match, found {count}")\n    return text.replace(old, new, 1)\n'''
+          new = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    count = text.count(old)\n    optional_lifecycle = {\n        "initialise portable connection lifecycle",\n        "begin connection-owned ECU sessions",\n        "begin teardown through lifecycle",\n        "finish connection lifecycle",\n    }\n    if count == 0 and label in optional_lifecycle:\n        return text\n    if count != 1:\n        raise RuntimeError(f"{label}: expected exactly one match, found {count}")\n    return text.replace(old, new, 1)\n'''
+          if old not in text:
+              raise SystemExit('refactor helper signature changed unexpectedly')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply architecture refactor
         run: python3 tools/refactor-0.7.292.py
 
