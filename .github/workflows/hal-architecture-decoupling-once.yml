@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL architecture decoupling once
+
+on:
+  push:
+    branches: [hal/simplify-coupling-and-release]
+    paths:
+      - '.github/workflows/hal-architecture-decoupling-once.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hal-mblink-architecture-decoupling
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: hal/simplify-coupling-and-release
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Adapt historical refactor to current hosted-runner CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/refactor-0.7.292.py')
+          text = path.read_text()
+          start = text.index("# Release builds must not depend on Shannon's local self-hosted runner.")
+          end = text.index("# Sanity checks on the refactor itself.", start)
+          text = text[:start] + "# CI is already GitHub-hosted on current main; no runner rewrite is required.\n\n" + text[end:]
+          path.write_text(text)
+          PY
+
+      - name: Apply typed architecture refactor
+        run: python3 tools/refactor-0.7.292.py
+
+      - name: Normalize imported diagnostic flow enum comparisons
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/ios/MBLINK/MBLinkDiagnosticsDomain.swift')
+          text = path.read_text()
+          constants = [
+              'LINK_DIAGNOSTIC_FLOW_FAILED',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS',
+              'LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION',
+              'LINK_DIAGNOSTIC_FLOW_RESTORING_AFTER_MANUFACTURER',
+              'LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN',
+              'LINK_DIAGNOSTIC_FLOW_READING_READINESS',
+              'LINK_DIAGNOSTIC_FLOW_READING_FREEZE_FRAME',
+              'LINK_DIAGNOSTIC_FLOW_LIVE',
+              'LINK_DIAGNOSTIC_FLOW_READING_LIVE',
+              'LINK_DIAGNOSTIC_FLOW_INITIALIZING',
+              'LINK_DIAGNOSTIC_FLOW_CONFIGURING_PID_DISCOVERY_HEADERS',
+              'LINK_DIAGNOSTIC_FLOW_DISCOVERING_PIDS',
+              'LINK_DIAGNOSTIC_FLOW_RESTORING_PID_DISCOVERY_HEADERS',
+              'LINK_DIAGNOSTIC_FLOW_CONFIGURING_LIVE_HEADERS',
+          ]
+          for constant in constants:
+              text = text.replace(
+                  f'flow.stage == {constant}',
+                  f'flow.stage.rawValue == {constant}.rawValue')
+              text = text.replace(
+                  f'stage == {constant}',
+                  f'stage.rawValue == {constant}.rawValue')
+          path.write_text(text)
+          PY
+
+      - name: Remove one-shot transformation machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f tools/refactor-0.7.292.py
+          rm -f .github/workflows/hal-architecture-decoupling-once.yml
+
+      - name: Validate portable architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/preflight.py
+          python3 tests/test_pid_architecture.py
+          cmake -S . -B build-hal -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-hal --parallel
+          ctest --test-dir build-hal --output-on-failure
+          python3 tests/test_whisper_recover.py
+
+      - name: Commit final source-only refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          test ! -e tools/refactor-0.7.292.py
+          test ! -e .github/workflows/hal-architecture-decoupling-once.yml
+          git config user.name 'HAL maintenance'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Decouple MBLINK diagnostic state and session lifecycle'
+          git push origin HEAD:hal/simplify-coupling-and-release
