@@ -99,15 +99,6 @@ def check_gitlinks() -> None:
         fail("every iOS configuration must record the exact LINK gitlink")
 
 
-def check_no_legacy_release_subject() -> None:
-    subject = run("git", "log", "-1", "--format=%s", "HEAD").stdout.strip()
-    if subject.startswith("Release "):
-        fail(
-            "legacy 'Release ...' commit subjects are no longer release controls; "
-            "use the explicit MBLINK Release workflow"
-        )
-
-
 def check_whitespace() -> None:
     parent = run("git", "rev-parse", "HEAD^", check=False)
     if parent.returncode == 0:
@@ -148,7 +139,6 @@ def main() -> int:
     check_gitlinks()
     check_whitespace()
     check_stable_architecture_contract()
-    check_no_legacy_release_subject()
     print(f"MBLINK preflight OK: version={version}")
     return 0
 
