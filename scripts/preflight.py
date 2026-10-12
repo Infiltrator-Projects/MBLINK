@@ -6,7 +6,6 @@ Functional behaviour belongs in compiled/unit/simulator tests.
 """
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
@@ -89,25 +88,15 @@ def check_gitlinks() -> None:
     if actual_sha != expected_sha:
         fail(f"LINK checkout mismatch: expected {expected_sha}, found {actual_sha}")
     project = (ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj").read_text()
-    revisions = [re.search(r"[0-9a-f]{40}", line) for line in project.splitlines()
-                 if "LINK_SOURCE_REVISION=" in line]
-    if len(revisions) != 2 or any(match is None or match.group() != expected_sha
-                                  for match in revisions):
-        fail("every iOS configuration must record the exact LINK gitlink")
-
-
-def check_release_subject(version: str) -> bool:
-    subject = os.environ.get("MBLINK_COMMIT_SUBJECT")
-    if subject is None:
-        subject = run("git", "log", "-1", "--format=%s", "HEAD").stdout.strip()
-    is_release = subject.startswith("Release ")
-    if is_release and not (
-        subject == f"Release {version}" or subject.startswith(f"Release {version}:")
+    revisions = [
+        re.search(r"[0-9a-f]{40}", line)
+        for line in project.splitlines()
+        if "LINK_SOURCE_REVISION=" in line
+    ]
+    if len(revisions) != 2 or any(
+        match is None or match.group() != expected_sha for match in revisions
     ):
-        fail(
-            f"release commit subject must begin with 'Release {version}', got {subject!r}"
-        )
-    return is_release
+        fail("every iOS configuration must record the exact LINK gitlink")
 
 
 def check_whitespace() -> None:
@@ -134,7 +123,10 @@ def check_stable_architecture_contract() -> None:
     controller_header = (ROOT / "platform/apple/MBLinkDiagnosticsController.h").read_text(
         encoding="utf-8"
     )
-    if "@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController" not in controller_header:
+    if (
+        "@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController"
+        not in controller_header
+    ):
         fail("Apple product controller must continue to extend LINK's product controller")
 
     core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
@@ -147,8 +139,7 @@ def main() -> int:
     check_gitlinks()
     check_whitespace()
     check_stable_architecture_contract()
-    is_release = check_release_subject(version)
-    print(f"MBLINK preflight OK: version={version} release={'true' if is_release else 'false'}")
+    print(f"MBLINK preflight OK: version={version}")
     return 0
 
 

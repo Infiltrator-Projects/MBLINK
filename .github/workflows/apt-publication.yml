@@ -2,48 +2,45 @@
 name: MBLINK APT Publication
 
 on:
-  workflow_run:
-    workflows: ["MBLINK CI"]
-    types: [completed]
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
 jobs:
   verify-apt-publication:
-    if: >-
-      ${{ github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_branch == 'main' }}
-    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.event.release.tag_name, 'v') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - name: Checkout tested commit
+      - name: Checkout published release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 1
 
-      - name: Identify numbered release commit
+      - name: Validate release identity
         id: release
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          subject="$(git log -1 --pretty=%s)"
-          if [[ "$subject" != "Release $version"* ]]; then
-            echo "eligible=false" >> "$GITHUB_OUTPUT"
-            echo "Ordinary main commit; no APT publication is expected."
-            exit 0
+          expected="v$version"
+          if [[ "$RELEASE_TAG" != "$expected" ]]; then
+            echo "Published tag $RELEASE_TAG does not match VERSION $version." >&2
+            exit 1
           fi
-          echo "eligible=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Verify central APT catalogue propagation
-        if: steps.release.outputs.eligible == 'true'
         env:
           VERSION: ${{ steps.release.outputs.version }}
           APP_ID: mblink
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.revision }}
           DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
         shell: bash
         run: |
@@ -92,5 +89,6 @@ jobs:
             echo "Waiting for immediate APT publication of $APP_ID $VERSION ($attempt/210)..."
             sleep 10
           done
+
           echo "::error::Immediate APT dispatch was accepted, but the central APT repository did not advertise $APP_ID $VERSION within 35 minutes."
           exit 1

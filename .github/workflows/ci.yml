@@ -4,97 +4,46 @@ name: MBLINK CI
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
-# Release pushes are deliberately accepted by the same workflow as ordinary
-# main pushes; the commit subject selects the non-cancellable release lane.
 
 permissions:
   contents: read
 
-# Rapid ordinary development pushes may cancel one another. Release commits use
-# their own commit lane so publication cannot be interrupted by a newer
-# development commit. Preflight retires superseded attempts of the same version.
 concurrency:
-  group: mblink-ci-${{ github.ref }}-${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ') && format('release-{0}', github.sha) || 'ordinary' }}
-  cancel-in-progress: ${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release ')) }}
+  group: mblink-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   preflight:
     name: Preflight / repository invariants
-    runs-on: [self-hosted, Linux, X64, linux-native]
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      is_release: ${{ steps.meta.outputs.is_release }}
-    env:
-      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
           submodules: recursive
+
       - name: Cheap fail-fast checks
         run: python3 scripts/preflight.py
+
       - name: Stable PID architecture contract
         run: python3 tests/test_pid_architecture.py
+
       - id: meta
-        name: Resolve CI mode
+        name: Read product version
         shell: bash
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          subject="$(git log -1 --format=%s HEAD)"
-          is_release=false
-          if [[ "$GITHUB_EVENT_NAME" == push ]] && \
-             [[ "$subject" == "Release ${version}" || "$subject" == "Release ${version}:"* ]]; then
-            is_release=true
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
-          echo "CI mode: $([[ "$is_release" == true ]] && echo release || echo development)"
-      - name: Retire superseded attempts of this release version
-        if: steps.meta.outputs.is_release == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          python3 - <<'PY'
-          import json, os, urllib.error, urllib.request
-          base = f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs"
-          headers = {"Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-                     "Accept": "application/vnd.github+json"}
-          request = urllib.request.Request(base + "?per_page=30", headers=headers)
-          with urllib.request.urlopen(request, timeout=30) as response:
-              runs = json.load(response)["workflow_runs"]
-          prefix = "Release " + os.environ["VERSION"]
-          for run in runs:
-              subject = ((run.get("head_commit") or {}).get("message") or "").split("\n", 1)[0]
-              if (run["name"] != "MBLINK CI" or int(run["id"]) >= int(os.environ["GITHUB_RUN_ID"])
-                  or run["head_branch"] != os.environ["GITHUB_REF_NAME"]
-                  or run["head_sha"] == os.environ["GITHUB_SHA"] or run["status"] == "completed"
-                  or not (subject == prefix or subject.startswith(prefix + ":"))):
-                  continue
-              request = urllib.request.Request(f"{base}/{run['id']}/cancel", data=b"", headers=headers)
-              try:
-                  with urllib.request.urlopen(request, timeout=30):
-                      print(f"Retired superseded release attempt {run['id']}")
-              except urllib.error.HTTPError as error:
-                  if error.code != 409:
-                      raise
-          PY
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
 
   portable-core:
     name: Linux / C11
     needs: preflight
-    # Recursive checkout needs git on every run, including development builds.
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,7 +56,7 @@ jobs:
   sanitizers:
     name: Linux / ASan + UBSan
     needs: preflight
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -123,18 +72,18 @@ jobs:
   linux-app:
     name: Linux / GTK4 app
     needs: preflight
-    # Provision the GTK/Bluetooth/USB build dependencies on every CI run.
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev \
+            build-essential cmake libgtk-4-dev libbluetooth-dev \
             libusb-1.0-0-dev pkg-config xvfb xauth
 
       - name: Configure and build Linux app
@@ -146,25 +95,30 @@ jobs:
             -DMBLINK_BUILD_PROFILE=generic \
             -DBUILD_TESTING=OFF
           cmake --build build-linux --parallel
+
       - name: Verify native Tactrix provider is linked
         shell: bash
         run: |
           set -euo pipefail
           ldd ./build-linux/mblink-linux | grep -F 'libusb-1.0.so' >/dev/null
           grep -aF 'OP2:Tactrix OpenPort 2.0' ./build-linux/mblink-linux >/dev/null
+
       - name: Verify independent display preferences
         shell: bash
         run: |
           set -euo pipefail
           ./build-linux/mblink-linux --ui-settings-verify | tee "$RUNNER_TEMP/settings-verify.log"
           grep -Fq 'MBLINK settings verified: OFF-by-default vehicle selection + 8 measurement preferences' "$RUNNER_TEMP/settings-verify.log"
+
       - name: Verify offline C207 replay reaches visible ORC fault
         shell: bash
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/c207-replay.log"
-          GTK_A11Y=none timeout 60s xvfb-run -a ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
+          GTK_A11Y=none timeout 60s xvfb-run -a \
+            ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
           grep -Fq 'MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible' "$log"
+
       - name: Stress disconnected sidebar navigation
         shell: bash
         run: |
@@ -174,90 +128,40 @@ jobs:
             xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
           grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
           grep -Fq 'sidebar selections while disconnected with main-loop interleaving' "$log"
-      - name: Sanitized GTK navigation soak
-        if: needs.preflight.outputs.is_release == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S . -B build-linux-sanitized \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DMBLINK_BUILD_LINUX_APP=ON \
-            -DMBLINK_ENABLE_SANITIZERS=ON \
-            -DMBLINK_BUILD_PROFILE=generic \
-            -DBUILD_TESTING=OFF
-          cmake --build build-linux-sanitized --parallel --target mblink-linux
-          log="$RUNNER_TEMP/navigation-sanitized.log"
-          GTK_A11Y=none \
-            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
-            UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
-            timeout 90s xvfb-run -a ./build-linux-sanitized/mblink-linux \
-            --ui-navigation-stress | tee "$log"
-          grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
-      - name: Package DEB and native RUN
-        if: needs.preflight.outputs.is_release == 'true'
-        shell: bash
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/cpack"
-          cpack --config build-linux/CPackConfig.cmake -G DEB -B "$RUNNER_TEMP/cpack"
-          deb_src="$(find "$RUNNER_TEMP/cpack" -maxdepth 1 -type f -name '*.deb' -print -quit)"
-          test -n "$deb_src"
-          dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
-          dpkg-deb -c "$deb_src" | grep -F './usr/share/doc/mblink/copyright' >/dev/null
-          dpkg-deb -f "$deb_src" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
-          install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
-          scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
-          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
-          native_deb="$RUNNER_TEMP/mblink_${VERSION}+native1_amd64.deb"
-          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --build-only --output "$native_deb"
-          test "$(dpkg-deb -f "$native_deb" Package)" = mblink
-          test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
-          dpkg-deb -c "$native_deb" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
-          dpkg-deb -f "$native_deb" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
-          dpkg --compare-versions "${VERSION}+native1" gt "$VERSION"
-      - name: Upload Linux release packages
-        if: needs.preflight.outputs.is_release == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: MBLINK-${{ needs.preflight.outputs.version }}-linux-packages
-          path: ${{ runner.temp }}/release/*
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
 
-  windows-discover:
-    name: Windows / Discover build and metadata
+  windows:
+    name: Windows / Discover
     needs: preflight
     runs-on: windows-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: powershell
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
-      - name: Configure Win32 build
+
+      - name: Configure and build Win32 app
         shell: powershell
-        run: cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
-      - name: Build MBLINK Discover
-        shell: powershell
-        run: cmake --build build-win32 --config Release --target mblink-discover --parallel
-      - name: Verify release executable metadata
-        if: needs.preflight.outputs.is_release == 'true'
+        run: |
+          cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release `
+            -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
+          cmake --build build-win32 --config Release --target mblink-discover --parallel
+
+      - name: Verify executable metadata and launch
         shell: powershell
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (-not (Test-Path $vswhere)) { throw 'vswhere.exe is unavailable' }
-          $dumpbin = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x86\dumpbin.exe' | Select-Object -First 1)
+          $dumpbin = (& $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find 'VC\Tools\MSVC\**\bin\Hostx64\x86\dumpbin.exe' | Select-Object -First 1)
           if (-not $dumpbin -or -not (Test-Path $dumpbin)) { throw 'Unable to locate dumpbin.exe' }
+
           $exe = (Resolve-Path 'build-win32/Release/mblink-discover.exe').Path
           $deps = (& $dumpbin /DEPENDENTS $exe | Out-String)
           foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {
-            if ($deps -match [regex]::Escape($dll)) { throw "Unexpected dynamic runtime dependency: $dll" }
+            if ($deps -match [regex]::Escape($dll)) {
+              throw "Unexpected dynamic runtime dependency: $dll"
+            }
           }
           $info = (Get-Item $exe).VersionInfo
           if ($info.ProductVersion -notlike '${{ needs.preflight.outputs.version }}*') {
@@ -267,38 +171,9 @@ jobs:
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
           if ($null -eq $icon) { throw 'Executable has no associated icon' }
           $icon.Dispose()
-      - name: Stage Windows release executable
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          Copy-Item build-win32/Release/mblink-discover.exe "release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe"
-      - name: Upload Windows release executable
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: MBLINK-${{ needs.preflight.outputs.version }}-windows-discover
-          path: release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
 
-  windows-launch:
-    name: Windows / Discover launch
-    needs: [preflight, windows-discover]
-    # Launch the exact executable artifact produced by the Windows build.
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: MBLINK-${{ needs.preflight.outputs.version }}-windows-discover
-          path: release-assets
-      - name: Prove the release executable launches
-        shell: powershell
-        run: |
-          & 'src/link/platform/windows/smoke-launch.ps1' -Executable 'release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe' -ExpectedTitle 'MBLINK Discover'
+          & 'src/link/platform/windows/smoke-launch.ps1' `
+            -Executable $exe -ExpectedTitle 'MBLINK Discover'
 
   apple-ios:
     name: Apple / C11 + iOS simulator
@@ -309,6 +184,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
       - name: Build and test portable C11 core on macOS
         shell: bash
         run: |
@@ -316,6 +192,7 @@ jobs:
           cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
           cmake --build build-macos --config Release --parallel
           ctest --test-dir build-macos --build-config Release --output-on-failure
+
       - name: Verify manufacturer freshness, retained startup data and CSV evidence
         shell: bash
         run: |
@@ -325,6 +202,7 @@ jobs:
             tests/apple/ManufacturerSnapshotRegression.m -framework Foundation \
             -o "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
           "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
+
       - name: Build iOS simulator Debug
         shell: bash
         env:
@@ -338,6 +216,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
             MBLINK_SOURCE_REVISION="$GITHUB_SHA" \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) MBLINK_CI_SIMULATED_FLOW' build
+
       - name: Launch iOS simulated diagnostic flow
         shell: bash
         run: |
@@ -432,190 +311,3 @@ jobs:
             exit 1
           fi
           xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
-      - name: Build iOS simulator Release
-        if: needs.preflight.outputs.is_release == 'true'
-        shell: bash
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -euo pipefail
-          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
-            -configuration Release -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/derived-simulator-Release" \
-            CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
-            MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
-      - name: Build and package IPA
-        if: needs.preflight.outputs.is_release == 'true'
-        shell: bash
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -euo pipefail
-          derived="$RUNNER_TEMP/derived"
-          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
-            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath "$derived" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
-            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$GITHUB_SHA" build
-          mkdir -p "$RUNNER_TEMP/package/Payload"
-          ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
-            "$RUNNER_TEMP/package/Payload/MBLINK.app"
-          (cd "$RUNNER_TEMP/package" && zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
-          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
-      - name: Upload iOS release package
-        if: needs.preflight.outputs.is_release == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: MBLINK-${{ needs.preflight.outputs.version }}-unsigned-iphone-ipa
-          path: ${{ runner.temp }}/MBLINK-${{ needs.preflight.outputs.version }}-unsigned.ipa
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
-
-  release:
-    name: Publish complete atomic release
-    needs: [preflight, portable-core, sanitizers, linux-app, windows-discover, windows-launch, apple-ios]
-    if: needs.preflight.outputs.is_release == 'true'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          submodules: recursive
-      - id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          link_version="$(tr -d '[:space:]' < src/link/VERSION)"
-          common_version="$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)"
-          subject="$(git log -1 --format=%s "$GITHUB_SHA")"
-          if [[ "$subject" != "Release ${version}" && "$subject" != "Release ${version}:"* ]]; then
-            echo "Release commit subject must begin with Release ${version}." >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "link_version=$link_version" >> "$GITHUB_OUTPUT"
-          echo "common_version=$common_version" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: MBLINK-${{ steps.release.outputs.version }}-unsigned-iphone-ipa
-          path: release-assets
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: MBLINK-${{ steps.release.outputs.version }}-linux-packages
-          path: release-assets
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: MBLINK-${{ steps.release.outputs.version }}-windows-discover
-          path: release-assets
-      - name: Package complete recursive source archive
-        shell: bash
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
-          mkdir -p "$staging" release-assets
-          rsync -a --exclude='.git' --exclude='/release-assets/' ./ "$staging/"
-          test -s "$staging/src/link/src/infiltratr-common/CMakeLists.txt"
-          (cd "$RUNNER_TEMP" && zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" "MBLINK-${VERSION}")
-          unzip -tq "release-assets/MBLINK-${VERSION}-source.zip"
-      - name: Verify release artifacts and build checksums
-        shell: bash
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          for file in \
-            "MBLINK-${VERSION}-unsigned.ipa" \
-            "MBLINK-${VERSION}-linux-amd64.deb" \
-            "MBLINK-${VERSION}-linux-native.run" \
-            "MBLINK-${VERSION}-windows-discover.exe" \
-            "MBLINK-${VERSION}-source.zip"; do
-            test -s "release-assets/$file"
-          done
-          (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
-      - name: Stage complete draft and publish exact immutable release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
-          VERSION: ${{ steps.release.outputs.version }}
-          LINK_VERSION: ${{ steps.release.outputs.link_version }}
-          COMMON_VERSION: ${{ steps.release.outputs.common_version }}
-        run: |
-          set -euo pipefail
-          git fetch origin main --tags
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "Release commit $GITHUB_SHA is no longer on main; refusing to publish." >&2
-            exit 1
-          fi
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "Release tag $TAG already exists; published releases are immutable." >&2
-            exit 1
-          fi
-          release_state="$(gh release view "$TAG" \
-            --json isDraft,targetCommitish --jq '[.isDraft, .targetCommitish] | @tsv' \
-            2>/dev/null || true)"
-          if [[ -n "$release_state" ]]; then
-            IFS=$'\t' read -r is_draft target_commitish <<<"$release_state"
-            if [[ "$is_draft" != true || "$target_commitish" != "$GITHUB_SHA" ]]; then
-              echo "Release $TAG already exists; published releases are immutable." >&2
-              exit 1
-            fi
-          else
-            gh release create "$TAG" --target "$GITHUB_SHA" --draft \
-              --title "MBLINK $VERSION" \
-              --notes "MBLINK $VERSION: complete launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION."
-          fi
-          gh release upload "$TAG" release-assets/* --clobber
-          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
-          for expected in \
-            "MBLINK-${VERSION}-unsigned.ipa" \
-            "MBLINK-${VERSION}-linux-amd64.deb" \
-            "MBLINK-${VERSION}-linux-native.run" \
-            "MBLINK-${VERSION}-windows-discover.exe" \
-            "MBLINK-${VERSION}-source.zip" \
-            "SHA256SUMS.txt"; do
-            grep -Fxq "$expected" <<<"$assets"
-          done
-          gh release edit "$TAG" --draft=false
-          git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
-          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$GITHUB_SHA"
-      - name: Refresh and verify Infiltrator APT repository
-        env:
-          DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
-          RELEASE_SHA: ${{ github.sha }}
-          VERSION: ${{ steps.release.outputs.version }}
-          APP_ID: mblink
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
-            if ! GH_TOKEN="$DISPATCH_TOKEN" gh api \
-              --method POST \
-              repos/Infiltrator-Projects/Infiltrator-Repository/dispatches \
-              -f event_type='application-release' \
-              -f "client_payload[repository]=$GITHUB_REPOSITORY" \
-              -f "client_payload[sha]=$RELEASE_SHA" >/dev/null; then
-              echo "::warning::Immediate APT dispatch failed; waiting for the repository's safety refresh."
-            fi
-          else
-            echo "::warning::Immediate APT dispatch token is unavailable; waiting for the repository's safety refresh."
-          fi
-          catalogue='https://infiltrator-projects.github.io/Infiltrator-Repository/catalogue/apps.json'
-          for attempt in $(seq 1 6); do
-            if curl -fsS --retry 2 --retry-delay 1 "$catalogue?release=$RELEASE_SHA&attempt=$attempt" \
-              | python3 -c 'import json,sys; app=sys.argv[1]; version=sys.argv[2]; data=json.load(sys.stdin); raise SystemExit(0 if any(item.get("id") == app and str(item.get("version")) == version for item in data) else 1)' "$APP_ID" "$VERSION"; then
-              echo "APT repository advertises $APP_ID $VERSION."
-              exit 0
-            fi
-            echo "Waiting for APT publication of $APP_ID $VERSION ($attempt/6)..."
-            sleep 10
-          done
-          echo "::warning::GitHub release is published; central APT catalogue propagation is still pending."

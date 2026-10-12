@@ -1,0 +1,394 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: MBLINK Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish (must exactly match VERSION)
+        required: true
+        type: string
+      ref:
+        description: Source ref to release
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mblink-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate immutable release source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      revision: ${{ steps.meta.outputs.revision }}
+      link_version: ${{ steps.meta.outputs.link_version }}
+      common_version: ${{ steps.meta.outputs.common_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - id: meta
+        name: Resolve one release identity
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$REQUESTED_VERSION" != "$version" ]]; then
+            echo "Requested version $REQUESTED_VERSION does not match VERSION $version." >&2
+            exit 1
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION is not major.minor.patch: $version" >&2
+            exit 1
+          fi
+
+          git fetch origin main --tags
+          revision="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$revision" origin/main; then
+            echo "Release source $revision is not on main." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "link_version=$(tr -d '[:space:]' < src/link/VERSION)" >> "$GITHUB_OUTPUT"
+          echo "common_version=$(tr -d '[:space:]' < src/link/src/infiltratr-common/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Canonical repository preflight
+        run: python3 scripts/preflight.py
+
+      - name: Stable PID architecture contract
+        run: python3 tests/test_pid_architecture.py
+
+      - name: Portable C11 release test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-release-check -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-release-check --parallel
+          ctest --test-dir build-release-check --output-on-failure
+          python3 tests/test_whisper_recover.py
+
+  linux:
+    name: Package Linux release
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev \
+            libusb-1.0-0-dev pkg-config xvfb xauth
+
+      - name: Build and verify Linux app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-linux \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DMBLINK_BUILD_LINUX_APP=ON \
+            -DMBLINK_BUILD_PROFILE=generic \
+            -DBUILD_TESTING=OFF
+          cmake --build build-linux --parallel
+          ldd ./build-linux/mblink-linux | grep -F 'libusb-1.0.so' >/dev/null
+          grep -aF 'OP2:Tactrix OpenPort 2.0' ./build-linux/mblink-linux >/dev/null
+          ./build-linux/mblink-linux --ui-settings-verify
+          GTK_A11Y=none timeout 60s xvfb-run -a \
+            ./build-linux/mblink-linux --replay-c207-verify
+          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 60s xvfb-run -a \
+            ./build-linux/mblink-linux --ui-navigation-stress
+
+      - name: Sanitized GTK navigation soak
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-linux-sanitized \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DMBLINK_BUILD_LINUX_APP=ON \
+            -DMBLINK_ENABLE_SANITIZERS=ON \
+            -DMBLINK_BUILD_PROFILE=generic \
+            -DBUILD_TESTING=OFF
+          cmake --build build-linux-sanitized --parallel --target mblink-linux
+          GTK_A11Y=none \
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+            timeout 90s xvfb-run -a ./build-linux-sanitized/mblink-linux \
+            --ui-navigation-stress
+
+      - name: Package DEB and native RUN
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/cpack"
+          cpack --config build-linux/CPackConfig.cmake -G DEB -B "$RUNNER_TEMP/cpack"
+          deb_src="$(find "$RUNNER_TEMP/cpack" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb_src"
+          dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
+          dpkg-deb -c "$deb_src" | grep -F './usr/share/doc/mblink/copyright' >/dev/null
+          dpkg-deb -f "$deb_src" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
+          install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
+
+          scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
+          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
+          native_deb="$RUNNER_TEMP/mblink_${VERSION}+native1_amd64.deb"
+          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" \
+            --build-only --output "$native_deb"
+          test "$(dpkg-deb -f "$native_deb" Package)" = mblink
+          test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
+          dpkg-deb -c "$native_deb" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
+          dpkg-deb -f "$native_deb" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: MBLINK-${{ needs.prepare.outputs.version }}-linux
+          path: ${{ runner.temp }}/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  windows:
+    name: Package Windows release
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          submodules: recursive
+
+      - name: Build MBLINK Discover
+        shell: powershell
+        run: |
+          cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release `
+            -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
+          cmake --build build-win32 --config Release --target mblink-discover --parallel
+
+      - name: Verify and stage executable
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe is unavailable' }
+          $dumpbin = (& $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find 'VC\Tools\MSVC\**\bin\Hostx64\x86\dumpbin.exe' | Select-Object -First 1)
+          if (-not $dumpbin -or -not (Test-Path $dumpbin)) { throw 'Unable to locate dumpbin.exe' }
+
+          $exe = (Resolve-Path 'build-win32/Release/mblink-discover.exe').Path
+          $deps = (& $dumpbin /DEPENDENTS $exe | Out-String)
+          foreach ($dll in @('VCRUNTIME140.dll','VCRUNTIME140_1.dll','MSVCP140.dll','ucrtbased.dll')) {
+            if ($deps -match [regex]::Escape($dll)) {
+              throw "Unexpected dynamic runtime dependency: $dll"
+            }
+          }
+          $info = (Get-Item $exe).VersionInfo
+          if ($info.ProductVersion -notlike '${{ needs.prepare.outputs.version }}*') {
+            throw "Wrong ProductVersion: $($info.ProductVersion)"
+          }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if ($null -eq $icon) { throw 'Executable has no associated icon' }
+          $icon.Dispose()
+
+          & 'src/link/platform/windows/smoke-launch.ps1' `
+            -Executable $exe -ExpectedTitle 'MBLINK Discover'
+
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item $exe "release-assets/MBLINK-${{ needs.prepare.outputs.version }}-windows-discover.exe"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: MBLINK-${{ needs.prepare.outputs.version }}-windows
+          path: release-assets/MBLINK-${{ needs.prepare.outputs.version }}-windows-discover.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  ios:
+    name: Package iOS release
+    needs: prepare
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          submodules: recursive
+
+      - name: Verify Apple diagnostic bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun clang -fobjc-arc -Wall -Wextra -Werror \
+            -Iinclude -Isrc/link/include -Isrc/link/src/infiltratr-common/include \
+            tests/apple/ManufacturerSnapshotRegression.m -framework Foundation \
+            -o "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
+          "$RUNNER_TEMP/mblink-manufacturer-snapshot-test"
+
+      - name: Build iOS simulator
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REVISION: ${{ needs.prepare.outputs.revision }}
+        run: |
+          set -euo pipefail
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived-simulator" \
+            CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" \
+            MBLINK_SOURCE_REVISION="$REVISION" build
+
+      - name: Build unsigned device IPA
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REVISION: ${{ needs.prepare.outputs.revision }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/derived-device"
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$REVISION" build
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
+            "$RUNNER_TEMP/package/Payload/MBLINK.app"
+          (cd "$RUNNER_TEMP/package" && \
+            zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
+          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: MBLINK-${{ needs.prepare.outputs.version }}-ios
+          path: ${{ runner.temp }}/MBLINK-${{ needs.prepare.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    name: Publish atomic GitHub release
+    needs: [prepare, linux, windows, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: MBLINK-${{ needs.prepare.outputs.version }}-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Package source and checksums
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/MBLINK-${VERSION}"
+          mkdir -p "$staging" release-assets
+          rsync -a --exclude='.git' --exclude='/release-assets/' ./ "$staging/"
+          test -s "$staging/src/link/src/infiltratr-common/CMakeLists.txt"
+          (cd "$RUNNER_TEMP" && \
+            zip -qry "$GITHUB_WORKSPACE/release-assets/MBLINK-${VERSION}-source.zip" \
+              "MBLINK-${VERSION}")
+          unzip -tq "release-assets/MBLINK-${VERSION}-source.zip"
+
+          for file in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip"; do
+            test -s "release-assets/$file"
+          done
+          (cd release-assets && sha256sum MBLINK-* > SHA256SUMS.txt)
+
+      - name: Publish exact immutable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.revision }}
+          LINK_VERSION: ${{ needs.prepare.outputs.link_version }}
+          COMMON_VERSION: ${{ needs.prepare.outputs.common_version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch origin main --tags
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/main; then
+            echo "Release source $RELEASE_SHA is no longer on main." >&2
+            exit 1
+          fi
+
+          release_state="$(gh release view "$tag" \
+            --json isDraft,targetCommitish --jq '[.isDraft, .targetCommitish] | @tsv' \
+            2>/dev/null || true)"
+          if [[ -n "$release_state" ]]; then
+            IFS=$'\t' read -r is_draft target_commitish <<<"$release_state"
+            if [[ "$is_draft" != true ]]; then
+              echo "Release $tag is already published and immutable." >&2
+              exit 1
+            fi
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            if [[ "$(git rev-parse "refs/tags/$tag^{commit}")" != "$RELEASE_SHA" ]]; then
+              echo "Draft release $tag points at another revision." >&2
+              exit 1
+            fi
+          else
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+              echo "Tag $tag already exists without a matching draft release." >&2
+              exit 1
+            fi
+            gh release create "$tag" --target "$RELEASE_SHA" --draft \
+              --title "MBLINK $VERSION" \
+              --notes "MBLINK $VERSION: launch-verified release on LINK $LINK_VERSION and Infiltratr Common $COMMON_VERSION."
+          fi
+
+          gh release upload "$tag" release-assets/* --clobber
+          assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          for expected in \
+            "MBLINK-${VERSION}-unsigned.ipa" \
+            "MBLINK-${VERSION}-linux-amd64.deb" \
+            "MBLINK-${VERSION}-linux-native.run" \
+            "MBLINK-${VERSION}-windows-discover.exe" \
+            "MBLINK-${VERSION}-source.zip" \
+            "SHA256SUMS.txt"; do
+            grep -Fxq "$expected" <<<"$assets"
+          done
+
+          gh release edit "$tag" --draft=false
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$RELEASE_SHA"

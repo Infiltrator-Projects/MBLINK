@@ -146,7 +146,7 @@ The native iPhone project is `app/ios/MBLINK.xcodeproj`.
 
 The iPhone target bundles the three canonical MB Corpo faces. At startup MBLINK registers the bundled TTF files with CoreText, resolves their actual PostScript names from the font data and uses those faces throughout SwiftUI. Font registration is never process-fatal: a genuinely unavailable face falls back safely while the build-time SHA-256 checks continue to enforce the exact bundled font assets.
 
-GitHub CI verifies the exact recursive dependency gitlinks, portable core, product-to-LINK facade, sanitizer coverage, Linux application/package path, Windows Discover executable and launch smoke test, Apple/iOS build and unsigned physical-device IPA before any release job can run.
+GitHub CI validates repository invariants, the portable core, sanitizer coverage, Linux application behaviour, the Windows Discover build and launch, and the Apple/iOS simulator diagnostic flow. CI never edits source, creates tags or publishes releases. The separate `MBLINK Release` workflow rebuilds and verifies the release packages from one immutable source revision before publication.
 
 ## Release assets
 
@@ -158,9 +158,10 @@ A successful numbered release is atomic across supported targets and publishes:
 | `MBLINK-<version>-linux-amd64.deb` | Generic Linux amd64 Debian package. |
 | `MBLINK-<version>-linux-native.run` | Native local Linux build/install program. |
 | `MBLINK-<version>-windows-discover.exe` | MBLINK Discover specialist read-only ECU/module scanner and evidence application. |
+| `MBLINK-<version>-source.zip` | Complete recursive source snapshot, including the pinned LINK and Common trees. |
 | `SHA256SUMS.txt` | SHA-256 checksums for all project-owned release artifacts. |
 
-GitHub automatically provides Source code (zip) and Source code (tar.gz) archives for every tagged release; MBLINK does not publish a duplicate project-owned source archive.
+GitHub also provides its automatic Source code (zip) and Source code (tar.gz) archives for every tagged release. The project-owned source ZIP is the release workflow's verified recursive snapshot and therefore includes the pinned dependency trees rather than only top-level gitlinks.
 
 The `.run` contains the complete dependency tree, including LINK and LINK's pinned Common checkout, and builds/tests MBLINK natively before installation.
 
@@ -168,13 +169,15 @@ Release notes derive the LINK and Common versions from that exact dependency tre
 
 ## Repository and release policy
 
-This repository uses `main` as its working branch. Development changes are made directly on `main`; the normal project workflow does not depend on PR, feature or release branches.
+This repository uses `main` as its working branch. Development changes may be made directly on `main`; the normal project workflow does not require feature or release branches. Pull requests are also validated by the same CI when they are used.
 
-Every push to `main` runs MBLINK CI. Ordinary commits do not publish. A commit is release-eligible only when its subject begins with the exact source version as `Release <version>` and every required CI job succeeds.
+Every push to `main` runs MBLINK CI. CI is validation only: commit subjects have no release semantics and ordinary development activity can never publish a release.
 
-The release job re-checks that the tested SHA is still an ancestor of the current `main`, verifies the complete artifact set, creates the version tag and publishes that exact tested SHA as the atomic release. This allows later non-release commits to land without invalidating an already-tested release candidate. Existing version tags and published releases are immutable and are never moved, replaced or edited in place.
+A numbered release is started explicitly with the `MBLINK Release` workflow. The requested version must exactly match `VERSION`, and the selected source revision must belong to `main`. The release workflow rebuilds and verifies the supported platform packages from that exact revision, verifies the complete artifact set and checksums, stages the GitHub release as a draft, and publishes it only after every required artifact is present. Existing version tags and published releases are immutable and are never moved or replaced.
 
-Manually runnable build/smoke workflows are diagnostic helpers only and are not release-approval mechanisms.
+APT publication is downstream of the GitHub `release: published` event. It cannot make an ordinary CI run into a release and cannot change the source revision that was published.
+
+Manually runnable build/smoke workflows remain diagnostic helpers; `MBLINK Release` is the single publication authority.
 
 ## Engineering rules
 
