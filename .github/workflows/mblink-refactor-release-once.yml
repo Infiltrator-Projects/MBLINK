@@ -55,6 +55,10 @@ jobs:
                   '''require(\n    "MBLinkManufacturerCommandToken" in controller\n    and "MBLinkDecodeManufacturerCommandToken" in controller\n    and "mblink_mercedes_data_scan_begin_documented_commands" in controller\n    and "mblink_mercedes_data_scan_begin_identifiers(" not in controller\n    and "UInt32($0.service) << 16 | UInt32($0.identifier)" in model\n    and "setManufacturerLivePollingCommands" in model,\n    "manufacturer polling must preserve service plus identifier so KWP 1A and 21 reads cannot collapse to the wrong wire command",\n)''',
                   '''require(\n    "MBLinkManufacturerCommandToken" in controller\n    and "MBLinkDecodeManufacturerCommandToken" in controller\n    and "mblink_mercedes_data_scan_begin_documented_commands" in controller\n    and "mblink_mercedes_data_scan_begin_identifiers(" not in controller\n    and "manufacturerLivePollingCommandsForModuleIdentifier" in apple_api\n    and "setManufacturerLivePollingCommands" in apple_api\n    and "service in bits 16..23" in apple_api\n    and "identifier in bits 0..15" in apple_api,\n    "manufacturer polling must preserve service plus identifier so KWP 1A and 21 reads cannot collapse to the wrong wire command",\n)'''
               ),
+              (
+                  '''require(\n    "mblink.manufacturer.pidCatalogueByVehicle" not in model\n    and "cachedManufacturerCatalogue" not in model\n    and "cacheManufacturerCatalogue" not in model,\n    "manufacturer PID Setup must not retain a second persisted catalogue cache beside the saved controller profile",\n)''',
+                  '''domain = (ROOT / "app/ios/MBLINK/MBLinkDiagnosticsDomain.swift").read_text(encoding="utf-8")\nrequire(\n    "mblink.manufacturer.pidCatalogueByVehicle" not in (model + domain),\n    "manufacturer PID Setup must not retain a second persisted catalogue cache beside the saved controller profile",\n)'''
+              ),
           ]
           for old, new in replacements:
               if old not in text:
