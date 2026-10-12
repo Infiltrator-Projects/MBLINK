@@ -40,15 +40,15 @@ enum MBConnectionStateResolver {
             return controller.isActive ? .running : .notStarted
         }
         let flow = pointer.pointee
-        if flow.stage.rawValue == LINK_DIAGNOSTIC_FLOW_FAILED.rawValue {
+        if flow.stage == LINK_DIAGNOSTIC_FLOW_FAILED {
             return .failed
         }
         if flow.standard_dtc_inventory_complete {
             return .complete
         }
-        if flow.stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS.rawValue ||
-            flow.stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS.rawValue ||
-            flow.stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS.rawValue {
+        if flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS ||
+            flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS ||
+            flow.stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS {
             return .running
         }
         return controller.isActive ? .running : .notStarted
@@ -62,30 +62,30 @@ enum MBConnectionStateResolver {
             return .openingAdapter
         }
         let stage = pointer.pointee.stage
-        if stage.rawValue == LINK_DIAGNOSTIC_FLOW_FAILED.rawValue {
+        if stage == LINK_DIAGNOSTIC_FLOW_FAILED {
             return .failed
         }
-        if stage.rawValue == LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_RESTORING_AFTER_MANUFACTURER.rawValue {
+        if stage == LINK_DIAGNOSTIC_FLOW_MANUFACTURER_EXTENSION ||
+            stage == LINK_DIAGNOSTIC_FLOW_RESTORING_AFTER_MANUFACTURER {
             return .readingMercedes
         }
-        if stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_READING_READINESS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_READING_FREEZE_FRAME.rawValue {
+        if stage == LINK_DIAGNOSTIC_FLOW_SCANNING_STORED_DTCS ||
+            stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PENDING_DTCS ||
+            stage == LINK_DIAGNOSTIC_FLOW_SCANNING_PERMANENT_DTCS ||
+            stage == LINK_DIAGNOSTIC_FLOW_READING_STANDARD_VIN ||
+            stage == LINK_DIAGNOSTIC_FLOW_READING_READINESS ||
+            stage == LINK_DIAGNOSTIC_FLOW_READING_FREEZE_FRAME {
             return .readingVehicleDiagnostics
         }
-        if stage.rawValue == LINK_DIAGNOSTIC_FLOW_LIVE.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_READING_LIVE.rawValue {
+        if stage == LINK_DIAGNOSTIC_FLOW_LIVE ||
+            stage == LINK_DIAGNOSTIC_FLOW_READING_LIVE {
             return .ready
         }
-        if stage.rawValue == LINK_DIAGNOSTIC_FLOW_INITIALIZING.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_CONFIGURING_PID_DISCOVERY_HEADERS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_DISCOVERING_PIDS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_RESTORING_PID_DISCOVERY_HEADERS.rawValue ||
-            stage.rawValue == LINK_DIAGNOSTIC_FLOW_CONFIGURING_LIVE_HEADERS.rawValue {
+        if stage == LINK_DIAGNOSTIC_FLOW_INITIALIZING ||
+            stage == LINK_DIAGNOSTIC_FLOW_CONFIGURING_PID_DISCOVERY_HEADERS ||
+            stage == LINK_DIAGNOSTIC_FLOW_DISCOVERING_PIDS ||
+            stage == LINK_DIAGNOSTIC_FLOW_RESTORING_PID_DISCOVERY_HEADERS ||
+            stage == LINK_DIAGNOSTIC_FLOW_CONFIGURING_LIVE_HEADERS {
             return .initialisingAdapter
         }
         return .openingAdapter
@@ -154,7 +154,7 @@ enum MBUDSCatalogueProvider {
                 continue
             }
             let definition = pointer.pointee
-            let name = definition.name.map { String(cString: $0) } ?? "Unknown"
+            let name = definition.name.isEmpty ? "Unknown" : definition.name
             let effect = link_uds_service_effect_name(definition.effect)
                 .map { String(cString: $0) } ?? "unknown"
             var sid = definition.service
@@ -185,9 +185,10 @@ enum MBUDSCatalogueProvider {
                 continue
             }
             let definition = pointer.pointee
+            let name = definition.name.isEmpty ? "Unknown" : definition.name
             items.append(MBUDSDTCReportCatalogueItem(
                 id: definition.subfunction,
-                name: definition.name.map { String(cString: $0) } ?? "Unknown",
+                name: name,
                 withdrawnIn2020: definition.withdrawn_in_2020))
         }
         return items
