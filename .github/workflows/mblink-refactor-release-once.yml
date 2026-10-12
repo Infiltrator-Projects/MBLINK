@@ -74,6 +74,30 @@ jobs:
           path.write_text(text)
           PY
 
+      - name: Expose Mercedes reference DTC resolver to Swift
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          bridge = Path('app/ios/MBLINK/MBLINK-Bridging-Header.h')
+          text = bridge.read_text()
+          marker = '#include "mblink/mercedes.h"\n'
+          wrapper = '''#include "mblink/mercedes.h"\n\n/* Swift's Clang importer does not consistently surface this nested C symbol\n * from the umbrella include on all supported Xcode versions. Keep the\n * compatibility shim at the platform bridge and leave domain semantics in C. */\nstatic inline bool mblink_swift_mercedes_reference_dtc_resolve(\n    const char *code,\n    MblinkMercedesReferenceDtcKnowledge *knowledge)\n{\n    return mblink_mercedes_reference_dtc_resolve(code, knowledge);\n}\n'''
+          if 'mblink_swift_mercedes_reference_dtc_resolve' not in text:
+              if marker not in text:
+                  raise SystemExit('Mercedes bridge include changed unexpectedly')
+              text = text.replace(marker, wrapper, 1)
+              bridge.write_text(text)
+
+          domain = Path('app/ios/MBLINK/MBLinkDiagnosticsDomain.swift')
+          value = domain.read_text()
+          old = 'mblink_mercedes_reference_dtc_resolve($0, &mercedes)'
+          new = 'mblink_swift_mercedes_reference_dtc_resolve($0, &mercedes)'
+          if old not in value:
+              raise SystemExit('Mercedes reference resolver call changed unexpectedly')
+          domain.write_text(value.replace(old, new, 1))
+          PY
+
       - name: Keep PID architecture guard at API boundary
         shell: bash
         run: |
