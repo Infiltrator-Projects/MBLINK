@@ -34,14 +34,10 @@ jobs:
           path = Path('tools/refactor-0.7.292.py')
           text = path.read_text()
 
-          # Current main already moved CI off the local release-critical runners.
           start = text.index("# Release builds must not depend on Shannon's local self-hosted runner.")
           end = text.index("# Sanity checks on the refactor itself.", start)
           text = text[:start] + "# CI is already GitHub-hosted on current main; no runner rewrite is required.\n\n" + text[end:]
 
-          # Some lifecycle assignments were already collapsed by the historical
-          # repair sequence. The semantic replacements below are therefore
-          # idempotent: absence means that exact assignment is already gone.
           old = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    count = text.count(old)\n    if count != 1:\n        raise RuntimeError(f"{label}: expected exactly one match, found {count}")\n    return text.replace(old, new, 1)\n'''
           new = '''def replace_once(text: str, old: str, new: str, label: str) -> str:\n    count = text.count(old)\n    optional_lifecycle = {\n        "initialise portable connection lifecycle",\n        "begin connection-owned ECU sessions",\n        "begin teardown through lifecycle",\n        "finish connection lifecycle",\n    }\n    if count == 0 and label in optional_lifecycle:\n        return text\n    if count != 1:\n        raise RuntimeError(f"{label}: expected exactly one match, found {count}")\n    return text.replace(old, new, 1)\n'''
           if old not in text:
@@ -86,6 +82,21 @@ jobs:
                   f'stage == {constant}',
                   f'stage.rawValue == {constant}.rawValue')
           path.write_text(text)
+          PY
+
+      - name: Make lifecycle regression test release-safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/test_mercedes_connection_lifecycle.c')
+          text = path.read_text()
+          old = '''    const MblinkMercedesConnectionSessionMode finished =\n        mblink_mercedes_connection_lifecycle_finish(&lifecycle);\n    assert(finished == MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH);\n'''
+          new = '''    const MblinkMercedesConnectionSessionMode finished =\n        mblink_mercedes_connection_lifecycle_finish(&lifecycle);\n    if (finished != MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH) return 1;\n'''
+          if text.count(old) != 1:
+              raise SystemExit('lifecycle regression assertion changed unexpectedly')
+          path.write_text(text.replace(old, new, 1))
           PY
 
       - name: Remove one-shot transformation machinery
