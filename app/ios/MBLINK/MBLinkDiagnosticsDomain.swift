@@ -154,7 +154,7 @@ enum MBUDSCatalogueProvider {
                 continue
             }
             let definition = pointer.pointee
-            let name = definition.name.isEmpty ? "Unknown" : definition.name
+            let name = definition.name.map { String(cString: $0) } ?? "Unknown"
             let effect = link_uds_service_effect_name(definition.effect)
                 .map { String(cString: $0) } ?? "unknown"
             var sid = definition.service
@@ -185,7 +185,7 @@ enum MBUDSCatalogueProvider {
                 continue
             }
             let definition = pointer.pointee
-            let name = definition.name.isEmpty ? "Unknown" : definition.name
+            let name = definition.name.map { String(cString: $0) } ?? "Unknown"
             items.append(MBUDSDTCReportCatalogueItem(
                 id: definition.subfunction,
                 name: name,
