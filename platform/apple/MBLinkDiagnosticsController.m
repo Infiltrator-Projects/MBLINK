@@ -942,10 +942,7 @@ static bool MBLinkSimulatorResponder(
     _selectedManufacturerLiveCommandsByModule =
         [[NSMutableDictionary alloc] init];
     _scheduledManufacturerModuleCursor = 0U;
-    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_NONE;
-    _connectionLifecycle.stage = MblinkMercedesConnectionSessionStageNone;
-    _connectionLifecycle.module_index = 0U;
-    _connectionLifecycle.disconnect_requested = NO;
+    mblink_mercedes_connection_lifecycle_init(&_connectionLifecycle);
     ++_manufacturerDataRequestGeneration;
 }
 
@@ -1011,9 +1008,9 @@ static bool MBLinkSimulatorResponder(
 
 - (void)beginConnectionSessionEstablishment
 {
-    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH;
-    _connectionLifecycle.stage = MblinkMercedesConnectionSessionStageNone;
-    _connectionLifecycle.module_index = 0U;
+    mblink_mercedes_connection_lifecycle_begin(
+        &_connectionLifecycle,
+        MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH);
     if (![self beginNextConnectionSessionModule])
         [self finishConnectionSessionOperation];
 }
@@ -1039,7 +1036,7 @@ static bool MBLinkSimulatorResponder(
             continue;
         }
 
-        _connectionLifecycle.stage = MblinkMercedesConnectionSessionStageProtocol;
+        _connectionLifecycle.stage = MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_PROTOCOL;
         [self beginCurrentConnectionSessionCommand];
         return YES;
     }
@@ -1071,12 +1068,12 @@ static bool MBLinkSimulatorResponder(
     }
 
     switch (_connectionLifecycle.stage) {
-    case MblinkMercedesConnectionSessionStageProtocol:
+    case MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_PROTOCOL:
         (void)snprintf(
             command, sizeof(command), "%s",
             module->extended_id ? "ATSP7" : "ATSP6");
         break;
-    case MblinkMercedesConnectionSessionStageHeader:
+    case MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_HEADER:
         if (mblink_elm327_can_format_header_command(
                 module->tx_can_id, module->extended_id,
                 command, sizeof(command)) != MBLINK_ELM327_CAN_RESULT_OK) {
@@ -1086,7 +1083,7 @@ static bool MBLinkSimulatorResponder(
             return;
         }
         break;
-    case MblinkMercedesConnectionSessionStageReceive:
+    case MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_RECEIVE:
         if (mblink_elm327_can_format_receive_address_command(
                 module->rx_can_id, module->extended_id,
                 command, sizeof(command)) != MBLINK_ELM327_CAN_RESULT_OK) {
@@ -1096,13 +1093,13 @@ static bool MBLinkSimulatorResponder(
             return;
         }
         break;
-    case MblinkMercedesConnectionSessionStageControl:
+    case MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_CONTROL:
         (void)snprintf(
             command, sizeof(command), "%s",
             _connectionLifecycle.mode == MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH
                 ? enterCommand : quitCommand);
         break;
-    case MblinkMercedesConnectionSessionStageNone:
+    case MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE:
         [self finishConnectionSessionOperation];
         return;
     }
@@ -1115,7 +1112,7 @@ static bool MBLinkSimulatorResponder(
         return;
     }
 
-    if (_connectionLifecycle.stage == MblinkMercedesConnectionSessionStageControl &&
+    if (_connectionLifecycle.stage == MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_CONTROL &&
         _connectionLifecycle.mode == MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH) {
         /*
          * Mark before waiting for the reply. If the ECU accepts the request
@@ -1139,7 +1136,7 @@ static bool MBLinkSimulatorResponder(
     MblinkMercedesModuleScanEntry *module =
         &_mercedesModuleScan.modules[_connectionLifecycle.module_index];
 
-    if (_connectionLifecycle.stage != MblinkMercedesConnectionSessionStageControl) {
+    if (_connectionLifecycle.stage != MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_CONTROL) {
         if (response == NULL ||
             response->result != MBLINK_ELM327_RESULT_OK ||
             !response->ok_seen) {
@@ -1175,10 +1172,8 @@ static bool MBLinkSimulatorResponder(
 
 - (void)finishConnectionSessionOperation
 {
-    const MblinkMercedesConnectionSessionMode finished = _connectionLifecycle.mode;
-    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_NONE;
-    _connectionLifecycle.stage = MblinkMercedesConnectionSessionStageNone;
-    _connectionLifecycle.module_index = 0U;
+    const MblinkMercedesConnectionSessionMode finished =
+        mblink_mercedes_connection_lifecycle_finish(&_connectionLifecycle);
 
     if (finished == MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH) {
         if (_connectionLifecycle.disconnect_requested) {
@@ -1187,8 +1182,9 @@ static bool MBLinkSimulatorResponder(
              * Do not release/reacquire the wire here: turn the same serialized
              * operation directly around and close every session we just opened.
              */
-            _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN;
-            _connectionLifecycle.module_index = 0U;
+            mblink_mercedes_connection_lifecycle_begin(
+                &_connectionLifecycle,
+                MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN);
             if (![self beginNextConnectionSessionModule])
                 [self finishConnectionSessionOperation];
         } else {
@@ -1232,9 +1228,9 @@ static bool MBLinkSimulatorResponder(
     if (_connectionLifecycle.mode == MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN) return;
 
     if ([_shared beginLiveManufacturerExtension]) {
-        _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN;
-        _connectionLifecycle.stage = MblinkMercedesConnectionSessionStageNone;
-        _connectionLifecycle.module_index = 0U;
+        mblink_mercedes_connection_lifecycle_begin(
+            &_connectionLifecycle,
+            MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN);
         if (![self beginNextConnectionSessionModule])
             [self finishConnectionSessionOperation];
         return;
