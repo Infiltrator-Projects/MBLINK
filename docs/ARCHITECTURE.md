@@ -99,7 +99,9 @@ The iOS target compiles product compatibility bridge files which include the exa
 
 ## Timing, ownership and failure
 
-Portable state machines use caller-supplied monotonic time rather than OS clocks. Buffer ownership and provider/session lifetimes are explicit. Terminal protocol errors require the documented reset/resynchronisation operation rather than heuristic recovery.
+Portable state machines use caller-supplied monotonic time rather than OS clocks. Buffer ownership and provider/session lifetimes are explicit. Terminal protocol errors require the documented reset/resynchronisation operation rather than heuristic recovery. Mercedes connection-owned diagnostic-session mode/stage/index state and session-command policy live in the portable Mercedes connection lifecycle; the Apple controller performs platform I/O around that state rather than owning another private session state machine.
+
+The iPhone presentation edge consumes typed diagnostic state. Connection/fault behaviour is derived from LINK diagnostic-flow state plus the explicit Mercedes fault-scan state, never by searching human-readable status strings. Manufacturer PID persistence, generic UDS catalogue projection and DTC presentation enrichment are separate domain services rather than responsibilities of `ConnectionViewModel`.
 
 Manufacturer definitions carry evidence/provenance status. Undocumented identifiers, DTC meanings or formulas are not promoted to factual vehicle definitions without source evidence or reproducible capture fixtures.
 

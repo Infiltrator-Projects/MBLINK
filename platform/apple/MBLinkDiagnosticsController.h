@@ -6,6 +6,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MBLinkDiagnosticsController;
 
+typedef NS_ENUM(NSUInteger, MBLinkMercedesFaultScanState) {
+    MBLinkMercedesFaultScanStateNotStarted = 0,
+    MBLinkMercedesFaultScanStateRunning,
+    MBLinkMercedesFaultScanStateComplete,
+    MBLinkMercedesFaultScanStateFailed
+};
+
 @interface MBLinkStandardDataSnapshot : NSObject
 @property(nonatomic, readonly) uint8_t pid;
 @property(nonatomic, readonly) uint32_t responderCANIdentifier;
@@ -101,6 +108,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<NSString *> *mercedesIdentityResults;
 @property(nonatomic, copy, readonly) NSString *mercedesCrd3SummaryText;
 @property(nonatomic, copy, readonly) NSString *mercedesUDSFaultStatusText;
+@property(nonatomic, readonly) MBLinkMercedesFaultScanState mercedesFaultScanState;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *mercedesUDSFaults;
 @property(nonatomic, copy, readonly)
     NSArray<MBLinkMercedesModuleSnapshot *> *mercedesModuleSnapshots;
