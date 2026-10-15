@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: HAL lifecycle source fix once
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'hal/simplify-coupling-and-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Apply deterministic lifecycle API correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('platform/apple/MBLinkDiagnosticsController.m')
+          text = path.read_text()
+          original = text
+
+          replacements = {
+              'MblinkMercedesConnectionSessionStageNone': 'MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE',
+              'MblinkMercedesConnectionSessionStageProtocol': 'MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_PROTOCOL',
+              'MblinkMercedesConnectionSessionStageHeader': 'MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_HEADER',
+              'MblinkMercedesConnectionSessionStageReceive': 'MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_RECEIVE',
+              'MblinkMercedesConnectionSessionStageControl': 'MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_CONTROL',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+
+          old = '''    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_NONE;\n    _connectionLifecycle.stage = MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE;\n    _connectionLifecycle.module_index = 0U;\n    _connectionLifecycle.disconnect_requested = NO;\n'''
+          new = '''    mblink_mercedes_connection_lifecycle_init(&_connectionLifecycle);\n'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH;\n    _connectionLifecycle.stage = MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE;\n    _connectionLifecycle.module_index = 0U;\n'''
+          new = '''    mblink_mercedes_connection_lifecycle_begin(\n        &_connectionLifecycle,\n        MBLINK_MERCEDES_CONNECTION_SESSION_ESTABLISH);\n'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''    const MblinkMercedesConnectionSessionMode finished = _connectionLifecycle.mode;\n    _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_NONE;\n    _connectionLifecycle.stage = MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE;\n    _connectionLifecycle.module_index = 0U;\n'''
+          new = '''    const MblinkMercedesConnectionSessionMode finished =\n        mblink_mercedes_connection_lifecycle_finish(&_connectionLifecycle);\n'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''            _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN;\n            _connectionLifecycle.module_index = 0U;\n'''
+          new = '''            mblink_mercedes_connection_lifecycle_begin(\n                &_connectionLifecycle,\n                MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN);\n'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''        _connectionLifecycle.mode = MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN;\n        _connectionLifecycle.stage = MBLINK_MERCEDES_CONNECTION_SESSION_STAGE_NONE;\n        _connectionLifecycle.module_index = 0U;\n'''
+          new = '''        mblink_mercedes_connection_lifecycle_begin(\n            &_connectionLifecycle,\n            MBLINK_MERCEDES_CONNECTION_SESSION_TEARDOWN);\n'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          bad = [name for name in replacements if name in text]
+          if bad:
+              raise SystemExit(f'legacy stage identifiers remain: {bad}')
+          if text != original:
+              path.write_text(text)
+          PY
+
+          if git diff --quiet -- platform/apple/MBLinkDiagnosticsController.m; then
+            echo 'Lifecycle source is already corrected.'
+            exit 0
+          fi
+
+          git config user.name 'HAL maintenance'
+          git config user.email 'actions@users.noreply.github.com'
+          git add platform/apple/MBLinkDiagnosticsController.m
+          git commit -m 'Fix Apple Mercedes lifecycle API integration'
+          git push origin "HEAD:${{ github.head_ref }}"
