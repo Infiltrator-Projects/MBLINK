@@ -2,7 +2,7 @@
 
 # Fault diagnostics and diagnostic knowledge
 
-Fault diagnosis is a first-class MBLINK product function. A scan is **not complete** merely because the ECU returned a DTC and MBLINK displayed its hexadecimal or SAE code.
+Fault diagnosis is a first-class MBLink product function. A scan is **not complete** merely because the ECU returned a DTC and MBLink displayed its hexadecimal or SAE code.
 
 The product requirement is to answer, as far as defensible data permits:
 
@@ -38,9 +38,9 @@ A successful scan with zero faults, a scan that has not run, and a scan that fai
 
 ## Ownership
 
-### LINK owns shared diagnostic knowledge
+### Link owns shared diagnostic knowledge
 
-Anything that is manufacturer-neutral belongs in LINK so MBLINK and JAGLINK cannot diverge. LINK is the source of truth for:
+Anything that is manufacturer-neutral belongs in Link so MBLink and JAGLink cannot diverge. Link is the source of truth for:
 
 - standards-defined OBD-II DTC decoding and lookup metadata;
 - generic DTC classification across powertrain/chassis/body/network code families where the standard defines it;
@@ -54,9 +54,9 @@ Anything that is manufacturer-neutral belongs in LINK so MBLINK and JAGLINK cann
 
 The portable layer must preserve the raw code even when no description is known. An unknown code is a valid diagnostic result, not permission to fabricate a description.
 
-### MBLINK owns Mercedes diagnostic knowledge
+### MBLink owns Mercedes diagnostic knowledge
 
-Mercedes-specific information belongs in MBLINK. This includes:
+Mercedes-specific information belongs in MBLink. This includes:
 
 - Mercedes-Benz manufacturer DTC definitions;
 - Delphi CRD3/CDID3 and OM651-specific DTC definitions;
@@ -67,35 +67,35 @@ Mercedes-specific information belongs in MBLINK. This includes:
 - source/provenance and vehicle-verification status for each manufacturer definition;
 - Mercedes-specific diagnostic relationships between fault records and verified live parameters.
 
-MBLINK must not copy generic SAE/ISO tables out of LINK. LINK must not contain Mercedes-only definitions.
+MBLink must not copy generic SAE/ISO tables out of Link. Link must not contain Mercedes-only definitions.
 
 ## Current implementation state
 
-The generic diagnostic-knowledge layer is implemented in the exact LINK revision pinned by MBLINK's `src/link` gitlink. This is materially beyond the former raw-code-only path:
+The generic diagnostic-knowledge layer is implemented in the exact Link revision pinned by MBLink's `src/link` gitlink. This is materially beyond the former raw-code-only path:
 
 - standard OBD services 03/07/0A retrieve stored, pending and permanent DTCs without altering the vehicle;
 - raw DTC bytes are preserved and decoded to the five-character SAE-style code;
-- LINK resolves valid generic codes into a presentation-neutral `LinkDtcKnowledge` record containing normalized code, known/unknown state, system, generic/manufacturer origin, source class, title and category;
-- the shared catalogue covers high-value engine/diesel and network diagnostic areas and is maintained in LINK rather than copied into MBLINK;
+- Link resolves valid generic codes into a presentation-neutral `LinkDtcKnowledge` record containing normalized code, known/unknown state, system, generic/manufacturer origin, source class, title and category;
+- the shared catalogue covers high-value engine/diesel and network diagnostic areas and is maintained in Link rather than copied into MBLink;
 - structured per-cylinder injector, misfire and glow-plug families are generated deterministically;
 - valid but unmapped manufacturer-specific codes remain explicit unknown diagnostic records rather than receiving fabricated meanings;
-- ISO 14229 status-byte translation is shared in LINK rather than being a manufacturer-specific concept;
-- MBLINK exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for compatibility;
-- MBLINK has product-level regression coverage proving the shared LINK knowledge and compatibility APIs reach the Mercedes product face;
-- MBLINK has a module-scoped Mercedes KWP2000 definition table with provenance; the vehicle-captured ORC `9B51` record resolves to the driver seat-belt buckle circuit description while preserving raw status `E0`;
-- MBLINK also contains a separate **299-row source-scoped Mercedes reference catalogue** reconstructed from the diagnostic material supplied to the project: 78 BenzWorld body/chassis rows, 104 Mercedes P1xxx reference rows, all 38 TaT teaser rows including explicit subcodes/duplicates, and 79 supplied SprinterManual reference rows. Duplicate meanings are retained deliberately instead of one source silently overwriting another;
+- ISO 14229 status-byte translation is shared in Link rather than being a manufacturer-specific concept;
+- MBLink exposes resolved `DiagnosticFault` objects to the iPhone model and feeds `CODE — description` into the existing Faults presentation for compatibility;
+- MBLink has product-level regression coverage proving the shared Link knowledge and compatibility APIs reach the Mercedes product face;
+- MBLink has a module-scoped Mercedes KWP2000 definition table with provenance; the vehicle-captured ORC `9B51` record resolves to the driver seat-belt buckle circuit description while preserving raw status `E0`;
+- MBLink also contains a separate **299-row source-scoped Mercedes reference catalogue** reconstructed from the diagnostic material supplied to the project: 78 BenzWorld body/chassis rows, 104 Mercedes P1xxx reference rows, all 38 TaT teaser rows including explicit subcodes/duplicates, and 79 supplied SprinterManual reference rows. Duplicate meanings are retained deliberately instead of one source silently overwriting another;
 - a separate **8-row primary-documented CDID3/OM651 catalogue** now records XENTRY fault text and applicability from Mercedes-Benz/Daimler bulletins for CRD3, CRD3NFZ and narrowly identified vehicle families. These records are intentionally not fed into the automatic C207 resolver when their published applicability is W212 hybrid, 117/176/246, Sprinter III or V (447);
-- standard OBD manufacturer-specific codes that LINK correctly classifies as unknown can now be enriched on both iPhone and Linux from that Mercedes reference catalogue when the meaning is unambiguous. Conflicting codes such as `B1000` or `P2004` are shown as ambiguous and require module/subcode context rather than receiving an arbitrary meaning;
-- the broad reference catalogue does **not** override standards-defined LINK meanings and does not promote source-scoped Sprinter/legacy rows into C207-specific KWP/UDS definitions;
-- Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte. MBLINK now has the same typed, module-scoped definition contract for exact 24-bit UDS meanings that it already has for 16-bit KWP meanings; the production UDS definition count remains zero because no supplied C207 capture yet proves a raw 24-bit value's proprietary meaning. In particular, `D18100 / 50` remains explicitly unknown;
-- OBD freeze-frame request/decoding and readiness decoding primitives exist in LINK.
+- standard OBD manufacturer-specific codes that Link correctly classifies as unknown can now be enriched on both iPhone and Linux from that Mercedes reference catalogue when the meaning is unambiguous. Conflicting codes such as `B1000` or `P2004` are shown as ambiguous and require module/subcode context rather than receiving an arbitrary meaning;
+- the broad reference catalogue does **not** override standards-defined Link meanings and does not promote source-scoped Sprinter/legacy rows into C207-specific KWP/UDS definitions;
+- Mercedes UDS `19 02 FF` retrieves raw 24-bit DTC values plus their status byte. MBLink now has the same typed, module-scoped definition contract for exact 24-bit UDS meanings that it already has for 16-bit KWP meanings; the production UDS definition count remains zero because no supplied C207 capture yet proves a raw 24-bit value's proprietary meaning. In particular, `D18100 / 50` remains explicitly unknown;
+- OBD freeze-frame request/decoding and readiness decoding primitives exist in Link.
 
 The broad fault-investigation vertical slice is now functionally complete. Ongoing work is manufacturer knowledge depth rather than missing scan-state/readiness/freeze-frame plumbing:
 
 1. the Faults UI distinguishes scan-not-run/in-progress, failed/incomplete, verified-clean and faults-present states, and standard OBD fault cards consume structured diagnostic knowledge. A regression-tested presentation-state classifier prevents an empty unrun or failed scan from becoming a clean result;
 2. readiness and capability-driven Mode 02 frame-zero freeze-frame context are integrated into the shared fault workflow and surfaced separately from current live data;
 3. Mercedes knowledge is deliberately split: exact KWP/UDS definitions remain module-scoped and evidence-gated, while the supplied five-character reference corpus and primary-documented CRD3/OM651 records are searchable with explicit source/applicability metadata. The currently supplied C207 evidence tranche is fully represented; additional wire-level meanings remain evidence-gated rather than being inferred from a reference row;
-4. standards-backed generic diagnostic knowledge continues to be maintained in LINK.
+4. standards-backed generic diagnostic knowledge continues to be maintained in Link.
 
 Additional manufacturer definitions remain important, but they are catalogue expansion rather than a missing end-to-end fault workflow.
 
@@ -130,7 +130,7 @@ milestone.
 
 ## Required standard OBD fault workflow
 
-For each successful standard OBD fault scan, MBLINK should be able to construct a presentation-neutral record equivalent to:
+For each successful standard OBD fault scan, MBLink should be able to construct a presentation-neutral record equivalent to:
 
 ```text
 Code:        P0401
@@ -144,11 +144,11 @@ Context:     freeze-frame/readiness values when available
 Source:      standards-backed definition
 ```
 
-The pinned LINK layer provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Readiness and capability-gated Mode 02 frame-zero context are integrated into the shared diagnostic flow and surfaced separately from current live data.
+The pinned Link layer provides the generic code/title/system/category/origin/source portion of this shape. State comes from the scan kind. Readiness and capability-gated Mode 02 frame-zero context are integrated into the shared diagnostic flow and surfaced separately from current live data.
 
 ## Required Mercedes fault workflow
 
-For each Mercedes UDS DTC, MBLINK should retain the raw 24-bit value and status while resolving all information supported by the Mercedes knowledge base:
+For each Mercedes UDS DTC, MBLink should retain the raw 24-bit value and status while resolving all information supported by the Mercedes knowledge base:
 
 ```text
 DTC:         raw Mercedes/UDS value
@@ -177,14 +177,14 @@ Unknown KWP and UDS records retain the raw code and raw status and expose
 external research starting points. Those links are explicitly non-authoritative
 for meaning: the result remains **unknown** until applicable evidence supports
 a module-scoped definition. The captured `0x602 -> 0x480` UDS record
-`D18100 / 50` is the regression example for this behaviour; MBLINK assigns no
+`D18100 / 50` is the regression example for this behaviour; MBLink assigns no
 meaning or exact ECU identity to it.
 
 ## Freeze-frame and readiness are diagnostic features
 
 The OBD freeze-frame and readiness decoders are now active diagnostic-flow features.
 
-After standard stored/pending/permanent fault inventory, LINK attempts Mode 01 PID 01 readiness and retains the standards-defined monitor state. When a stored SAE fault exists, LINK then attempts a bounded capability-gated set of Mode 02 frame-zero values such as load, coolant temperature, MAP, RPM, speed, intake temperature, MAF and throttle when the ECU advertised the corresponding PID family. MBLINK presents those values as captured fault context, never as current Live Data.
+After standard stored/pending/permanent fault inventory, Link attempts Mode 01 PID 01 readiness and retains the standards-defined monitor state. When a stored SAE fault exists, Link then attempts a bounded capability-gated set of Mode 02 frame-zero values such as load, coolant temperature, MAP, RPM, speed, intake temperature, MAF and throttle when the ECU advertised the corresponding PID family. MBLink presents those values as captured fault context, never as current Live Data.
 
 Unsupported, malformed or absent values remain unavailable rather than being invented. Raw requests/responses remain in the evidence trace, while Linux investigation JSON also carries the structured readiness/freeze-frame snapshot.
 
@@ -201,7 +201,7 @@ fault/warning state identifiers including `brakeControlWarnings`,
 That is useful evidence that the original product distinguished DTC collections
 and fault state instead of treating faults as plain text. It does **not** prove
 how a Mercedes KWP/UDS raw status byte maps to `STATIC` or `SPORADIC`.
-MBLINK therefore keeps raw status bytes authoritative and does not label
+MBLink therefore keeps raw status bytes authoritative and does not label
 `0xE0`, or any other raw status value, as static/sporadic until a defensible
 wire-level mapping is recovered.
 
@@ -224,13 +224,13 @@ The UI may correlate a fault with current/freeze-frame measurements, but must di
 
 Fault diagnostics are not considered feature-complete until all of the following are true:
 
-- LINK contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
-- MBLINK contains tested Mercedes-specific DTC knowledge with applicability and provenance — **implemented as both the exact module-scoped KWP/UDS layer and the 299-row source-scoped reference layer; additional ECU-specific wire mappings remain evidence-gated**;
+- Link contains a tested standards-backed generic DTC knowledge mechanism rather than code formatting alone — **implemented; catalogue maintenance continues**;
+- MBLink contains tested Mercedes-specific DTC knowledge with applicability and provenance — **implemented as both the exact module-scoped KWP/UDS layer and the 299-row source-scoped reference layer; additional ECU-specific wire mappings remain evidence-gated**;
 - fault records can carry resolved description/category/module information without losing raw data — **generic structured records implemented; manufacturer/module enrichment continues**;
 - the app distinguishes not-scanned, failed, clean and faults-present states — **implemented on iPhone and Linux fault-investigation surfaces, with product regression coverage proving that unrun/failed empty scans cannot become clean**;
 - stored, pending, permanent and Mercedes module fault records are translated for the user when definitions are known — **generic OBD, the captured module-scoped KWP definition and the current primary-documented CRD3/OM651 tranche are implemented; future catalogue growth remains normal evidence maintenance rather than an open architectural gap**;
 - freeze-frame and readiness information are integrated into the diagnostic workflow and visible to the user — **implemented in the shared flow and surfaced on iPhone/Linux; physical ECU availability remains capability-dependent**;
-- unknown codes remain explicit and evidence-preserving — **implemented for the generic LINK path**;
-- the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared LINK API implemented; additional platform consumers remain**.
+- unknown codes remain explicit and evidence-preserving — **implemented for the generic Link path**;
+- the same diagnostic model can be consumed by all applicable platform faces without reimplementing lookup logic in SwiftUI, GTK or Win32 — **shared Link API implemented; additional platform consumers remain**.
 
 Until these conditions are met, additional dashboard polish or additional live gauges must not be treated as a substitute for completing the diagnostic knowledge path.

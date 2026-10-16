@@ -2,11 +2,11 @@
 
 # Vehicle profiles and connection state machine
 
-This document owns MBLINK's normal iPhone vehicle-selection, saved-profile and adapter-selection behaviour. It records the intended product contract separately from the lower-level diagnostic protocol implementation.
+This document owns MBLink's normal iPhone vehicle-selection, saved-profile and adapter-selection behaviour. It records the intended product contract separately from the lower-level diagnostic protocol implementation.
 
 ## Core invariant
 
-**Saved vehicle state controls MBLINK while offline. Live VIN controls MBLINK once connected.**
+**Saved vehicle state controls MBLink while offline. Live VIN controls MBLink once connected.**
 
 An adapter identifier is only a connection convenience. It is never vehicle identity. Simulation is test data and must never replace or rewrite the current real vehicle profile.
 
@@ -16,23 +16,23 @@ This is the required normal workflow. It begins with the user's first action;
 later diagnostic and screen-layout documents must not silently reorder it.
 
 1. The user taps **Connect**.
-2. MBLINK opens the connection chooser. It does not initialise an adapter
+2. MBLink opens the connection chooser. It does not initialise an adapter
    before the user has selected a connection source.
 3. The user chooses one exact nearby/saved adapter, explicit automatic
    discovery, or the clearly separated test adapter.
-4. For a physical selection, LINK connects to and initialises only that
-   selected adapter. For the test adapter, LINK starts the deterministic test
+4. For a physical selection, Link connects to and initialises only that
+   selected adapter. For the test adapter, Link starts the deterministic test
    data source instead of opening a physical radio connection.
-5. MBLINK requests the live Mode 09 VIN. This is the only standard OBD
+5. MBLink requests the live Mode 09 VIN. This is the only standard OBD
    inventory work performed at this point: supported-PID discovery, standard
    fault inventory and live PID reads have not started yet.
-6. The valid live VIN becomes authoritative. MBLINK loads its existing profile
+6. The valid live VIN becomes authoritative. MBLink loads its existing profile
    or creates a new profile if that VIN has never been seen.
-7. For an existing valid profile, MBLINK validates and refreshes only its saved
-   Mercedes module routes. For a new or invalidated profile, MBLINK runs the
+7. For an existing valid profile, MBLink validates and refreshes only its saved
+   Mercedes module routes. For a new or invalidated profile, MBLink runs the
    bounded identity-first mobile module census once. This produces the module
    map before standard OBD PID capability discovery begins.
-8. For every identified controller, MBLINK resolves the narrowest justified
+8. For every identified controller, MBLink resolves the narrowest justified
    ECU pack and runs its remaining documented startup-once reads. Identity,
    coding, configuration and other static facts are retained with that
    VIN/controller profile and never become selectable recurring PIDs. The
@@ -42,12 +42,12 @@ later diagnostic and screen-layout documents must not silently reorder it.
    example IC_204 ASSYST average daily distance or next-service scope) may be
    surfaced on the Vehicle screen while remaining owned, decoded and acquired
    by the source controller's ECU pack.
-9. MBLINK restores the adapter to the standard OBD channel.
-10. LINK completes the standards-defined OBD inventory: responder-attributed
+9. MBLink restores the adapter to the standard OBD channel.
+10. Link completes the standards-defined OBD inventory: responder-attributed
     supported-PID bitmaps, stored/pending/permanent faults, one-shot readiness
     context and supported freeze-frame context. Reading a supported-PID bitmap
     identifies capability; it does not read or begin polling every live PID.
-11. MBLINK is now ready with one authoritative VIN and one identified module
+11. MBLink is now ready with one authoritative VIN and one identified module
     map. No manufacturer live-data record or arbitrary data identifier has
     been swept as part of reaching this state.
 12. PID Setup is controller-first. Each discovered or VIN-profiled physical
@@ -105,7 +105,7 @@ The normal Connect flow must never automatically:
 - send coding, programming, reset, security-access, write or clear commands.
 
 Broad manufacturer-data discovery is a separate, explicit operation. Heavy
-unknown-vehicle research belongs to MBLINK Discover on Linux/Windows, not the
+unknown-vehicle research belongs to MBLink Discover on Linux/Windows, not the
 normal iPhone connection path.
 
 In product requirements and user-facing text, call this step **module
@@ -125,20 +125,20 @@ The loaded vehicle remains current until a different real VIN is observed or the
 
 ## Connect action and adapter selection
 
-Every normal iPhone **Connect** entry point opens the MBLINK connection chooser before starting a physical session. The chooser can offer:
+Every normal iPhone **Connect** entry point opens the MBLink connection chooser before starting a physical session. The chooser can offer:
 
 - the adapter previously associated with the currently loaded vehicle;
 - nearby CoreBluetooth devices, ordered primarily by signal strength;
-- LINK's existing automatic adapter discovery; and
+- Link's existing automatic adapter discovery; and
 - a clearly separated simulated ELM327 test source.
 
-Choosing a specific Bluetooth peripheral is strict: LINK is asked to connect to that exact CoreBluetooth identifier and must not silently substitute another nearby adapter. Automatic discovery remains available as an explicit alternative.
+Choosing a specific Bluetooth peripheral is strict: Link is asked to connect to that exact CoreBluetooth identifier and must not silently substitute another nearby adapter. Automatic discovery remains available as an explicit alternative.
 
 A selected adapter is associated with a vehicle only after a real 17-character live VIN has been captured. If the adapter turns out to be fitted to another car, the association belongs to the VIN actually read from that car. Simulation never writes the real vehicle-to-adapter association.
 
 ## Live VIN authority
 
-After the adapter channel is established and initialised, MBLINK must obtain the live VIN as early as the shared diagnostic flow permits. Once a valid live VIN exists, it is authoritative:
+After the adapter channel is established and initialised, MBLink must obtain the live VIN as early as the shared diagnostic flow permits. Once a valid live VIN exists, it is authoritative:
 
 1. **Live VIN matches the loaded profile** — keep the profile, validate/refresh its saved controller map and continue.
 2. **Live VIN differs and a saved profile exists for it** — stop using the previously loaded vehicle, load the matching saved profile, make it current/last-used, validate/refresh it and continue.

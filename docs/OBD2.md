@@ -2,11 +2,11 @@
 
 # Standard OBD-II Engine
 
-The portable C OBD-II layer consumes normalized `MblinkElm327Response` values and returns typed results. BLE, raw ISO-TP, UDS, manufacturer data, scheduling and UI remain outside this layer. The implementation is owned by LINK and exposed through MBLINK compatibility APIs.
+The portable C OBD-II layer consumes normalized `MblinkElm327Response` values and returns typed results. BLE, raw ISO-TP, UDS, manufacturer data, scheduling and UI remain outside this layer. The implementation is owned by Link and exposed through MBLink compatibility APIs.
 
 ## Complete Mode 01 catalogue and decoded examples
 
-LINK exposes the complete classic Mode 01 byte namespace: all 256 identifier
+Link exposes the complete classic Mode 01 byte namespace: all 256 identifier
 slots are enumerable, with assigned and reserved status explicit. Every
 assigned standard PID can enter the scheduler when the vehicle advertises it.
 Scalar formulas remain available through the compatibility parameter layer;
@@ -49,7 +49,7 @@ coverage.
 | `7A` | DPF bank-1 differential pressure | `kPa` | support bit for bank-1 differential pressure, then signed `BC / 100` |
 | `7C` | DPF bank-1 inlet temperature | `°C` | support bit for bank-1 inlet temperature, then `(256B + C) / 10 - 40` |
 
-The aftertreatment PIDs contain their own sensor/support flags. MBLINK returns `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` rather than presenting a value when the PID exists but the selected sub-field is not advertised. A PID that has a verified typed decoder still returns
+The aftertreatment PIDs contain their own sensor/support flags. MBLink returns `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` rather than presenting a value when the PID exists but the selected sub-field is not advertised. A PID that has a verified typed decoder still returns
 `MBLINK_OBD2_RESULT_UNSUPPORTED_PID` when the requested advertised sub-field
 is absent. Assigned catalogue items without a corroborated formula are retained
 through the structured/raw path instead of being rejected or assigned a guessed
@@ -70,8 +70,8 @@ Readiness is diagnostic information, not merely protocol state. The user-facing 
 ## Responder-specific capability inventory
 
 Mode 01 capability discovery is now responder-attributed before routine polling
-starts. MBLINK temporarily enables CAN response headers for the `0100`,
-`0120`, `0140`, ... capability exchange, lets LINK retain one supported-PID
+starts. MBLink temporarily enables CAN response headers for the `0100`,
+`0120`, `0140`, ... capability exchange, lets Link retain one supported-PID
 bitmap per responding CAN ECU, and then restores the ordinary response format
 before VIN and fault acquisition.
 
@@ -83,10 +83,10 @@ The captured C207 masks currently prove:
 
 - responder `0x7E8`: 29 advertised capability codes including the `0x20`
   and `0x40` continuation pages, therefore 27 non-continuation Mode 01 codes;
-  24 of those are current scalar live values already decoded by LINK;
+  24 of those are current scalar live values already decoded by Link;
 - responder `0x7E9`: 12 advertised capability codes including continuation
   pages, therefore 10 non-continuation Mode 01 codes; 9 are current scalar live
-  values already decoded by LINK.
+  values already decoded by Link.
 
 The catalogue itself remains complete even though a vehicle advertises only
 the subset it implements. Presentation may filter or mark unsupported entries,
@@ -99,7 +99,7 @@ OBD-II.
 
 Mode 09 PID 02 decoding requires exactly 17 VIN characters: digits or uppercase `A`–`Z`, excluding `I`, `O` and `Q`. Output is transactional: a failed decode leaves the caller-visible VIN empty rather than partially updated.
 
-ELM-compatible adapters may display a long CAN reply as indexed text lines (`0:`, `1:`, ...), preceded by the extracted three-hex-digit total data length. MBLINK validates both index continuity and the final assembled byte count before decoding VIN/DTC data. This is ELM presentation reassembly, not the generic raw ISO-TP engine.
+ELM-compatible adapters may display a long CAN reply as indexed text lines (`0:`, `1:`, ...), preceded by the extracted three-hex-digit total data length. MBLink validates both index continuity and the final assembled byte count before decoding VIN/DTC data. This is ELM presentation reassembly, not the generic raw ISO-TP engine.
 
 Malformed hexadecimal input, broken index sequences, truncated declared lengths and incomplete VINs are rejected.
 
@@ -109,13 +109,13 @@ Mode `03`/`43`, `07`/`47` and `0A`/`4A` cover stored, pending and permanent DTCs
 
 Formatting the returned bytes as `Pxxxx`, `Cxxxx`, `Bxxxx` or `Uxxxx` is not the completion condition for OBD fault support.
 
-MBLINK consumes the generic `dtc_knowledge` API from its exact pinned LINK revision. A valid code is normalized and classified by system and generic/manufacturer origin. When the shared catalogue contains the definition, the result also carries a human-readable title, diagnostic category and standards-backed source class. Structured cylinder families such as injector circuits, contribution/balance, misfires and glow-plug circuits are generated by the shared layer rather than duplicated as hundreds of UI strings.
+MBLink consumes the generic `dtc_knowledge` API from its exact pinned Link revision. A valid code is normalized and classified by system and generic/manufacturer origin. When the shared catalogue contains the definition, the result also carries a human-readable title, diagnostic category and standards-backed source class. Structured cylinder families such as injector circuits, contribution/balance, misfires and glow-plug circuits are generated by the shared layer rather than duplicated as hundreds of UI strings.
 
 A valid manufacturer-specific or not-yet-catalogued code remains an explicit unknown record with its raw code intact. No layer may synthesize a plausible description merely to avoid an unknown result.
 
 The iPhone `ConnectionViewModel` exposes structured `DiagnosticFault` records and maintains compatibility display strings in the form `CODE — description` so the existing Faults screen immediately translates known generic DTCs while the richer card presentation is completed.
 
-The full product requirement is defined in `FAULT_DIAGNOSTICS.md`. Generic SAE/ISO diagnostic knowledge belongs in LINK so every LINK-family product uses the same definitions and semantics. Manufacturer-specific meanings remain in the product layer that owns that manufacturer.
+The full product requirement is defined in `FAULT_DIAGNOSTICS.md`. Generic SAE/ISO diagnostic knowledge belongs in Link so every Link-family product uses the same definitions and semantics. Manufacturer-specific meanings remain in the product layer that owns that manufacturer.
 
 ## Freeze-frame integration requirement
 
@@ -129,7 +129,7 @@ A successful scan that returns zero DTCs, a scan that has not run and a scan tha
 
 ## Clear-code gate
 
-Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in `MblinkObd2ClearAuthorization`. Higher layers must still require an explicit user action immediately before execution. MBLINK does not automatically clear faults.
+Mode 04 clearing requires both `confirmed` and `acknowledge_readiness_reset` in `MblinkObd2ClearAuthorization`. Higher layers must still require an explicit user action immediately before execution. MBLink does not automatically clear faults.
 
 ## Error policy
 
@@ -138,9 +138,9 @@ The layer distinguishes invalid arguments, ELM errors, malformed payloads, unexp
 
 ## Runtime polling policy
 
-Capability discovery and runtime polling are intentionally separate. A vehicle may advertise dozens of standard PIDs without MBLINK continuously requesting every one. The application keeps every supported definition visible, but each PID has an independent polling enable state backed by LINK's scheduler. Disabling a PID removes it from routine live dispatch rather than merely hiding its value.
+Capability discovery and runtime polling are intentionally separate. A vehicle may advertise dozens of standard PIDs without MBLink continuously requesting every one. The application keeps every supported definition visible, but each PID has an independent polling enable state backed by Link's scheduler. Disabling a PID removes it from routine live dispatch rather than merely hiding its value.
 
-MBLINK's first-run mobile/Linux core set is deliberately bounded to RPM, speed,
+MBLink's first-run mobile/Linux core set is deliberately bounded to RPM, speed,
 coolant temperature, fuel-rail pressure, absolute throttle-valve position,
 accelerator-pedal positions D/E and ambient temperature. Unsupported entries
 simply never enter the schedule. Users can then enable additional advertised

@@ -2,7 +2,7 @@
 
 # Mercedes / Delphi DID Lab
 
-The DID Lab is MBLINK's offline Mercedes-wide discovery layer for turning public Mercedes/Delphi definitions, Mercedes-Benz open-source material and real vehicle captures into defensible factory parameters. The C207 is one evidence source, not the scope of the catalogue.
+The DID Lab is MBLink's offline Mercedes-wide discovery layer for turning public Mercedes/Delphi definitions, Mercedes-Benz open-source material and real vehicle captures into defensible factory parameters. The C207 is one evidence source, not the scope of the catalogue.
 
 Three states are deliberately separate: `corroborated-unmapped` means the value exists but its protocol mapping is unknown; `source-backed-candidate` means an independent source gives a DID/encoding but the development car has not verified it; `vehicle-verified` means the exact request, response shape, scale and meaning are captured in a reproducible fixture. A definition can be offered for live polling only when it has a defensible read-only request mapping and decoder for that module/route; its evidence status must remain visible, and it is transmitted only after explicit user selection. `corroborated-unmapped` entries are research targets, not selectable live channels.
 
@@ -52,13 +52,13 @@ full priority inventory and exact recovered routes. The next DID-Lab task is
 to recover the live DataID -> provider/request/result/formula binding from the
 archived diagnostic-logic/value layer and then validate each mapping on
 reproducible vehicle captures. C207 captures remain valuable evidence, but do
-not set the scope of MBLINK.
+not set the scope of MBLink.
 
 ## Research manifest
 
 `data/mercedes/did-lab.json` is the machine-readable Mercedes-wide research manifest. It records stable keys, source state, known DIDs/scaling, units and the best OBD reference channel for correlation. Rows from a Delphi PDF can be imported here without changing the live scheduler.
 
-The development C207 now also contributes two explicit transmission discovery targets: transmission-fluid temperature and actual selected gear. Both remain unmapped. The vehicle display supplies useful ground truth, but MBLINK does not assign a VGS/EGS endpoint, DID or scale until diagnostic evidence proves it. The observed secondary `0x7E1/0x7E9` EOBD responder is therefore an investigation target, not a claimed transmission identity.
+The development C207 now also contributes two explicit transmission discovery targets: transmission-fluid temperature and actual selected gear. Both remain unmapped. The vehicle display supplies useful ground truth, but MBLink does not assign a VGS/EGS endpoint, DID or scale until diagnostic evidence proves it. The observed secondary `0x7E1/0x7E9` EOBD responder is therefore an investigation target, not a claimed transmission identity.
 
 ## Correlation
 
@@ -83,7 +83,7 @@ Correlation input is a two-column CSV, `timestamp_ms,value`, with an optional he
 
 ## Mercedes-Benz public MBSDK semantic catalogue
 
-MBLINK now keeps a separate first-party semantic catalogue sourced from the
+MBLink now keeps a separate first-party semantic catalogue sourced from the
 public Mercedes-Benz `MBSDK-CarKit-iOS` model.  It includes backend attributes
 such as `filterParticleLoading`, `tankLevelAdBlue`, `starterBatteryState`,
 service interval values, individual tyre pressures, engine/ignition states,
@@ -107,8 +107,8 @@ explicit without inventing a diagnostic mapping.
 
 ## ODX / PDX ingestion
 
-LINK's optional `scripts/import-odx.py` uses Mercedes-Benz `odxtools` to
-normalise a legitimate ODX/PDX database into neutral JSON.  MBLINK can then
+Link's optional `scripts/import-odx.py` uses Mercedes-Benz `odxtools` to
+normalise a legitimate ODX/PDX database into neutral JSON.  MBLink can then
 extract UDS ReadDataByIdentifier descriptions with:
 
 ```bash
@@ -118,6 +118,6 @@ python3 scripts/import-mercedes-odx.py vehicle.link-odx.json -o vehicle.did-cand
 
 Every imported DID is emitted as `source-backed-candidate` with
 `automatic_polling: false` and `decode_ready: false`.  ODX evidence can
-establish that a diagnostic description names a request, but MBLINK still
+establish that a diagnostic description names a request, but MBLink still
 requires response/scaling evidence and vehicle verification before promoting
 that definition into automatic live polling.

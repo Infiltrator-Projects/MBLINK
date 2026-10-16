@@ -2,7 +2,7 @@
 
 # Apple BLE and iPhone layer
 
-The Apple application is a native presentation/platform edge over the shared LINK diagnostic engine plus MBLINK's Mercedes-specific extension.
+The Apple application is a native presentation/platform edge over the shared Link diagnostic engine plus MBLink's Mercedes-specific extension.
 
 The authoritative user-visible connection and vehicle-profile sequence is
 defined in [VEHICLE_PROFILES.md](VEHICLE_PROFILES.md). The implementation notes
@@ -13,7 +13,7 @@ here must not reorder that product contract.
 
 The iPhone application is intentionally not the primary exhaustive vehicle-research tool.
 
-Linux and Windows MBLINK Discover own the heavy research workflow: passive CAN observation, OpenPort/J2534 acquisition, wide module census, bounded unknown UDS/KWP harvesting, guided operator experiments, correlation and Vehicle Research Pack export. That desktop workflow is defined in [VEHICLE_RESEARCH.md](VEHICLE_RESEARCH.md).
+Linux and Windows MBLink Discover own the heavy research workflow: passive CAN observation, OpenPort/J2534 acquisition, wide module census, bounded unknown UDS/KWP harvesting, guided operator experiments, correlation and Vehicle Research Pack export. That desktop workflow is defined in [VEHICLE_RESEARCH.md](VEHICLE_RESEARCH.md).
 
 iPhone remains the normal diagnostic instrument: fast VIN/profile recognition, saved-route validation, standards-defined OBD diagnostics, faults/readiness/freeze-frame, known factory values, targeted refreshes, gauges/graphs and evidence export.
 
@@ -21,9 +21,9 @@ A first VIN may still perform the bounded module census required to establish a 
 
 ## Ownership boundary
 
-LINK owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard OBD-II sequencing, VIN/DTC/live-data flow and the generic manufacturer-extension boundary. MBLINK's Apple compatibility transport compiles LINK's shared provider rather than maintaining an independent protocol stack. `MBLinkDiagnosticsController` orchestrates the VIN-keyed Mercedes module-learning/validation pass, controller-pack startup-once reads and Mercedes-specific results presented to SwiftUI. It does not own a separate engine-specific startup probe.
+Link owns CoreBluetooth transport coordination, ELM327 framing/parsing, standard OBD-II sequencing, VIN/DTC/live-data flow and the generic manufacturer-extension boundary. MBLink's Apple compatibility transport compiles Link's shared provider rather than maintaining an independent protocol stack. `MBLinkDiagnosticsController` orchestrates the VIN-keyed Mercedes module-learning/validation pass, controller-pack startup-once reads and Mercedes-specific results presented to SwiftUI. It does not own a separate engine-specific startup probe.
 
-The shared LINK query timeout includes the longer first cold `ATSP0` protocol-acquisition allowance, so MBLINK no longer carries a product-private timeout override.
+The shared Link query timeout includes the longer first cold `ATSP0` protocol-acquisition allowance, so MBLink no longer carries a product-private timeout override.
 
 ## Required live behaviour
 
@@ -45,7 +45,7 @@ ELM initialization
 
 The VIN/profile decision and module identification are deliberately ahead of
 the broader standard OBD inventory. Immediately after adapter initialisation,
-LINK reads Mode 09 VIN only. MBLINK then selects the authoritative VIN profile,
+Link reads Mode 09 VIN only. MBLink then selects the authoritative VIN profile,
 validates or learns its module map, resolves each identified controller's ECU
 pack and performs only the documented startup-once facts not already captured
 during identification. Mode 01 supported-PID discovery and the remaining
@@ -63,8 +63,8 @@ post-discovery manufacturer reads permitted automatically are documented
 startup-once entries owned by the resolved controller pack. There is no
 parallel engine-specific probe path. Later connections validate and refresh
 only the saved module routes. Linux/desktop FULL keeps the broader
-forensic workflow. MBLINK preserves Mercedes evidence captured before a
-manufacturer-scan interruption. LINK attempts a bounded prompt-safe ELM
+forensic workflow. MBLink preserves Mercedes evidence captured before a
+manufacturer-scan interruption. Link attempts a bounded prompt-safe ELM
 resynchronisation after an interrupted manufacturer request and resumes the
 standard diagnostic flow when resynchronisation succeeds; only a failed
 resynchronisation still requires reconnect. It also treats the captured C207
@@ -78,13 +78,13 @@ The Vehicle screen decodes the captured VIN into a structured identity model and
 
 ## CoreBluetooth provider
 
-The LINK-owned provider discovers services and characteristics dynamically, validates candidate write/notify pairs with an ELM-style `ATI` exchange, subscribes before application traffic, respects CoreBluetooth write limits/backpressure and bounds asynchronous recovery. No Vgate GATT UUID is hard-coded as a product assumption.
+The Link-owned provider discovers services and characteristics dynamically, validates candidate write/notify pairs with an ELM-style `ATI` exchange, subscribes before application traffic, respects CoreBluetooth write limits/backpressure and bounds asynchronous recovery. No Vgate GATT UUID is hard-coded as a product assumption.
 
 The iOS target declares the normal Bluetooth privacy description but does not claim background diagnostic recording.
 
 ## Validation boundary
 
-CI builds Debug and Release simulator configurations and an unsigned physical-device IPA. Deterministic replay proves the diagnostic state machines; CI cannot substitute for a physical iPhone/Vgate/vehicle radio session. Hardware findings should continue to become regression fixtures in LINK or MBLINK according to ownership rather than platform-specific forks.
+CI builds Debug and Release simulator configurations and an unsigned physical-device IPA. Deterministic replay proves the diagnostic state machines; CI cannot substitute for a physical iPhone/Vgate/vehicle radio session. Hardware findings should continue to become regression fixtures in Link or MBLink according to ownership rather than platform-specific forks.
 
 
 ## Polling and units
@@ -128,12 +128,12 @@ the full bounded discovery range.
 
 ## Evidence export continuity
 
-Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple controller copies the in-memory recorder bytes and MBLINK performs the atomic file write on a utility task, away from CoreBluetooth callbacks and LINK's 100 ms session tick. Live diagnostic polling is expected to continue while evidence is prepared.
+Preparing a CSV is a snapshot operation, not a disconnect operation. The Apple controller copies the in-memory recorder bytes and MBLink performs the atomic file write on a utility task, away from CoreBluetooth callbacks and Link's 100 ms session tick. Live diagnostic polling is expected to continue while evidence is prepared.
 
 ## Fuel level
 
 SAE PID `0x2F` Fuel Level Input is available in the complete Standard OBD
-catalogue. MBLINK polls it only when the user selects it for the current VIN and
+catalogue. MBLink polls it only when the user selects it for the current VIN and
 may then include it on the dashboard. The standard value is a percentage of
 nominal tank capacity; a verified Mercedes/Delphi litres value remains preferred
 when its factory mapping is available.
@@ -141,14 +141,14 @@ when its factory mapping is available.
 
 ## Recoverable live-request timeouts
 
-The 0.7.79 C207/Vgate field capture showed that a standard live request can time out while CoreBluetooth remains physically connected. LINK 0.14.25 distinguishes those states. During a live timeout the Apple controller immediately drops diagnostic readiness, requests a fresh ELM prompt, abandons only the timed-out PID after successful resynchronisation, defers that PID by one interval and resumes the existing live scheduler. A successful sample clears the consecutive-timeout counter.
+The 0.7.79 C207/Vgate field capture showed that a standard live request can time out while CoreBluetooth remains physically connected. Link 0.14.25 distinguishes those states. During a live timeout the Apple controller immediately drops diagnostic readiness, requests a fresh ELM prompt, abandons only the timed-out PID after successful resynchronisation, defers that PID by one interval and resumes the existing live scheduler. A successful sample clears the consecutive-timeout counter.
 
 Up to three consecutive live timeouts are recovered this way. Persistent failure still stops diagnostics and asks for a reconnect. This also prevents the command-centre status indicator from remaining green after the diagnostic flow has actually failed.
 
 
 ## Remembered opt-in polling
 
-From MBLINK 0.7.81, live-data polling is explicit opt-in. A new installation starts with every selectable PID disabled, so capability discovery does not imply continuous live traffic. Each Poll switch is saved by stable parameter key and restored on the next launch and reconnect.
+From MBLink 0.7.81, live-data polling is explicit opt-in. A new installation starts with every selectable PID disabled, so capability discovery does not imply continuous live traffic. Each Poll switch is saved by stable parameter key and restored on the next launch and reconnect.
 
 The 0.7.80 automatic nine-PID starter set is migrated carefully: an untouched legacy default becomes an empty v2 selection, while a legacy set that differs from that built-in default is treated as a user choice and preserved.
 

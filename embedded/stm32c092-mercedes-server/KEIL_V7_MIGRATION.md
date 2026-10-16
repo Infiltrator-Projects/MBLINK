@@ -1,7 +1,7 @@
 # STM32C092 V6/V7 Keil migration
 
 Use this manifest when moving the reporter's STM32C092RCT6 Cube/Keil project to
-current MBLINK.
+current MBLink.
 
 ## Keep the MCU platform
 
@@ -14,7 +14,7 @@ Replace:
 - project `Src/fdcan.c` with `Src-fdcan.c` from this directory.
 
 If CubeMX regeneration is required, use
-`FDCAN_Classic_Frame_Networking-MBLINK.ioc`. The old IOC contains nominal
+`FDCAN_Classic_Frame_Networking-MBLink.ioc`. The old IOC contains nominal
 SJW=12; the verified setting is SJW=2.
 
 ## Do not retain the old diagnostic stack
@@ -35,9 +35,9 @@ target:
 The supplied fixed-project map measured 30,664 bytes RW/ZI in a 30,720-byte
 configured region; `uds_app_fdcan.o` accounted for 29,272 bytes ZI. That old
 stack embeds very large ISO-TP/response buffers and is not intended to coexist
-with MBLINK/LINK.
+with MBLink/Link.
 
-## Add MBLINK
+## Add MBLink
 
 Add:
 - `src/mercedes/mercedes.c`
@@ -45,9 +45,9 @@ Add:
 - `src/mercedes/server.c`
 - `src/embedded/console.c`
 
-## Add the pinned LINK STM32 subset
+## Add the pinned Link STM32 subset
 
-Add the exact sources from MBLINK's pinned LINK revision:
+Add the exact sources from MBLink's pinned Link revision:
 - `src/link/src/core/isotp.c`
 - `src/link/src/uds/uds.c`
 - `src/link/src/uds/uds_services.c`
@@ -57,7 +57,7 @@ Add the exact sources from MBLINK's pinned LINK revision:
 - `src/link/platform/stm32/link-stm32-uds-server.c`
 - `src/link/examples/stm32c092/link-stm32c092-hal.c`
 
-MBLINK v0.7.144 pins LINK v0.14.79.
+MBLink v0.7.144 pins Link v0.14.79.
 
 ## Bench contract
 

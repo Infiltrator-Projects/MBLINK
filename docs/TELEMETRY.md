@@ -82,7 +82,7 @@ The current iPhone bridge keeps its stream in memory for sharing. Evidence begin
 
 ## Link-load control
 
-The schedule table defines the maximum default cadence for a supported, enabled PID. It does not mean every advertised PID must run simultaneously. Product faces can disable individual PIDs at runtime; LINK then skips those scheduler items entirely. Re-enabling a PID resumes its configured cadence without requiring a vehicle reconnect.
+The schedule table defines the maximum default cadence for a supported, enabled PID. It does not mean every advertised PID must run simultaneously. Product faces can disable individual PIDs at runtime; Link then skips those scheduler items entirely. Re-enabling a PID resumes its configured cadence without requiring a vehicle reconnect.
 
 This runtime policy is distinct from favourites, visibility and unit formatting. A favourite can be off, a non-favourite can be polled, and language/unit choices never change which diagnostic requests are transmitted.
 
@@ -94,13 +94,13 @@ CSV preparation must not change diagnostic state. Apple products take an immutab
 
 ## C207 / Vgate field load evidence
 
-A real iPhone/Vgate/C207 capture from MBLINK 0.7.79 recorded 3,412 completed live PID exchanges across about 247 seconds of live polling, or roughly 13.8 completed requests per second. The previous cadence set kept the serial/BLE ELM path effectively continuously occupied: even the nominal 250 ms RPM request achieved only about 2.6 Hz because other due PIDs were constantly competing for the same single-command channel.
+A real iPhone/Vgate/C207 capture from MBLink 0.7.79 recorded 3,412 completed live PID exchanges across about 247 seconds of live polling, or roughly 13.8 completed requests per second. The previous cadence set kept the serial/BLE ELM path effectively continuously occupied: even the nominal 250 ms RPM request achieved only about 2.6 Hz because other due PIDs were constantly competing for the same single-command channel.
 
-LINK 0.14.25 therefore deliberately lowers the default live-data request budget. The scheduler remains capability-gated and each PID remains independently switchable; this change reduces background pressure rather than limiting what can be selected.
+Link 0.14.25 therefore deliberately lowers the default live-data request budget. The scheduler remains capability-gated and each PID remains independently switchable; this change reduces background pressure rather than limiting what can be selected.
 
 The same evidence snapshot successfully contained 6,865 total records without a BLE-disconnect record. This separates CSV preparation from the later live-request timeout and supports the asynchronous snapshot/export design.
 
 
 ## Persistent opt-in selection
 
-Polling cadence and polling selection are separate. The scheduler contains the supported definitions and their maximum cadence, but MBLINK 0.7.81 starts a new user profile with every live PID disabled. The application persists the exact enabled stable-key set and reapplies it before the first live request after a later launch or reconnect.
+Polling cadence and polling selection are separate. The scheduler contains the supported definitions and their maximum cadence, but MBLink 0.7.81 starts a new user profile with every live PID disabled. The application persists the exact enabled stable-key set and reapplies it before the first live request after a later launch or reconnect.

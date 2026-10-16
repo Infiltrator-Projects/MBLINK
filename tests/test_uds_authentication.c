@@ -101,6 +101,6 @@ int main(void)
 {
     CHECK(test_all_nine_authentication_tasks() == 0);
     CHECK(test_response_facade() == 0);
-    puts("MBLINK UDS Authentication facade tests passed");
+    puts("MBLink UDS Authentication facade tests passed");
     return 0;
 }

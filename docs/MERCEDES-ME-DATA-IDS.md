@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
-> Ownership: this Mercedes application semantic evidence belongs to MBLINK. LINK owns the product-neutral adapter transport and native framing only.
+> Ownership: this Mercedes application semantic evidence belongs to MBLink. Link owns the product-neutral adapter transport and native framing only.
 
 
 # Mercedes me Adapter diagnostic data IDs
@@ -143,7 +143,7 @@ vehicle or adapter generation returns it.
 | `TURN_INDICATION_LAMPS_REAR_FAULT_TM_OCCURRED_ON_TRIP` | `turnIndicationLampsRearFaultTmOccurredOnTrip` |
 | `VEHICLE_SPEED` | `vehicleSpeed` |
 
-Particularly relevant to current MBLINK work are the separate
+Particularly relevant to current MBLink work are the separate
 `relativeAcceleratorPedalPosition`, `throttlePosition` and
 `engineReferenceThrottle` identities, which confirm that the official
 framework did not conflate accelerator position with throttle-valve position.

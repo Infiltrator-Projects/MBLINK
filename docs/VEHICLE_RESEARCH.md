@@ -9,7 +9,7 @@ The core rule is:
 
 > **Desktop is the laboratory. iPhone is the diagnostic instrument.**
 
-MBLINK must support Mercedes-Benz vehicles broadly without turning the normal phone
+MBLink must support Mercedes-Benz vehicles broadly without turning the normal phone
 application into an exhaustive reverse-engineering scanner. The current C207/OM651
 vehicle is one development fixture and evidence source, not the research-product boundary.
 
@@ -17,7 +17,7 @@ vehicle is one development fixture and evidence source, not the research-product
 
 ### Linux and Windows: research / discovery
 
-The Linux and Windows MBLINK Discover applications own the heavy vehicle
+The Linux and Windows MBLink Discover applications own the heavy vehicle
 research workflow.
 
 They are expected to support long-running, evidence-oriented work including:
@@ -155,8 +155,8 @@ raw request/response evidence
 A valid positive *or valid negative* diagnostic response can prove that a
 controller exists. Silence does not.
 
-Mercedes-specific route definitions belong in MBLINK. Generic target walking,
-transport, ISO-TP and result handling belong in LINK.
+Mercedes-specific route definitions belong in MBLink. Generic target walking,
+transport, ISO-TP and result handling belong in Link.
 
 ### 4. Read-only manufacturer-data harvest
 
@@ -183,7 +183,7 @@ state: positive / unmapped
 raw payload: 03 75
 ```
 
-MBLINK must never discard a positive response because its meaning is unknown.
+MBLink must never discard a positive response because its meaning is unknown.
 
 The first successful harvest should produce a module-scoped positive-identifier
 set. Later reads target that set instead of repeating the whole discovery
@@ -294,7 +294,7 @@ single CSV.
 
 ## Evidence states
 
-Research results use the existing MBLINK evidence boundary:
+Research results use the existing MBLink evidence boundary:
 
 ```text
 corroborated-unmapped
@@ -341,7 +341,7 @@ It should not define the capability ceiling of the desktop research engine.
 
 ### Future adapters
 
-LINK should expose the Research engine through reusable adapter/transport
+Link should expose the Research engine through reusable adapter/transport
 interfaces so STM32 and later hardware can participate without duplicating
 vehicle logic.
 
@@ -369,9 +369,9 @@ has been reviewed.
 The research tool must preserve negative responses, timeouts and unsupported
 states instead of attempting increasingly invasive services.
 
-## LINK versus MBLINK ownership
+## Link versus MBLink ownership
 
-The reusable research machinery belongs in LINK:
+The reusable research machinery belongs in Link:
 
 - J2534/OpenPort transport;
 - passive capture;
@@ -384,7 +384,7 @@ The reusable research machinery belongs in LINK:
 - correlation/statistics;
 - Research Pack container/schema.
 
-MBLINK owns Mercedes-specific knowledge:
+MBLink owns Mercedes-specific knowledge:
 
 - Mercedes route catalogues;
 - ECU-family identities;
@@ -394,11 +394,11 @@ MBLINK owns Mercedes-specific knowledge:
 - C207/OM651 evidence and regression fixtures.
 
 This separation is required so the same Research engine can later underpin
-JAGLINK and other manufacturer products.
+JAGLink and other manufacturer products.
 
 ## Immediate desktop implementation direction
 
-The next desktop feature should evolve the existing MBLINK Discover product
+The next desktop feature should evolve the existing MBLink Discover product
 rather than creating another repository or application.
 
 The intended operator workflow is:
@@ -418,6 +418,6 @@ Connect adapter
 Windows and Linux should expose the same research-state model and result
 format, even if the platform adapter backends differ.
 
-This is the primary path for teaching MBLINK about additional vehicles and
+This is the primary path for teaching MBLink about additional vehicles and
 factory values. The normal iPhone application consumes the resulting verified
 knowledge; it is not the laboratory that creates it.

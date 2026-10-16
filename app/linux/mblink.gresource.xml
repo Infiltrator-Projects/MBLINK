@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/com/github/Infiltrator-Projects/MBLINK">
+  <gresource prefix="/com/github/Infiltrator-Projects/MBLink">
     <file alias="mblink-emblem.png">assets/mblink-emblem.png</file>
     <file alias="nav-vehicle.png">assets/mercedes-adapter/nav-vehicle.png</file>
     <file alias="nav-errors.png">assets/mercedes-adapter/nav-errors.png</file>

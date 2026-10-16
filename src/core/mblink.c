@@ -20,16 +20,16 @@
 static const InfiltratrProjectInfo mblink_project_info_record = {
     .struct_size = sizeof(InfiltratrProjectInfo),
     .abi_version = INFILTRATR_PROJECT_INFO_ABI,
-    .program_name = "MBLINK",
+    .program_name = "MBLink",
     .executable_name = "mblink",
     .application_id = "com.github.The-First-Infiltrator.MBLINK",
     .version = MBLINK_VERSION,
-    .source_id = "Infiltrator-Projects/MBLINK",
+    .source_id = "Infiltrator-Projects/MBLink",
     .build_profile = MBLINK_BUILD_PROFILE,
     .author = "Shannon Smith",
-    .website = "https://github.com/Infiltrator-Projects/MBLINK",
+    .website = "https://github.com/Infiltrator-Projects/MBLink",
     .license_id = "GPL-3.0-or-later",
-    .comments = "Portable C Mercedes vehicle diagnostics face over LINK",
+    .comments = "Portable C Mercedes vehicle diagnostics face over Link",
     .icon_name = "mblink",
     .copyright_text = "Copyright (C) 1993-2026 Shannon Smith"
 };

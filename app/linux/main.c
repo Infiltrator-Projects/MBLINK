@@ -222,7 +222,7 @@ static const char *connection_text(const MblinkLinuxContext *context)
 
 static const char *diagnostic_text(const MblinkLinuxContext *context)
 {
-    if (!context->connected) return "LINK OFFLINE";
+    if (!context->connected) return "Link OFFLINE";
     if (context->native_adapter_mode)
         return "MERCEDES ME NATIVE CAPTURE · PROTOCOL LEARNING";
     if (!context->diagnostic_valid) return "STARTING DIAGNOSTICS";
@@ -1124,14 +1124,14 @@ static void append_vehicle(GtkWidget *body, MblinkLinuxContext *context)
         connection, "Adapter",
         context->connected && context->adapter_identity[0] != '\0'
             ? context->adapter_identity
-            : "Select an adapter above and press LINK UP");
+            : "Select an adapter above and press Link UP");
     link_gtk_card_append_detail(
         connection, "Diagnostic flow", diagnostic_text(context));
     link_gtk_card_append_note(
         connection,
         context->replay_mode
             ? "Replay mode uses the captured C207/Vgate response shapes with a synthetic VIN serial suffix. The injected ORC restraint fault is test-only and is never presented as a real fault from the vehicle."
-            : "MBLINK decodes the Mercedes VIN/FIN offline first, then uses live ECU identity to confirm the controller actually installed. Chassis/model assumptions do not override live evidence.");
+            : "MBLink decodes the Mercedes VIN/FIN offline first, then uses live ECU identity to confirm the controller actually installed. Chassis/model assumptions do not override live evidence.");
     gtk_box_append(GTK_BOX(body), identity);
     gtk_box_append(GTK_BOX(body), connection);
 }
@@ -1141,7 +1141,7 @@ static void append_modules(GtkWidget *body, const MblinkLinuxContext *context)
     GtkWidget *card = link_gtk_card_new("MERCEDES MODULE INVENTORY", "Discovered control units");
     char summary[128];
     if (!context->connected) {
-        link_gtk_card_append_status(card, "NOT SCANNED · LINK OFFLINE", "state-warning");
+        link_gtk_card_append_status(card, "NOT SCANNED · Link OFFLINE", "state-warning");
     } else if (context->module_scan_active) {
         (void)snprintf(summary, sizeof(summary), "%s · %zu modules found so far",
              context->module_scan_full
@@ -1368,7 +1368,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
     char summary[160];
 
     if (!context->connected) {
-        link_gtk_card_append_status(mercedes, "NOT SCANNED · LINK OFFLINE", "state-warning");
+        link_gtk_card_append_status(mercedes, "NOT SCANNED · Link OFFLINE", "state-warning");
     } else if (!context->manufacturer_scan_started) {
         link_gtk_card_append_status(mercedes, "FACTORY SCAN PENDING", "state-warning");
     } else if (context->manufacturer_scan_active) {
@@ -1423,7 +1423,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         "Mercedes engine-ECU UDS results remain separate from legislated SAE OBD-II DTCs.");
 
     if (!context->connected) {
-        link_gtk_card_append_status(modules, "NOT SCANNED · LINK OFFLINE", "state-warning");
+        link_gtk_card_append_status(modules, "NOT SCANNED · Link OFFLINE", "state-warning");
     } else if (context->module_scan_active) {
         const size_t total =
             mblink_mercedes_module_scan_total_dtc_count(
@@ -1455,7 +1455,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         link_gtk_card_append_status(modules, "MODULE FAULT SCAN PENDING", "state-warning");
     }
     link_gtk_card_append_note(modules,
-        "Each responding ECU is queried independently with UDS ReadDTCInformation 0x19/0x02/0xFF. Fault memory is read only; MBLINK does not clear or alter any module.");
+        "Each responding ECU is queried independently with UDS ReadDTCInformation 0x19/0x02/0xFF. Fault memory is read only; MBLink does not clear or alter any module.");
 
     {
         const size_t standard_fault_count =
@@ -1477,7 +1477,7 @@ static void append_faults(GtkWidget *body, const MblinkLinuxContext *context)
         case MBLINK_FAULT_SCAN_NOT_SCANNED:
             link_gtk_card_append_status(
                 obd,
-                context->connected ? "NOT SCANNED" : "NOT SCANNED · LINK OFFLINE",
+                context->connected ? "NOT SCANNED" : "NOT SCANNED · Link OFFLINE",
                 "state-warning");
             break;
         case MBLINK_FAULT_SCAN_IN_PROGRESS:
@@ -1631,7 +1631,7 @@ static void append_fuel_economy(GtkWidget *body,
     link_gtk_card_append_detail(card, "Mercedes factory source",
         "No fuel-consumption DID is enabled until its address and scaling are evidence-backed");
     link_gtk_card_append_note(card,
-        "LINK prefers a verified Mercedes factory value when one is supplied by the MBLINK profile. Until then it uses measured SAE PID 0x5E fuel rate with PID 0x0D vehicle speed; estimates are never presented as measured data.");
+        "Link prefers a verified Mercedes factory value when one is supplied by the MBLink profile. Until then it uses measured SAE PID 0x5E fuel rate with PID 0x0D vehicle speed; estimates are never presented as measured data.");
     gtk_box_append(GTK_BOX(body), card);
 }
 
@@ -2274,7 +2274,7 @@ static void append_application_settings(
     const MblinkLinuxContext *context)
 {
     GtkWidget *card =
-        link_gtk_card_new("APPLICATION", "MBLINK system information");
+        link_gtk_card_new("APPLICATION", "MBLink system information");
     link_gtk_card_append_detail(card, "Version", mblink_version());
     link_gtk_card_append_detail(
         card, "Product", "Mercedes-Benz diagnostics");
@@ -2283,7 +2283,7 @@ static void append_application_settings(
         mblink_self_check() ? "Validated" : "Invalid metadata");
     link_gtk_card_append_detail(
         card, "Transport",
-        "LINK native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
+        "Link native ELM/Bluetooth + Tactrix OpenPort 2.0 USB");
     link_gtk_card_append_detail(
         card, "Diagnostic mode",
         "SAE OBD-II + Mercedes read-only factory extension");
@@ -2304,7 +2304,7 @@ static void append_services(
     GtkWidget *procedure =
         link_gtk_card_new("SERVICES", "Mercedes-Benz procedure policy");
     GtkWidget *catalogue =
-        link_gtk_card_new("UDS CATALOGUE", "LINK generic service codecs");
+        link_gtk_card_new("UDS CATALOGUE", "Link generic service codecs");
     GtkWidget *reports =
         link_gtk_card_new("READ DTC INFORMATION", "Complete 0x19 report catalogue");
     size_t index;
@@ -2317,7 +2317,7 @@ static void append_services(
         "state-warning");
     link_gtk_card_append_note(
         procedure,
-        "Generic UDS codec availability is not a Mercedes capability claim and is not permission to transmit. MBLINK exposes a vehicle procedure only after its target, prerequisites, request sequence and safety behaviour are independently verified.");
+        "Generic UDS codec availability is not a Mercedes capability claim and is not permission to transmit. MBLink exposes a vehicle procedure only after its target, prerequisites, request sequence and safety behaviour are independently verified.");
     gtk_box_append(GTK_BOX(body), procedure);
 
     for (index = 0U; index < link_uds_standard_service_count(); ++index) {
@@ -2627,7 +2627,7 @@ static bool manufacturer_progress_changed(void *opaque)
         replay_orc_module(context) != NULL) {
         context->replay_verify_emitted = true;
         (void)printf(
-            "MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible\n");
+            "MBLink replay verified: ORC seatbelt/airbag fault B00013 visible\n");
         (void)fflush(stdout);
         (void)g_idle_add(replay_verify_quit, NULL);
     }
@@ -2979,7 +2979,7 @@ static bool verify_display_preferences(void)
     }
 
     (void)printf(
-        "MBLINK settings verified: OFF-by-default vehicle selection + 8 measurement preferences + structured SAE display + selected graph-session reset\n");
+        "MBLink settings verified: OFF-by-default vehicle selection + 8 measurement preferences + structured SAE display + selected graph-session reset\n");
     return true;
 }
 
@@ -2989,23 +2989,23 @@ static const char *mblink_navigation_icon_resource(size_t section, void *opaque)
     (void)opaque;
     switch ((LinkWorkspaceSection)section) {
     case LINK_WORKSPACE_VEHICLE:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-vehicle.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-vehicle.png";
     case LINK_WORKSPACE_FAULTS:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-errors.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-errors.png";
     case LINK_WORKSPACE_TABLE:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-table.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-table.png";
     case LINK_WORKSPACE_DASHBOARD:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-dashboard.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-dashboard.png";
     case LINK_WORKSPACE_GRAPHS:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-graph.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-graph.png";
     case LINK_WORKSPACE_TESTS:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-tests.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-tests.png";
     case LINK_WORKSPACE_SERVICES:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-services.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-services.png";
     case LINK_WORKSPACE_LOG:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-log.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-log.png";
     case LINK_WORKSPACE_SETTINGS:
-        return "/com/github/Infiltrator-Projects/MBLINK/nav-settings.png";
+        return "/com/github/Infiltrator-Projects/MBLink/nav-settings.png";
     default:
         return NULL;
     }
@@ -3049,7 +3049,7 @@ int main(int argc, char **argv)
 
     if (!mblink_linux_style_register_fonts()) {
         (void)fprintf(stderr,
-            "MBLINK: bundled MB Corpo font set unavailable; using platform fallback fonts.\n");
+            "MBLink: bundled MB Corpo font set unavailable; using platform fallback fonts.\n");
     }
     if (settings_verify)
         return verify_display_preferences() ? 0 : 5;
@@ -3071,7 +3071,7 @@ int main(int argc, char **argv)
     about_info.website = project_info->website;
     about_info.license_name = project_info->license_id;
     about_info.license_text =
-        "MBLINK is free software licensed under the GNU General Public "
+        "MBLink is free software licensed under the GNU General Public "
         "License version 3 or, at your option, any later version "
         "(GPL-3.0-or-later).\n\n"
         "See LICENSE in the source package for the complete licence text.";
@@ -3079,14 +3079,14 @@ int main(int argc, char **argv)
 
     descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
     descriptor.window_title = replay_mode
-        ? "MBLINK · C207 Offline Replay"
-        : "MBLINK · Mercedes-Benz Diagnostics";
-    descriptor.brand_name = "MBLINK";
+        ? "MBLink · C207 Offline Replay"
+        : "MBLink · Mercedes-Benz Diagnostics";
+    descriptor.brand_name = "MBLink";
     descriptor.brand_subtitle = replay_mode
         ? "MERCEDES-BENZ · C207 / OM651 · OFFLINE REPLAY"
-        : "MERCEDES-BENZ · LINK DIAGNOSTICS";
+        : "MERCEDES-BENZ · Link DIAGNOSTICS";
     descriptor.version = mblink_version();
-    descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLINK/mblink-emblem.png";
+    descriptor.emblem_resource = "/com/github/Infiltrator-Projects/MBLink/mblink-emblem.png";
     descriptor.navigation_icon_resource = mblink_navigation_icon_resource;
     descriptor.use_client_side_titlebar = true;
     runtime_css = g_strconcat(

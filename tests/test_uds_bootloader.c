@@ -441,6 +441,6 @@ int main(void)
     CHECK(test_complete_ota_flow() == 0);
     CHECK(test_rollback_rejected() == 0);
     CHECK(test_stm32f767_target_binding() == 0);
-    puts("MBLINK UDS bootloader facade tests passed");
+    puts("MBLink UDS bootloader facade tests passed");
     return 0;
 }

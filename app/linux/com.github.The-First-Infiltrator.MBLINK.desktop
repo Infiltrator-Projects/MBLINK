@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=MBLINK
+Name=MBLink
 Comment=Mercedes-Benz diagnostic command interface
 Exec=/usr/bin/mblink-linux
 Icon=mblink

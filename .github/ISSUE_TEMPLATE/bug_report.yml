@@ -1,17 +1,17 @@
 name: Bug report
-description: Report a reproducible problem in MBLINK.
+description: Report a reproducible problem in MBLink.
 title: "[Bug]: "
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve MBLINK. Do not include secrets or sensitive security details here; use SECURITY.md for vulnerability reports.
+        Thanks for helping improve MBLink. Do not include secrets or sensitive security details here; use SECURITY.md for vulnerability reports.
 
   - type: input
     id: version
     attributes:
-      label: MBLINK version or commit
+      label: MBLink version or commit
       description: Release number, tag, or commit SHA.
       placeholder: "0.7.76 or an exact commit SHA"
     validations:

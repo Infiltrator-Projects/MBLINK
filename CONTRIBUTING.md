@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
-# Contributing to MBLINK
+# Contributing to MBLink
 
-MBLINK is the Mercedes-Benz product layer over LINK. Contributions must preserve the dependency hierarchy **Common → LINK → MBLINK** and keep genuinely Mercedes-specific behaviour here.
+MBLink is the Mercedes-Benz product layer over Link. Contributions must preserve the dependency hierarchy **Common → Link → MBLink** and keep genuinely Mercedes-specific behaviour here.
 
 ## Ownership rules
 
-- Product-neutral automotive transports, OBD, ISO-TP, UDS, diagnostic sequencing, evidence and shared application behaviour belong in LINK.
-- Broadly reusable non-automotive primitives belong in Common through LINK's pinned dependency.
-- Mercedes identity, network/module knowledge, profiles, manufacturer definitions and verified Mercedes-specific behaviour belong in MBLINK.
-- Do not duplicate LINK protocol/application logic in C, Objective-C, Swift or platform-specific shells.
+- Product-neutral automotive transports, OBD, ISO-TP, UDS, diagnostic sequencing, evidence and shared application behaviour belong in Link.
+- Broadly reusable non-automotive primitives belong in Common through Link's pinned dependency.
+- Mercedes identity, network/module knowledge, profiles, manufacturer definitions and verified Mercedes-specific behaviour belong in MBLink.
+- Do not duplicate Link protocol/application logic in C, Objective-C, Swift or platform-specific shells.
 - Treat undocumented Mercedes identifiers and requests as experimental until supported by traceable evidence.
 - Preserve deny-by-default transmit policy: adding a decoder or definition does not grant request permission.
 

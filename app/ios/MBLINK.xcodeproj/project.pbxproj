@@ -651,14 +651,14 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"c7009e913e8bd074542b54737cc49cd937a54696\\\"",
+					"LINK_SOURCE_REVISION=\\\"8716fd366fd585b5ad1dd2eed7a802dac911788b\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.293;
+				MARKETING_VERSION = 0.7.294;
 				MBLINK_SOURCE_REVISION = unavailable;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
@@ -690,14 +690,14 @@
 					"LINK_TELEMETRY_PRODUCT_VERSION=\\\"$(MARKETING_VERSION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_REVISION=\\\"$(MBLINK_SOURCE_REVISION)\\\"",
 					"LINK_TELEMETRY_PRODUCT_BUILD_PROFILE=\\\"source\\\"",
-					"LINK_SOURCE_REVISION=\\\"c7009e913e8bd074542b54737cc49cd937a54696\\\"",
+					"LINK_SOURCE_REVISION=\\\"8716fd366fd585b5ad1dd2eed7a802dac911788b\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../../include",
 					"$(SRCROOT)/../../src/link/include",
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 				);
-				MARKETING_VERSION = 0.7.293;
+				MARKETING_VERSION = 0.7.294;
 				MBLINK_SOURCE_REVISION = unavailable;
 				OTHER_CFLAGS = (
 					"$(inherited)",
@@ -732,7 +732,7 @@
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 					"$(SRCROOT)/../../platform/apple",
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_CFBundleDisplayName = MBLink;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 1993-2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				INFOPLIST_KEY_UIAppFonts = (
@@ -746,7 +746,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.293;
+				MARKETING_VERSION = 0.7.294;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -774,7 +774,7 @@
 					"$(SRCROOT)/../../src/link/src/infiltratr-common/include",
 					"$(SRCROOT)/../../platform/apple",
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = MBLINK;
+				INFOPLIST_KEY_CFBundleDisplayName = MBLink;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 1993-2026 Shannon Smith";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MBLINK uses Bluetooth to communicate with your OBD-II diagnostic adapter.";
 				INFOPLIST_KEY_UIAppFonts = (
@@ -788,7 +788,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.293;
+				MARKETING_VERSION = 0.7.294;
 				MBLINK_SOURCE_REVISION = unavailable;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.github.The-First-Infiltrator.MBLINK";
 				PRODUCT_NAME = "$(TARGET_NAME)";

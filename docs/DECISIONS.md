@@ -1,18 +1,18 @@
 # Decisions
 
-This file records durable MBLINK architectural choices.
+This file records durable MBLink architectural choices.
 
-## ADR-001 — MBLINK is a manufacturer face, not a second diagnostics engine
+## ADR-001 — MBLink is a manufacturer face, not a second diagnostics engine
 
-**Decision.** Generic automotive mechanics remain in LINK; MBLINK owns Mercedes-specific knowledge and behaviour.
+**Decision.** Generic automotive mechanics remain in Link; MBLink owns Mercedes-specific knowledge and behaviour.
 
 **Why.** Duplicating transports, standards or application flow would create divergent safety and protocol implementations.
 
-**Consequence.** Product code should become thinner as LINK gains genuinely reusable capability.
+**Consequence.** Product code should become thinner as Link gains genuinely reusable capability.
 
 ## ADR-002 — The physical C207 is evidence, not scope
 
-**Decision.** The C207 E 250 CDI / OM651 development vehicle provides concrete evidence but does not define MBLINK's product boundary.
+**Decision.** The C207 E 250 CDI / OM651 development vehicle provides concrete evidence but does not define MBLink's product boundary.
 
 **Why.** A diagnostic product for Mercedes-Benz must distinguish evidence gathered from one vehicle from generic Mercedes coverage.
 
@@ -36,7 +36,7 @@ This file records durable MBLINK architectural choices.
 
 ## ADR-005 — One exact dependency chain defines the build
 
-**Decision.** MBLINK pins LINK; LINK pins Common. MBLINK does not carry an independent Common choice.
+**Decision.** MBLink pins Link; Link pins Common. MBLink does not carry an independent Common choice.
 
 **Why.** One dependency chain prevents incompatible shared foundations and makes release identity reproducible.
 

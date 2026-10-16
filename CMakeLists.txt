@@ -22,15 +22,15 @@ set(MBLINK_COMMON_TYPOGRAPHY_METADATA
     "${MBLINK_LINK_DIR}/src/infiltratr-common/cmake/InfiltratrTypographyAssets.cmake")
 if(NOT EXISTS "${MBLINK_COMMON_TYPOGRAPHY_METADATA}")
     message(FATAL_ERROR
-        "Infiltratr Common typography metadata is required. Initialise recursive submodules.")
+        "Libraries typography metadata is required. Initialise recursive submodules.")
 endif()
 include("${MBLINK_COMMON_TYPOGRAPHY_METADATA}")
 
-# Canonical MBLINK typography. The exact font archive is a required source asset.
+# Canonical MBLink typography. The exact font archive is a required source asset.
 # It contains all three original MB Corpo TTF files supplied for the project.
 set(MBLINK_FONT_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/mb-corpo-fonts.tar.xz")
 if(NOT EXISTS "${MBLINK_FONT_ARCHIVE}")
-    message(FATAL_ERROR "Required MBLINK MB Corpo font archive is missing: ${MBLINK_FONT_ARCHIVE}")
+    message(FATAL_ERROR "Required MBLink MB Corpo font archive is missing: ${MBLINK_FONT_ARCHIVE}")
 endif()
 set(MBLINK_HAVE_BUNDLED_FONTS TRUE)
 set(MBLINK_FONT_DIR "")
@@ -38,7 +38,7 @@ set(MBLINK_FONT_FILES "")
 file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
     if(NOT MBLINK_FONT_ARCHIVE_SHA256 STREQUAL
        "${INFILTRATR_MB_CORPO_ARCHIVE_SHA256}")
-        message(FATAL_ERROR "MBLINK font archive hash mismatch.")
+        message(FATAL_ERROR "MBLink font archive hash mismatch.")
     endif()
     set(MBLINK_FONT_DIR "${CMAKE_CURRENT_BINARY_DIR}/mblink-fonts")
     file(REMOVE_RECURSE "${MBLINK_FONT_DIR}")
@@ -65,7 +65,7 @@ file(SHA256 "${MBLINK_FONT_ARCHIVE}" MBLINK_FONT_ARCHIVE_SHA256)
         list(GET MBLINK_FONT_EXPECTED_SHA256 ${MBLINK_FONT_INDEX} MBLINK_FONT_SHA256_EXPECTED)
         file(SHA256 "${MBLINK_FONT_FILE}" MBLINK_FONT_SHA256_ACTUAL)
         if(NOT MBLINK_FONT_SHA256_ACTUAL STREQUAL MBLINK_FONT_SHA256_EXPECTED)
-            message(FATAL_ERROR "MBLINK font hash mismatch: ${MBLINK_FONT_FILE}")
+            message(FATAL_ERROR "MBLink font hash mismatch: ${MBLINK_FONT_FILE}")
         endif()
     endforeach()
 
@@ -96,12 +96,12 @@ endif()
 include(CTest)
 include(GNUInstallDirs)
 if(NOT EXISTS "${MBLINK_LINK_DIR}/VERSION")
-    message(FATAL_ERROR "LINK is required. Clone with --recurse-submodules or initialise submodules recursively.")
+    message(FATAL_ERROR "Link is required. Clone with --recurse-submodules or initialise submodules recursively.")
 endif()
 file(READ "${MBLINK_LINK_DIR}/VERSION" MBLINK_LINK_VERSION)
 string(STRIP "${MBLINK_LINK_VERSION}" MBLINK_LINK_VERSION)
 if(NOT MBLINK_LINK_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
-    message(FATAL_ERROR "Pinned LINK VERSION is not semantic: ${MBLINK_LINK_VERSION}")
+    message(FATAL_ERROR "Pinned Link VERSION is not semantic: ${MBLINK_LINK_VERSION}")
 endif()
 find_program(MBLINK_GIT_EXECUTABLE git)
 set(MBLINK_SOURCE_REVISION "")
@@ -123,11 +123,11 @@ if(MBLINK_GIT_EXECUTABLE)
     if(MBLINK_LINK_GITLINK_RESULT EQUAL 0 AND MBLINK_LINK_COMMIT_RESULT EQUAL 0)
         string(REGEX MATCH "^160000 commit ([0-9a-fA-F]+)" MBLINK_LINK_GITLINK_MATCH "${MBLINK_LINK_GITLINK}")
         if(NOT MBLINK_LINK_GITLINK_MATCH)
-            message(FATAL_ERROR "Unable to resolve the LINK gitlink from the MBLINK commit.")
+            message(FATAL_ERROR "Unable to resolve the Link gitlink from the MBLink commit.")
         endif()
         set(MBLINK_LINK_EXPECTED_COMMIT "${CMAKE_MATCH_1}")
         if(NOT MBLINK_LINK_FOUND_COMMIT STREQUAL MBLINK_LINK_EXPECTED_COMMIT)
-            message(FATAL_ERROR "LINK checkout does not match the MBLINK gitlink: expected ${MBLINK_LINK_EXPECTED_COMMIT}, found ${MBLINK_LINK_FOUND_COMMIT}.")
+            message(FATAL_ERROR "Link checkout does not match the MBLink gitlink: expected ${MBLINK_LINK_EXPECTED_COMMIT}, found ${MBLINK_LINK_FOUND_COMMIT}.")
         endif()
     endif()
 endif()
@@ -223,7 +223,7 @@ if(MBLINK_BUILD_LINUX_APP)
     set(CPACK_PACKAGE_VENDOR "The First Infiltrator")
     set(CPACK_PACKAGE_CONTACT "Shannon Smith")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Portable Mercedes-oriented vehicle diagnostics")
-    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Infiltrator-Projects/MBLINK")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Infiltrator-Projects/MBLink")
     set(CPACK_PACKAGE_VERSION "${MBLINK_PACKAGE_VERSION}")
     set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -244,13 +244,13 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
     if(NOT WIN32)
         message(FATAL_ERROR "MBLINK_BUILD_WINDOWS_DISCOVER is supported on Windows only.")
     endif()
-    link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLINK" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
+    link_add_windows_discover(mblink-discover PRODUCT_NAME "MBLink" PRODUCT_SLUG "mblink" WINDOW_CLASS "MBLINKDiscoverWindow"
         PRODUCT_VERSION "${PROJECT_VERSION}" PRODUCT_COPYRIGHT "Copyright (C) 1993-2026 Shannon Smith"
         PRODUCT_SUBTITLE "Mercedes-Benz Diagnostics"
         PRODUCT_DESCRIPTION "A C-first, open-source Mercedes vehicle diagnostics platform."
         PRODUCT_AUTHORS "Shannon Smith"
         PRODUCT_LICENSE_NAME "GPL-3.0-or-later"
-        PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLINK"
+        PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLink"
         PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
         FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
     target_link_libraries(mblink-discover PRIVATE mblink)

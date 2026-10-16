@@ -87,6 +87,6 @@ int main(void)
         CHECK(strcmp(trace.session_log[last], "event-26") == 0);
     }
 
-    (void)printf("MBLINK Linux session trace semantics verified\n");
+    (void)printf("MBLink Linux session trace semantics verified\n");
     return 0;
 }

@@ -2,7 +2,7 @@
 
 # ISO-TP Foundation
 
-MBLINK exposes LINK's portable ISO-TP (ISO 15765-2) engine below UDS and Mercedes-specific diagnostics.
+MBLink exposes Link's portable ISO-TP (ISO 15765-2) engine below UDS and Mercedes-specific diagnostics.
 
 ## Supported transport contract
 
@@ -22,7 +22,7 @@ The current shared engine supports both Classical CAN and CAN FD:
 - STmin timing using caller-supplied monotonic microseconds;
 - caller-owned bounded receive storage.
 
-`MblinkIsoTpCanFrame`, RX/TX configuration and state are compatibility aliases over LINK's single implementation. `MBLINK_ISOTP_CAN_FD_MAX_DATA_LENGTH` exposes the shared 64-byte limit and `mblink_isotp_can_data_length_is_valid()` exposes the shared Classical-CAN/CAN-FD data-length validator.
+`MblinkIsoTpCanFrame`, RX/TX configuration and state are compatibility aliases over Link's single implementation. `MBLINK_ISOTP_CAN_FD_MAX_DATA_LENGTH` exposes the shared 64-byte limit and `mblink_isotp_can_data_length_is_valid()` exposes the shared Classical-CAN/CAN-FD data-length validator.
 
 A zero configured `data_length` preserves compatibility defaults: 8 bytes for Classical CAN and 64 bytes for CAN FD.
 
@@ -54,11 +54,11 @@ IDLE -- SF --------------------------> COMPLETE
                          +------ block boundary --+
 ```
 
-The payload remains caller-owned for the transmitter lifetime. WAIT, OVERFLOW, timeout and malformed flow-control traffic fail deterministically according to the LINK contract.
+The payload remains caller-owned for the transmitter lifetime. WAIT, OVERFLOW, timeout and malformed flow-control traffic fail deterministically according to the Link contract.
 
 ## Compatibility and testing
 
-Legacy zero-initialized MBLINK configuration remains Classical CAN. Product regression tests verify that the product-prefixed facade exposes CAN-FD support, while LINK's authoritative suite covers Classical CAN, CAN-FD single-frame and multi-frame traffic, canonical frame sizes and extended-length PDUs.
+Legacy zero-initialized MBLink configuration remains Classical CAN. Product regression tests verify that the product-prefixed facade exposes CAN-FD support, while Link's authoritative suite covers Classical CAN, CAN-FD single-frame and multi-frame traffic, canonical frame sizes and extended-length PDUs.
 
 ## Error policy
 

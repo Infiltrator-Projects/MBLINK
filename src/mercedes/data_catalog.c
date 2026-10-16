@@ -360,7 +360,7 @@ const char *mblink_mercedes_documented_field_source(void){return k_documented_fi
  * on the named C207 controller families; their semantics remain unknown.
  */
 static const char k_20260903_field_evidence_provenance[] =
-    "De-identified 2026-09-03 MBLINK vehicle captures: exact read-only "
+    "De-identified 2026-09-03 MBLink vehicle captures: exact read-only "
     "request returned positively; semantic meaning remains unasserted unless "
     "independently documented.";
 

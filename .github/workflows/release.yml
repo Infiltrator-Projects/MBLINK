@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: MBLINK Release
+name: MBLink Release
 on:
   workflow_run:
-    workflows: ["MBLINK CI"]
+    workflows: ["MBLink CI"]
     types: [completed]
 permissions:
   contents: read
@@ -62,21 +62,21 @@ jobs:
             (cd release && sha256sum -c "SHA256SUMS-$platform")
           done
           expected=$(printf '%s\n' \
-            "MBLINK-$version-source.zip" "MBLINK-$version-linux-amd64.deb" \
-            "MBLINK-$version-windows-discover.exe" "MBLINK-$version-unsigned.ipa" \
-            "MBLINK-$version-linux-native.run" | sort)
+            "MBLink-$version-source.zip" "MBLink-$version-linux-amd64.deb" \
+            "MBLink-$version-windows-discover.exe" "MBLink-$version-unsigned.ipa" \
+            "MBLink-$version-linux-native.run" | sort)
           actual=$(find release -maxdepth 1 -type f ! -name 'SOURCE_COMMIT-*' ! -name 'SHA256SUMS-*' -printf '%f\n' | sort)
           test "$actual" = "$expected"
-          test "$(dpkg-deb -f "release/MBLINK-$version-linux-amd64.deb" Package)" = mblink
-          test "$(dpkg-deb -f "release/MBLINK-$version-linux-amd64.deb" Version)" = "$version"
-          unzip -tq "release/MBLINK-$version-source.zip"
-          unzip -tq "release/MBLINK-$version-unsigned.ipa"
+          test "$(dpkg-deb -f "release/MBLink-$version-linux-amd64.deb" Package)" = mblink
+          test "$(dpkg-deb -f "release/MBLink-$version-linux-amd64.deb" Version)" = "$version"
+          unzip -tq "release/MBLink-$version-source.zip"
+          unzip -tq "release/MBLink-$version-unsigned.ipa"
           rm release/SOURCE_COMMIT-* release/SHA256SUMS-*
-          (cd release && sha256sum MBLINK-* > SHA256SUMS.txt)
+          (cd release && sha256sum MBLink-* > SHA256SUMS.txt)
           state=$(gh release view "$tag" --json isDraft,targetCommitish --jq '[.isDraft,.targetCommitish] | @tsv' 2>/dev/null || true)
           if [[ -z "$state" ]]; then
             gh release create "$tag" --target "$EXPECTED_SHA" --draft \
-              --title "MBLINK $version" \
+              --title "MBLink $version" \
               --notes "Qualified Linux, Windows and unsigned iPhone artifacts from $EXPECTED_SHA."
             draft=true
           else

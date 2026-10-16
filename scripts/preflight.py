@@ -45,10 +45,10 @@ def read_version(path: Path, label: str) -> str:
 
 def check_versions() -> str:
     version = read_version(ROOT / "VERSION", "VERSION")
-    read_version(ROOT / "src/link/VERSION", "LINK VERSION")
+    read_version(ROOT / "src/link/VERSION", "Link VERSION")
     read_version(
         ROOT / "src/link/src/infiltratr-common/VERSION",
-        "Infiltratr Common VERSION",
+        "Libraries VERSION",
     )
 
     header = (ROOT / "include/mblink/version.h").read_text(encoding="utf-8")
@@ -82,11 +82,11 @@ def check_gitlinks() -> None:
 
     expected = run("git", "ls-tree", "HEAD", "src/link").stdout.split()
     if len(expected) < 3:
-        fail("unable to resolve committed LINK gitlink")
+        fail("unable to resolve committed Link gitlink")
     expected_sha = expected[2]
     actual_sha = run("git", "-C", "src/link", "rev-parse", "HEAD").stdout.strip()
     if actual_sha != expected_sha:
-        fail(f"LINK checkout mismatch: expected {expected_sha}, found {actual_sha}")
+        fail(f"Link checkout mismatch: expected {expected_sha}, found {actual_sha}")
     project = (ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj").read_text()
     revisions = [
         re.search(r"[0-9a-f]{40}", line)
@@ -96,7 +96,7 @@ def check_gitlinks() -> None:
     if len(revisions) != 2 or any(
         match is None or match.group() != expected_sha for match in revisions
     ):
-        fail("every iOS configuration must record the exact LINK gitlink")
+        fail("every iOS configuration must record the exact Link gitlink")
 
 
 def check_release_structure() -> None:
@@ -135,8 +135,8 @@ def check_release_structure() -> None:
         fail("ordinary CI must not infer or publish releases: " + ", ".join(leaked))
 
     release = (workflows / "release.yml").read_text(encoding="utf-8")
-    if "workflow_run:" not in release or 'workflows: ["MBLINK CI"]' not in release:
-        fail("publication must follow the complete successful MBLINK CI run")
+    if "workflow_run:" not in release or 'workflows: ["MBLink CI"]' not in release:
+        fail("publication must follow the complete successful MBLink CI run")
     if "actions/download-artifact@" not in release or "github.event.workflow_run.id" not in release:
         fail("publication must consume artifacts from the exact qualified CI run")
     if any(token in release for token in ("cmake --build", "xcodebuild ", "cpack --config")):
@@ -175,11 +175,11 @@ def check_stable_architecture_contract() -> None:
         "@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController"
         not in controller_header
     ):
-        fail("Apple product controller must continue to extend LINK's product controller")
+        fail("Apple product controller must continue to extend Link's product controller")
 
     core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
     if '#include "../link/src/' in core:
-        fail("MBLINK core must not directly include LINK implementation sources")
+        fail("MBLink core must not directly include Link implementation sources")
 
 
 def main() -> int:
@@ -188,7 +188,7 @@ def main() -> int:
     check_release_structure()
     check_whitespace()
     check_stable_architecture_contract()
-    print(f"MBLINK preflight OK: version={version}")
+    print(f"MBLink preflight OK: version={version}")
     return 0
 
 

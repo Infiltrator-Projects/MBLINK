@@ -1,12 +1,12 @@
 # STM32C092 Mercedes product target
 
-This directory is the **MBLINK STM32C092 Mercedes target**.
+This directory is the **MBLink STM32C092 Mercedes target**.
 
-MBLINK is the product. LINK is the shared library layer underneath it. A user
-who wants to run the STM32C092 work against a Mercedes uses MBLINK and MBLINK
-pulls its pinned LINK revision for CAN/FDCAN, ISO-TP and UDS.
+MBLink is the product. Link is the shared library layer underneath it. A user
+who wants to run the STM32C092 work against a Mercedes uses MBLink and MBLink
+pulls its pinned Link revision for CAN/FDCAN, ISO-TP and UDS.
 
-Do not build LINK's demo server as the Mercedes product.
+Do not build Link's demo server as the Mercedes product.
 
 ## Reporter V7 handoff
 
@@ -14,11 +14,11 @@ For the STM32C092/PCAN reporter, **replace the old V7 `Core/Src/main.c` with
 `embedded/stm32c092-mercedes-server/Src-main.c`**. Do not paste only selected
 blocks from that file into the older V7 source.
 
-The posted V7 `main.c` is useful evidence, but it is not the current MBLINK
+The posted V7 `main.c` is useful evidence, but it is not the current MBLink
 target: it omits the engineering console, contains an infinite `for (;;)`
 before a later `printf()`/second loop (making that lower code unreachable),
 and retains unused legacy `CAN_Init()` / `CANFD_SendClassicMessage()`
-routines beside LINK's FDCAN adapter. The canonical MBLINK target has one
+routines beside Link's FDCAN adapter. The canonical MBLink target has one
 application loop only:
 
 ```text
@@ -26,7 +26,7 @@ mblink_stm32_process();
 mblink_stm32_console_poll();
 ```
 
-Use the matching `Src-fdcan.c` from this directory as well. LINK's HAL adapter
+Use the matching `Src-fdcan.c` from this directory as well. Link's HAL adapter
 owns the active receive filter, FDCAN start, TX-event tracking and CAN I/O for
 this target; do not call a second application-owned `CAN_Init()`.
 
@@ -37,7 +37,7 @@ again.
 
 ## Ownership
 
-MBLINK owns:
+MBLink owns:
 
 - Mercedes VIN/profile selection;
 - Mercedes ECU/module endpoint selection;
@@ -46,7 +46,7 @@ MBLINK owns:
 - the target's 500 kbit/s FDCAN setup;
 - the actual MCU reset action after UDS 0x11 has replied.
 
-LINK owns:
+Link owns:
 
 - FDCAN adapter primitives;
 - bounded CAN RX queues;
@@ -72,7 +72,7 @@ src/embedded/console.c
 
 Use those with the Cube-generated startup/clock/GPIO files for the target.
 
-Compile the MBLINK Mercedes product sources:
+Compile the MBLink Mercedes product sources:
 
 ```text
 src/mercedes/mercedes.c
@@ -81,7 +81,7 @@ src/mercedes/server.c
 src/embedded/console.c
 ```
 
-and the pinned LINK library sources required by the STM32 transport:
+and the pinned Link library sources required by the STM32 transport:
 
 ```text
 src/link/src/core/isotp.c
@@ -94,14 +94,14 @@ src/link/platform/stm32/link-stm32-uds-server.c
 src/link/examples/stm32c092/link-stm32c092-hal.c
 ```
 
-Notice that MBLINK no longer uses
-`link-stm32c092-server-example.c` as its application. That file is a LINK
-library example only. The Mercedes application now constructs the generic LINK
-server/transport itself and binds the MBLINK Mercedes handlers.
+Notice that MBLink no longer uses
+`link-stm32c092-server-example.c` as its application. That file is a Link
+library example only. The Mercedes application now constructs the generic Link
+server/transport itself and binds the MBLink Mercedes handlers.
 
 ## V6/V7 forensic migration
 
-The inherited Cube/Keil diagnostic stack must not be linked beside MBLINK/LINK.
+The inherited Cube/Keil diagnostic stack must not be linked beside MBLink/Link.
 
 The supplied fixed-project map used 30,664 bytes of RW/ZI in a 30,720-byte
 configured RAM region. The legacy `uds_app_fdcan.o` alone reserved 29,272
@@ -112,16 +112,16 @@ transport/application objects. The exact source manifest is in
 
 The old CubeMX IOC also contains `FDCAN1.NominalSyncJumpWidth=12`, while the
 verified generated FDCAN configuration uses SJW=2 with TSEG2=2. Use
-`FDCAN_Classic_Frame_Networking-MBLINK.ioc` before any CubeMX regeneration.
+`FDCAN_Classic_Frame_Networking-MBLink.ioc` before any CubeMX regeneration.
 
 The reporter project intentionally receives both physical request ID `0x7E0`
 and functional request ID `0x7DF`, with the ECU responding on `0x7E8`.
-LINK v0.14.79 now implements that path directly with one dual standard-ID
+Link v0.14.79 now implements that path directly with one dual standard-ID
 hardware filter. Functional requests remain single-frame; segmented positive
 responses use the physical response path and accept FlowControl on `0x7E0`.
 
 The main-loop receive fallback now preserves PRIMASK while draining the FDCAN
-FIFO so it cannot race the normal interrupt producer into LINK's bounded RX
+FIFO so it cannot race the normal interrupt producer into Link's bounded RX
 queue.
 
 ## Reporter-derived hardware corrections
@@ -131,10 +131,10 @@ The product target incorporates the useful STM32C092/PCAN findings:
 - for a 48 MHz FDCAN kernel clock and 500 kbit/s Classical CAN:
   `Prescaler=6, TSEG1=13, TSEG2=2, SJW=2`;
 - the RX interrupt remains the normal path, but the main loop also drains the
-  bounded LINK RX queue as a fallback;
-- short Classical CAN transport frames use LINK's configured `0xCC` padding;
+  bounded Link RX queue as a fallback;
+- short Classical CAN transport frames use Link's configured `0xCC` padding;
 - FDCAN TX completion comes from the TX event FIFO;
-- ordinary tester requests racing a segmented response are retained by LINK's
+- ordinary tester requests racing a segmented response are retained by Link's
   bounded deferred FIFO while Flow Control is handled immediately;
 - ECUReset `0x11` is capability-driven:
   - `0x01 hardReset` and `0x03 softReset` are supported on this bare target
@@ -154,7 +154,7 @@ ISO-TP and the UDS server immediately; no terminal is required and the target
 prints nothing on UART during normal PCAN use.
 
 The reporter's Cube project already configures USART2 as **115200 8-N-1 with no
-flow control**. MBLINK now uses that existing port as an optional engineering
+flow control**. MBLink now uses that existing port as an optional engineering
 console. The console stays dormant until the first serial byte arrives, then
 prints a banner and prompt.
 
@@ -174,15 +174,15 @@ reset
 Useful examples:
 
 ```text
-MBLINK> status
+MBLink> status
 CAN: ONLINE request=0x7E0 response=0x7E8
 UDS session=0x01 reset=none
 
-MBLINK> dtc
+MBLink> dtc
 123456 status=0x09
 ABCDEF status=0x08
 
-MBLINK> stats
+MBLink> stats
 UDS requests=12 positive=12 negative=0 suppressed=0
 Transport completed=12 CAN-dropped=0 deferred-dropped=0
 ```
@@ -218,5 +218,5 @@ single-frame functional request:
 ```
 
 The `19 02 FF` response is multi-frame with the two demo DTCs, so the tester
-must send Flow Control after the First Frame. LINK owns that ISO-TP exchange;
-MBLINK owns the Mercedes data returned through it.
+must send Flow Control after the First Frame. Link owns that ISO-TP exchange;
+MBLink owns the Mercedes data returned through it.

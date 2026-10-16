@@ -164,7 +164,7 @@ int main(void)
     static const uint8_t probe[] = { 'A', 'T', 'I', '\r' };
 
     if (!check(strcmp(mblink_version(), MBLINK_TEST_EXPECTED_VERSION) == 0,
-               "linked MBLINK version does not match build version")) {
+               "linked MBLink version does not match build version")) {
         passed = false;
     }
     if (!check(mblink_self_check(), "project identity validation failed")) {
@@ -172,7 +172,7 @@ int main(void)
     }
     {
         const InfiltratrProjectInfo *info = mblink_project_info();
-        if (!check(info != NULL && strcmp(info->source_id, "Infiltrator-Projects/MBLINK") == 0,
+        if (!check(info != NULL && strcmp(info->source_id, "Infiltrator-Projects/MBLink") == 0,
                    "project source identity mismatch") ||
             !check(strcmp(info->build_profile, mblink_build_profile()) == 0,
                    "project build profile mismatch")) {

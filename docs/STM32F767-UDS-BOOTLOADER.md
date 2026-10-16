@@ -1,7 +1,7 @@
 # STM32F767 UDS OTA Bootloader Integration
 
-MBLINK issue #56 asked for the standard UDS OTA flow on STM32F767. MBLINK now
-exposes LINK's fail-closed bootloader core through
+MBLink issue #56 asked for the standard UDS OTA flow on STM32F767. MBLink now
+exposes Link's fail-closed bootloader core through
 `include/mblink/uds_bootloader.h`.
 
 The core follows the requested flow exactly at the state-machine boundary:
@@ -17,7 +17,7 @@ The core follows the requested flow exactly at the state-machine boundary:
 - 0x11 reset staging only after verification and secure-boot candidate checks
 - post-boot confirmation before the monotonic anti-rollback version is committed
 
-The STM32F767 transport already belongs to LINK's bxCAN family support. The
+The STM32F767 transport already belongs to Link's bxCAN family support. The
 bootloader core deliberately does not hard-code STM32F767 flash sectors,
 option-byte writes or security secrets. Those operations are supplied through
 the target backend and the default configuration is locked:
@@ -45,4 +45,4 @@ enable programming. The host tests exercise the binding with a simulated
 device, including a refused version commit while still running the old slot.
 
 This keeps the full OTA control flow in shared tested code while ensuring that
-linking MBLINK alone cannot accidentally enable ECU reprogramming.
+linking MBLink alone cannot accidentally enable ECU reprogramming.

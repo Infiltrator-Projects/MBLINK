@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 
-/// Machine state used by the MBLINK presentation layer. Human-readable status
+/// Machine state used by the MBLink presentation layer. Human-readable status
 /// strings are deliberately not parsed to decide behaviour.
 enum MBFaultScanState: Equatable {
     case notStarted
@@ -195,7 +195,7 @@ enum MBUDSCatalogueProvider {
     }
 }
 
-/// Converts raw DTC strings into structured LINK diagnostic faults. Mercedes
+/// Converts raw DTC strings into structured Link diagnostic faults. Mercedes
 /// reference enrichment stays here rather than in connection orchestration.
 enum MBFaultResolver {
     static func resolve(

@@ -135,13 +135,13 @@ static void emit_version(
 {
     MblinkConsoleLine line;
     line_reset(&line);
-    (void)line_put_text(&line, "MBLINK STM32C092");
+    (void)line_put_text(&line, "MBLink STM32C092");
     if (snapshot != NULL && snapshot->product_version != NULL) {
         (void)line_put_text(&line, " v");
         (void)line_put_text(&line, snapshot->product_version);
     }
     if (snapshot != NULL && snapshot->link_version != NULL) {
-        (void)line_put_text(&line, " / LINK v");
+        (void)line_put_text(&line, " / Link v");
         (void)line_put_text(&line, snapshot->link_version);
     }
     emit_line(&line, write_fn, write_context);
@@ -315,7 +315,7 @@ static void execute_line(
     console->line_length = 0U;
     console->line_overflow = false;
     console->line[0] = '\0';
-    console_write(write_fn, write_context, "MBLINK> ");
+    console_write(write_fn, write_context, "MBLink> ");
 }
 
 void mblink_embedded_console_init(MblinkEmbeddedConsole *console)
@@ -334,7 +334,7 @@ void mblink_embedded_console_print_banner(
     console_write(write_fn, write_context,
         "Engineering console on USART2 115200 8-N-1\r\n"
         "Type help for commands. CAN/UDS continues headless.\r\n"
-        "MBLINK> ");
+        "MBLink> ");
 }
 
 void mblink_embedded_console_feed(

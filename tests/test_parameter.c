@@ -103,18 +103,18 @@ int main(void)
 
     passed &= check(mblink_parameter_obd2_definition(0x06U) != NULL &&
                     mblink_parameter_obd2_definition(0xa6U) != NULL,
-                    "expanded shared scalar catalogue is not visible through MBLINK");
+                    "expanded shared scalar catalogue is not visible through MBLink");
     passed &= check(throttle_g != NULL && reflash_distance != NULL &&
                     max_speed_limit != NULL &&
                     traction_battery_soh != NULL &&
                     engine_odometer != NULL,
-                    "LINK 0.14.60 scalar definitions are missing");
+                    "Link 0.14.60 scalar definitions are missing");
     passed &= check(mblink_parameter_obd2_definition(0x7aU) == NULL &&
                     mblink_parameter_obd2_definition(0x7cU) == NULL,
                     "structured DPF PIDs must not be flattened into fake scalars");
     passed &= check(mblink_obd2_mode01_identifier_count() == 256U &&
                     mblink_obd2_mode01_assigned_count() == 220U,
-                    "complete SAE Mode 01 namespace is not visible through MBLINK");
+                    "complete SAE Mode 01 namespace is not visible through MBLink");
     passed &= check(mblink_obd2_pid_definition(0x01U, 0x7aU) != NULL,
                     "structured SAE PID 0x7A is missing from shared catalogue");
 

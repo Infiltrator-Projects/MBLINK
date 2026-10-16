@@ -928,6 +928,6 @@ int main(void)
     if (test_reporter_0x19_edge_semantics_through_stm32_transport() != 0)
         return EXIT_FAILURE;
     if (test_reporter_pcan_burst_during_19_02() != 0) return EXIT_FAILURE;
-    puts("MBLINK STM32C092 reporter/PCAN regressions passed");
+    puts("MBLink STM32C092 reporter/PCAN regressions passed");
     return EXIT_SUCCESS;
 }

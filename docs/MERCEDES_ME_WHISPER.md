@@ -30,7 +30,7 @@ activeconfiguration = MSA_VIN_cascade.properties
 
 The companion `.eh` files are loaded by the Whisper configuration path as
 verification material. Their precise signature/verification algorithm is not
-claimed here; MBLINK only records that they accompany the encrypted
+claimed here; MBLink only records that they accompany the encrypted
 configuration and are part of the archived loader contract.
 
 A reproducible extraction command for these archived files is:
@@ -76,7 +76,7 @@ The MSA file contains a real application DataID catalogue with datatype, unit,
 children and/or read-interval metadata. The following entries are especially
 important for factory live-data work:
 
-| DataID | Datatype | Unit in archived source | Current MBLINK state |
+| DataID | Datatype | Unit in archived source | Current MBLink state |
 | --- | --- | --- | --- |
 | `engineOilTemperature` | `Long` | `°C` | corroborated-unmapped |
 | `fuelPressure` | `Double` | `bar` | corroborated-unmapped |
@@ -111,10 +111,10 @@ Two interpretation rules matter:
    that may avoid the one-byte SAE PID 0x0B ceiling, but the request and payload
    mapping are not present in this file and must not be guessed.
 2. `boostPressureCan` is explicitly declared with unit `%`, not pressure.
-   MBLINK must preserve that source fact and must not relabel it as bar/kPa.
+   MBLink must preserve that source fact and must not relabel it as bar/kPa.
 
 The archived source contains some metadata that looks counter-intuitive, for
-example `engineReferenceThrottle.unit = Nm`. MBLINK records such fields
+example `engineReferenceThrottle.unit = Nm`. MBLink records such fields
 verbatim until a second source or the actual request/response mapping explains
 them; it does not silently repair the vendor data.
 
@@ -136,7 +136,7 @@ The same configuration also defines receive-only RawCAN VIN providers at
 
 These route definitions are manufacturer-owned source evidence. They establish
 a real production diagnostic bootstrap route, not the semantic identity of
-every ECU behind that route. MBLINK therefore keeps the `0x602`, `0x607`
+every ECU behind that route. MBLink therefore keeps the `0x602`, `0x607`
 and `0x4E0` families unclassified until additional identity evidence exists.
 
 ## Exact VIN cascade requests
@@ -192,7 +192,7 @@ version. `DiagPreview` carries `cycleCompleted`, `pendingActionToken` and
 
 This means the production stack preserves both the logical requested device
 identity and the actual responding device address alongside each measured
-value. MBLINK should preserve the same distinction when importing source-backed
+value. MBLink should preserve the same distinction when importing source-backed
 factory values rather than collapsing manufacturer measurements into one
 anonymous live-data stream.
 
@@ -720,7 +720,7 @@ targets.
 
 The exact final promotion/switch operation from the decompression staging area
 into the active runtime namespace has not yet been proven byte-for-byte.
-MBLINK therefore records the staging and persistence paths independently rather
+MBLink therefore records the staging and persistence paths independently rather
 than inventing an atomic move/copy sequence.
 
 A read-only recovery helper is now included:
@@ -939,7 +939,7 @@ and are not claimed here yet.
 
 This path is Mercedes-me-adapter authentication infrastructure, not the
 vehicle-side live-data request catalogue. Recovering it is useful for complete
-adapter interoperability, but the higher-value MBLINK live-data target remains
+adapter interoperability, but the higher-value MBLink live-data target remains
 the downloaded/selected Whisper vehicle configuration that maps DataIDs to
 providers, request PDUs, response extraction and formulas.
 
@@ -1062,7 +1062,7 @@ engineering unit as `bar`; the cockpit trace supplies floating-point values
 in the 0.18..1.09 range. This is useful semantic corroboration, but the trace is
 synthetic/demo data and does **not** establish whether the production value is
 absolute manifold pressure, gauge boost pressure or some transformed display
-quantity on every vehicle. MBLINK must not infer that distinction without the
+quantity on every vehicle. MBLink must not infer that distinction without the
 actual request/result mapping and a physical capture.
 
 Likewise, the trace contains no device/provider, request PDU, response prefix,
@@ -1103,8 +1103,8 @@ Only after that mapping is source-backed should a C207 capture promote it to
 
 ## Project ownership
 
-The evidence is Mercedes-specific and belongs in MBLINK. Generic request,
-ISO-TP, UDS/KWP, scheduling, transport and evidence machinery stays in LINK.
-LINK may carry stable Mercedes-me application DataID literals where they are
+The evidence is Mercedes-specific and belongs in MBLink. Generic request,
+ISO-TP, UDS/KWP, scheduling, transport and evidence machinery stays in Link.
+Link may carry stable Mercedes-me application DataID literals where they are
 needed for shared interoperability plumbing, but semantic request mappings and
-Mercedes formulas remain manufacturer data owned by MBLINK.
+Mercedes formulas remain manufacturer data owned by MBLink.

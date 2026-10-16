@@ -87,7 +87,7 @@
 "License" = "Lizenz";
 "Close" = "Schließen";
 "Shannon Smith — Author and project maintainer" = "Shannon Smith — Autor und Projektbetreuer";
-"MBLINK is free software licensed under GPL-3.0-or-later. See LICENSE in the source package for the complete licence text." = "MBLINK ist freie Software unter der GPL-3.0-or-later. Den vollständigen Lizenztext finden Sie in der Datei LICENSE des Quellpakets.";
+"MBLink is free software licensed under GPL-3.0-or-later. See LICENSE in the source package for the complete licence text." = "MBLink ist freie Software unter der GPL-3.0-or-later. Den vollständigen Lizenztext finden Sie in der Datei LICENSE des Quellpakets.";
 "A C-first, open-source Mercedes vehicle diagnostics platform authored by Shannon Smith." = "Eine C-orientierte Open-Source-Plattform zur Mercedes-Fahrzeugdiagnose von Shannon Smith.";
 "Idle" = "Inaktiv";
 "No adapter" = "Kein Adapter";

@@ -709,7 +709,7 @@ bool mblink_mercedes_ecu_pack_data_item_at(
         item->kind = MBLINK_MERCEDES_ECU_DATA_LIVE_VALUE;
         item->status = MBLINK_MERCEDES_DEFINITION_SOURCE_CORROBORATED;
         item->provenance =
-            "Mercedes GS KWP 21 30 · portable MBLINK family decoder";
+            "Mercedes GS KWP 21 30 · portable MBLink family decoder";
         item->advertised = true;
         item->allow_duplicate_wire = true;
         classify_item_acquisition(pack, item);

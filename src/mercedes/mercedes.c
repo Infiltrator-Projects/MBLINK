@@ -1166,7 +1166,7 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
         0.0, 0.0, "%", "obd2.driver.accelerator_pedal_e",
         "The OM651 catalogue retains the second pedal channel as a separate discovery target.",
-        "MBLINK OM651 target catalogue"
+        "MBLink OM651 target catalogue"
     },
     {
         "mercedes.om651.air.throttle_valve", "Throttle valve",
@@ -1175,7 +1175,7 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
         0.0, 0.0, "%", "obd2.engine.throttle",
         "Factory throttle-valve position remains separate from accelerator-pedal demand. DID and encoding remain unmapped.",
-        "MBLINK OM651 target catalogue plus C207 field correlation"
+        "MBLink OM651 target catalogue plus C207 field correlation"
     },
     {
         "mercedes.om651.engine.coolant_temperature", "Coolant temperature",
@@ -1213,7 +1213,7 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_SIGNED_BIG_ENDIAN,
         0.0, 0.0, "°C", "obd2.environment.ambient_air",
         "Mercedes exposes finer ambient-temperature presentation than SAE PID 0x46 on the development vehicle. Exact factory source remains unmapped.",
-        "Vehicle display observation plus MBLINK field evidence"
+        "Vehicle display observation plus MBLink field evidence"
     },
     {
         "mercedes.om651.environment.barometric_pressure",
@@ -1481,7 +1481,7 @@ static const MblinkMercedesDidLabDefinition mercedes_did_lab[] = {
         MBLINK_MERCEDES_DID_LAB_CONCEPT_ONLY,
         false, 0U, 0U, MBLINK_MERCEDES_DID_LAB_UNSIGNED_BIG_ENDIAN,
         0.0, 0.0, "°C", NULL,
-        "722.9 XENTRY actual-value material exposes transmission oil temperature. MBLINK separately implements the source-backed KWP 21 30 raw-minus-50 candidate on the GS diagnostic route.",
+        "722.9 XENTRY actual-value material exposes transmission oil temperature. MBLink separately implements the source-backed KWP 21 30 raw-minus-50 candidate on the GS diagnostic route.",
         "Mercedes 722.9 XENTRY/service-data evidence"
     },
     {

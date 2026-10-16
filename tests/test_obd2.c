@@ -245,7 +245,7 @@ static void test_live_pid_decoding(void)
                   decoded.signal_count == 3U &&
                   near_value(decoded.signals[0].value, -1.0, 0.001) &&
                   near_value(decoded.signals[2].value, 2.0, 0.001),
-              "DPF pressure structured formula matches LINK");
+              "DPF pressure structured formula matches Link");
         check(link_obd2_decode_pid_payload(
                   UINT8_C(0x01), UINT8_C(0x7c),
                   dpf_temperature_payload, sizeof(dpf_temperature_payload),
@@ -253,7 +253,7 @@ static void test_live_pid_decoding(void)
                   decoded.signal_count == 4U &&
                   near_value(decoded.signals[0].value, 40.0, 0.001) &&
                   near_value(decoded.signals[3].value, 160.0, 0.001),
-              "DPF temperature structured formula matches LINK");
+              "DPF temperature structured formula matches Link");
     }
 
     {

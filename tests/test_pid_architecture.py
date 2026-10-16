@@ -29,7 +29,7 @@ for statement in (
 obd_api = (ROOT / "include/mblink/obd2.h").read_text(encoding="utf-8")
 require(
     "mblink_obd2_pid_definition_count" in obd_api,
-    "public MBLINK OBD catalogue API is missing",
+    "public MBLink OBD catalogue API is missing",
 )
 
 manufacturer_api = (ROOT / "include/mblink/mercedes_data_scan.h").read_text(
@@ -73,7 +73,7 @@ apple_api = (ROOT / "platform/apple/MBLinkDiagnosticsController.h").read_text(
 )
 require(
     "@interface MBLinkDiagnosticsController : LinkProductDiagnosticsController" in apple_api,
-    "Apple MBLINK diagnostics must extend LINK's product diagnostics controller",
+    "Apple MBLink diagnostics must extend Link's product diagnostics controller",
 )
 
 app = (ROOT / "app/ios/MBLINK/MBLINKApp.swift").read_text(encoding="utf-8")
@@ -137,7 +137,7 @@ require(
     "override func productDashboardParameters" in model
     and "enabledDisplayParameters" in model
     and "dashboardSelectionStore" not in model,
-    "MBLINK display membership must come only from PID Setup selections",
+    "MBLink display membership must come only from PID Setup selections",
 )
 require(
     "manufacturerPIDPresentationProvenance" in model
@@ -455,7 +455,7 @@ require(
 core = (ROOT / "src/core/mblink.c").read_text(encoding="utf-8")
 require(
     '#include "../link/src/' not in core,
-    "MBLINK core must not include LINK implementation sources directly",
+    "MBLink core must not include Link implementation sources directly",
 )
 
-print("MBLINK stable PID/module architecture contract verified")
+print("MBLink stable PID/module architecture contract verified")

@@ -304,6 +304,6 @@ int main(void)
     CHECK(plan->fallback_label != NULL);
     CHECK(strcmp(plan->fallback_label(&target),
                  "Unidentified Mercedes ECU") == 0);
-    puts("MBLINK Mercedes discover plan tests passed");
+    puts("MBLink Mercedes discover plan tests passed");
     return 0;
 }

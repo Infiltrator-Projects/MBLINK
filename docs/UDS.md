@@ -2,11 +2,11 @@
 
 # UDS Foundation
 
-MBLINK exposes LINK's ISO 14229 Unified Diagnostic Services layer above complete diagnostic PDUs. UDS does not own CAN framing, BLE, adapter discovery or Mercedes-specific interpretation.
+MBLink exposes Link's ISO 14229 Unified Diagnostic Services layer above complete diagnostic PDUs. UDS does not own CAN framing, BLE, adapter discovery or Mercedes-specific interpretation.
 
 ## Boundary
 
-`include/mblink/uds.h` preserves the product-prefixed core UDS client/session/DID API. `include/mblink/uds_services.h` exposes LINK's complete product-neutral 27-service catalogue and bounded codec API. `src/uds/uds.c` is the native iOS build bridge and compiles the exact pinned LINK core UDS and service-codec implementations rather than maintaining product copies.
+`include/mblink/uds.h` preserves the product-prefixed core UDS client/session/DID API. `include/mblink/uds_services.h` exposes Link's complete product-neutral 27-service catalogue and bounded codec API. `src/uds/uds.c` is the native iOS build bridge and compiles the exact pinned Link core UDS and service-codec implementations rather than maintaining product copies.
 
 The layer is allocation-free. Parsed response and DID payload pointers borrow storage from the caller-supplied PDU; callers must keep that PDU valid while using those spans.
 
@@ -28,22 +28,22 @@ The typed core includes:
 
 ## Complete service catalogue
 
-The shared service facade exposes exactly 27 registered standard service identifiers, including the original core services and the additional read, control, security and programming service codecs owned by LINK. The public metadata classifies each service as read-only, session-control, state-changing, security or programming.
+The shared service facade exposes exactly 27 registered standard service identifiers, including the original core services and the additional read, control, security and programming service codecs owned by Link. The public metadata classifies each service as read-only, session-control, state-changing, security or programming.
 
 Named builders are available for the additional service families such as memory reads/writes, scaling/periodic data, dynamic DIDs, routines, DTC clearing/control, timing/link control, secured data and transfer/programming records. Positive-response helpers validate service/subfunction/DID/routine/transfer echoes without assigning manufacturer-specific meaning to raw records.
 
-State-changing, security and programming codecs exist so LINK has a complete standards-shaped serialization layer; they are not automatically enabled by any MBLINK transport or discovery path.
+State-changing, security and programming codecs exist so Link has a complete standards-shaped serialization layer; they are not automatically enabled by any MBLink transport or discovery path.
 
 ### Complete ReadDTCInformation surface
 
 The 27 registered UDS service identifiers and the ReadDTCInformation report
-types are separate catalogues. LINK now also exposes all 27 requested
+types are separate catalogues. Link now also exposes all 27 requested
 `ReadDTCInformation (0x19)` report types: `0x01..0x19` plus WWH-OBD
 `0x42` and `0x55`. The legacy mirror/emissions report types withdrawn by
 ISO 14229-1:2020 remain available for older ECUs.
 
-Transaction-aware callers can additionally use LINK's request-specific response
-validator, re-exported by MBLINK, to verify MemorySelection, record-number,
+Transaction-aware callers can additionally use Link's request-specific response
+validator, re-exported by MBLink, to verify MemorySelection, record-number,
 functional-group and requested-DTC echoes. This protects higher layers from
 malformed responses that are superficially parseable but do not correspond to
 the request that was sent.
@@ -59,7 +59,7 @@ Discover's read-only allowlist.
 
 ### Services presentation
 
-The iOS and native Linux Services screens render LINK's generic 27-service
+The iOS and native Linux Services screens render Link's generic 27-service
 catalogue directly from the shared metadata rather than maintaining
 product-local SID tables. Each row shows the codec effect classification and
 the independent Discover safety decision. A blocked service therefore remains
@@ -68,13 +68,13 @@ operation.
 
 The same screens expose the complete 27-report ReadDTCInformation catalogue so
 snapshot, extended-data, severity, user-memory and WWH report coverage can be
-inspected without sending those requests. MBLINK does not interpret catalogue
+inspected without sending those requests. MBLink does not interpret catalogue
 presence as proof that a Mercedes ECU supports a report type.
 
-MBLINK now consumes LINK 0.15.49 and re-exports both the fixed-record views
+MBLink now consumes Link 0.15.49 and re-exports both the fixed-record views
 and the newer variable-record helpers. Snapshot and stored-data records expose
 their DTC/status/record-number envelope plus a bounded DID/value span; callers
-supply the applicable DID-length resolver and LINK segments each DID value
+supply the applicable DID-length resolver and Link segments each DID value
 without guessing. Extended-data reports expose the DTC, status, record number
 and bounded payload as a typed view. Unknown DID lengths remain explicitly
 unsupported rather than being silently mis-sized.
@@ -87,12 +87,12 @@ outside the generic UDS layer.
 
 ClearDiagnosticInformation service `0x14` remains blocked as a state-changing
 DTC clear. Authentication service `0x29` remains security-gated. Their
-generic request codecs are visible in the catalogue but no active MBLINK
+generic request codecs are visible in the catalogue but no active MBLink
 procedure or UI transmit action is created for either service.
 
 ## Timing and failure
 
-Client timing uses caller-supplied monotonic microseconds. Deadlines use saturating arithmetic from the pinned Infiltratr Common library.
+Client timing uses caller-supplied monotonic microseconds. Deadlines use saturating arithmetic from the pinned Libraries library.
 
 A normal negative response completes the current transaction and permits another request. NRC `0x78` extends the active transaction using P2*. Repeated `0x78` responses restart the P2* deadline from the latest response. Malformed, mismatched or timed-out active exchanges enter a failed state; the caller must reset the UDS client before reuse.
 
@@ -106,4 +106,4 @@ Mercedes definitions belong above UDS and remain evidence-gated until supported 
 
 ## Testing
 
-LINK owns the authoritative codec tests, including all 27 catalogue entries, bounded request builders, echo validation, memory-width validation and Discover safety regression coverage. MBLINK adds product-level facade coverage for the 27-service catalogue and verifies that the iOS bridge compiles LINK's service implementation.
+Link owns the authoritative codec tests, including all 27 catalogue entries, bounded request builders, echo validation, memory-width validation and Discover safety regression coverage. MBLink adds product-level facade coverage for the 27-service catalogue and verifies that the iOS bridge compiles Link's service implementation.

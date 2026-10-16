@@ -2,11 +2,11 @@
 /*
  * Product-owned evidence rows for Mercedes manufacturer live data.
  *
- * LINK remains the owner of the shared CSV/session recorder. MBLINK owns the
+ * Link remains the owner of the shared CSV/session recorder. MBLink owns the
  * Mercedes decoders, so the product appends presentation-ready manufacturer
- * rows after each selected live refresh and combines them with LINK's lossless
+ * rows after each selected live refresh and combines them with Link's lossless
  * transcript at export time. This keeps the raw command/response evidence and
- * adds one named row per Table value without teaching LINK Mercedes semantics.
+ * adds one named row per Table value without teaching Link Mercedes semantics.
  */
 /* Included inside the diagnostics controller implementation. */
 NS_ASSUME_NONNULL_BEGIN
@@ -20,10 +20,10 @@ static NSString *MBLinkEvidenceCSVField(NSString *value)
 }
 
 /*
- * LINK 0.15.90 emits one surplus empty field in transcript stream rows:
+ * Link 0.15.90 emits one surplus empty field in transcript stream rows:
  * the schema has 12 columns, while transcript rows contain 13. Preserve the
  * lossless transcript and repair only that exact prefix at product export.
- * The expression is deliberately narrow so a corrected future LINK row is
+ * The expression is deliberately narrow so a corrected future Link row is
  * left untouched.
  */
 static NSData * _Nullable MBLinkEvidenceNormalizeBaseCSV(NSData * _Nullable base)

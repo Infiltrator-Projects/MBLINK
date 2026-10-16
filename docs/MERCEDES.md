@@ -2,17 +2,17 @@
 
 # Mercedes-Benz diagnostics
 
-Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. MBLINK's manufacturer scope is Mercedes-Benz broadly; individual chassis, engine and ECU-family profiles are evidence-scoped subsets within it. The current C207/OM651/CRD3 work is one populated profile, not the product boundary. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
+Mercedes support sits above the generic ELM327, ISO-TP and UDS layers. MBLink's manufacturer scope is Mercedes-Benz broadly; individual chassis, engine and ECU-family profiles are evidence-scoped subsets within it. The current C207/OM651/CRD3 work is one populated profile, not the product boundary. The manufacturer layer owns vehicle profiles, ECU endpoint provenance and Mercedes-specific evidence/definitions; it does not duplicate transport framing or UDS response validation. Endpoint profiles use the transport-neutral ISO-TP address contract rather than an adapter-specific configuration type.
 
 ## Shared Apple session architecture
 
-The iPhone face uses the exact pinned LINK revision's shared Apple diagnostic-session engine. LINK owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLINK's Apple controller is a product adapter: it owns Mercedes VIN interpretation, VIN-keyed module topology, controller/ECU-pack resolution, module-scoped startup facts, Mercedes fault acquisition and Mercedes-specific presentation through LINK's manufacturer-extension callbacks.
+The iPhone face uses the exact pinned Link revision's shared Apple diagnostic-session engine. Link owns CoreBluetooth lifecycle, ELM327 session driving, timers, standard VIN/PID/DTC flow, live telemetry, favourites/history, CSV recording, deterministic simulation, timeout handling and reconnect behaviour. MBLink's Apple controller is a product adapter: it owns Mercedes VIN interpretation, VIN-keyed module topology, controller/ECU-pack resolution, module-scoped startup facts, Mercedes fault acquisition and Mercedes-specific presentation through Link's manufacturer-extension callbacks.
 
 Normal Connect has no separate engine-specific Mercedes probe state machine. After the VIN and fitted-module map are known, each identified controller supplies its own documented startup-once and user-polling knowledge. This keeps transport/session fixes in one implementation while keeping Mercedes diagnostic policy with the controller/module definitions that actually own it.
 
 ## Offline Mercedes VIN / FIN / Baumuster decoder
 
-MBLINK contains a portable offline Mercedes VIN decoder. It follows Mercedes-Benz's own FIN decomposition for the long-running numeric Baumuster format: three-character WMI, six-digit vehicle Baumuster, steering code, assembly-plant code and six-digit production serial. When positions 4-9 are not numeric, the decoder preserves the VIN as an ISO VDS-style layout rather than falsely treating it as a Mercedes Baumuster.
+MBLink contains a portable offline Mercedes VIN decoder. It follows Mercedes-Benz's own FIN decomposition for the long-running numeric Baumuster format: three-character WMI, six-digit vehicle Baumuster, steering code, assembly-plant code and six-digit production serial. When positions 4-9 are not numeric, the decoder preserves the VIN as an ISO VDS-style layout rather than falsely treating it as a Mercedes Baumuster.
 
 The decoded facts are deliberately separated:
 
@@ -23,11 +23,11 @@ The decoded facts are deliberately separated:
 - The final six characters are retained as the production serial.
 - Exact ECU hardware/software remains live UDS evidence and is never inferred solely from VIN.
 
-The first populated Baumuster catalogue covers the C207 coupe family across diesel and petrol engines, including OM651, OM642, M271, M272, M273, M274, M276 and M278 variants. Unknown six-digit types still decode structurally and remain catalogue-unknown instead of being guessed. The catalogue is data-driven so additional Mercedes series can be added without changing the VIN parser or LINK.
+The first populated Baumuster catalogue covers the C207 coupe family across diesel and petrol engines, including OM651, OM642, M271, M272, M273, M274, M276 and M278 variants. Unknown six-digit types still decode structurally and remain catalogue-unknown instead of being guessed. The catalogue is data-driven so additional Mercedes series can be added without changing the VIN parser or Link.
 
 ## Vehicle-family and controller identification
 
-MBLINK does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
+MBLink does not treat a chassis or badge as an engine/ECU identity. C207 is a platform family: for example, public fitment data identifies C207 E 250 CGI type 207.347 with M271.860 petrol, while C207 diesel type codes such as 207.301-207.304 map to OM651-family applications, and later petrol types such as 207.334/207.336 use M274.920.
 
 Normal Connect is controller-first rather than engine-first. The VIN selects the authoritative vehicle profile, the bounded module census or saved-route validation establishes which physical controllers are actually fitted, and returned controller identity resolves the narrowest justified ECU pack. That pack owns the module's startup-once identity/configuration reads, its separately selectable recurring data, and any controller-generation-specific presentation/decoding rules. A route, DID number, model badge or engine family alone never creates controller semantics. If two Mercedes generations reuse the same identifier or code with different meanings, they must be decoded by different resolved ECU packs rather than by one Mercedes-wide lookup table.
 
@@ -43,9 +43,9 @@ The OM651 family profile contains source-corroborated endpoints; it is selected 
 | --- | ---: | ---: | --- |
 | `c207-om651-engine-eobd-11bit` | `7E0` | `7E8` | source-corroborated |
 
-The ECU-family side has direct fitment evidence: the public `autodiag2/database` W207 E 250 2200 CDI record identifies Delphi `CRD3.x` for the 148 kW and 150 kW configurations. Independent public Mercedes CRD3 diagnostic material also corroborates the conventional engine request/response pair. That grounds MBLINK's C207/OM651 work in the correct ECU family and justifies source-corroborated status while still keeping vehicle verification gated on a reproducible C207 capture.
+The ECU-family side has direct fitment evidence: the public `autodiag2/database` W207 E 250 2200 CDI record identifies Delphi `CRD3.x` for the 148 kW and 150 kW configurations. Independent public Mercedes CRD3 diagnostic material also corroborates the conventional engine request/response pair. That grounds MBLink's C207/OM651 work in the correct ECU family and justifies source-corroborated status while still keeping vehicle verification gated on a reproducible C207 capture.
 
-Physical hardware is a validation gate, not a development gate. MBLINK continues to build the Mercedes protocol model, fixture replay, ECU-family decoding, fault knowledge and safe read-only requests offline. When the development adapter becomes available, the real C207 capture promotes only what it actually proves rather than beginning the implementation from scratch.
+Physical hardware is a validation gate, not a development gate. MBLink continues to build the Mercedes protocol model, fixture replay, ECU-family decoding, fault knowledge and safe read-only requests offline. When the development adapter becomes available, the real C207 capture promotes only what it actually proves rather than beginning the implementation from scratch.
 
 ## Archived Mercedes me Whisper parameterisation
 
@@ -72,16 +72,16 @@ standard OBD `09 02 -> 49 02`.
 The complete recovered evidence, encryption/extraction details, embedded source
 revisions and interpretation boundaries are preserved in
 `MERCEDES_ME_WHISPER.md`. That document is the source of truth for this
-archived-app evidence; this file continues to own how it affects MBLINK's
+archived-app evidence; this file continues to own how it affects MBLink's
 Mercedes diagnostic model.
 
 ## W212 / C207 gateway module map
 
-MBLINK now separates the **expected platform roster** from the **observed vehicle map**.
+MBLink now separates the **expected platform roster** from the **observed vehicle map**.
 
 Mercedes' Series 207/212 introduction and component documentation shows that the central gateway is integrated into the N10/1 front-SAM housing. The housing contains two microprocessors: the SAM processor and a separate central-gateway processor, each with its own CAN interface, and Mercedes states that the two processors can be diagnosed separately. Diagnostic CAN (CAN D) reaches that integrated gateway processor, which bridges diagnostic traffic to the drivetrain, chassis, interior and other vehicle networks.
 
-MBLINK therefore models **CGW and SAMF as separate logical diagnostic controllers that share the N10/1 physical housing**. It does not assume that a proprietary "open N93 route" command is required before ordinary ECU diagnosis. The strongest public CAESAR/Monaco evidence instead shows ECU definitions carrying independently defined physical request and response CAN identifiers, with the integrated gateway providing the cross-network path.
+MBLink therefore models **CGW and SAMF as separate logical diagnostic controllers that share the N10/1 physical housing**. It does not assume that a proprietary "open N93 route" command is required before ordinary ECU diagnosis. The strongest public CAESAR/Monaco evidence instead shows ECU definitions carrying independently defined physical request and response CAN identifiers, with the integrated gateway providing the cross-network path.
 
 ### Source-backed priority routes
 
@@ -102,7 +102,7 @@ that proves the route and probe, but does not by itself identify the ECU family.
 | HU_204 / COMAND | `0x652` | `0x48A` | KWP2000 / KW2C3PE | Public HU_204 Monaco trace |
 | EPS212 | `0x6B2` | `0x496` | UDS | Public CAESAR communication parameters |
 
-IC_204, SAMF_212, SAMR_212 and HVAC_212 are independently corroborated as real 204/207/212 diagnostic families, and public material establishes UDS/HSCAN operation for several of them, but MBLINK still leaves their physical TX/RX pairs unbound until an equally defensible trace or CBF/CAESAR parameter source is found.
+IC_204, SAMF_212, SAMR_212 and HVAC_212 are independently corroborated as real 204/207/212 diagnostic families, and public material establishes UDS/HSCAN operation for several of them, but MBLink still leaves their physical TX/RX pairs unbound until an equally defensible trace or CBF/CAESAR parameter source is found.
 
 The catalogue in `mercedes_module_catalog.h` records those families, Mercedes component designations, coarse subsystem kind, expected-presence class and diagnostic identity aliases. It deliberately does **not** assign a CAN address from documentation alone.
 
@@ -123,7 +123,7 @@ normal census is 57 exact-filter targets rather than the 760-target forensic
 address sweep. Dead targets receive only bounded read-only presence probes;
 deeper reads run only after a responder is proved.
 
-For UDS responders MBLINK retains the physical route and reads read-only `F197`
+For UDS responders MBLink retains the physical route and reads read-only `F197`
 system name plus `F187` spare-part number, `F188` software number and `F191`
 hardware number where supported. It classifies a module only when returned
 identity text or a standards-defined functional route supports that
@@ -135,7 +135,7 @@ forensic plan (505 11-bit targets plus 255 29-bit normal-fixed targets): the bro
 logical addressing. FULL may try DTC/VIN fallbacks after a missed TesterPresent
 and, for otherwise unknown 11-bit routes, may temporarily use headered receive
 learning to discover a valid non-`TX+8` response before immediately re-locking
-the exact filter. DEEP RESCAN is an in-session manufacturer rescan: LINK lets
+the exact filter. DEEP RESCAN is an in-session manufacturer rescan: Link lets
 any in-flight live PID request finish, pauses live polling, runs the full
 Mercedes extension on the existing Bluetooth/USB transport, restores the
 normal ELM channel and resumes the existing live scheduler. It does not
@@ -143,14 +143,14 @@ disconnect/reconnect the adapter or repeat standard PID/VIN discovery.
 
 The 2026-08-29 C207/Vgate Linux capture proved that a promiscuous 11-bit receive configuration (`ATCRA` plus `ATCF000/ATCM000`) admits normal vehicle broadcast traffic fast enough to swamp the ELM327 command parser. Production discovery therefore keeps an exact receive route active for each 11-bit probe instead of opening the whole CAN bus.
 
-That capture also disproved a second assumption: a Mercedes 11-bit diagnostic response is **not always request+8**. Public CAESAR/Vediamo traces publish independent `CP_REQUEST_CANIDENTIFIER` and `CP_RESPONSE_CANIDENTIFIER` values and give concrete 204/212-family examples: EIS `0x612 -> 0x482`, ABR2XT `0x632 -> 0x486` and EPS212 `0x6B2 -> 0x496`. MBLINK now treats those published pairs as source-corroborated routes and never extrapolates unobserved pairs from them.
+That capture also disproved a second assumption: a Mercedes 11-bit diagnostic response is **not always request+8**. Public CAESAR/Vediamo traces publish independent `CP_REQUEST_CANIDENTIFIER` and `CP_RESPONSE_CANIDENTIFIER` values and give concrete 204/212-family examples: EIS `0x612 -> 0x482`, ABR2XT `0x632 -> 0x486` and EPS212 `0x6B2 -> 0x496`. MBLink now treats those published pairs as source-corroborated routes and never extrapolates unobserved pairs from them.
 
 The normal 47-slot census never opens a promiscuous receive window: each lattice
 slot already has an exact request/response pair. Unknown-response learning is
 reserved for the explicit FULL forensic scan. Three exact C207 routes—
 `0x602 -> 0x480`, `0x612 -> 0x482` and `0x632 -> 0x486`—also have captured
 positive `50 03` responses, so only those routes receive the corresponding
-transient extended-session request (`10 03`). MBLINK does not infer session
+transient extended-session request (`10 03`). MBLink does not infer session
 control from UDS or from a route listing: `0x607 -> 0x587`,
 `0x6B2 -> 0x496` and generic UDS targets stay in their existing session unless
 independent evidence is added. The scanner does not send `10 01` afterwards;
@@ -170,14 +170,14 @@ A catalogue entry is not evidence that a module is fitted to a particular car. O
 
 The iPhone keeps a small local vehicle profile keyed by the exact 17-character VIN. The first successful connection performs the bounded module discovery and stores only stable topology and identity facts: module request/response routes, addressing mode, classified family, system name, and returned part/software/hardware identifiers. Dynamic DTCs and live measurements are never treated as persistent profile facts.
 
-On a later connection to the same VIN, MBLINK loads the known topology immediately instead of rediscovering the address space. It reinitialises the ELM channel, recreates the transient `10 03` diagnostic-session context only for an exact route whose ledger records a captured positive response, validates each saved module with TesterPresent, rereads each module's DTC memory, and then restores the standard OBD channel for live data. If any expected saved route no longer responds, the cached topology is discarded and one fresh bounded discovery is performed during that connection before the replacement VIN profile is saved.
+On a later connection to the same VIN, MBLink loads the known topology immediately instead of rediscovering the address space. It reinitialises the ELM channel, recreates the transient `10 03` diagnostic-session context only for an exact route whose ledger records a captured positive response, validates each saved module with TesterPresent, rereads each module's DTC memory, and then restores the standard OBD channel for live data. If any expected saved route no longer responds, the cached topology is discarded and one fresh bounded discovery is performed during that connection before the replacement VIN profile is saved.
 
 Profiles use a schema version so an incompatible future format is ignored rather than misread. They are local application state; they are not source evidence and do not promote a module definition's provenance status.
 
 ## Historical / research targeted ECU evidence probe
 
 This is a separate engineering/replay operation, not part of the normal iPhone
-connection architecture. MBLINK 0.7.275 removed the old unreachable Apple
+connection architecture. MBLink 0.7.275 removed the old unreachable Apple
 engine-probe execution path. Normal Connect, module discovery, startup-once
 reads, PID Setup and recurring polling do not call this probe or depend on its
 results.
@@ -209,7 +209,7 @@ The standardized identity sweep currently requests:
 
 The CRD3 fingerprint sweep requests these evidence-only identifiers:
 
-| DID | CaesarSuite CRD3 label | MBLINK treatment |
+| DID | CaesarSuite CRD3 label | MBLink treatment |
 | --- | --- | --- |
 | `F100` | Session / variant | ECU-family evidence |
 | `F154` | Supplier identifier | ECU-family evidence |
@@ -217,15 +217,15 @@ The CRD3 fingerprint sweep requests these evidence-only identifiers:
 | `1001` | Full variant coding | raw ECU-family evidence |
 | `1002` | Partial variant coding | raw ECU-family evidence |
 
-The CRD3 identifiers are not treated as DPF, rail-pressure, injector, EGR or turbo parameters. Their purpose is to identify the responding engine-control family and preserve exact raw responses for later fixture promotion. MBLINK does not infer a live-data formula from a positive fingerprint response.
+The CRD3 identifiers are not treated as DPF, rail-pressure, injector, EGR or turbo parameters. Their purpose is to identify the responding engine-control family and preserve exact raw responses for later fixture promotion. MBLink does not infer a live-data formula from a positive fingerprint response.
 
 ## Delphi CRD3.10 hardware profile research
 
-A dedicated external-research pass on 2026-08-27 strengthened the hardware-family evidence without changing MBLINK's read-only boundary.
+A dedicated external-research pass on 2026-08-27 strengthened the hardware-family evidence without changing MBLink's read-only boundary.
 
 Multiple public ECU/firmware catalogues identify 2011 E 250 CDI 2.2-litre / 150 kW applications with Delphi CRD3.10-family control hardware. The strongest recurring identity set is Mercedes hardware `6519040001`, software `6519020001` and spare-part number `6519011801`. Separate C207/A207 fitment listings identify Delphi CRD3.10 units such as Mercedes `A6519003701 / A6519012101` and Delphi `28381049`, demonstrating that one model badge does not imply one immutable part number. Independent CRD3.10 tooling documentation identifies Infineon TriCore TC1797 as the processor used by this ECU family.
 
-MBLINK therefore does **not** hard-code “2011 E250 = one ECU part number.” The current controller-scoped identification/startup architecture can consume standardized identity DIDs such as `F187`, `F188`, `F191` and `F197` when they are documented for the resolved controller. The retained research probe can acquire the same identity evidence explicitly. The CRD3 layer has a source-corroborated hardware profile catalogue and matches returned typed values against known families:
+MBLink therefore does **not** hard-code “2011 E250 = one ECU part number.” The current controller-scoped identification/startup architecture can consume standardized identity DIDs such as `F187`, `F188`, `F191` and `F197` when they are documented for the resolved controller. The retained research probe can acquire the same identity evidence explicitly. The CRD3 layer has a source-corroborated hardware profile catalogue and matches returned typed values against known families:
 
 - a matching CRD3 system-name prefix alone is a family-level match;
 - one matching hardware/software/spare number is source-corroborated evidence;
@@ -234,13 +234,13 @@ MBLINK therefore does **not** hard-code “2011 E250 = one ECU part number.” T
 
 The first catalogue entry represents the 2011 E250 150 kW CRD3.10 family with HW `6519040001`, SW `6519020001`, spare `6519011801` and source-corroborated TC1797 MCU. This is deliberately not marked vehicle-verified until the physical C207 returns matching identity values. Returned identifiers are displayed directly in the native application so the evidence can be compared with the catalogue instead of being hidden behind a model label.
 
-This profile data remains in MBLINK because it is Mercedes/Delphi-specific; the generic UDS DID acquisition remains in LINK.
+This profile data remains in MBLink because it is Mercedes/Delphi-specific; the generic UDS DID acquisition remains in Link.
 
 ## OM651 / CDID3 family signature
 
 The portable CRD3 decoder understands the payload shape published by the CaesarSuite CRD3 simulator for `F100` and `F154`. `F100` carries gateway mode, a big-endian 16-bit ECU variant and the active session; `F154` carries a one-byte supplier identifier.
 
-Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31` with Delphi as the supplier. MBLINK therefore recognises gateway mode `02`, variant `2131`, supplier `64`/Delphi as an **OM651/CDID3-family signature**. The portable CRD3 decoder can decode those fields when explicit research/replay evidence or a documented controller-scoped startup read supplies them. Normal iPhone Connect does not launch a separate CRD3 fingerprint sweep. The decoded signature remains family evidence, not automatic C207 vehicle verification.
+Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31` with Delphi as the supplier. MBLink therefore recognises gateway mode `02`, variant `2131`, supplier `64`/Delphi as an **OM651/CDID3-family signature**. The portable CRD3 decoder can decode those fields when explicit research/replay evidence or a documented controller-scoped startup read supplies them. Normal iPhone Connect does not launch a separate CRD3 fingerprint sweep. The decoded signature remains family evidence, not automatic C207 vehicle verification.
 
 ## Mercedes UDS fault reading
 
@@ -248,7 +248,7 @@ Independent OM651/CDID3 diagnostic material corroborates the signature `02 21 31
 
 The retained research probe/fixtures may use this UDS request explicitly, but the normal iPhone fault path does not depend on that probe. Module discovery/profile validation performs the protocol-appropriate bounded fault read for each proven responder, and the iPhone Faults screen presents those Mercedes module faults alongside the standard stored/pending/permanent OBD-II sections. No CRD3 fingerprint sweep is a connection prerequisite.
 
-No-response, negative-response and malformed Mercedes fault replies are classified explicitly. MBLINK must not turn any of those states into a misleading empty-fault result. It does not clear faults, alter DTC settings, enter an extended session, perform security access, write data or invoke routines.
+No-response, negative-response and malformed Mercedes fault replies are classified explicitly. MBLink must not turn any of those states into a misleading empty-fault result. It does not clear faults, alter DTC settings, enter an extended session, perform security access, write data or invoke routines.
 
 `MblinkMercedesEngineScan` remains only as a compatibility/high-level wrapper around the portable research probe. It is not part of the Apple normal-Connect path and it no longer issues a duplicate second DTC request.
 
@@ -256,7 +256,7 @@ No-response, negative-response and malformed Mercedes fault replies are classifi
 
 Retrieving a 24-bit UDS DTC and displaying a six-digit hexadecimal value plus `status 0xNN` is only the acquisition layer. It is **not** considered complete Mercedes fault support.
 
-MBLINK must maintain an evidence-backed Mercedes diagnostic knowledge layer able to resolve, where trustworthy information exists:
+MBLink must maintain an evidence-backed Mercedes diagnostic knowledge layer able to resolve, where trustworthy information exists:
 
 - human-readable Mercedes-Benz DTC title/description;
 - originating ECU/module;
@@ -267,11 +267,11 @@ MBLINK must maintain an evidence-backed Mercedes diagnostic knowledge layer able
 - provenance/source status for the definition;
 - links to related verified diagnostic measurements where useful to investigation.
 
-The raw 24-bit DTC and status byte remain part of the record even after a description is resolved. Unknown Mercedes codes must be shown as unknown with raw evidence preserved; MBLINK must never invent a likely-sounding Mercedes description.
+The raw 24-bit DTC and status byte remain part of the record even after a description is resolved. Unknown Mercedes codes must be shown as unknown with raw evidence preserved; MBLink must never invent a likely-sounding Mercedes description.
 
-Generic UDS status interpretation belongs in LINK. Mercedes-specific DTC definitions and module/component meanings belong in MBLINK. The full normative requirement is in `FAULT_DIAGNOSTICS.md`.
+Generic UDS status interpretation belongs in Link. Mercedes-specific DTC definitions and module/component meanings belong in MBLink. The full normative requirement is in `FAULT_DIAGNOSTICS.md`.
 
-MBLINK now carries two deliberately different Mercedes knowledge sets. The
+MBLink now carries two deliberately different Mercedes knowledge sets. The
 exact KWP/UDS layer remains module-scoped and evidence-gated. Alongside it is a
 299-row source-scoped five-character reference catalogue reconstructed from the
 material supplied to the project: 78 BenzWorld body/chassis rows, 104 Mercedes
@@ -279,10 +279,10 @@ P1xxx reference rows, all 38 TaT teaser rows (including explicit subcodes and
 duplicate meanings), and 79 supplied SprinterManual reference rows. The
 reference layer retains duplicates rather than selecting an arbitrary meaning.
 For example, `B1000` and `P2004` remain explicitly ambiguous until module or
-subcode context resolves them. Standards-defined generic meanings in LINK take
+subcode context resolves them. Standards-defined generic meanings in Link take
 precedence and are never overwritten by a Mercedes reference row.
 
-On iPhone, a LINK-classified manufacturer-specific OBD code that has no shared
+On iPhone, a Link-classified manufacturer-specific OBD code that has no shared
 definition is passed through this Mercedes reference resolver. A unique
 source-scoped meaning is shown with its area and source; an ambiguous result is
 labelled as such rather than pretending that one of several supplied meanings
@@ -297,7 +297,7 @@ The supplied archived Mercedes me Adapter `libdiaglogic.so` exposes
 `STATIC` and `SPORADIC`, and a `storedObdDtcs` data identifier. This
 corroborates a structured DTC/state model in the original product.
 
-It does not establish a raw KWP/UDS-status-bit mapping. MBLINK therefore does
+It does not establish a raw KWP/UDS-status-bit mapping. MBLink therefore does
 not translate the captured ORC status `E0` into static/sporadic semantics.
 That byte remains raw evidence until the mapping is independently recovered.
 
@@ -322,15 +322,15 @@ Mercedes DTC knowledge should follow the same evidence discipline: definitions a
 - EGR command/rate;
 - cylinder 1–4 smooth-running corrections and injector correction factors.
 
-Every entry is currently `corroborated-unmapped`: the capability is known to exist on OM651/CDID3 diagnostic systems, but MBLINK deliberately leaves its DID, byte layout, scaling and units unbound until defensible protocol evidence exists. This gives the program a concrete Mercedes feature model now without inventing attractive-looking numbers.
+Every entry is currently `corroborated-unmapped`: the capability is known to exist on OM651/CDID3 diagnostic systems, but MBLink deliberately leaves its DID, byte layout, scaling and units unbound until defensible protocol evidence exists. This gives the program a concrete Mercedes feature model now without inventing attractive-looking numbers.
 
 ## Why proprietary DPF formulas are still unbound
 
-Public Mercedes engine live-data mappings for OM651 are substantially weaker than standardized UDS identity material. Independent diagnostic pages show that CRD3 exposes the DPF, injector, rail, EGR and boost values MBLINK wants, while the W207 fitment database grounds the E 250 CDI in Delphi CRD3.x. Neither source, by itself, supplies enough raw request/response/scaling evidence to bind a proprietary live-data formula safely.
+Public Mercedes engine live-data mappings for OM651 are substantially weaker than standardized UDS identity material. Independent diagnostic pages show that CRD3 exposes the DPF, injector, rail, EGR and boost values MBLink wants, while the W207 fitment database grounds the E 250 CDI in Delphi CRD3.x. Neither source, by itself, supplies enough raw request/response/scaling evidence to bind a proprietary live-data formula safely.
 
-MBLINK therefore separates **fitment evidence**, **capability evidence**, **protocol mapping evidence** and **vehicle verification**. A DID/formula is only bound when its request, raw response layout and scaling are supportable. That is deliberately different from guessing a Mercedes DID and showing a plausible-looking value.
+MBLink therefore separates **fitment evidence**, **capability evidence**, **protocol mapping evidence** and **vehicle verification**. A DID/formula is only bound when its request, raw response layout and scaling are supportable. That is deliberately different from guessing a Mercedes DID and showing a plausible-looking value.
 
-The same principle applies to Mercedes DTC descriptions: MBLINK should be comprehensive, but comprehensiveness must come from sourced definitions rather than fabricated interpretations.
+The same principle applies to Mercedes DTC descriptions: MBLink should be comprehensive, but comprehensiveness must come from sourced definitions rather than fabricated interpretations.
 
 ## Mercedes 7E1/7E9 transmission oil temperature candidate
 
@@ -341,14 +341,14 @@ as `bytesToUint(raw, 11, 1) - 50.0`, i.e. byte 11 of the complete positive
 response. The reports include W204 and W212-family vehicles and independent
 722.9 service use.
 
-MBLINK treats this as **source-corroborated, vehicle-unverified** until the
+MBLink treats this as **source-corroborated, vehicle-unverified** until the
 development C207 returns a positive `61 30 ...` response. The mapping is
 strictly route-scoped to `0x7E1 -> 0x7E9`; it does not imply that every
 Mercedes transmission or every ECU local identifier `0x30` shares the same
 layout.
 
 On iPhone, once the module census proves a live `0x7E1 -> 0x7E9` responder,
-MBLINK may offer the route-scoped `21 30` signals in that module's documented
+MBLink may offer the route-scoped `21 30` signals in that module's documented
 manufacturer catalogue. The census does not transmit `21 30`. The request is
 scheduled only after the user selects a signal backed by that record, or starts
 the separate explicit Factory Data action. A positive response may then be
@@ -371,12 +371,12 @@ DTC clear differ between them.
 
 Mercedes CAN definitions independently identify `0x7E1` as
 `D_RQ_GS` (KWP2000 diagnostic request to gearbox control) and `0x7E9` as
-`D_RS_GS` (diagnostic response from gearbox control). MBLINK therefore
+`D_RS_GS` (diagnostic response from gearbox control). MBLink therefore
 classifies the route as **Transmission ECU / GS** while still leaving the exact
 VGS/EGS hardware family open until identity evidence is returned.
 
 The same source material describes three read-only GS broadcast frames that
-MBLINK now decodes when raw CAN capture supplies them:
+MBLink now decodes when raw CAN capture supplies them:
 
 - `0x218` — target gear, actual gear, torque-converter open/slip/closed,
   manual mode, shift-in-progress, gearbox OK, limp-home, over-temperature,
@@ -406,7 +406,7 @@ anonymous duplicate values.
 
 Mercedes part A2138203202 / approval 10R-042695 is a genuine Mercedes me Adapter intended for compatible Series 207 vehicles. Mercedes setup material documents Bluetooth pairing under a local name in the form `MB-xxxx`.
 
-A preserved official Mercedes me Adapter **4.7.61** Android build (`com.daimler.mbfa.android`) now gives MBLINK substantially stronger interoperability evidence. The analysed transport implementation is in the archived app's T-Systems/Daimler framework code, principally `classes3.dex` (local SHA-256 `83cd980cac55e517926469f165cdd83f55eddec7c45e1590c45b6686c5685ae0`). LINK keeps the full evidence ledger in `docs/MERCEDES-ME-ADAPTER-INTEROP.md`.
+A preserved official Mercedes me Adapter **4.7.61** Android build (`com.daimler.mbfa.android`) now gives MBLink substantially stronger interoperability evidence. The analysed transport implementation is in the archived app's T-Systems/Daimler framework code, principally `classes3.dex` (local SHA-256 `83cd980cac55e517926469f165cdd83f55eddec7c45e1590c45b6686c5685ae0`). Link keeps the full evidence ledger in `docs/MERCEDES-ME-ADAPTER-INTEROP.md`.
 
 The official application's default adapter-name families are:
 
@@ -417,7 +417,7 @@ The official application's default adapter-name families are:
 | second-generation adapter | `^MB-[57].*` |
 | adapter for other apps | `^VAN-.*` |
 
-A separate literal `^MB-[02-46].*` exists but its role is not yet strong enough to bind behaviour, so MBLINK records it without using it as a routing rule.
+A separate literal `^MB-[02-46].*` exists but its role is not yet strong enough to bind behaviour, so MBLink records it without using it as a routing rule.
 
 For Bluetooth Classic, the official `BluetoothObdAdapterDevice` uses the standard SPP UUID `00001101-0000-1000-8000-00805F9B34FB` and Android's insecure RFCOMM SPP socket path. Its static reference timing is a 44,000 ms connect timeout and a 6,000 ms minimum connection duration.
 
@@ -431,11 +431,11 @@ For BLE, the official `BleObdAdapterDevice` uses Nordic UART Service:
 
 The app also carries Toshiba SPP-over-BLE identifiers `e079c6a0-aa8b-11e3-a903-0002a5d5c51b` (service) and `b38312c0-aa89-11e3-9cef-0002a5d5c51b` (characteristic). Those are retained as a known fallback candidate rather than assumed to apply to every generation.
 
-MBLINK treats the adapter as a **native Mercedes telemetry transport**, not as an ELM327. LINK may discover and connect the evidence-backed RFCOMM/GATT channel and MBLINK may preserve native frames, but no ELM `ATI`, `ATZ` or guessed Mercedes me command is transmitted merely to establish identity.
+MBLink treats the adapter as a **native Mercedes telemetry transport**, not as an ELM327. Link may discover and connect the evidence-backed RFCOMM/GATT channel and MBLink may preserve native frames, but no ELM `ATI`, `ATZ` or guessed Mercedes me command is transmitted merely to establish identity.
 
-The archived application also proves that the adapter lifecycle is more than an unauthenticated serial stream. It contains `setupObdAdapter`, `readObdAdapterData`, `deactivateSppServerMode`, Session Master Key classes/states and a backend SMK resource `POST tenants/{tenantId}/obdAdapters/{obdAdapterId}/v2/smk`. Those names are evidence of a commissioned/keyed session model; they do **not** yet reveal a safe local SMK algorithm or wire frame. MBLINK therefore keeps setup/read command bytes evidence-gated until the framing is independently recovered or captured from the physical adapter.
+The archived application also proves that the adapter lifecycle is more than an unauthenticated serial stream. It contains `setupObdAdapter`, `readObdAdapterData`, `deactivateSppServerMode`, Session Master Key classes/states and a backend SMK resource `POST tenants/{tenantId}/obdAdapters/{obdAdapterId}/v2/smk`. Those names are evidence of a commissioned/keyed session model; they do **not** yet reveal a safe local SMK algorithm or wire frame. MBLink therefore keeps setup/read command bytes evidence-gated until the framing is independently recovered or captured from the physical adapter.
 
-The first physical capture remains valuable, but it is no longer a blind transport-discovery exercise: LINK can now select the generation-specific Bluetooth path first and use the resulting byte stream to recover the remaining framing and vehicle-value decoder.
+The first physical capture remains valuable, but it is no longer a blind transport-discovery exercise: Link can now select the generation-specific Bluetooth path first and use the resulting byte stream to recover the remaining framing and vehicle-value decoder.
 
 ### Native Mercedes me engine findings from the archived app
 
@@ -449,7 +449,7 @@ through a Java callback taking the adapter ID and passkey.
 The Java/native bridge also proves the Bluetooth record contract: outbound GDK
 commands must end in CR (`0x0D`); inbound CR closes a normal record; inbound
 BEL (`0x07`) closes a special NACK record; the official receive accumulator
-is 700 bytes and clears an unterminated record at position 698. MBLINK/LINK can
+is 700 bytes and clears an unterminated record at position 698. MBLink/Link can
 therefore frame native evidence deterministically without inventing the
 remaining command vocabulary.
 
@@ -457,7 +457,7 @@ The embedded DiagLogic protobuf schema separates requested ECU/device identity
 from the responding device address and defines typed measured values, DTC
 collections, VIN/vehicle configuration and adapter software version. The
 official framework also contains 120 exact diagnostic/live-data IDs, preserved
-in LINK's `docs/MERCEDES-ME-DATA-IDS.md`. Important examples include
+in Link's `docs/MERCEDES-ME-DATA-IDS.md`. Important examples include
 `relativeAcceleratorPedalPosition`, `throttlePosition`,
 `engineReferenceThrottle`, `engineRpm`, `engineFuelRate`,
 `fuelVolume`, `fuelLevelMin`, `fuelPressure`, `mileage`,
@@ -466,7 +466,7 @@ identities and many trip-scoped lamp/brake/tire fault flags.
 
 These identifiers are an implementation checklist, not guessed CAN/UDS
 mappings. The native GDK/DiagLogic/Whisper shared objects have now also been
-recovered and analysed. LINK preserves the detailed binary evidence in
+recovered and analysed. Link preserves the detailed binary evidence in
 `docs/MERCEDES-ME-NATIVE-BINARIES.md`.
 
 That native pass proves that the genuine adapter stack contains raw CAN and
@@ -474,7 +474,7 @@ ISO-TP command classes, seed/key/passkey handling, a 32-byte Session Master Key
 with two 16-byte random values, SHA-256-based session-key derivation, AES-256
 and Base64 support, and a configuration-driven Whisper execution layer.
 
-The most important architectural result for MBLINK is that Whisper exposes
+The most important architectural result for MBLink is that Whisper exposes
 configuration concepts for OBD/PDU transceive, raw CAN transmit, baud rate,
 P2*/P3 timing, service/request/result IDs, PDU bytes, response matching,
 CAN filtering, result extraction and formulas. This strongly indicates that
@@ -484,8 +484,8 @@ configuration assets rather than being inseparable from the genuine adapter.
 Accordingly, proved Mercedes vehicle-side definitions should be transport
 neutral. The same verified ECU/request/result/formula definition can be
 executed through Mercedes me, Tactrix/OpenPort, STM32 CAN or a capable ELM
-transport. Mercedes-me-specific Bluetooth/session/security remains in LINK's
-genuine-adapter provider; Mercedes ECU knowledge remains in MBLINK.
+transport. Mercedes-me-specific Bluetooth/session/security remains in Link's
+genuine-adapter provider; Mercedes ECU knowledge remains in MBLink.
 
 The archived APK inventory subsequently recovered the production
 `MSA_VIN_cascade` bootstrap. It proves the route-specific VIN requests now used
@@ -499,7 +499,7 @@ IDs, DIDs, byte layouts and formulas remain unbound.
 ### Native secure protocol now reproduced independently
 
 The subsequent native-library pass went beyond architecture names and recovered
-the local secure record format. LINK now independently implements the proved
+the local secure record format. Link now independently implements the proved
 wire codec without embedding the proprietary Android libraries or any fixed
 application challenge key.
 
@@ -525,7 +525,7 @@ The result is AES-256-ECB encrypted, Base64 encoded and wrapped as
 `a<Base64(ciphertext)>CR`. The native implementation caps ciphertext at 512
 bytes, which gives an effective maximum plaintext of 505 bytes.
 
-LINK also now has pure, bounded builders for the native commands whose complete
+Link also now has pure, bounded builders for the native commands whose complete
 syntax is proved: CAN open/close, adapter status, hardware information,
 GetPasskey, GetSeed, SetKey, baud ordinal and X read/write. These functions are
 **not** automatically transmitted. Raw-CAN and ISO-TP command payload layouts
@@ -534,7 +534,7 @@ remain disabled until their full builders are recovered.
 ### Shared native acquisition policy
 
 The native DiagLogic engine contains acquisition/sanity policy that belongs
-above any one adapter. LINK now exposes those exact reference values so MBLINK
+above any one adapter. Link now exposes those exact reference values so MBLink
 can apply the same evidence to Vgate/ELM, Tactrix/OpenPort, STM32 and genuine
 Mercedes-me transports.
 
@@ -543,21 +543,21 @@ reads, a 10-second minimum ignition-read delay, 30-second to 5-minute mileage
 read spacing, 12.2/13.2 V ignition-off thresholds, 60-second live-status age,
 90-second run-cycle age, and the native fuel/mileage sanity thresholds. Where
 a binary symbol does not itself prove the physical unit of a speed/distance
-threshold, MBLINK preserves the number without inventing a unit.
+threshold, MBLink preserves the number without inventing a unit.
 
 DiagLogic also explicitly separates raw measurements from post-processed
 vehicle state through components such as `UnplausibleFuelVolumeFilter`,
 `MileageAdjustingVehicleStatusUpdater`,
 `TripAverageSpeedVehicleStatusUpdater`,
 `IrregularObdResponseVehicleStatusUpdater` and
-`TripWarningLampVehicleStatusUpdater`. MBLINK should therefore retain raw
+`TripWarningLampVehicleStatusUpdater`. MBLink should therefore retain raw
 samples/provenance even when presenting filtered or derived values.
 
 ### Whisper response and DTC vocabulary
 
-LINK now preserves the exact Whisper response-selection strategies
+Link now preserves the exact Whisper response-selection strategies
 `SELECT_FIRST`, `SELECT_LOWEST_CANID_CACHED`, `SELECT_MAXIMUM` and
-`MERGE_ELIMINATE_DUPLICATES`. This reinforces MBLINK's existing requirement
+`MERGE_ELIMINATE_DUPLICATES`. This reinforces MBLink's existing requirement
 to retain ECU/source attribution for simultaneous OBD responders instead of
 flattening them into an anonymous duplicate value.
 
@@ -611,7 +611,7 @@ Mercedes ECU may expose its own actual values through UDS
 ReadDataByIdentifier (`0x22`) or KWP2000 ReadDataByLocalIdentifier (`0x21`),
 even when it exposes no standard OBD-II PIDs at all.
 
-MBLINK therefore keeps three layers distinct:
+MBLink therefore keeps three layers distinct:
 
 1. the control-unit census identifies the physical Mercedes ECU route;
 2. the compiled, evidence-backed catalogue determines which manufacturer
@@ -662,10 +662,10 @@ positive manufacturer identifiers are deliberately shown as `RAW` until the
 Whisper/CAESAR definition or a reproducible vehicle mapping proves their
 meaning.
 
-LINK 0.14.50 retains responder-specific OBD capability masks and also adds the product-neutral ability to pause an idle live scheduler,
+Link 0.14.50 retains responder-specific OBD capability masks and also adds the product-neutral ability to pause an idle live scheduler,
 enter a read-only manufacturer extension, perform physical-ECU reads, restore
 the adapter and resume the existing standard live schedule without losing OBD
-capability or fault state. MBLINK owns the Mercedes scan plan and all semantic
+capability or fault state. MBLink owns the Mercedes scan plan and all semantic
 promotion.
 
 This is the architecture required for ESP/ABR, ORC/SRS, EIS/EZS, EPS,
@@ -682,7 +682,7 @@ No unverified Mercedes manufacturer live-data formula is currently promoted into
 
 ## Factory-source precedence and expanded CRD3 target catalogue
 
-MBLINK treats Mercedes/Delphi factory actual values as the preferred diagnostic source whenever the request, payload layout, scaling and meaning have been verified. Standard SAE OBD-II remains a trustworthy fallback and cross-check; it is not relabelled as factory data.
+MBLink treats Mercedes/Delphi factory actual values as the preferred diagnostic source whenever the request, payload layout, scaling and meaning have been verified. Standard SAE OBD-II remains a trustworthy fallback and cross-check; it is not relabelled as factory data.
 
 The OM651/CDID3 target catalogue now also records factory-observed ambient temperature, battery voltage, engine speed, coolant/oil/intake/fuel temperatures, barometric pressure, accelerator-pedal sensors 1 and 2, throttle valve, injection quantity, rail-pressure regulation state, mass air per cylinder, EGR valve and cooler-bypass valve, air-filter downstream pressure, boost-pressure control flap, driver torque request and fuel-tank level. These targets remain `corroborated-unmapped` until exact protocol evidence exists. Their presence in the catalogue therefore improves completeness without causing speculative requests on the vehicle bus.
 
@@ -690,14 +690,14 @@ The OM651/CDID3 target catalogue now also records factory-observed ambient tempe
 ## Fuel evidence on the C207 / OM651
 
 The captured C207 supported-PID map advertises SAE PID `0x2F` Fuel Level Input,
-so MBLINK can offer a real standard fuel-gauge percentage and read it when the
+so MBLink can offer a real standard fuel-gauge percentage and read it when the
 user selects it. The same captured `0x40` capability block does not advertise
-SAE PID `0x5E` Engine Fuel Rate, so MBLINK must not pretend that an SAE
+SAE PID `0x5E` Engine Fuel Rate, so MBLink must not pretend that an SAE
 fuel-flow value exists on this vehicle.
 
 Public OM651 CDID3/Delphi diagnostic data confirms that the factory ECU exposes fuel tank level in litres and injection quantity in mg/stroke. Those are retained as Mercedes/Delphi targets until their exact request, payload and scaling are mapped. This is also the likely path to the vehicle's own instantaneous consumption display: factory fuel accounting/injection data combined with vehicle speed rather than SAE PID `0x5E`.
 
-Unknown factory values may be identified by correlation, but only after a candidate request is source-backed. MBLINK can compare a candidate's time series with known values such as SAE speed, RPM, coolant, rail pressure, ambient temperature or control-module voltage. Matching shape, scale, offset, response timing and physical behaviour can promote a candidate from corroborated-unmapped to vehicle-verified; correlation alone never invents the request address.
+Unknown factory values may be identified by correlation, but only after a candidate request is source-backed. MBLink can compare a candidate's time series with known values such as SAE speed, RPM, coolant, rail pressure, ambient temperature or control-module voltage. Matching shape, scale, offset, response timing and physical behaviour can promote a candidate from corroborated-unmapped to vehicle-verified; correlation alone never invents the request address.
 
 
 ## 0.7.79 C207 live-capture observations
@@ -707,7 +707,7 @@ A de-identified C207/Vgate iPhone evidence run validated several interpretation 
 A later 0.7.94 C207/Vgate capture recorded 13,728 decoded samples and repeated
 the six-route mobile census twice. It proved simultaneous `0x7E8` and `0x7E9`
 Mode 01 replies for PIDs `04`, `05`, `0C`, `0D`, `42` and `49`. It also repeated
-the ORC `0x64A -> 0x489` KWP record `9B51 / E0`. MBLINK's module-scoped
+the ORC `0x64A -> 0x489` KWP record `9B51 / E0`. MBLink's module-scoped
 Mercedes fault table now resolves `9B51` as **driver seat-belt buckle circuit:
 short to positive or open circuit**. The meaning is source-corroborated; the
 exact raw code and route are vehicle-verified. The raw `E0` status remains
@@ -716,7 +716,7 @@ same capture exposed an incomplete multi-frame ESP fault response. These shapes
 are regression evidence; `0x7E9` remains a secondary EOBD powertrain responder
 until returned Mercedes identity or equally strong evidence identifies its family.
 
-The same run exposed the old default schedule as too aggressive for the ELM/BLE path. The cadence reduction first landed in LINK 0.14.25; later pinned LINK revisions retain the same per-PID enable-control principle.
+The same run exposed the old default schedule as too aggressive for the ELM/BLE path. The cadence reduction first landed in Link 0.14.25; later pinned Link revisions retain the same per-PID enable-control principle.
 
 
 ## 0.7.109 C207 manufacturer-data capture
@@ -765,8 +765,8 @@ defined.
 
 ## 0.7.153 C207 completed forensic capture
 
-The 2026-09-03 C207/Vgate evidence export was produced by MBLINK 0.7.153 /
-LINK 0.14.81. That version predates the current 47-slot mobile-census code, so
+The 2026-09-03 C207/Vgate evidence export was produced by MBLink 0.7.153 /
+Link 0.14.81. That version predates the current 47-slot mobile-census code, so
 the capture does **not** validate the new scanner implementation. It remains
 strong vehicle-side evidence because it records the actual ECU replies.
 
@@ -803,7 +803,7 @@ decoders and module-scan behaviour.
 
 ## Mercedes transmission subsystem: EGS51, EGS52, EGS53 and later-family evidence
 
-MBLINK now treats Mercedes transmission diagnostics as a family-scoped
+MBLink now treats Mercedes transmission diagnostics as a family-scoped
 subsystem rather than one C207-specific `7E1/7E9` special case. Public
 reverse-engineering sources contain materially different layouts for EGS51,
 EGS52 and EGS53, so the code keeps separate decoders and never applies one
@@ -814,7 +814,7 @@ generated Mercedes CAN matrices. Those definitions were built to emulate stock
 Mercedes EGS behaviour and are used here only for read-only decoding and
 source-backed discovery. The companion W203/W209/W211/W219 matrix explicitly
 names `0x7E1` as `D_RQ_GS` (KWP2000 diagnostic request) and `0x7E9` as
-`D_RS_GS` (KWP2000 diagnostic response), which is why MBLINK may classify that
+`D_RS_GS` (KWP2000 diagnostic response), which is why MBLink may classify that
 route as a transmission/GS endpoint without claiming an exact VGS variant.
 
 Implemented passive CAN decoders now include:
@@ -865,9 +865,9 @@ Implemented passive CAN decoders now include:
 For KWP2000 transmission ECUs, the explicit Factory Data action can try the
 exact source-backed read-only set rather than only `21 30`:
 
-`21 30` — transmission actual values / DAS-compatible RLI 30  
-`21 31` — transmission speed sensors / RLI 31  
-`21 32` — transmission driving dynamics / RLI 32  
+`21 30` — transmission actual values / DAS-compatible RLI 30
+`21 31` — transmission speed sensors / RLI 31
+`21 32` — transmission driving dynamics / RLI 32
 `21 33` — transmission hydraulics and solenoids / RLI 33
 
 The RLI 30 decoder retains TCC delta speed/speed/pressure, TCC state, selector,
@@ -880,7 +880,7 @@ values and front/rear vehicle-speed values. RLI 32 retains pedal percentage,
 up/downshift RPM deltas, pedal delta, pitch, driving state, warm-up shift state
 and requested gear-range limits. RLI 33 retains shift-valve state, SPC/MPC
 pressure fields, target/actual SPC/MPC current fields and TCC PWM. Where the
-public source proves field identity but not engineering scaling, MBLINK labels
+public source proves field identity but not engineering scaling, MBLink labels
 the value `raw` instead of inventing pressure/current units.
 
 The same explicit KWP transmission action may also ask the standard
@@ -904,6 +904,6 @@ Later families are tracked explicitly even where a trustworthy public wire map
 has not yet been recovered: VGS/NAG2/722.9, 722.8 CVT, 724.0 7G-DCT, 725.0
 9G-Tronic, AMG MCT, AMG DCT and EV single-speed. XENTRY/service material proves
 that those families expose transmission actual values such as oil temperature,
-speed, pressure, position and adaptation data, but MBLINK will not fabricate a
+speed, pressure, position and adaptation data, but MBLink will not fabricate a
 UDS DID or byte scale from a screen label alone. Exact read-only mappings are
 promoted as soon as a reproducible public wire definition is found.

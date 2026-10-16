@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Extract Mercedes DID research candidates from LINK-normalised ODX JSON."""
+"""Extract Mercedes DID research candidates from Link-normalised ODX JSON."""
 from __future__ import annotations
 
 import argparse
@@ -51,15 +51,15 @@ def extract_candidates(document: dict[str, Any]) -> list[dict[str, Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Extract non-auto-polling Mercedes DID candidates from LINK ODX JSON")
+        description="Extract non-auto-polling Mercedes DID candidates from Link ODX JSON")
     parser.add_argument("input", type=Path,
-                        help="JSON produced by LINK scripts/import-odx.py")
+                        help="JSON produced by Link scripts/import-odx.py")
     parser.add_argument("-o", "--output", type=Path)
     args = parser.parse_args()
 
     document = json.loads(args.input.read_text(encoding="utf-8"))
     if document.get("schema_version") != 1 or "ecus" not in document:
-        parser.error("input is not a LINK ODX schema_version 1 document")
+        parser.error("input is not a Link ODX schema_version 1 document")
 
     result = {
         "schema_version": 1,

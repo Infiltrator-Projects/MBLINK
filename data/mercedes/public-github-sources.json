@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope": "Mercedes-Benz public GitHub organisation; MBLINK/LINK relevance",
+  "scope": "Mercedes-Benz public GitHub organisation; MBLink/Link relevance",
   "policy": {
     "product_scope": "Mercedes-wide",
     "c207_role": "Physical development/evidence vehicle only",
@@ -12,7 +12,7 @@
       "status": "active",
       "license": "Apache-2.0",
       "use": "uds-conformance-reference",
-      "destination": "LINK tests",
+      "destination": "Link tests",
       "value": "Mercedes-Benz Automotive Rapid Development Platform with CAN/LIN and a Zephyr-based ISO 14229 UDS implementation covering 22 diagnostic services"
     },
     {
@@ -20,7 +20,7 @@
       "status": "active",
       "license": "MIT",
       "use": "integrate-tooling",
-      "destination": "LINK + MBLINK",
+      "destination": "Link + MBLink",
       "value": "ODX/PDX parsing, ECU variants, diagnostic services, coded parameters, CAN IDs, request/response encode/decode"
     },
     {
@@ -28,7 +28,7 @@
       "status": "active",
       "license": "AGPL-3.0-only",
       "use": "reference-only",
-      "destination": "LINK/MBLINK development",
+      "destination": "Link/MBLink development",
       "value": "ODX data-model presentation, JSON/OpenAPI schema ideas, diagnostic database exploration"
     },
     {
@@ -36,7 +36,7 @@
       "status": "active",
       "license": "BSD-3-Clause",
       "use": "conformance-reference",
-      "destination": "LINK tests",
+      "destination": "Link tests",
       "value": "Linux SocketCAN ISO-TP/UDS reference behaviour"
     },
     {
@@ -44,7 +44,7 @@
       "status": "archived",
       "license": "MIT",
       "use": "semantic-evidence",
-      "destination": "MBLINK",
+      "destination": "MBLink",
       "value": "Mercedes backend vehicle attributes, value types, units and state semantics"
     },
     {
@@ -52,7 +52,7 @@
       "status": "archived",
       "license": "MIT",
       "use": "semantic-and-architecture-evidence",
-      "destination": "MBLINK",
+      "destination": "MBLink",
       "value": "Mercedes mobile vehicle-service architecture and public API vocabulary"
     },
     {
@@ -60,7 +60,7 @@
       "status": "archived",
       "license": "MIT",
       "use": "semantic-cross-check",
-      "destination": "MBLINK",
+      "destination": "MBLink",
       "value": "Independent platform implementation of the same Mercedes mobile SDK family"
     },
     {
@@ -68,7 +68,7 @@
       "status": "archived",
       "license": "MIT",
       "use": "architecture-reference",
-      "destination": "LINK",
+      "destination": "Link",
       "value": "Manufacturer-neutral W3C Vehicle Information Service signal/service model"
     },
     {
@@ -76,7 +76,7 @@
       "status": "active",
       "license": "MPL-2.0",
       "use": "logging-reference",
-      "destination": "LINK/MBLINK evidence",
+      "destination": "Link/MBLink evidence",
       "value": "AUTOSAR Diagnostic Log and Trace architecture and tooling"
     },
     {
@@ -84,7 +84,7 @@
       "status": "active",
       "license": "MIT",
       "use": "future-architecture-reference",
-      "destination": "LINK",
+      "destination": "Link",
       "value": "Software-defined-vehicle service deployment/communication architecture"
     },
     {
@@ -92,7 +92,7 @@
       "status": "active",
       "license": "not-declared-in-root",
       "use": "semantic-evidence",
-      "destination": "MBLINK Mercedes route catalogue",
+      "destination": "MBLink Mercedes route catalogue",
       "value": "High-value NDSS 2020 corpus extracted from vehicle companion apps; Data/CAN_Bus_Commands/Mercedes.json maps many Mercedes CAN request IDs to ECU semantics. Use as a standing lookup source, cross-checking model-specific traces/service evidence where Mercedes reuses an address."
     },
     {
@@ -100,7 +100,7 @@
       "status": "active",
       "license": "GPL-3.0",
       "use": "semantic-and-field-schema",
-      "destination": "MBLINK global Mercedes documented-ECU catalogue",
+      "destination": "MBLink global Mercedes documented-ECU catalogue",
       "value": "GPL-3.0 public ECU JSON corpus with request/reply definitions and response byte/bit field layouts, scaling and enumerations."
     },
     {
@@ -108,7 +108,7 @@
       "status": "active",
       "license": "not-declared-in-root",
       "use": "normalized-factual-route-and-read-evidence",
-      "destination": "MBLINK global Mercedes documented-ECU catalogue",
+      "destination": "MBLink global Mercedes documented-ECU catalogue",
       "value": "Foxwell/Xentry-derived Mercedes SysInfors/SysEnterCmd metadata normalized into controller names, routes, sessions and simple read-only 22/21/1A references."
     },
     {
@@ -116,7 +116,7 @@
       "status": "active",
       "license": "mixed/reference-only; inspect upstream file licensing before redistribution",
       "use": "source-backed-actual-value-cbf-evidence",
-      "destination": "MBLINK Mercedes exact-controller PID catalogue",
+      "destination": "MBLink Mercedes exact-controller PID catalogue",
       "value": "Public Mercedes Vediamo CBF corpus including ABR2XT, CGW_212, IC_204, MPC212, EIS_204 and FSCM212. CBF Data services provide exact ECU diagnostic requests and named data fields; use source facts, not copied implementation."
     },
     {
@@ -124,7 +124,7 @@
       "status": "active",
       "license": "GPL-3.0",
       "use": "cbf-format-and-decoding-reference",
-      "destination": "MBLINK research/tests",
+      "destination": "MBLink research/tests",
       "value": "Open CBF parser documenting DiagService Data type, request bytes, response preparations, presentations, scaling, units and enums. Used to independently interpret public Mercedes CBF facts."
     }
   ]

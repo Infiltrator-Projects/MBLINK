@@ -10,7 +10,7 @@ Security fixes target current `main` and, where appropriate, the latest release.
 
 Do not publish a vulnerability that could expose users, vehicles, credentials, private data, build infrastructure, adapter secrets or signing material in a public issue.
 
-Use GitHub private vulnerability reporting when available. Otherwise contact `infiltratr@yandex.com` with the subject `MBLINK security report`.
+Use GitHub private vulnerability reporting when available. Otherwise contact `infiltratr@yandex.com` with the subject `MBLink security report`.
 
 Include the exact revision and recursive dependency identity, platform, adapter/vehicle context, impact, reproduction and sanitised evidence.
 

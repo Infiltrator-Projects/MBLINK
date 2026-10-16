@@ -10,7 +10,7 @@ Vehicle diagnostics needs several evidence layers: pure protocol/unit tests, cap
 - .github/workflows/release.yml
 - .github/workflows/apt-publication.yml
 
-tests/ covers Mercedes module discovery, C207 captured/replayed flows, engine/data scans, DIDs, Mercedes me data, LINK facade behaviour, ELM327, ISO-TP, UDS, diagnostics and telemetry-related contracts.
+tests/ covers Mercedes module discovery, C207 captured/replayed flows, engine/data scans, DIDs, Mercedes me data, Link facade behaviour, ELM327, ISO-TP, UDS, diagnostics and telemetry-related contracts.
 
 ## Physical/manual evidence
 

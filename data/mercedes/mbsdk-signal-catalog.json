@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "policy": {
-    "purpose": "First-party Mercedes backend semantic vocabulary for offline MBLINK research",
+    "purpose": "First-party Mercedes backend semantic vocabulary for offline MBLink research",
     "diagnostic_identity_rule": "Backend keys are not UDS DIDs or ECU addresses",
     "automatic_polling_rule": "Semantic catalogue entries never enter live polling by themselves",
     "scope": "Mercedes-wide semantic catalogue; no chassis-specific assumption",

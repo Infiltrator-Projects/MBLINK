@@ -117,7 +117,7 @@ struct MercedesNativeDataIdentity: Identifiable {
     let dataID: String
 }
 
-/// Product presentation of LINK's generic UDS service metadata.  This model
+/// Product presentation of Link's generic UDS service metadata.  This model
 /// deliberately carries both codec capability and Discover policy so the UI
 /// cannot confuse "serializable" with "permitted to transmit".
 struct MBUDSServiceCatalogueItem: Identifiable {
@@ -132,7 +132,7 @@ struct MBUDSServiceCatalogueItem: Identifiable {
     }
 }
 
-/// Presentation-only view of LINK's complete ReadDTCInformation report
+/// Presentation-only view of Link's complete ReadDTCInformation report
 /// catalogue.  Target-ECU support is intentionally not inferred here.
 struct MBUDSDTCReportCatalogueItem: Identifiable {
     let id: UInt8
@@ -247,7 +247,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         super.init(
             controller: controller,
             configuration: LinkStandardProductConfiguration(
-                productName: "MBLINK",
+                productName: "MBLink",
                 productNamespace: "mblink",
                 manufacturerName: "Mercedes-Benz",
                 vehicleName: "Mercedes-Benz vehicle",
@@ -954,7 +954,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         } else if lower.contains("xentry") || lower.contains("foxwell") {
             source = "Mercedes diagnostic documentation"
         } else {
-            source = "MBLINK documented Mercedes data"
+            source = "MBLink documented Mercedes data"
         }
 
         let command: String
@@ -1049,7 +1049,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
         selection: Set<String>
     ) {
         if pid == 0x01 {
-            // PID 01 is acquired once by LINK during startup diagnostic context.
+            // PID 01 is acquired once by Link during startup diagnostic context.
             // It must never become a recurring live scheduler item.
             controller.setPollingFieldMask(0, forPID: pid)
             controller.setPollingEnabled(false, forPID: pid)
@@ -1212,7 +1212,7 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
                     "OBD-II · ECU reported 100%; value retained without correction"
             } else if scalarDefinition == nil && snapshot != nil {
                 qualityNote =
-                    "OBD-II · structured SAE value · exact responder · full payload retained by LINK"
+                    "OBD-II · structured SAE value · exact responder · full payload retained by Link"
             } else {
                 qualityNote = "OBD-II · SAE J1979 · exact responder"
             }
@@ -1749,8 +1749,8 @@ final class ConnectionViewModel: LinkStandardProductViewModel,
     override func productDashboardParameters(
         standard: @autoclosure () -> [LinkDiagnosticParameter]
     ) -> [LinkDiagnosticParameter] {
-        // PID Setup is the sole display-membership authority in MBLINK.
-        // Ignore LINK's generic dashboard preference store completely.
+        // PID Setup is the sole display-membership authority in MBLink.
+        // Ignore Link's generic dashboard preference store completely.
         enabledDisplayParameters
     }
 

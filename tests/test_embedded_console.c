@@ -59,7 +59,7 @@ static int test_console_commands(void)
 
     mblink_embedded_console_init(&console);
     mblink_embedded_console_print_banner(&snapshot, sink_write, &sink);
-    CHECK(strstr(sink.output, "MBLINK STM32C092 v") != NULL);
+    CHECK(strstr(sink.output, "MBLink STM32C092 v") != NULL);
     CHECK(strstr(sink.output, MBLINK_VERSION_STRING) != NULL);
     CHECK(strstr(sink.output, LINK_VERSION_STRING) != NULL);
 

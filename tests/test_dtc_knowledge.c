@@ -19,7 +19,7 @@ static void check(bool condition, const char *message)
 int main(void)
 {
     check(mblink_dtc_namespace_count() == 65536U,
-          "complete 16-bit SAE DTC namespace is not visible through MBLINK");
+          "complete 16-bit SAE DTC namespace is not visible through MBLink");
     {
         MblinkDtcKnowledge first, last;
         check(mblink_dtc_namespace_at(0x0000U, &first), "P0000 namespace entry resolves");
@@ -29,19 +29,19 @@ int main(void)
     MblinkDtcKnowledge fault;
     char status[LINK_DTC_STATUS_TEXT_LENGTH];
 
-    check(mblink_dtc_resolve("P0401", &fault), "MBLINK resolves shared P0401");
+    check(mblink_dtc_resolve("P0401", &fault), "MBLink resolves shared P0401");
     check(fault.definition_known, "P0401 definition is known");
     check(strcmp(fault.title,
                  "Exhaust Gas Recirculation Flow Insufficient Detected") == 0,
-          "P0401 human-readable title reaches MBLINK");
+          "P0401 human-readable title reaches MBLink");
     check(strcmp(fault.category, "powertrain") == 0,
-          "P0401 generated catalogue category reaches MBLINK");
+          "P0401 generated catalogue category reaches MBLink");
     check(fault.origin == MBLINK_DTC_ORIGIN_STANDARD_GENERIC,
           "P0401 is standards-generic");
 
-    check(mblink_dtc_resolve("P2453", &fault), "MBLINK resolves DPF pressure fault");
+    check(mblink_dtc_resolve("P2453", &fault), "MBLink resolves DPF pressure fault");
     check(fault.definition_known && strstr(fault.title, "Particulate Filter") != NULL,
-          "DPF fault translation reaches MBLINK");
+          "DPF fault translation reaches MBLink");
 
     check(mblink_dtc_resolve("P1450", &fault),
           "valid manufacturer-specific code remains a diagnostic record");
@@ -66,7 +66,7 @@ int main(void)
         const MblinkMercedesReferenceDtcDefinition *subcode;
 
         check(mblink_mercedes_reference_dtc_count() == 299U,
-              "all supplied Mercedes reference rows are compiled into MBLINK");
+              "all supplied Mercedes reference rows are compiled into MBLink");
 
         check(mblink_mercedes_reference_dtc_resolve("P1031", &mercedes),
               "unique Mercedes P1 reference resolves");
@@ -102,14 +102,14 @@ int main(void)
     }
 
     check(mblink_dtc_format_uds_status(0x0dU, status, sizeof(status)),
-          "shared UDS status formatting reaches MBLINK");
+          "shared UDS status formatting reaches MBLink");
     check(strstr(status, "Test failed") != NULL &&
           strstr(status, "Pending") != NULL &&
           strstr(status, "Confirmed") != NULL,
           "UDS 0x0D status is translated");
 
     if (failures != 0) {
-        fprintf(stderr, "%d MBLINK DTC knowledge test(s) failed\n", failures);
+        fprintf(stderr, "%d MBLink DTC knowledge test(s) failed\n", failures);
         return 1;
     }
     return 0;

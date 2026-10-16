@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: MBLINK CI
+name: MBLink CI
 
 on:
   push:
@@ -60,17 +60,17 @@ jobs:
           version=$(tr -d '[:space:]' < VERSION)
           out="$RUNNER_TEMP/qualified-core"
           source_root=$(mktemp -d)
-          staging="$source_root/MBLINK-$version"
+          staging="$source_root/MBLink-$version"
           trap 'rm -rf "$source_root"' EXIT
           mkdir -p "$out" "$staging"
           git archive HEAD | tar -x -C "$staging"
           export ARCHIVE_ROOT="$staging"
           git submodule foreach --recursive 'mkdir -p "$ARCHIVE_ROOT/$displaypath"; git archive HEAD | tar -x -C "$ARCHIVE_ROOT/$displaypath"'
-          (cd "$source_root" && zip -qry "$out/MBLINK-$version-source.zip" "MBLINK-$version")
-          unzip -tq "$out/MBLINK-$version-source.zip"
+          (cd "$source_root" && zip -qry "$out/MBLink-$version-source.zip" "MBLink-$version")
+          unzip -tq "$out/MBLink-$version-source.zip"
 
           printf '%s\n' "$GITHUB_SHA" > "$out/SOURCE_COMMIT-core"
-          (cd "$out" && sha256sum MBLINK-* > SHA256SUMS-core)
+          (cd "$out" && sha256sum MBLink-* > SHA256SUMS-core)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: qualified-core
@@ -162,12 +162,12 @@ jobs:
           dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
           dpkg-deb -c "$deb_src" | grep -F './usr/share/doc/mblink/copyright' >/dev/null
           dpkg-deb -f "$deb_src" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
-          install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
+          install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLink-${VERSION}-linux-amd64.deb"
 
-          scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
-          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
+          scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLink-${VERSION}-linux-native.run"
+          "$RUNNER_TEMP/release/MBLink-${VERSION}-linux-native.run" --help >/dev/null
           native_deb="$RUNNER_TEMP/mblink_${VERSION}+native1_amd64.deb"
-          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" \
+          "$RUNNER_TEMP/release/MBLink-${VERSION}-linux-native.run" \
             --build-only --output "$native_deb"
           test "$(dpkg-deb -f "$native_deb" Package)" = mblink
           test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
@@ -179,7 +179,7 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/release/SOURCE_COMMIT-linux"
-          (cd "$RUNNER_TEMP/release" && sha256sum MBLINK-* > SHA256SUMS-linux)
+          (cd "$RUNNER_TEMP/release" && sha256sum MBLink-* > SHA256SUMS-linux)
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -200,7 +200,7 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
 
-      - name: Build MBLINK Discover
+      - name: Build MBLink Discover
         shell: powershell
         run: |
           cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release `
@@ -234,16 +234,16 @@ jobs:
           $icon.Dispose()
 
           & 'src/link/platform/windows/smoke-launch.ps1' `
-            -Executable $exe -ExpectedTitle 'MBLINK Discover'
+            -Executable $exe -ExpectedTitle 'MBLink Discover'
 
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          Copy-Item $exe "release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe"
+          Copy-Item $exe "release-assets/MBLink-${{ needs.preflight.outputs.version }}-windows-discover.exe"
 
       - name: Seal the qualified Windows executable
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $name = 'MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe'
+          $name = 'MBLink-${{ needs.preflight.outputs.version }}-windows-discover.exe'
           $hash = (Get-FileHash "release-assets/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $name" | Set-Content release-assets/SHA256SUMS-windows -Encoding ascii -NoNewline
           $env:GITHUB_SHA | Set-Content release-assets/SOURCE_COMMIT-windows -Encoding ascii -NoNewline
@@ -356,7 +356,7 @@ jobs:
             echo '::error::Simulated diagnostic flow did not reach live-ready state.'
             test ! -f "$marker" || cat "$marker"
             xcrun simctl spawn "$udid" log show --last 2m --style compact \
-              --predicate 'process == "MBLINK" AND (messageType == error OR messageType == fault)' || true
+              --predicate 'process == "MBLink" AND (messageType == error OR messageType == fault)' || true
             exit 1
           fi
           xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
@@ -409,8 +409,8 @@ jobs:
           ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
             "$RUNNER_TEMP/package/Payload/MBLINK.app"
           (cd "$RUNNER_TEMP/package" && \
-            zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
-          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
+            zip -qry "$RUNNER_TEMP/MBLink-${VERSION}-unsigned.ipa" Payload)
+          unzip -tq "$RUNNER_TEMP/MBLink-${VERSION}-unsigned.ipa"
 
       - name: Seal the qualified iPhone package
         shell: bash
@@ -418,9 +418,9 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/qualified-iphone"
           mkdir -p "$out"
-          cp "$RUNNER_TEMP/MBLINK-${{ needs.preflight.outputs.version }}-unsigned.ipa" "$out/"
+          cp "$RUNNER_TEMP/MBLink-${{ needs.preflight.outputs.version }}-unsigned.ipa" "$out/"
           printf '%s\n' "$GITHUB_SHA" > "$out/SOURCE_COMMIT-iphone"
-          (cd "$out" && shasum -a 256 MBLINK-* > SHA256SUMS-iphone)
+          (cd "$out" && shasum -a 256 MBLink-* > SHA256SUMS-iphone)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: qualified-iphone

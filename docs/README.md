@@ -1,6 +1,6 @@
 # Documentation
 
-This directory is the canonical documentation entry point for MBLINK. The Infiltrator project family uses the same baseline document roles in every repository so readers can move between projects without relearning the structure.
+This directory is the canonical documentation entry point for MBLink. The Infiltrator project family uses the same baseline document roles in every repository so readers can move between projects without relearning the structure.
 
 ## Canonical baseline
 

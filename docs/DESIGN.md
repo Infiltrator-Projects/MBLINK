@@ -2,13 +2,13 @@
 
 ## First-principles position
 
-MBLINK treats standards, captures, public documentation and mature diagnostic tools as evidence. Product behaviour is implemented from explicit contracts rather than by copying another tool or assuming undocumented manufacturer behaviour.
+MBLink treats standards, captures, public documentation and mature diagnostic tools as evidence. Product behaviour is implemented from explicit contracts rather than by copying another tool or assuming undocumented manufacturer behaviour.
 
 ## Goals
 
 - keep manufacturer knowledge evidence-backed
 - preserve deny-by-default diagnostic safety
-- avoid private copies of generic LINK behaviour
+- avoid private copies of generic Link behaviour
 - make raw evidence and interpreted knowledge distinguishable
 
 ## Non-goals
@@ -21,7 +21,7 @@ Read-only and write-capable actions are intentionally distinct. Capability disco
 
 ## Dependency policy
 
-Generic automotive behaviour belongs in LINK; broadly reusable non-automotive mechanics belong in Common; manufacturer-specific behaviour belongs in the product face. Exact dependency revisions are pinned so later upstream changes cannot silently redefine a reviewed product.
+Generic automotive behaviour belongs in Link; broadly reusable non-automotive mechanics belong in Common; manufacturer-specific behaviour belongs in the product face. Exact dependency revisions are pinned so later upstream changes cannot silently redefine a reviewed product.
 
 ## Evidence rule
 

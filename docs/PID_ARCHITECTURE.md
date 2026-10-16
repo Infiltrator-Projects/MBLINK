@@ -1,6 +1,6 @@
-# MBLINK PID and module architecture
+# MBLink PID and module architecture
 
-This document is the canonical product contract for how MBLINK discovers modules, presents live-data choices, and schedules polling. It exists to prevent the UI and diagnostic implementation from drifting away from the intended design.
+This document is the canonical product contract for how MBLink discovers modules, presents live-data choices, and schedules polling. It exists to prevent the UI and diagnostic implementation from drifting away from the intended design.
 
 The complete user and connection sequence is owned by
 [`VEHICLE_PROFILES.md`](VEHICLE_PROFILES.md). This document begins after the
@@ -10,10 +10,10 @@ order must never be mistaken for adapter-connection order.
 
 ## Product intent
 
-MBLINK must separate three different jobs that were previously conflated:
+MBLink must separate three different jobs that were previously conflated:
 
 1. Discover which physical control units are present on the vehicle.
-2. Identify/classify each discovered control unit and map it to the documented diagnostic knowledge compiled into MBLINK.
+2. Identify/classify each discovered control unit and map it to the documented diagnostic knowledge compiled into MBLink.
 3. Let the user explicitly choose which live-data channels to poll.
 
 Discovery decides which module sections exist. The compiled diagnostic catalogue decides which documented channels belong in those sections. Polling is driven only by the user's explicit selections.
@@ -37,15 +37,15 @@ The screen order is:
 
 ### Standard OBD / EOBD
 
-The first section exposes the complete supported SAE J1979 live-data catalogue compiled into LINK/MBLINK. It is not split into confusing responder-specific copies in the user interface.
+The first section exposes the complete supported SAE J1979 live-data catalogue compiled into Link/MBLink. It is not split into confusing responder-specific copies in the user interface.
 
 Capability evidence can still be shown as metadata, but the catalogue is the catalogue. A PID is not removed from the configuration UI merely because it has not yet produced a sample in the current session.
 
-Generic OBD definitions belong in LINK so all LINK-family products benefit from the same standards implementation.
+Generic OBD definitions belong in Link so all Link-family products benefit from the same standards implementation.
 
 ### Mercedes module sections
 
-After the generic OBD section, MBLINK shows each Mercedes module actually discovered on the connected vehicle, or restored from that vehicle's saved VIN profile while offline.
+After the generic OBD section, MBLink shows each Mercedes module actually discovered on the connected vehicle, or restored from that vehicle's saved VIN profile while offline.
 
 Each module section is populated from the narrowest documented knowledge justified by that module's evidence:
 
@@ -129,14 +129,14 @@ controller generations; some exact routes are documented with both UDS and
 KWP2000 ECUs. Discovery may therefore make only the bounded protocol attempts
 supported by the route catalogue. Once ECU identity resolves a controller
 family with an authoritative pack, the pack's protocol and session metadata
-override stale route/profile state. MBLINK must not silently fall back to a
+override stale route/profile state. MBLink must not silently fall back to a
 different protocol after that point. A real response that conflicts with the
 resolved pack is an identity/evidence conflict and requires re-identification,
 not protocol guessing.
 
 ## Transmission example
 
-For the Mercedes gearbox-control route 0x7E1 -> 0x7E9, MBLINK already contains source-backed KWP2000 transmission knowledge.
+For the Mercedes gearbox-control route 0x7E1 -> 0x7E9, MBLink already contains source-backed KWP2000 transmission knowledge.
 
 Where the evidence supports the canonical 0x21 0x30 actual-values record, the Transmission / GS section should expose useful user-facing channels such as:
 
@@ -158,7 +158,7 @@ Every selectable live-data channel starts OFF by default.
 
 This applies to both SAE and Mercedes manufacturer-specific channels.
 
-MBLINK must not silently enable manufacturer polling merely because a module or a documented live record exists.
+MBLink must not silently enable manufacturer polling merely because a module or a documented live record exists.
 
 Existing explicit user selections may be preserved during migrations, but untouched historical automatic defaults must not be recreated.
 
@@ -205,7 +205,7 @@ Finding or identifying a module is not an implicit selection. It must not issue
 a manufacturer live-data request, including a one-off `21 xx` or `22 xxxx`
 actual-value read, merely because that route responded during the census.
 
-The diagnostic scheduler must remain single-owner/serialized through LINK so generic OBD and manufacturer-specific work never compete for the adapter wire.
+The diagnostic scheduler must remain single-owner/serialized through Link so generic OBD and manufacturer-specific work never compete for the adapter wire.
 
 The scheduler must de-duplicate requests by underlying diagnostic record.
 Multiple selected signals decoded from one response share one scheduled request.
@@ -217,9 +217,9 @@ field from a source is selected, the source is polled once; selecting more
 fields from the same source does not add another transaction. When the final
 field is disabled, that source request stops.
 
-For grouped standard data such as Mode 01 PID 0x01, LINK maintains a selected
+For grouped standard data such as Mode 01 PID 0x01, Link maintains a selected
 field mask. The adapter necessarily receives the complete standards-defined
-response, but LINK decodes and promotes only the selected logical fields. Bytes
+response, but Link decodes and promotes only the selected logical fields. Bytes
 belonging only to unselected fields are not turned into telemetry values,
 histories or display channels. This is the same request/deduplication model used
 by Mercedes grouped records such as KWP 0x21 0x30. The transmission decoder
@@ -233,7 +233,7 @@ A PID setup screen must never trigger a broad brute-force scan simply because th
 
 A successful discovery pass answers: "What modules are here?"
 
-Identification answers: "What controller/family is this, and what documented knowledge can MBLINK safely associate with it?"
+Identification answers: "What controller/family is this, and what documented knowledge can MBLink safely associate with it?"
 
 The resolved ECU pack then answers two separate questions: "Which documented
 facts are startup-once module data?" and "Which documented readings are
@@ -242,7 +242,7 @@ user-pollable?"
 The startup pass answers: "What are this module's one-time facts for the module
 card?"
 
-Selection answers: "Which polling-section reads did the user ask MBLINK to monitor?"
+Selection answers: "Which polling-section reads did the user ask MBLink to monitor?"
 
 Runtime answers: "Which selected polling reads did this particular ECU answer,
 and what values did it return?"
@@ -251,7 +251,7 @@ Those jobs must remain separate in code and UI.
 
 ## Evidence and safety
 
-MBLINK is read-first and deny-by-default for write/clear operations.
+MBLink is read-first and deny-by-default for write/clear operations.
 
 No manufacturer-specific signal may receive a friendly name, engineering unit,
 or PID-catalogue membership based only on a CAN address or a positive vehicle
@@ -278,7 +278,7 @@ A release satisfies this design only when all of the following are true:
 - All live-data toggles are OFF on a clean first run.
 - Completing module discovery starts only the generic startup-once module-data pass; it causes no manufacturer recurring live-data request.
 - Enabling multiple signals from one record produces one underlying request, not duplicate requests.
-- Mode 01 PID 0x01 is startup-only module metadata: LINK issues one functional `01 01` request during connection diagnostic context, retains every responder-attributed reply, and MBLINK shows that controller's MIL, confirmed emissions DTC count, ignition layout and readiness monitors directly on its Modules card.
+- Mode 01 PID 0x01 is startup-only module metadata: Link issues one functional `01 01` request during connection diagnostic context, retains every responder-attributed reply, and MBLink shows that controller's MIL, confirmed emissions DTC count, ignition layout and readiness monitors directly on its Modules card.
 - PID 0x01 never appears in PID Setup and never enters recurring live polling. Historical saved PID-01/readiness selections are pruned and ignored.
 - On the documented UDS central-gateway route `0x602 -> 0x480`, `22 F1 53` is startup-only Boot software version metadata. It is handled by the same generic post-discovery startup pass as other static module data, stored with that module/VIN profile when returned, shown on Modules, and excluded from PID Setup and recurring scheduling.
 - For genuinely live grouped sources, unselected fields are not decoded into presentation telemetry merely because the shared response carried their bytes.
@@ -300,6 +300,6 @@ A release satisfies this design only when all of the following are true:
 - No route-wide fallback catalogue is exposed when ECU identity is unresolved.
 - Factory Readings read/refresh operations never alter live selections.
 - No starter-reading or module-wide polling enable shortcut exists.
-- LINK remains the sole scheduler/transport owner for shared generic and manufacturer jobs.
+- Link remains the sole scheduler/transport owner for shared generic and manufacturer jobs.
 
 If implementation code, UI text, tests, or CI guards conflict with this document, the implementation should be treated as the regression unless this document is deliberately revised first.

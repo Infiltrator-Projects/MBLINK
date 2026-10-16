@@ -54,7 +54,7 @@ private enum MBTypography {
 
         for font in bundledFonts {
             guard let url = Bundle.main.url(forResource: font.resource, withExtension: "ttf") else {
-                NSLog("MBLINK: bundled font file missing at runtime: %@.ttf", font.resource)
+                NSLog("MBLink: bundled font file missing at runtime: %@.ttf", font.resource)
                 continue
             }
 
@@ -96,7 +96,7 @@ private enum MBTypography {
             return .custom(name, size: size, relativeTo: style)
         }
 
-        NSLog("MBLINK: bundled font %@ unavailable; using safe system fallback", name)
+        NSLog("MBLink: bundled font %@ unavailable; using safe system fallback", name)
         return .system(size: size, weight: fallbackWeight)
     }
 
@@ -148,7 +148,7 @@ private enum MBTypography {
 
         if !unavailable.isEmpty {
             NSLog(
-                "MBLINK: font registration incomplete (%@); continuing safely",
+                "MBLink: font registration incomplete (%@); continuing safely",
                 unavailable.joined(separator: ", "))
         }
     }
@@ -397,7 +397,7 @@ typealias MBInterfaceLanguage = LinkInterfaceLanguage
 
 private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
     LinkDiagnosticAboutInfo(
-        productName: "MBLINK",
+        productName: "MBLink",
         subtitle: "MERCEDES DIAGNOSTICS",
         version: Bundle.main.object(
             forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown",
@@ -405,9 +405,9 @@ private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
         build: "Source / Xcode build",
         authors: ["Shannon Smith"],
         copyright: "Copyright © 1993-2026 Shannon Smith",
-        website: URL(string: "https://github.com/Infiltrator-Projects/MBLINK"),
+        website: URL(string: "https://github.com/Infiltrator-Projects/MBLink"),
         licenseName: "GPL-3.0-or-later",
-        licenseText: "MBLINK is free software licensed under the GNU General Public License version 3 or, at your option, any later version (GPL-3.0-or-later).\n\nSee LICENSE in the source package for the complete licence text.",
+        licenseText: "MBLink is free software licensed under the GNU General Public License version 3 or, at your option, any later version (GPL-3.0-or-later).\n\nSee LICENSE in the source package for the complete licence text.",
         credits: ["Shannon Smith — Author and project maintainer"])
 }
 
@@ -440,7 +440,7 @@ struct MBLINKApp: App {
                 .tint(MBBrand.silverBright)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     LinkDiagnosticAboutButton(
-                        productName: "MBLINK",
+                        productName: "MBLink",
                         copyright: "© 1993-2026 Shannon Smith") {
                             showingAbout = true
                         }
@@ -493,7 +493,7 @@ private struct MBCommandCentreView: View {
         HStack(spacing: 14) {
             MBLogoMark(size: 54)
             VStack(alignment: .leading, spacing: 3) {
-                Text("MBLINK")
+                Text("MBLink")
                     .font(MBTypography.display(29, relativeTo: .title))
                     .tracking(1.6)
                     .foregroundStyle(MBBrand.silverBright)
@@ -1891,7 +1891,7 @@ private struct MBModuleDetailView: View {
             }
 
             MBPanel {
-                Text("These SAE values belong to this exact CAN responder. MBLINK keeps identical PIDs from different ECUs separate.")
+                Text("These SAE values belong to this exact CAN responder. MBLink keeps identical PIDs from different ECUs separate.")
                     .font(MBTypography.caption)
                     .foregroundStyle(MBBrand.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2323,7 +2323,7 @@ private struct MBLiveDataView: View {
                         }
 
                         MBPanel {
-                            Text("PID availability is kept per responding ECU. If two modules answer the same SAE PID, MBLINK keeps their values separate instead of collapsing them into one device.")
+                            Text("PID availability is kept per responding ECU. If two modules answer the same SAE PID, MBLink keeps their values separate instead of collapsing them into one device.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2877,7 +2877,7 @@ private struct MBServicesView: View {
                                 .font(MBTypography.headline)
                                 .foregroundStyle(MBBrand.silverBright)
                             Text(connection.isActive
-                                 ? "The catalogue below describes LINK's generic codec and transmission policy. MBLINK exposes an active Mercedes procedure only when its target module, prerequisites, request sequence and safety behaviour are independently verified."
+                                 ? "The catalogue below describes Link's generic codec and transmission policy. MBLink exposes an active Mercedes procedure only when its target module, prerequisites, request sequence and safety behaviour are independently verified."
                                  : "The catalogue below is available offline. Connect to evaluate vehicle-specific read-only capabilities; generic codec support never proves ECU support.")
                                 .font(MBTypography.subheadline)
                                 .foregroundStyle(MBBrand.silver)
@@ -2890,7 +2890,7 @@ private struct MBServicesView: View {
                             Text("UDS service catalogue")
                                 .font(MBTypography.headline)
                                 .foregroundStyle(MBBrand.silverBright)
-                            Text("\(connection.udsServiceCatalogue.count) product-neutral service codecs from LINK. A lock means the codec exists but Discover will not transmit that SID.")
+                            Text("\(connection.udsServiceCatalogue.count) product-neutral service codecs from Link. A lock means the codec exists but Discover will not transmit that SID.")
                                 .font(MBTypography.caption)
                                 .foregroundStyle(MBBrand.muted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -2957,7 +2957,7 @@ private struct MBServicesView: View {
                     }
 
                     MBPanel {
-                        Text("Mercedes behaviour remains evidence-gated. MBLINK reads only source-backed commands belonging to an identified controller profile; it does not probe a module for unknown PIDs. ClearDiagnosticInformation (0x14), Authentication (0x29), programming, resets, routines and other state-changing operations remain unavailable from this screen.")
+                        Text("Mercedes behaviour remains evidence-gated. MBLink reads only source-backed commands belonging to an identified controller profile; it does not probe a module for unknown PIDs. ClearDiagnosticInformation (0x14), Authentication (0x29), programming, resets, routines and other state-changing operations remain unavailable from this screen.")
                             .font(MBTypography.caption)
                             .foregroundStyle(MBBrand.muted)
                             .fixedSize(horizontal: false, vertical: true)

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * Source-scoped Mercedes DTC reference catalogue reconstructed from the
- * diagnostic material supplied to MBLINK on 2026-09-03.
+ * diagnostic material supplied to MBLink on 2026-09-03.
  *
- * Generic SAE/ISO definitions remain owned by LINK. Duplicate meanings are
+ * Generic SAE/ISO definitions remain owned by Link. Duplicate meanings are
  * intentional: Mercedes code meaning can depend on ECU family, subcode and
  * vehicle generation, so conflicting supplied definitions must remain visible.
  */

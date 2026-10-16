@@ -895,7 +895,7 @@ static bool MBLinkSimulatorResponder(
         simulatedLiveStatusText:
             @"Simulated ELM327 · live OBD-II and diesel data"
         standardVINStatusText:@"Reading standard vehicle VIN"
-        simulatedAdapterIdentifier:@"ELM327 v2.3 MBLINK SIM"
+        simulatedAdapterIdentifier:@"ELM327 v2.3 MBLink SIM"
         simulatedVIN:@"WDD2073022F123456"];
     if (self == nil) return nil;
 
@@ -1000,7 +1000,7 @@ static bool MBLinkSimulatorResponder(
 - (void)startSimulated
 {
     [self resetMercedesState];
-    [_shared startSimulatedWithAdapterIdentifier:"ELM327 v2.3 MBLINK SIM"
+    [_shared startSimulatedWithAdapterIdentifier:"ELM327 v2.3 MBLink SIM"
                                              vin:"WDD2073022F123456"
                                  customResponder:MBLinkSimulatorResponder
                                          context:NULL];
@@ -1939,7 +1939,7 @@ static NSArray<NSNumber *> *MBLinkFilterCommandsBySelection(
                     MBLinkScheduledTransmissionLiveIntervalMs
                 priority:LINK_SCHEDULER_PRIORITY_HIGH]) {
             self.manufacturerDataScanStatusText =
-                @"Could not register Mercedes live job with LINK scheduler";
+                @"Could not register Mercedes live job with Link scheduler";
             [self notifyDelegate];
             return;
         }
@@ -2149,7 +2149,7 @@ static void MBLinkAppendManufacturerDefinition(
             (unsigned int)service, (unsigned int)identifier];
     snapshot.title = title;
     snapshot.provenance = provenance.length != 0U
-        ? provenance : @"MBLINK source-backed catalogue";
+        ? provenance : @"MBLink source-backed catalogue";
     [values addObject:snapshot];
     [seenWireKeys addObject:wireKey];
 }
@@ -2200,7 +2200,7 @@ static void MBLinkAppendManufacturerDefinition(
         NSString *provenance = item.provenance != NULL &&
                                item.provenance[0] != '\0'
             ? MBLinkStringFromCString(item.provenance)
-            : @"MBLINK ECU definition pack";
+            : @"MBLink ECU definition pack";
         if (pack.ecu_name != NULL && pack.ecu_name[0] != '\0') {
             provenance = [NSString stringWithFormat:@"%@ · %@",
                 provenance, MBLinkStringFromCString(pack.ecu_name)];
@@ -2387,7 +2387,7 @@ static void MBLinkAppendManufacturerDefinition(
             MBLinkStringFromCString(
                 mblink_mercedes_transmission_family_name(family))];
     NSString *quality = [NSString stringWithFormat:
-        @"Mercedes GS 21 30 %@ response · portable MBLINK decoder · %@",
+        @"Mercedes GS 21 30 %@ response · portable MBLink decoder · %@",
         decoded.rich_layout ? @"rich" : @"compact", qualification];
     NSMutableArray<MBLinkTransmissionLiveValueSnapshot *> *values =
         [[NSMutableArray alloc] init];

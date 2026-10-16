@@ -84,7 +84,7 @@
       "did": null,
       "unit": "%",
       "correlation_reference": "obd2.driver.accelerator_pedal_e",
-      "source": "MBLINK OM651 target catalogue"
+      "source": "MBLink OM651 target catalogue"
     },
     {
       "stable_key": "mercedes.om651.air.throttle_valve",
@@ -93,7 +93,7 @@
       "did": null,
       "unit": "%",
       "correlation_reference": "obd2.engine.throttle",
-      "source": "MBLINK OM651 target catalogue plus C207 field correlation"
+      "source": "MBLink OM651 target catalogue plus C207 field correlation"
     },
     {
       "stable_key": "mercedes.om651.engine.coolant_temperature",
@@ -147,7 +147,7 @@
       "did": null,
       "unit": "degC",
       "correlation_reference": "obd2.environment.ambient_air",
-      "source": "Vehicle display observation plus MBLINK field evidence"
+      "source": "Vehicle display observation plus MBLink field evidence"
     },
     {
       "stable_key": "mercedes.om651.environment.barometric_pressure",
