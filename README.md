@@ -142,7 +142,7 @@ Replay mode auto-connects a deterministic ELM327 v2.3/Vgate transport. It reuses
 
 Linux `SAVE SESSION` now preserves one complete diagnostic investigation across repeated `Link DOWN` / `Link UP` cycles. Each physical connection is numbered as a separate attempt, with its own start/end markers, elapsed timing, adapter identity, outcome, diagnostic stage, retry/failure state, product-specific Mercedes state and every ELM command/raw response. Reconnecting no longer erases the previous attempt; restarting the application begins a new investigation.
 
-The native iPhone project is `app/ios/MBLINK.xcodeproj`.
+The native iPhone project is `app/ios/MBLink.xcodeproj`.
 
 The iPhone target bundles the three canonical MB Corpo faces. At startup MBLink registers the bundled TTF files with CoreText, resolves their actual PostScript names from the font data and uses those faces throughout SwiftUI. Font registration is never process-fatal: a genuinely unavailable face falls back safely while the build-time SHA-256 checks continue to enforce the exact bundled font assets.
 

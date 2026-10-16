@@ -11,7 +11,7 @@ string(STRIP "${MBLINK_PROJECT_VERSION}" MBLINK_PROJECT_VERSION)
 if(NOT MBLINK_PROJECT_VERSION MATCHES "^[0-9]+\.[0-9]+\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a semantic major.minor.patch version.")
 endif()
-project(MBLINK VERSION "${MBLINK_PROJECT_VERSION}" LANGUAGES C)
+project(MBLink VERSION "${MBLINK_PROJECT_VERSION}" LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -159,7 +159,7 @@ if(MBLINK_SOURCE_REVISION)
     target_compile_definitions(mblink PRIVATE
         MBLINK_BUILD_REVISION="${MBLINK_SOURCE_REVISION}")
 endif()
-target_link_libraries(mblink PUBLIC LINK::Core)
+target_link_libraries(mblink PUBLIC Link::Core)
 if(UNIX)
     target_link_libraries(mblink PUBLIC m)
 endif()
@@ -215,7 +215,7 @@ if(MBLINK_BUILD_LINUX_APP)
         install(FILES ${MBLINK_FONT_FILES}
             DESTINATION "${CMAKE_INSTALL_DATADIR}/fonts/truetype/mblink")
     endif()
-    install(FILES app/linux/com.github.The-First-Infiltrator.MBLINK.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES app/linux/com.github.The-First-Infiltrator.MBLink.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
     install(FILES LICENSE DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink" RENAME copyright)
     install(FILES README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/mblink")
     set(CPACK_GENERATOR "DEB")
@@ -251,7 +251,7 @@ if(MBLINK_BUILD_WINDOWS_DISCOVER)
         PRODUCT_AUTHORS "Shannon Smith"
         PRODUCT_LICENSE_NAME "GPL-3.0-or-later"
         PRODUCT_WEBSITE "https://github.com/Infiltrator-Projects/MBLink"
-        PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLINK/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
+        PRODUCT_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/app/ios/MBLink/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png"
         FULL_SWEEP_PLAN_FUNCTION mblink_discover_full_sweep_plan)
     target_link_libraries(mblink-discover PRIVATE mblink)
     if(MBLINK_HAVE_BUNDLED_FONTS)

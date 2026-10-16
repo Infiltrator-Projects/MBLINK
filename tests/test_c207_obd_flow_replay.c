@@ -369,7 +369,7 @@ int main(void)
     }
 
     /*
-     * Replay exact scalar samples from MBLINK-session-20260829-140223.
+     * Replay exact scalar samples from MBLink-session-20260829-140223.
      * These are useful because they prove that the apparently high PID 0x11
      * reading is the throttle valve, not accelerator demand: the two pedal
      * channels remain near 5-6% while the valve is near 88%.

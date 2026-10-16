@@ -76,12 +76,12 @@ require(
     "Apple MBLink diagnostics must extend Link's product diagnostics controller",
 )
 
-app = (ROOT / "app/ios/MBLINK/MBLINKApp.swift").read_text(encoding="utf-8")
-model = (ROOT / "app/ios/MBLINK/ConnectionViewModel.swift").read_text(
+app = (ROOT / "app/ios/MBLink/MBLinkApp.swift").read_text(encoding="utf-8")
+model = (ROOT / "app/ios/MBLink/ConnectionViewModel.swift").read_text(
     encoding="utf-8"
 )
 selection_migration = (
-    ROOT / "app/ios/MBLINK/StandardPIDSelectionMigrator.swift"
+    ROOT / "app/ios/MBLink/StandardPIDSelectionMigrator.swift"
 ).read_text(encoding="utf-8")
 controller = (ROOT / "platform/apple/MBLinkDiagnosticsController.m").read_text(
     encoding="utf-8"

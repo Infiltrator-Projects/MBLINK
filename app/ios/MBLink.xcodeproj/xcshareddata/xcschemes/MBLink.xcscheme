@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "C13732C8E715C9BEE4FA51C9"
-               BuildableName = "MBLINK.app"
-               BlueprintName = "MBLINK"
-               ReferencedContainer = "container:MBLINK.xcodeproj">
+               BuildableName = "MBLink.app"
+               BlueprintName = "MBLink"
+               ReferencedContainer = "container:MBLink.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -42,9 +42,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C13732C8E715C9BEE4FA51C9"
-            BuildableName = "MBLINK.app"
-            BlueprintName = "MBLINK"
-            ReferencedContainer = "container:MBLINK.xcodeproj">
+            BuildableName = "MBLink.app"
+            BlueprintName = "MBLink"
+            ReferencedContainer = "container:MBLink.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -58,9 +58,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C13732C8E715C9BEE4FA51C9"
-            BuildableName = "MBLINK.app"
-            BlueprintName = "MBLINK"
-            ReferencedContainer = "container:MBLINK.xcodeproj">
+            BuildableName = "MBLink.app"
+            BlueprintName = "MBLink"
+            ReferencedContainer = "container:MBLink.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

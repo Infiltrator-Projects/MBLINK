@@ -25,7 +25,7 @@ typedef LinkKwp2000CommonIdentifierRecord MblinkKwp2000CommonIdentifierRecord;
  * view into the caller's PDU. MBLINK's Mercedes scanner decodes an ELM response
  * into a temporary PDU before interpreting Daimler 1A86/1A87/1A89 fields, so a
  * simple typedef would let that view outlive the PDU and leave record.data
- * dangling. Keep an MBLINK-owned copy for ECU identity records so callers can
+ * dangling. Keep an MBLink-owned copy for ECU identity records so callers can
  * safely consume the bytes after the decoder helper returns.
  */
 #define MBLINK_KWP2000_ECU_IDENTIFICATION_DATA_CAPACITY 512U

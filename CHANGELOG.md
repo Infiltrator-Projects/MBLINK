@@ -9,8 +9,8 @@
 
 ## 0.7.292 — 2026-10-12
 
-- Split iPhone diagnostic presentation/persistence concerns out of ConnectionViewModel into typed domain services for UDS catalogue projection, manufacturer selection persistence and DTC resolution; keep a strongly typed MBLINK controller reference instead of force-casting the generic controller.
-- Replace fault/connection behaviour inferred from human-readable status strings with machine state from LINK's diagnostic flow and an explicit Mercedes fault-scan state.
+- Split iPhone diagnostic presentation/persistence concerns out of ConnectionViewModel into typed domain services for UDS catalogue projection, manufacturer selection persistence and DTC resolution; keep a strongly typed MBLink controller reference instead of force-casting the generic controller.
+- Replace fault/connection behaviour inferred from human-readable status strings with machine state from Link's diagnostic flow and an explicit Mercedes fault-scan state.
 - Move Mercedes connection-owned ECU session state plus enter/quit command and positive-response policy into a tested portable lifecycle module, reducing temporal state and ECU-pack policy inside the Apple diagnostics controller.
 - Run release-critical Linux validation on GitHub-hosted runners so publication no longer waits on an offline local runner.
 
@@ -106,13 +106,13 @@
 
 - Finish the interrupted iPhone housekeeping pass: remove the redundant manufacturer PID catalogue cache and resolve offline catalogues directly from the saved controller profile/ECU pack.
 - Move legacy standard-PID selection migration out of ConnectionViewModel, preserve explicit per-controller choices including deliberate all-off selections, and stop recreating the retired vehicle-wide standard selection bucket during migration.
-- Pin LINK 0.15.89 at 70ee5c587cf8912817729ff6d367499459b30380: MBLINK now owns its controller/VIN-scoped polling policy directly, and its replacement table/dashboard presentation no longer makes LINK build generic lists that are immediately discarded.
+- Pin Link 0.15.89 at 70ee5c587cf8912817729ff6d367499459b30380: MBLink now owns its controller/VIN-scoped polling policy directly, and its replacement table/dashboard presentation no longer makes Link build generic lists that are immediately discarded.
 
 ## 0.7.266 — 2026-10-01
 
-- Fix simulation stopping with obd2-error when a selected documented reading has no simulated sample, such as fuel level 01 2F. LINK 0.15.88 returns NO DATA for those valid requests so the session keeps polling.
+- Fix simulation stopping with obd2-error when a selected documented reading has no simulated sample, such as fuel level 01 2F. Link 0.15.88 returns NO DATA for those valid requests so the session keeps polling.
 - Keep the fuel-level catalogue entry and real-car percentage decoder intact.
-- Require iOS CI to select fuel level alongside RPM/speed and observe its NO DATA reply before accepting a successful simulated session. LINK additionally exercises every documented live PID through two minutes of simulated polling.
+- Require iOS CI to select fuel level alongside RPM/speed and observe its NO DATA reply before accepting a successful simulated session. Link additionally exercises every documented live PID through two minutes of simulated polling.
 - Require repeated responder-attributed RPM/speed replies and saved profile evidence before the CI cold restart; startup readiness alone must not satisfy the live-polling check.
 
 ## 0.7.265 — 2026-10-01
@@ -122,7 +122,7 @@
 
 ## 0.7.264 — 2026-09-30
 
-- Pin LINK 0.15.87 at c397e6e423d0ef0e44363c38971111a35c67f32c: fix headered CAN fault decoding, handle populated/multi-frame DTC lists and continue into readiness and recurring polling.
+- Pin Link 0.15.87 at c397e6e423d0ef0e44363c38971111a35c67f32c: fix headered CAN fault decoding, handle populated/multi-frame DTC lists and continue into readiness and recurring polling.
 - Offer documented Mode 01 readings on standard OBD controllers independently of individual capability bits, and let explicit selections create the corresponding polling request. Keep readiness, controller identity and ECU-pack startup data read once and excluded from live toggles.
 - Mark retained manufacturer live readings as stale after a failed requested refresh; preserve raw evidence and startup module data, remove stale numeric values from gauges/graphs, and restore fresh status after a successful reply.
 - Regress snapshot freshness/recovery and selecting an unadvertised documented PID alongside an advertised one without exposing SAE channels on body ECU routes.
@@ -145,12 +145,12 @@
 - Treat Mode 01 PID 01 as one-shot startup module metadata instead of a recurring live PID: the connection flow reads it once, retains each physical ECU's reply and never schedules it continuously.
 - Show every returned PID-01 field directly on that controller's Modules card: MIL with green/red status, confirmed emissions DTC count, ignition-layout bit and every readiness-monitor state including Ready, Not ready, Not supported and Not applicable.
 - Remove PID 01/readiness fields from PID Setup, Dashboard, Table and Graph live-channel membership; prune historical saved selections so upgrades cannot keep polling them in the background.
-- Pin LINK 0.15.86 at cab1e7eb7463293dcbf970d44955040f62c2bd2e, which preserves responder identity for the single startup readiness transaction.
+- Pin Link 0.15.86 at cab1e7eb7463293dcbf970d44955040f62c2bd2e, which preserves responder identity for the single startup readiness transaction.
 
 ## 0.7.260 — 2026-09-30
 
 - Add exact per-controller MIL status lights to the Modules screen: green when that ECU reports MIL not requested, red when it reports MIL requested, and no light when that controller does not return a usable Mode 01 PID 01 MIL value.
-- Issue one temporary hidden MIL field probe independently of PID Setup display choices, retain LINK's responder-attributed 01 01 replies, then remove the hidden probe after the first valid responder sample so normal user-selected polling remains authoritative.
+- Issue one temporary hidden MIL field probe independently of PID Setup display choices, retain Link's responder-attributed 01 01 replies, then remove the hidden probe after the first valid responder sample so normal user-selected polling remains authoritative.
 
 ## 0.7.259 — 2026-09-30
 
@@ -163,14 +163,14 @@
 - Remove the synthetic vehicle-wide OBD section. OBD-II is now shown as a diagnostic interface of the responding controller, with every row clearly labelled OBD-II, KWP2000, UDS or Mercedes as appropriate.
 - Keep equivalent-looking values from different interfaces as separate logical channels. An OBD-II vehicle-speed value and a Mercedes controller-specific vehicle-speed value may sit next to one another and can be enabled independently or together.
 - Scope standard selections by VIN and controller while keeping physical Mode 01 scheduling de-duplicated: selections on several responders that require the same standard PID still produce one functional source request, and disabling one controller's copy cannot stop a source still required by another.
-- Pin released LINK 0.15.84 at 4a022eb5cb680191a8a64b34622f67966ca7776a and use exact-responder structured samples for Mode 01 PID 0x01, so each controller presents only its own selected readiness fields even when several ECUs answer the same functional request.
+- Pin released Link 0.15.84 at 4a022eb5cb680191a8a64b34622f67966ca7776a and use exact-responder structured samples for Mode 01 PID 0x01, so each controller presents only its own selected readiness fields even when several ECUs answer the same functional request.
 - Preserve responder identity in standard histories/snapshots and give controller/interface/value combinations distinct stable presentation identities so data from two ECUs can no longer collapse into one displayed channel.
 - Migrate the previous vehicle-wide standard selection conservatively to one deterministic primary advertised responder, preferring 0x7E8 when present, rather than unexpectedly enabling duplicate OBD values on every supporting ECU; existing older per-controller selections are retained.
 - Keep saved VIN profiles controller-centric offline by reattaching cached responder capability maps to their saved Mercedes controllers and retaining unresolved saved OBD responders without inventing Mercedes identity.
 
 ## 0.7.257 — 2026-09-30
 
-- Pin the completed grouped-field architecture to released LINK 0.15.83 at 3de497edaedda8459cc0cd19e7bcfed05dd1b325, keeping standard and Mercedes logical selections on one shared physical request per source record.
+- Pin the completed grouped-field architecture to released Link 0.15.83 at 3de497edaedda8459cc0cd19e7bcfed05dd1b325, keeping standard and Mercedes logical selections on one shared physical request per source record.
 - Make field-selection changes wire-stable: enabling or disabling another logical value on an already-active source changes only the extraction mask and no longer restarts the underlying source poll.
 - Preserve the final-field rule: the source request starts when the first constituent value is enabled and stops only when the last direct/logical selection is disabled.
 - Retain 0.7.256 selective decoding for Mode 01 PID 0x01 and Mercedes EGS53 0x21/0x30, so unselected constituent values are not interpreted merely because their bytes arrived in the shared response.
@@ -179,7 +179,7 @@
 
 - Separate user-facing logical values from physical diagnostic source requests so several enabled values carried by one OBD/KWP record share one wire poll rather than becoming duplicate requests.
 - Split Mode 01 PID 0x01 into independently selectable MIL, confirmed emissions DTC count, ignition-layout and readiness-monitor values while retaining one physical `01 01` request whenever any constituent field is enabled.
-- Pin LINK 0.15.82 and pass the PID 0x01 logical selection as a per-source field mask; only selected fields are decoded and promoted to telemetry, history and display values even though the standards-defined response bytes arrive together.
+- Pin Link 0.15.82 and pass the PID 0x01 logical selection as a per-source field mask; only selected fields are decoded and promoted to telemetry, history and display values even though the standards-defined response bytes arrive together.
 - Preserve existing saved PID-01 choices by expanding the old whole-PID selection into the new constituent logical values instead of losing prior user intent.
 - Apply the same grouped-read rule to Mercedes EGS53 `21 30`: selected transmission values are collapsed to one KWP request and the decoder receives a field mask so unselected gear, torque, pressure, speed and state fields are not interpreted.
 - Keep PID Setup, module views, Dashboard, Graphs and Table on the same logical selection set so an OFF constituent field cannot reappear from cached data.
@@ -260,7 +260,7 @@
 - Apply the 39-minute C207 road-capture findings to live manufacturer polling: UDS background refresh is now deny-by-default and enabled only for explicitly qualified runtime-changing routes/identifiers.
 - Keep the static 0x602/0x480 F1xx identity/configuration records out of the live scheduler, while retaining them for startup/manual inspection.
 - Demote ABR2XT DIDs 0x2003, 0x2009 and 0x20C0 to manual-only after the road capture showed they were overwhelmingly state-gated/NO DATA; retain 0x2001, 0x2004, 0x2007 and 0x200D as the qualified runtime set.
-- Stop scheduled 11-bit Mercedes live reads from replaying the full ELM initializer/ATZ on every cycle; restore the functional CAN header/filter and return directly to LINK's live scheduler instead.
+- Stop scheduled 11-bit Mercedes live reads from replaying the full ELM initializer/ATZ on every cycle; restore the functional CAN header/filter and return directly to Link's live scheduler instead.
 - Detect late positive responses carrying the wrong UDS/KWP identifier, never associate them with the current request, and retry the current identifier before advancing.
 
 ## 0.7.245 — 2026-09-28
@@ -278,7 +278,7 @@
 
 ## 0.7.243 — 2026-09-28
 
-- Separate historical evidence that a Mercedes ECU has accepted UDS `10 03` from MBLINK's permission to enter that session automatically.
+- Separate historical evidence that a Mercedes ECU has accepted UDS `10 03` from MBLink's permission to enter that session automatically.
 - Permanently block unattended extended-session entry on the C207 ABR/ESP `0x632 → 0x486` route during first-VIN discovery, cached module/fault refresh and manufacturer live-data refresh; ESP reads now remain in the default diagnostic session.
 - Add C207 safety regressions that preserve the captured positive-session evidence while requiring the automatic ESP wire sequence to proceed from route setup directly to TesterPresent, with no intervening `10 03`.
 
@@ -329,14 +329,14 @@
 
 ## 0.7.236 — 2026-09-28
 
-- Advance the exact shared LINK dependency to 0.15.78 at `090981200402518465beb5ae714c5a1ccdc601b6`, bringing automatic ELM327 resynchronisation/retry to standard diagnostic phases and adding timeout/power-state lifecycle evidence for the iOS failure captured by MBLINK 0.7.203.
-- Keep every responding controller visible during connection progress by showing its current MBLINK name and exact request/response address instead of reporting only a retained-module count.
+- Advance the exact shared Link dependency to 0.15.78 at `090981200402518465beb5ae714c5a1ccdc601b6`, bringing automatic ELM327 resynchronisation/retry to standard diagnostic phases and adding timeout/power-state lifecycle evidence for the iOS failure captured by MBLink 0.7.203.
+- Keep every responding controller visible during connection progress by showing its current MBLink name and exact request/response address instead of reporting only a retained-module count.
 - Keep source-backed Mercedes route identities authoritative, including EIS/EZS, ABR2XT/ESP, ORC_212, HU_204, engine and GS/VGS/EGS mappings.
 - Add presentation-only online candidates for the observed 0x622/0x484 steering-column, 0x6A2/0x494 multifunction-camera, 0x6BA/0x497 and 0x6C2/0x498 reversible-tensioner, and 0x6FA/0x49F fuel-pump routes. These remain explicitly labelled "Likely" until C207-specific identity evidence confirms them; conflicting 0x60A evidence remains unresolved.
 
 ## 0.7.235 — 2026-09-27
 
-- Recover Mercedes engine and module discovery when LINK refuses to queue a diagnostic command: stop the pending scan, preserve captured responses and restore normal diagnostics instead of leaving the app stuck scanning.
+- Recover Mercedes engine and module discovery when Link refuses to queue a diagnostic command: stop the pending scan, preserve captured responses and restore normal diagnostics instead of leaving the app stuck scanning.
 - Show the actual Mercedes module discovery status on empty Live Data and Factory Readings screens so failures and delays are visible.
 - Serialize queued factory reads with recurring Mercedes live jobs, including the period before a manual read acquires the diagnostic channel.
 
@@ -344,87 +344,87 @@
 
 - Make the iOS start flow clearer: show supported starter OBD readings, connection state and available live data without implying the Mercedes research catalogue is a working ECU integration.
 - Add a Factory Readings screen driven by actual captured module responses, with module data reads and links to full response evidence. Keep unverified Mercedes identifiers in the separate Factory Reference catalogue.
-- Update the LINK Bluetooth picker with explicit scan and connection states and separate BLE from Classic adapter behavior. Pin the shared LINK source at `eb360c6`.
+- Update the Link Bluetooth picker with explicit scan and connection states and separate BLE from Classic adapter behavior. Pin the shared Link source at `eb360c6`.
 - Qualify the portable diagnostic core, iOS simulator build and simulated diagnostic launch before release. Real vehicle access, protected Mercedes export decoding and physical adapter behavior require separate validation.
 
 ## 0.7.233 — 2026-09-24
 
-- Advance the exact shared LINK dependency from 0.15.62 to released LINK 0.15.69 at `ca30258e0684b77689128b8a538891c79c2f876c`.
+- Advance the exact shared Link dependency from 0.15.62 to released Link 0.15.69 at `ca30258e0684b77689128b8a538891c79c2f876c`.
 - Consume the latest shared Linux publisher-alignment work, including 12 px ordinary cards, without changing Mercedes diagnostic, transport or safety policy.
-- Keep LINK as the sole Common authority and preserve MBLINK's existing dependencies and platform architecture.
+- Keep Link as the sole Common authority and preserve MBLink's existing dependencies and platform architecture.
 
 
 ## 0.7.232 — 2026-09-23
 
-- Advance the exact shared LINK dependency from 0.15.61 to released LINK 0.15.62 at `0f2cc710fb8f211013cd5f55df390fe0911886da`.
-- Retain LINK's exact nested Infiltratr Common 1.19.24 pin and consume the guarded STM32 UDS RX fallback added for LINK #47 without weakening MBLINK diagnostic or safety policy.
-- Synchronise both iOS LINK provenance definitions and every product version surface with the new gitlink.
+- Advance the exact shared Link dependency from 0.15.61 to released Link 0.15.62 at `0f2cc710fb8f211013cd5f55df390fe0911886da`.
+- Retain Link's exact nested Libraries 1.19.24 pin and consume the guarded STM32 UDS RX fallback added for Link #47 without weakening MBLink diagnostic or safety policy.
+- Synchronise both iOS Link provenance definitions and every product version surface with the new gitlink.
 
 
 ## 0.7.231 — 2026-09-23
 
-- Advance the exact shared LINK dependency from 0.15.60 to 0.15.61 at `2e212f67e5a664330d432a6798350202be54eb10`.
-- Consume LINK's exact nested Infiltratr Common 1.19.24 pin at `748e089ae175329471d4cf375522c44081371bd5`, replacing the now-stale Common 1.19.23 dependency chain without adding a second product-level Common authority.
-- Synchronise both iOS LINK provenance definitions and the product version metadata with the new gitlink; no MBLINK diagnostic, safety or transport policy is weakened by this dependency-only release.
+- Advance the exact shared Link dependency from 0.15.60 to 0.15.61 at `2e212f67e5a664330d432a6798350202be54eb10`.
+- Consume Link's exact nested Libraries 1.19.24 pin at `748e089ae175329471d4cf375522c44081371bd5`, replacing the now-stale Common 1.19.23 dependency chain without adding a second product-level Common authority.
+- Synchronise both iOS Link provenance definitions and the product version metadata with the new gitlink; no MBLink diagnostic, safety or transport policy is weakened by this dependency-only release.
 
 ## 0.7.230 — 2026-09-22
 
-- Advance the exact shared LINK dependency to 0.15.60 at `a42d380c27f1bf1612216b2345abadb72e3ba36a`, retaining the Common 1.19.23 dependency chain and synchronising both iOS LINK provenance definitions to the same gitlink.
-- Consume LINK's completed STM32F103 workbook Freeze Frame Snapshot Record support: exact Sheet 7 record 0x01 framing for DF00/DF01/DF02/DF03/DF04/DD00, target-owned freeze-frame values, strict missing-record rejection and preserved one-page STM32F103 journal footprint.
-- Qualify the complete MBLINK OTA bootloader control flow with a product-level backend regression covering fail-closed arming, ProgrammingSession, SecurityAccess, DTC/communication quiesce, inactive-slot download, TransferData sequencing, TransferExit, integrity/authenticity, secure-boot staging, anti-rollback and post-boot commit.
-- Keep MBLINK #56 open for the real STM32F767 target backend: no board flash map, protected monotonic store, production signing/HSM material or secure-boot handoff is fabricated where the target evidence has not been supplied.
+- Advance the exact shared Link dependency to 0.15.60 at `a42d380c27f1bf1612216b2345abadb72e3ba36a`, retaining the Common 1.19.23 dependency chain and synchronising both iOS Link provenance definitions to the same gitlink.
+- Consume Link's completed STM32F103 workbook Freeze Frame Snapshot Record support: exact Sheet 7 record 0x01 framing for DF00/DF01/DF02/DF03/DF04/DD00, target-owned freeze-frame values, strict missing-record rejection and preserved one-page STM32F103 journal footprint.
+- Qualify the complete MBLink OTA bootloader control flow with a product-level backend regression covering fail-closed arming, ProgrammingSession, SecurityAccess, DTC/communication quiesce, inactive-slot download, TransferData sequencing, TransferExit, integrity/authenticity, secure-boot staging, anti-rollback and post-boot commit.
+- Keep MBLink #56 open for the real STM32F767 target backend: no board flash map, protected monotonic store, production signing/HSM material or secure-boot handoff is fabricated where the target evidence has not been supplied.
 
 ## 0.7.229 — 2026-09-22
 
-- Correct the iOS LINK source-revision metadata to the actual 0.15.55 gitlink `0caaf4026dcf807397649cd27a38f25ec3be2934`, resolving the preflight failure that made 0.7.228 red before compilation.
+- Correct the iOS Link source-revision metadata to the actual 0.15.55 gitlink `0caaf4026dcf807397649cd27a38f25ec3be2934`, resolving the preflight failure that made 0.7.228 red before compilation.
 - Carry forward the completed typed 0x29 Authentication facade/tests, issue #37 clear/session regression, exact STM32C092 issue-27 Cube-main qualification, tester/server naming repair and 35-minute asynchronous APT verification window.
-- Requalify the complete MBLINK stack against the current LINK/Common chain before publication.
+- Requalify the complete MBLink stack against the current Link/Common chain before publication.
 
 ## 0.7.228 — 2026-09-22
 
-- Advance MBLINK to LINK 0.15.55 at `0caaf4026dcf807397649cd27a38f25ec3be2934`, retaining the Common 1.19.23 pin and corrected dependency metadata.
+- Advance MBLink to Link 0.15.55 at `0caaf4026dcf807397649cd27a38f25ec3be2934`, retaining the Common 1.19.23 pin and corrected dependency metadata.
 
 ## 0.7.227 — 2026-09-22
 
-- Advance MBLINK to the canonical LINK 0.15.54 release at `38826aa2dca78072343a201553460e61cc2f726f`, which pins Infiltratr Common 1.19.23.
-- Preserve the qualified Mercedes-specific diagnostics surface while consuming the newest shared LINK/Common implementation and provenance.
+- Advance MBLink to the canonical Link 0.15.54 release at `38826aa2dca78072343a201553460e61cc2f726f`, which pins Libraries 1.19.23.
+- Preserve the qualified Mercedes-specific diagnostics surface while consuming the newest shared Link/Common implementation and provenance.
 
 ## 0.7.226 — 2026-09-22
 
-- Replace the red LINK 0.15.52 dependency from MBLINK 0.7.225 with the exact corrected LINK 0.15.53 release commit `0c1d6b5367b7bb05596ddd46b23151ccfb9a19b2`.
+- Replace the red Link 0.15.52 dependency from MBLink 0.7.225 with the exact corrected Link 0.15.53 release commit `0c1d6b5367b7bb05596ddd46b23151ccfb9a19b2`.
 - Carry forward the completed typed 0x29 Authentication facade/tests, DTC variable-record facade, fail-closed OTA core and 35-minute asynchronous APT verification repair.
-- Qualify the corrected LINK DTC lifecycle engine, issue #36 tester/server naming, issue #37 clear/session semantics and exact STM32C092 issue-27 Cube-main compile through MBLINK's own cross-platform matrix.
+- Qualify the corrected Link DTC lifecycle engine, issue #36 tester/server naming, issue #37 clear/session semantics and exact STM32C092 issue-27 Cube-main compile through MBLink's own cross-platform matrix.
 
 ## 0.7.225 — 2026-09-22
 
-- Advance the exact LINK dependency to 0.15.52 so MBLINK qualifies the final STM32 tester/server clarification, issue #37 clear-DTC regression, exact issue-27 Cube integration check and issue #38 DTC lifecycle implementation together.
-- Retain 0.7.224's typed 0x29 Authentication facade/tests and the widened central APT publication verification window; no product-local duplicate of LINK's DTC lifecycle is introduced.
-- Inherit LINK's portable FunctionalGroupIdentifier/FDC/confirmation/aging reference engine for ECU-side examples while keeping MBLINK's diagnostic-client boundaries unchanged.
+- Advance the exact Link dependency to 0.15.52 so MBLink qualifies the final STM32 tester/server clarification, issue #37 clear-DTC regression, exact issue-27 Cube integration check and issue #38 DTC lifecycle implementation together.
+- Retain 0.7.224's typed 0x29 Authentication facade/tests and the widened central APT publication verification window; no product-local duplicate of Link's DTC lifecycle is introduced.
+- Inherit Link's portable FunctionalGroupIdentifier/FDC/confirmation/aging reference engine for ECU-side examples while keeping MBLink's diagnostic-client boundaries unchanged.
 
 ## 0.7.224 — 2026-09-22
 
-- Advance the exact LINK dependency to 0.15.51, including the STM32 tester/server role clarification, issue #37 DTC-clear regression coverage and exact issue-27 Cube-main CI qualification.
-- Complete MBLINK issue #63's generic product facade by re-exporting LINK's typed ISO 14229-1:2020 Authentication codec for all nine 0x29 tasks and adding MBLINK-level builder/decoder regression coverage.
+- Advance the exact Link dependency to 0.15.51, including the STM32 tester/server role clarification, issue #37 DTC-clear regression coverage and exact issue-27 Cube-main CI qualification.
+- Complete MBLink issue #63's generic product facade by re-exporting Link's typed ISO 14229-1:2020 Authentication codec for all nine 0x29 tasks and adding MBLink-level builder/decoder regression coverage.
 - Fix the publication-infrastructure regression identified against issue #24: central APT refresh is asynchronous, so verification now permits 35 minutes instead of racing the repository/Pages propagation boundary at 20 minutes.
 - Keep Authentication trust, certificates, private keys and Mercedes/OEM policy evidence-gated; no security bypass or unproven manufacturer algorithm is introduced.
 
 ## 0.7.223 — 2026-09-22
 
-- Advance the exact LINK dependency to 0.15.50, which in turn pins Infiltratr Common 1.19.22, keeping the vehicle stack on one tested shared dependency chain.
-- Synchronise the iOS embedded LINK provenance with the exact `src/link` gitlink so release builds report the code they actually contain.
+- Advance the exact Link dependency to 0.15.50, which in turn pins Libraries 1.19.22, keeping the vehicle stack on one tested shared dependency chain.
+- Synchronise the iOS embedded Link provenance with the exact `src/link` gitlink so release builds report the code they actually contain.
 
 ## 0.7.222 — 2026-09-22
 
-- Expose LINK 0.15.49's fail-closed UDS OTA/bootloader core directly through an MBLINK facade for issue #56 instead of leaving the capability hidden in the submodule.
+- Expose Link 0.15.49's fail-closed UDS OTA/bootloader core directly through an MBLink facade for issue #56 instead of leaving the capability hidden in the submodule.
 - Add a product-level regression proving the default configuration cannot arm programming and requires security, quiesce, authenticity and secure-boot validation.
-- Document the STM32F767 integration boundary: existing LINK bxCAN transport plus target-owned inactive-slot flash, integrity/authenticity/HSM, secure-boot and protected anti-rollback storage callbacks.
+- Document the STM32F767 integration boundary: existing Link bxCAN transport plus target-owned inactive-slot flash, integrity/authenticity/HSM, secure-boot and protected anti-rollback storage callbacks.
 
 ## 0.7.221 — 2026-09-22
 
-- Complete MBLINK issue #59's generic DTC snapshot/stored/extended-data surface by advancing the exact LINK dependency to 0.15.49.
-- Re-export LINK's typed variable-record APIs: DID-length resolver, DID values, snapshot/stored-data record views and extended-data record views.
-- Add product-level regression coverage that decodes snapshot and stored-data DID/value sequences, extended-data records and the unknown-DID rejection path rather than leaving the newer LINK capability untested behind the facade.
-- Inherit LINK's fail-closed UDS OTA/bootloader core for issue #56 while keeping all active programming disabled unless an explicit target backend is provided and armed.
+- Complete MBLink issue #59's generic DTC snapshot/stored/extended-data surface by advancing the exact Link dependency to 0.15.49.
+- Re-export Link's typed variable-record APIs: DID-length resolver, DID values, snapshot/stored-data record views and extended-data record views.
+- Add product-level regression coverage that decodes snapshot and stored-data DID/value sequences, extended-data records and the unknown-DID rejection path rather than leaving the newer Link capability untested behind the facade.
+- Inherit Link's fail-closed UDS OTA/bootloader core for issue #56 while keeping all active programming disabled unless an explicit target backend is provided and armed.
 
 ## 0.7.220 — 2026-09-21
 
@@ -432,29 +432,29 @@
 - Add a typed module-scoped 24-bit UDS DTC definition contract parallel to the existing KWP contract so future proven raw UDS meanings have a safe destination.
 - Add eight primary-documented CDID3/OM651 records from Mercedes-Benz/Daimler XENTRY bulletins, preserving CRD3/CRD3NFZ controller and vehicle-family applicability rather than promoting Sprinter, W212 hybrid or 117/176/246 meanings into C207.
 - Keep the existing 299-row supplied reference corpus unchanged and separate from automatic wire-level resolution.
-- Advance the shared LINK dependency to 0.15.42 with generic AES-CMAC and algorithm-neutral SecurityAccess support; no Mercedes seed/key algorithm is inferred or enabled.
+- Advance the shared Link dependency to 0.15.42 with generic AES-CMAC and algorithm-neutral SecurityAccess support; no Mercedes seed/key algorithm is inferred or enabled.
 
 ## 0.7.219 — 2026-09-21
 
 - Complete CI diagnostics issue #24 by restoring one canonical 0.7.219 version across VERSION, C header metadata and all iOS MARKETING_VERSION configurations.
-- Pin LINK 0.15.41 exactly and record the matching LINK source revision in both iOS core configurations.
-- Consume LINK issue #25's product-neutral UDS server policy metadata and contextual physical/functional dispatcher without adding any Mercedes-specific policy guesses.
+- Pin Link 0.15.41 exactly and record the matching Link source revision in both iOS core configurations.
+- Consume Link issue #25's product-neutral UDS server policy metadata and contextual physical/functional dispatcher without adding any Mercedes-specific policy guesses.
 - Requalify the complete Linux, Windows, sanitizer, Apple/iOS and publication pipeline from a clean preflight state.
 
 ## 0.7.218 — 2026-09-21
 
-- Advance to LINK 0.15.40 so MBLINK's Linux, Windows where applicable, and iOS About surfaces share the completed suite-wide About contract.
+- Advance to Link 0.15.40 so MBLink's Linux, Windows where applicable, and iOS About surfaces share the completed suite-wide About contract.
 - Retain the previously separated build identity and product-specific credits while inheriting the corrected shared Windows and standard SwiftUI metadata handling.
 
 
 ## 0.7.217 — 2026-09-21
 
-- Standardise Linux and iOS About presentation on the suite-wide System Monitor contract through LINK 0.15.38.
+- Standardise Linux and iOS About presentation on the suite-wide System Monitor contract through Link 0.15.38.
 - Separate the canonical build label from descriptive text so About exposes the same product/version/description/build hierarchy as the rest of the suite.
-- Remove product-tagline duplication from About while retaining MBLINK branding in the application shell.
+- Remove product-tagline duplication from About while retaining MBLink branding in the application shell.
 
 
-This file records user-visible, compatibility, diagnostic-knowledge and validation changes for MBLINK.
+This file records user-visible, compatibility, diagnostic-knowledge and validation changes for MBLink.
 
 ## Unreleased
 
@@ -462,69 +462,69 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 
 ## 0.7.216 — 2026-09-21
 
-- Exposed LINK's forensic 27-service UDS catalogue and complete requested ReadDTCInformation report catalogue through MBLINK without duplicating generic protocol ownership.
-- Advanced the exact LINK dependency to 0.15.38, including request-aware ReadDTCInformation response validation for MemorySelection, record-number, functional-group and applicable DTC echoes.
-- Re-exported the request-aware ReadDTC decoder through the MBLINK compatibility facade and retained typed fixed-record views while leaving OEM-sized snapshot and extended-data tails raw.
+- Exposed Link's forensic 27-service UDS catalogue and complete requested ReadDTCInformation report catalogue through MBLink without duplicating generic protocol ownership.
+- Advanced the exact Link dependency to 0.15.38, including request-aware ReadDTCInformation response validation for MemorySelection, record-number, functional-group and applicable DTC echoes.
+- Re-exported the request-aware ReadDTC decoder through the MBLink compatibility facade and retained typed fixed-record views while leaving OEM-sized snapshot and extended-data tails raw.
 - Preserved deny-by-default vehicle policy: ClearDiagnosticInformation 0x14 remains state-changing and unavailable to automatic discovery; Authentication 0x29 remains security-gated and has no inferred Mercedes procedure.
 - Added forensic issue documentation for the supplied STM32 server deviations that caused misleading 0x19 differential results.
 
 ## 0.7.215 — 2026-09-21
 
-- Completed a direct Common 1.19.20 forensic reuse pass in MBLINK without changing Common and without changing MBLINK's LINK dependency.
+- Completed a direct Common 1.19.20 forensic reuse pass in MBLink without changing Common and without changing MBLink's Link dependency.
 - Replaced the embedded STM32 console's private ASCII lowercase helper with Common's deterministic ASCII case conversion while preserving the console's deliberately narrow space/tab trimming grammar.
 - Replaced manual guarded unsigned timestamp subtraction in Mercedes signal-correlation lag handling with Common's checked uint64 subtraction contract.
 - Deliberately retained Mercedes-specific printable-text validation, variable-width decoding, RGB presentation extraction and other local code where Common does not provide an exact semantic improvement.
 
 ## 0.7.213 — 2026-09-21
 
-- Advanced the exact shared engine to LINK 0.15.34 while retaining Infiltratr Common 1.19.20 unchanged.
-- Reused Common's canonical monotonic clock in the native Linux MBLINK face instead of retaining a second GLib time wrapper.
+- Advanced the exact shared engine to Link 0.15.34 while retaining Libraries 1.19.20 unchanged.
+- Reused Common's canonical monotonic clock in the native Linux MBLink face instead of retaining a second GLib time wrapper.
 - Removed the remaining locale-sensitive ctype use from the C207 replay command normaliser and DID-lab byte parser in favour of Common's deterministic ASCII contracts.
-- Removed an obsolete ctype include from Mercedes data-scan code; Mercedes diagnostic semantics and evidence remain MBLINK-owned.
+- Removed an obsolete ctype include from Mercedes data-scan code; Mercedes diagnostic semantics and evidence remain MBLink-owned.
 - No code was added to Common.
 
 ## 0.7.212 — 2026-09-21
 
-- Advanced the exact shared engine to LINK 0.15.33 and therefore Infiltratr Common 1.19.20.
+- Advanced the exact shared engine to Link 0.15.33 and therefore Libraries 1.19.20.
 - Removed Mercedes-local ASCII case-folding/classification helpers where Common now provides the exact locale-independent contract for VIN, ECU identity, CRD3 family and DTC-reference text.
-- Moved Linux preference path resolution and directory creation onto Common's XDG/POSIX helpers while retaining the MBLINK-owned INI schema.
+- Moved Linux preference path resolution and directory creation onto Common's XDG/POSIX helpers while retaining the MBLink-owned INI schema.
 - Publishes Linux preference bytes through Common's durable atomic-file writer instead of GTK/GLib filesystem policy; existing file permissions are preserved.
-- Kept Mercedes diagnostic semantics, manufacturer evidence and MBLINK presentation policy local; no code was added to Common.
+- Kept Mercedes diagnostic semantics, manufacturer evidence and MBLink presentation policy local; no code was added to Common.
 
 ## 0.7.211 — 2026-09-20
 
-- Advanced the exact shared engine to LINK 0.15.32, retaining the Vehicle Research implementation and Infiltratr Common 1.19.10.
+- Advanced the exact shared engine to Link 0.15.32, retaining the Vehicle Research implementation and Libraries 1.19.10.
 - Published the repository-wide 2000-2026 copyright normalization already present on main.
 - No diagnostic protocol, transport, safety, Mercedes evidence, polling or user-facing research behaviour changed from 0.7.210.
 
 ## 0.7.210 — 2026-09-20
 
-- Advanced the exact shared automotive engine to LINK 0.15.31 while retaining Infiltratr Common 1.19.10.
-- Pulled LINK's portable Vehicle Research session state and typed research evidence timeline into MBLINK without duplicating the generic implementation.
-- Upgraded MBLINK Discover on Windows with shared passive-capture, standards-inventory and Mercedes FULL SWEEP phase tracking, operator event markers and Vehicle Research JSONL export summaries.
+- Advanced the exact shared automotive engine to Link 0.15.31 while retaining Libraries 1.19.10.
+- Pulled Link's portable Vehicle Research session state and typed research evidence timeline into MBLink without duplicating the generic implementation.
+- Upgraded MBLink Discover on Windows with shared passive-capture, standards-inventory and Mercedes FULL SWEEP phase tracking, operator event markers and Vehicle Research JSONL export summaries.
 - Preserved the existing Mercedes-owned sweep plan and deny-by-default write/control boundary; the research workflow remains read-oriented.
 
 ## 0.7.209 — 2026-09-20
 
-- Advanced the exact shared automotive engine to LINK 0.15.30 and therefore Infiltratr Common 1.19.10.
-- Replaced the duplicated Linux Night palette, shared typography names/weights and matching design metrics in MBLINK's GTK face with Common 1.19.10's canonical native design contract while preserving the exact visible Night appearance.
-- Kept only genuinely MBLINK-specific cockpit/trace gradients and Mercedes presentation details local; Common now supplies the product-neutral titlebar, connection, heading, summary, kicker, detail, note, status, accent and state-border roles.
+- Advanced the exact shared automotive engine to Link 0.15.30 and therefore Libraries 1.19.10.
+- Replaced the duplicated Linux Night palette, shared typography names/weights and matching design metrics in MBLink's GTK face with Common 1.19.10's canonical native design contract while preserving the exact visible Night appearance.
+- Kept only genuinely MBLink-specific cockpit/trace gradients and Mercedes presentation details local; Common now supplies the product-neutral titlebar, connection, heading, summary, kicker, detail, note, status, accent and state-border roles.
 - Reused Common's canonical MB Corpo CMake provenance for archive/file names and hashes instead of maintaining a second CMake copy of that metadata.
 - Preserved the distinct iPhone and Windows product presentation contracts rather than mechanically replacing non-equivalent styling.
 
 ## 0.7.208 — 2026-09-19
 
-- Advanced the exact shared engine to LINK 0.15.29 while retaining Infiltratr Common 1.19.8.
-- Completed the MBLINK-side forensic reuse pass: Linux replay parsing, canonical array sizing, bounded string copies, checked timestamp arithmetic, Mercedes UDS endian access and embedded array sizing now use the corresponding Common contracts where those contracts exactly match the existing behaviour.
-- Switched the Apple standard OBD-II scalar text path to LINK's shared deterministic formatter so iPhone and Linux no longer reconstruct the same unit/precision policy independently.
-- Left Mercedes-specific variable-width decoding, CAN identifier composition, protocol state and evidence logic in MBLINK where Common/LINK do not provide a semantically equivalent contract.
+- Advanced the exact shared engine to Link 0.15.29 while retaining Libraries 1.19.8.
+- Completed the MBLink-side forensic reuse pass: Linux replay parsing, canonical array sizing, bounded string copies, checked timestamp arithmetic, Mercedes UDS endian access and embedded array sizing now use the corresponding Common contracts where those contracts exactly match the existing behaviour.
+- Switched the Apple standard OBD-II scalar text path to Link's shared deterministic formatter so iPhone and Linux no longer reconstruct the same unit/precision policy independently.
+- Left Mercedes-specific variable-width decoding, CAN identifier composition, protocol state and evidence logic in MBLink where Common/Link do not provide a semantically equivalent contract.
 
 ## 0.7.207 — 2026-09-19
 
-- Upgraded the exact shared engine dependency to LINK 0.15.28 and Infiltratr Common 1.19.8.
-- Replaced Linux product-local OBD-II value, decoded-PID and fuel-economy formatting with LINK's shared preference-aware presentation contracts.
-- Reused Common's strict ranged integer parser, checked dynamic-array growth helper and canonical array-length primitive in MBLINK-owned code.
-- Moved the Mercedes identity-first module scanner out of multi-thousand-line public inline headers into a normal MBLINK translation unit while retaining the existing API and state-machine behaviour.
+- Upgraded the exact shared engine dependency to Link 0.15.28 and Libraries 1.19.8.
+- Replaced Linux product-local OBD-II value, decoded-PID and fuel-economy formatting with Link's shared preference-aware presentation contracts.
+- Reused Common's strict ranged integer parser, checked dynamic-array growth helper and canonical array-length primitive in MBLink-owned code.
+- Moved the Mercedes identity-first module scanner out of multi-thousand-line public inline headers into a normal MBLink translation unit while retaining the existing API and state-machine behaviour.
 - Kept the portable diagnostic core C11-first; no C++ runtime or duplicate OO layer was introduced.
 
 
@@ -537,11 +537,11 @@ This file records user-visible, compatibility, diagnostic-knowledge and validati
 - Fixed DID-lab unsigned parsing so negative timestamps and tolerances are rejected, and made CSV floating-point parsing use Common's strict finite parser.
 - Removed signed overflow from extreme signal-correlation lag stepping and added boundary regression coverage.
 - Reused Common's alignment-safe endian readers in Mercedes transmission, DiagLogic and data-scan decoding.
-- Upgraded the exact shared engine dependency to LINK 0.15.25, which in turn pins Infiltratr Common 1.19.3.
+- Upgraded the exact shared engine dependency to Link 0.15.25, which in turn pins Libraries 1.19.3.
 - Linux live-data profiles now start with every real-vehicle channel OFF and store standard selections per VIN rather than globally.
 - Linux Dashboard, Graphs and Table now follow the same explicit selected-channel model; selected graph channels remain visible while awaiting their first sample.
-- Removed the old fixed eight-graph product limit and use LINK's runtime-selected graph configuration.
-- Reused LINK's shared ELM327 CAN address formatting in Mercedes scanners instead of maintaining parallel ATSH/ATCRA formatters.
+- Removed the old fixed eight-graph product limit and use Link's runtime-selected graph configuration.
+- Reused Link's shared ELM327 CAN address formatting in Mercedes scanners instead of maintaining parallel ATSH/ATCRA formatters.
 - Canonical documentation baseline aligned with the Infiltrator project family.
 
 ## Policy

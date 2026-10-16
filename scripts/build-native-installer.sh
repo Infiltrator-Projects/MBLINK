@@ -16,6 +16,6 @@ export LINK_NATIVE_PACKAGE_NAME='mblink'
 export LINK_NATIVE_CMAKE_ENABLE_OPTION='MBLINK_BUILD_LINUX_APP'
 export LINK_NATIVE_CMAKE_PROFILE_OPTION='MBLINK_BUILD_PROFILE'
 export LINK_NATIVE_CMAKE_PACKAGE_VERSION_OPTION='MBLINK_PACKAGE_VERSION'
-export LINK_NATIVE_LEGACY_CLEANUP_PATHS='/usr/local/bin/mblink-linux:/usr/local/share/icons/hicolor/180x180/apps/mblink.png:/usr/local/share/pixmaps/mblink.png:/usr/local/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop:/usr/local/share/doc/mblink'
+export LINK_NATIVE_LEGACY_CLEANUP_PATHS='/usr/local/bin/mblink-linux:/usr/local/share/icons/hicolor/180x180/apps/mblink.png:/usr/local/share/pixmaps/mblink.png:/usr/local/share/applications/com.github.The-First-Infiltrator.MBLink.desktop:/usr/local/share/doc/mblink'
 
 exec "$builder" "$project_root" "$output"

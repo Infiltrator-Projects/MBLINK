@@ -3,7 +3,7 @@
  * @file obd2.c
  * @brief iOS bridge to LINK's shared OBD-II implementation.
  *
- * CMake consumers link LINK::Core. The Xcode target still lists this product
+ * CMake consumers link Link::Core. The Xcode target still lists this product
  * path, so iOS compiles LINK's canonical Apple OBD-II entry point while the
  * product retains only the real Swift-visible MBLINK facade symbols below.
  */

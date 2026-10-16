@@ -230,7 +230,7 @@ static void build_metrics_css(
         "entry, entry *, textview, textview *, textview text, .monospace, .monospace *, .link-terminal, .link-terminal *, .link-log, .link-log * { font-size: 13px; }");
 
     /*
-     * Cockpit/trace background composition remains deliberately MBLINK-specific.
+     * Cockpit/trace background composition remains deliberately MBLink-specific.
      * Semantic border/text roles stay on Common so the product cannot drift
      * away from the Infiltratr visual contract as the shared palette evolves.
      */

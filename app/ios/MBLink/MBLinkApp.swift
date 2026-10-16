@@ -412,7 +412,7 @@ private var mblinkAboutInfo: LinkDiagnosticAboutInfo {
 }
 
 @main
-struct MBLINKApp: App {
+struct MBLinkApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var connection = ConnectionViewModel()
     @State private var showingAbout = false

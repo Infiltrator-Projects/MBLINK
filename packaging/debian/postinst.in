@@ -10,7 +10,7 @@ case "${1:-configure}" in
             /usr/local/bin/mblink-linux \
             /usr/local/share/icons/hicolor/180x180/apps/mblink.png \
             /usr/local/share/pixmaps/mblink.png \
-            /usr/local/share/applications/com.github.The-First-Infiltrator.MBLINK.desktop
+            /usr/local/share/applications/com.github.The-First-Infiltrator.MBLink.desktop
         rm -rf /usr/local/share/doc/mblink
         ;;
 esac

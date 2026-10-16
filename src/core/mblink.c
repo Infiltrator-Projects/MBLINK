@@ -14,7 +14,7 @@
 /*
  * Apple now compiles the pinned LINK implementation files as normal Xcode
  * translation units.  This keeps LINK file-local symbols isolated exactly as
- * they are in LINK::Core instead of amalgamating them into this product source.
+ * they are in Link::Core instead of amalgamating them into this product source.
  */
 
 static const InfiltratrProjectInfo mblink_project_info_record = {
@@ -22,7 +22,7 @@ static const InfiltratrProjectInfo mblink_project_info_record = {
     .abi_version = INFILTRATR_PROJECT_INFO_ABI,
     .program_name = "MBLink",
     .executable_name = "mblink",
-    .application_id = "com.github.The-First-Infiltrator.MBLINK",
+    .application_id = "com.github.The-First-Infiltrator.MBLink",
     .version = MBLINK_VERSION,
     .source_id = "Infiltrator-Projects/MBLink",
     .build_profile = MBLINK_BUILD_PROFILE,

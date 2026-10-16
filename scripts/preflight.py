@@ -56,7 +56,7 @@ def check_versions() -> str:
     if not match or match.group(1) != version:
         fail("include/mblink/version.h does not match VERSION")
 
-    project = (ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj").read_text(
+    project = (ROOT / "app/ios/MBLink.xcodeproj/project.pbxproj").read_text(
         encoding="utf-8"
     )
     marketing = sorted(set(re.findall(r"MARKETING_VERSION = ([^;]+);", project)))
@@ -87,7 +87,7 @@ def check_gitlinks() -> None:
     actual_sha = run("git", "-C", "src/link", "rev-parse", "HEAD").stdout.strip()
     if actual_sha != expected_sha:
         fail(f"Link checkout mismatch: expected {expected_sha}, found {actual_sha}")
-    project = (ROOT / "app/ios/MBLINK.xcodeproj/project.pbxproj").read_text()
+    project = (ROOT / "app/ios/MBLink.xcodeproj/project.pbxproj").read_text()
     revisions = [
         re.search(r"[0-9a-f]{40}", line)
         for line in project.splitlines()

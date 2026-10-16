@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /*
- * Workspace ownership lives in LINK. These aliases preserve the MBLINK-facing
+ * Workspace ownership lives in LINK. These aliases preserve the MBLink-facing
  * source API while every front end consumes the same shared model.
  */
 typedef LinkWorkspaceSection MblinkWorkspaceSection;

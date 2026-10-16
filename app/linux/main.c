@@ -3077,7 +3077,7 @@ int main(int argc, char **argv)
         "See LICENSE in the source package for the complete licence text.";
     about_info.credits = "Shannon Smith — Author and project maintainer";
 
-    descriptor.app_id = "com.github.The-First-Infiltrator.MBLINK";
+    descriptor.app_id = "com.github.The-First-Infiltrator.MBLink";
     descriptor.window_title = replay_mode
         ? "MBLink · C207 Offline Replay"
         : "MBLink · Mercedes-Benz Diagnostics";
