@@ -114,11 +114,10 @@ jobs:
           set -euo pipefail
           archive=archive/reviewed-experiments-20261016
           archive_sha=b3a898ba502ae66ebd64202c53a299de5543c07b
-          found=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$archive" --jq '.object.sha' 2>/dev/null || true)
-          if [[ -z "$found" ]]; then
-            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$archive" -f sha="$archive_sha" >/dev/null
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$archive" --jq '.object.sha // empty' > "$RUNNER_TEMP/archive-sha"; then
+            test "$(cat "$RUNNER_TEMP/archive-sha")" = "$archive_sha"
           else
-            test "$found" = "$archive_sha"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$archive" -f sha="$archive_sha" >/dev/null
           fi
           git fetch origin "refs/tags/$archive:refs/tags/$archive" '+refs/heads/*:refs/remotes/origin/*'
           test "$(git rev-parse "refs/tags/$archive^{commit}")" = "$archive_sha"
