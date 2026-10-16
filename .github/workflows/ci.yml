@@ -53,6 +53,31 @@ jobs:
       - run: ctest --test-dir build --build-config Release --output-on-failure
       - run: python3 tests/test_whisper_recover.py
 
+      - name: Seal qualified core candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < VERSION)
+          out="$RUNNER_TEMP/qualified-core"
+          source_root=$(mktemp -d)
+          staging="$source_root/MBLINK-$version"
+          trap 'rm -rf "$source_root"' EXIT
+          mkdir -p "$out" "$staging"
+          git archive HEAD | tar -x -C "$staging"
+          export ARCHIVE_ROOT="$staging"
+          git submodule foreach --recursive 'mkdir -p "$ARCHIVE_ROOT/$displaypath"; git archive HEAD | tar -x -C "$ARCHIVE_ROOT/$displaypath"'
+          (cd "$source_root" && zip -qry "$out/MBLINK-$version-source.zip" "MBLINK-$version")
+          unzip -tq "$out/MBLINK-$version-source.zip"
+
+          printf '%s\n' "$GITHUB_SHA" > "$out/SOURCE_COMMIT-core"
+          (cd "$out" && sha256sum MBLINK-* > SHA256SUMS-core)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qualified-core
+          path: ${{ runner.temp }}/qualified-core/*
+          if-no-files-found: error
+          retention-days: 30
+
   sanitizers:
     name: Linux / ASan + UBSan
     needs: preflight
@@ -70,24 +95,27 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
   linux-app:
-    name: Linux / GTK4 app
+    name: Package Linux release
     needs: preflight
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake libgtk-4-dev libbluetooth-dev \
+            build-essential cmake dpkg-dev libgtk-4-dev libbluetooth-dev \
             libusb-1.0-0-dev pkg-config xvfb xauth
 
-      - name: Configure and build Linux app
+      - name: Build and verify Linux app
+        shell: bash
         run: |
+          set -euo pipefail
           cmake -S . -B build-linux \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
@@ -95,58 +123,91 @@ jobs:
             -DMBLINK_BUILD_PROFILE=generic \
             -DBUILD_TESTING=OFF
           cmake --build build-linux --parallel
-
-      - name: Verify native Tactrix provider is linked
-        shell: bash
-        run: |
-          set -euo pipefail
           ldd ./build-linux/mblink-linux | grep -F 'libusb-1.0.so' >/dev/null
           grep -aF 'OP2:Tactrix OpenPort 2.0' ./build-linux/mblink-linux >/dev/null
-
-      - name: Verify independent display preferences
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./build-linux/mblink-linux --ui-settings-verify | tee "$RUNNER_TEMP/settings-verify.log"
-          grep -Fq 'MBLINK settings verified: OFF-by-default vehicle selection + 8 measurement preferences' "$RUNNER_TEMP/settings-verify.log"
-
-      - name: Verify offline C207 replay reaches visible ORC fault
-        shell: bash
-        run: |
-          set -euo pipefail
-          log="$RUNNER_TEMP/c207-replay.log"
+          ./build-linux/mblink-linux --ui-settings-verify
           GTK_A11Y=none timeout 60s xvfb-run -a \
-            ./build-linux/mblink-linux --replay-c207-verify | tee "$log"
-          grep -Fq 'MBLINK replay verified: ORC seatbelt/airbag fault B00013 visible' "$log"
+            ./build-linux/mblink-linux --replay-c207-verify
+          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 60s xvfb-run -a \
+            ./build-linux/mblink-linux --ui-navigation-stress
 
-      - name: Stress disconnected sidebar navigation
+      - name: Sanitized GTK navigation soak
         shell: bash
         run: |
           set -euo pipefail
-          log="$RUNNER_TEMP/navigation-stress.log"
-          GTK_A11Y=none G_DEBUG=fatal-warnings timeout 60s \
-            xvfb-run -a ./build-linux/mblink-linux --ui-navigation-stress | tee "$log"
-          grep -Fq 'LINK GTK timed navigation stress verified:' "$log"
-          grep -Fq 'sidebar selections while disconnected with main-loop interleaving' "$log"
+          cmake -S . -B build-linux-sanitized \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DMBLINK_BUILD_LINUX_APP=ON \
+            -DMBLINK_ENABLE_SANITIZERS=ON \
+            -DMBLINK_BUILD_PROFILE=generic \
+            -DBUILD_TESTING=OFF
+          cmake --build build-linux-sanitized --parallel --target mblink-linux
+          GTK_A11Y=none \
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
+            UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+            timeout 90s xvfb-run -a ./build-linux-sanitized/mblink-linux \
+            --ui-navigation-stress
+
+      - name: Package DEB and native RUN
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/cpack"
+          cpack --config build-linux/CPackConfig.cmake -G DEB -B "$RUNNER_TEMP/cpack"
+          deb_src="$(find "$RUNNER_TEMP/cpack" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb_src"
+          dpkg-deb -c "$deb_src" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
+          dpkg-deb -c "$deb_src" | grep -F './usr/share/doc/mblink/copyright' >/dev/null
+          dpkg-deb -f "$deb_src" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
+          install -m 0644 "$deb_src" "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-amd64.deb"
+
+          scripts/build-native-installer.sh "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run"
+          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" --help >/dev/null
+          native_deb="$RUNNER_TEMP/mblink_${VERSION}+native1_amd64.deb"
+          "$RUNNER_TEMP/release/MBLINK-${VERSION}-linux-native.run" \
+            --build-only --output "$native_deb"
+          test "$(dpkg-deb -f "$native_deb" Package)" = mblink
+          test "$(dpkg-deb -f "$native_deb" Version)" = "${VERSION}+native1"
+          dpkg-deb -c "$native_deb" | grep -F './usr/lib/udev/rules.d/60-mblink-openport2.rules' >/dev/null
+          dpkg-deb -f "$native_deb" Depends | grep -E '(^|, )libusb-1\.0-0([ (]|,|$)' >/dev/null
+
+      - name: Seal the qualified Linux packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/release/SOURCE_COMMIT-linux"
+          (cd "$RUNNER_TEMP/release" && sha256sum MBLINK-* > SHA256SUMS-linux)
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qualified-linux
+          path: ${{ runner.temp }}/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
   windows:
-    name: Windows / Discover
+    name: Package Windows release
     needs: preflight
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
 
-      - name: Configure and build Win32 app
+      - name: Build MBLINK Discover
         shell: powershell
         run: |
           cmake -S . -B build-win32 -A Win32 -DCMAKE_BUILD_TYPE=Release `
             -DMBLINK_BUILD_WINDOWS_DISCOVER=ON -DBUILD_TESTING=OFF
           cmake --build build-win32 --config Release --target mblink-discover --parallel
 
-      - name: Verify executable metadata and launch
+      - name: Verify and stage executable
         shell: powershell
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -174,6 +235,26 @@ jobs:
 
           & 'src/link/platform/windows/smoke-launch.ps1' `
             -Executable $exe -ExpectedTitle 'MBLINK Discover'
+
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item $exe "release-assets/MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe"
+
+      - name: Seal the qualified Windows executable
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'MBLINK-${{ needs.preflight.outputs.version }}-windows-discover.exe'
+          $hash = (Get-FileHash "release-assets/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content release-assets/SHA256SUMS-windows -Encoding ascii -NoNewline
+          $env:GITHUB_SHA | Set-Content release-assets/SOURCE_COMMIT-windows -Encoding ascii -NoNewline
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qualified-windows
+          path: release-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
   apple-ios:
     name: Apple / C11 + iOS simulator
@@ -311,3 +392,38 @@ jobs:
             exit 1
           fi
           xcrun simctl terminate "$udid" com.github.The-First-Infiltrator.MBLINK
+      - name: Build unsigned device IPA
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/derived-device"
+          xcodebuild -project app/ios/MBLINK.xcodeproj -scheme MBLINK \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            MARKETING_VERSION="$VERSION" MBLINK_SOURCE_REVISION="$REVISION" build
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          ditto "$derived/Build/Products/Release-iphoneos/MBLINK.app" \
+            "$RUNNER_TEMP/package/Payload/MBLINK.app"
+          (cd "$RUNNER_TEMP/package" && \
+            zip -qry "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa" Payload)
+          unzip -tq "$RUNNER_TEMP/MBLINK-${VERSION}-unsigned.ipa"
+
+      - name: Seal the qualified iPhone package
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/qualified-iphone"
+          mkdir -p "$out"
+          cp "$RUNNER_TEMP/MBLINK-${{ needs.preflight.outputs.version }}-unsigned.ipa" "$out/"
+          printf '%s\n' "$GITHUB_SHA" > "$out/SOURCE_COMMIT-iphone"
+          (cd "$out" && shasum -a 256 MBLINK-* > SHA256SUMS-iphone)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qualified-iphone
+          path: ${{ runner.temp }}/qualified-iphone/*
+          if-no-files-found: error
+          retention-days: 30

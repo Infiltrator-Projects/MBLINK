@@ -109,7 +109,7 @@ def check_release_structure() -> None:
     workflows = ROOT / ".github/workflows"
     required = {
         "ci.yml": "ordinary CI",
-        "release.yml": "explicit release publication",
+        "release.yml": "qualified artifact publication",
         "apt-publication.yml": "downstream APT publication",
     }
     for filename, purpose in required.items():
@@ -135,10 +135,12 @@ def check_release_structure() -> None:
         fail("ordinary CI must not infer or publish releases: " + ", ".join(leaked))
 
     release = (workflows / "release.yml").read_text(encoding="utf-8")
-    if "workflow_dispatch:" not in release:
-        fail("release publication must remain an explicit workflow dispatch")
-    if "Publish atomic GitHub release" not in release:
-        fail("release workflow must retain one explicit publication job")
+    if "workflow_run:" not in release or 'workflows: ["MBLINK CI"]' not in release:
+        fail("publication must follow the complete successful MBLINK CI run")
+    if "actions/download-artifact@" not in release or "github.event.workflow_run.id" not in release:
+        fail("publication must consume artifacts from the exact qualified CI run")
+    if any(token in release for token in ("cmake --build", "xcodebuild ", "cpack --config")):
+        fail("publication must not rebuild qualified artifacts")
 
     apt = (workflows / "apt-publication.yml").read_text(encoding="utf-8")
     if "types: [published]" not in apt:

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.293 — 2026-10-16
+
+- Keep connection-lifecycle regression checks executable in optimized builds.
+- Make CI the only artifact producer; publish exact qualified bytes without duplicate builds or a manual version/ref control plane.
+- Preserve reviewed experimental history while retaining the current typed-state and ECU ownership design; retire integrated branches using exact-head leases.
+- Correct validation references to the maintained workflows.
+
 ## 0.7.292 — 2026-10-12
 
 - Split iPhone diagnostic presentation/persistence concerns out of ConnectionViewModel into typed domain services for UDS catalogue projection, manufacturer selection persistence and DTC resolution; keep a strongly typed MBLINK controller reference instead of force-casting the generic controller.

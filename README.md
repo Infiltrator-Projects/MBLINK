@@ -169,15 +169,7 @@ Release notes derive the LINK and Common versions from that exact dependency tre
 
 ## Repository and release policy
 
-This repository uses `main` as its working branch. Development changes may be made directly on `main`; the normal project workflow does not require feature or release branches. Pull requests are also validated by the same CI when they are used.
-
-Every push to `main` runs MBLINK CI. CI is validation only: commit subjects have no release semantics and ordinary development activity can never publish a release.
-
-A numbered release is started explicitly with the `MBLINK Release` workflow. The requested version must exactly match `VERSION`, and the selected source revision must belong to `main`. The release workflow rebuilds and verifies the supported platform packages from that exact revision, verifies the complete artifact set and checksums, stages the GitHub release as a draft, and publishes it only after every required artifact is present. Existing version tags and published releases are immutable and are never moved or replaced.
-
-APT publication is downstream of the GitHub `release: published` event. It cannot make an ordinary CI run into a release and cannot change the source revision that was published.
-
-Manually runnable build/smoke workflows remain diagnostic helpers; `MBLINK Release` is the single publication authority.
+Development stays on `main`. `VERSION` identifies release intent. Complete CI qualifies the exact source and distributables once; the publisher consumes those artifacts and byte-verifies the draft before public release. Published tags and assets remain immutable. See [Validation](docs/VALIDATION.md) for the qualification boundaries.
 
 ## Engineering rules
 
