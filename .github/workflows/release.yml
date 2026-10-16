@@ -105,4 +105,3 @@ jobs:
           verify_remote
           git fetch origin "refs/tags/$tag:refs/tags/$tag"
           test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$EXPECTED_SHA"
-
