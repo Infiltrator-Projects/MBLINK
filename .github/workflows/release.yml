@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           archive=archive/reviewed-experiments-20261016
-          archive_sha=b3a898ba502ae66ebd64202c53a299de5543c07b
+          archive_sha=36724afe1ac2b70dab6fbd54c6e70f5101efe089
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$archive" --jq '.object.sha // empty' > "$RUNNER_TEMP/archive-sha"; then
             test "$(cat "$RUNNER_TEMP/archive-sha")" = "$archive_sha"
           else
